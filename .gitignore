@@ -1,0 +1,21 @@
+# Python environments and generated files
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Editors and operating systems
+.DS_Store
+.idea/
+.vscode/
+
+# Dissertation source and generated data
+# Keep datasets outside Git; document how to obtain or regenerate them.
+LiDAR_Years_All/
+lidar_data_29jun/
+data/raw/
+data/interim/
+data/processed/
