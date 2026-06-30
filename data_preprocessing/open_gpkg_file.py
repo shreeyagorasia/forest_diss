@@ -1,12 +1,6 @@
-"""Read the LiDAR GeoPackage and save its attribute table as a CSV.
+"""Extract the active LiDAR GeoPackage attribute table to CSV.
 
-This is the simple GeoPandas approach. It loads the complete layer into memory.
-
-Install GeoPandas once if it is not already installed:
-
-    python -m pip install geopandas
-
-Then run this file:
+Run from anywhere with:
 
     python data_preprocessing/open_gpkg_file.py
 """
@@ -16,33 +10,38 @@ from pathlib import Path
 import geopandas as gpd
 
 
-# __file__ is the location of this Python file. Its parent directory is
-# data_preprocessing, and parents[1] is the forest_diss project directory.
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-
-# Input GeoPackage and output CSV locations.
-GPKG_PATH = PROJECT_ROOT / "LiDAR_Years_All" / "LiDAR_Years_All.gpkg"
-CSV_PATH = PROJECT_ROOT / "LiDAR_Years_All" / "LiDAR_Years_All_attributes.csv"
-
-# This GeoPackage contains one feature layer called LiDAR_Years.
+GPKG_PATH = PROJECT_ROOT / "data" / "raw" / "LiDAR_Years.gpkg"
+CSV_PATH = PROJECT_ROOT / "data" / "interim" / "LiDAR_Years_attributes.csv"
 LAYER_NAME = "LiDAR_Years"
 
 
-# Read the layer into a GeoDataFrame. A GeoDataFrame is like a pandas
-# DataFrame, but it also has a geometry column containing the polygons.
-gdf = gpd.read_file(GPKG_PATH, layer=LAYER_NAME)
+def main() -> None:
+    """Read attributes without geometry and save them as an interim CSV."""
+    if not GPKG_PATH.exists():
+        raise FileNotFoundError(f"Active GeoPackage not found: {GPKG_PATH}")
 
-print(f"Rows: {len(gdf):,}")
-print(f"Columns: {len(gdf.columns)}")
-print(f"Coordinate reference system: {gdf.crs}")
+    available_layers = set(gpd.list_layers(GPKG_PATH)["name"])
+    if LAYER_NAME not in available_layers:
+        raise ValueError(
+            f"Layer {LAYER_NAME!r} not found. Available layers: "
+            f"{sorted(available_layers)}"
+        )
 
-# Create an ordinary pandas DataFrame containing only the attribute columns.
-# The polygons are not deleted from the GeoPackage; they are only omitted from
-# the CSV because CSV files are not spatial files.
-attribute_table = gdf.drop(columns="geometry")
+    # Geometry stays safely in the GeoPackage; only attributes go into the CSV.
+    attribute_table = gpd.read_file(
+        GPKG_PATH,
+        layer=LAYER_NAME,
+        ignore_geometry=True,
+    )
 
-# Save the complete attribute table. index=False prevents pandas from adding an
-# extra numbered column to the CSV.
-attribute_table.to_csv(CSV_PATH, index=False)
+    CSV_PATH.parent.mkdir(parents=True, exist_ok=True)
+    attribute_table.to_csv(CSV_PATH, index=False)
 
-print(f"Saved attribute table to: {CSV_PATH}")
+    print(f"Rows: {len(attribute_table):,}")
+    print(f"Columns: {len(attribute_table.columns)}")
+    print(f"Saved active attribute table to: {CSV_PATH}")
+
+
+if __name__ == "__main__":
+    main()

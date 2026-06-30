@@ -19,3 +19,6 @@ lidar_data_29jun/
 data/raw/
 data/interim/
 data/processed/
+
+# Archived datasets are also local and too large for Git.
+legacy_code/data/

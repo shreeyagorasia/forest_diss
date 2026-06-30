@@ -4,19 +4,22 @@ Code and notebooks for investigating and preprocessing data for a forestry disse
 
 ## Repository structure
 
-- `data_preprocessing/`: reusable preprocessing scripts
-- `notebooks/`: exploratory analysis notebooks
+- `data/raw/`: active source data, excluded from Git
+- `data/interim/`: generated attribute tables, excluded from Git
+- `data/processed/`: future analysis-ready data, excluded from Git
+- `data_preprocessing/`: preprocessing for the active dataset
+- `notebooks/`: notebooks for the active dataset
+- `legacy_code/`: archived 29 June data workflow and notebooks
 
 ## Data
 
-The source and generated datasets are not committed to Git. In particular, the local
-`LiDAR_Years_All/` directory is intentionally ignored because its files are too large
-for an ordinary source-code repository.
+The source and generated datasets are not committed to Git because they are too
+large for an ordinary source-code repository.
 
 Place the source GeoPackage at:
 
 ```text
-LiDAR_Years_All/LiDAR_Years_All.gpkg
+data/raw/LiDAR_Years.gpkg
 ```
 
 ## Environment
@@ -37,5 +40,20 @@ Extract the GeoPackage attribute table as CSV:
 python data_preprocessing/open_gpkg_file.py
 ```
 
-The output is written to `LiDAR_Years_All/LiDAR_Years_All_attributes.csv` and remains
-local because the whole data directory is ignored.
+The output is written to `data/interim/LiDAR_Years_attributes.csv` and remains
+local because the data directory is ignored.
+
+## Legacy workflow
+
+The previous dataset, preprocessing script, and exploratory notebook are archived
+under `legacy_code/`. The main legacy notebook is:
+
+```text
+legacy_code/notebooks/lidar_years_all_29thjun.ipynb
+```
+
+It reads the archived CSV from:
+
+```text
+legacy_code/data/LiDAR_Years_All_29thjune/LiDAR_Years_All_attributes.csv
+```
