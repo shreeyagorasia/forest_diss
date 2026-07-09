@@ -1,24 +1,24 @@
 \chapter{Planned and Preliminary Results}
 \label{ch:results}
 
-This chapter is a draft. The terrain and wind extraction, the CR parameter fit on the current cleaned cohorts, and all model training described in Chapter~\ref{ch:methodology} have not been completed at the time of writing. The tables below are placeholders showing the intended reporting format. The figures are examples from an earlier version of the Aberfoyle dataset and workflow, included to show the type of output planned, not as final results.
+This chapter is a draft. The terrain and wind extraction, the CR fit on the current cohorts, and all model training in Chapter~\ref{ch:methodology} have not run yet. The tables below show the intended reporting format. The figures are examples from an earlier version of the Aberfoyle dataset and workflow, shown to illustrate the planned output, not as final results.
 
 \section{Trajectory analysis and spatial structure}
 
 \subsection*{Chapman-Richards baseline fit}
 
-Figure~\ref{fig:cr-example} shows the intended output format for the CR baseline: observed height-age trajectories for individual plots plotted against a fitted CR curve. The curve shown uses provisional parameters from an earlier exploratory pass and has not been refitted on the current cleaned four-survey cohort.
+Figure~\ref{fig:cr-example} shows the intended format: observed height-age trajectories for individual plots against a fitted CR curve. The curve shown uses provisional parameters from an earlier exploratory pass, not the current cleaned four-survey cohort.
 
 \begin{figure}[h]
 \centering
 \includegraphics[width=\textwidth]{figures/legacy_examples/cr_trajectories_example.png}
-\caption{Example figure from an earlier Aberfoyle dataset/workflow. Included to illustrate the planned analysis; not a final result. Observed Sitka spruce height-age trajectories for six example plots against a provisional Chapman-Richards curve fitted during exploratory analysis on a prior GeoPackage version.}
+\caption{Example figure from an earlier Aberfoyle dataset/workflow. Included to illustrate the planned analysis; not a final result. Observed Sitka spruce height-age trajectories for six example plots against a provisional Chapman-Richards curve, fitted during exploratory analysis on a prior GeoPackage version.}
 \label{fig:cr-example}
 \end{figure}
 
 \subsection*{Distribution checks by survey year}
 
-Figure~\ref{fig:canopy-example} shows the intended format for checking whether a variable's distribution is stable or shifting across survey years, here for canopy cover on an earlier dataset version. The equivalent check for \texttt{Top\_Height95} on the current cleaned cohorts is outstanding.
+Figure~\ref{fig:canopy-example} shows the intended format for checking whether a variable's distribution shifts across survey years, here for canopy cover on an earlier dataset version. The same check for \texttt{Top\_Height95} on the current cohorts is outstanding.
 
 \begin{figure}[h]
 \centering
@@ -41,7 +41,7 @@ Number of LISA high-high clusters & TODO \\
 Number of LISA low-low clusters & TODO \\
 \bottomrule
 \end{tabular}
-\caption{Placeholder: Moran's I and LISA results, not yet computed on the current cleaned cohort.}
+\caption{Placeholder: Moran's I and LISA results, not yet computed on the current cohort.}
 \label{tab:moran-placeholder}
 \end{table}
 
@@ -81,6 +81,17 @@ Env-PINN v3 (full-conditioned) & & & & & \\
 \label{tab:model-comparison-placeholder}
 \end{table}
 
+\subsection*{Spatial map of growth ceilings (planned)}
+
+The main deliverable of this dissertation is a spatial map of Aberfoyle showing the learned growth ceiling $\hat{y}_{\max}(\mathbf{e})$ for each plot. Figure~\ref{fig:spatial-map-example} shows the kind of multi-panel spatial map planned, here coloured by observed top height in each survey year rather than by model output. The final version will replace this year-by-year layout with a model-by-model layout: one panel each for the CR baseline, XGB-B predicted residuals, the baseline PINN, and the Env-PINN. I plan to build this final figure directly on top of the map shown here, adding the Env-PINN growth-ceiling layer once that model is trained, so the spatial pattern of terrain-driven growth limits becomes visible alongside the raw height data already mapped.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{figures/legacy_examples/spatial_map_by_year_example.png}
+\caption{Example figure from an earlier Aberfoyle dataset/workflow. Included to illustrate the planned analysis; not a final result. Observed top height across Aberfoyle by LiDAR survey year, from an earlier exploratory pass on a prior GeoPackage version. The final dissertation figure will use this same map layout, but with one panel per model (CR, XGBoost, baseline PINN, Env-PINN) instead of one panel per year, so model outputs can be compared spatially. The Env-PINN panel, showing the learned growth ceiling $\hat{y}_{\max}(\mathbf{e})$, will be added once that model is trained.}
+\label{fig:spatial-map-example}
+\end{figure}
+
 \section{Synthesis (placeholder)}
 
-Once the above results exist, this section will report what fraction of between-plot growth variation terrain and wind features explain (from the XGB-B $R^2$), whether Moran's I on the XGBoost residuals drops relative to Moran's I on the raw CR residuals (a check on whether the features genuinely capture spatial structure rather than simply proximity), and what fraction of variation remains unexplained -- expected, based on the data audit in Chapter~\ref{ch:data}, to include a contribution from unrecorded thinning and management events.
+Once the results above exist, this section will report: the share of between-plot growth variation that terrain and wind explain (from the XGB-B $R^2$); whether Moran's I on the XGBoost residuals drops relative to Moran's I on the raw CR residuals, which would suggest the features capture real spatial structure rather than mere proximity; and what share of variation stays unexplained, expected to include a contribution from unrecorded thinning (Chapter~\ref{ch:data}).
