@@ -1,0 +1,87 @@
+% Dissertation draft: Environmental Drivers of Spatial Variation in Sitka
+% Spruce Growth Trajectories in Aberfoyle Forest.
+% Draft dated 10 July 2026. Built with the School of Informatics infthesis
+% class. This is a draft: it ignores the 40-page limit and is roughly
+% 10 pages of main content, per the current stage of the project.
+\documentclass[logo,msc]{infthesis}     % degree unspecified; add your degree option if known
+%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage{msccheck}
+
+% Packages that do not change the page layout or style.
+\usepackage{microtype}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{natbib} % author-year citations (\citep, \citet); does not alter page layout
+
+\begin{document}
+\begin{preliminary}
+
+\title{Environmental Drivers of Spatial Variation in Sitka Spruce Growth Trajectories in Aberfoyle Forest}
+
+\author{Shreeya Gorasia}
+
+\date{\today}
+
+\abstract{
+A standard Chapman-Richards growth curve assumes one growth ceiling for every
+plot in a forest. This is unrealistic where terrain and wind exposure vary
+sharply within the same forest, as they do across Aberfoyle's ridges, glens,
+and valley floors. This dissertation studies Chapman-Richards residuals for
+Sitka spruce plots in Aberfoyle, computed from airborne LiDAR-derived plot
+attributes at up to six survey years between 2002 and 2023, and asks whether
+terrain and wind exposure explain persistent over- or under-performance
+relative to the growth curve. Spatial clustering of residuals is tested with
+Moran's I, and XGBoost with SHAP is used as an interpretable, independent
+check on which terrain and wind features matter. The dissertation then
+proposes an environmentally conditioned physics-informed neural network
+(Env-PINN), in which the growth ceiling is learned from terrain and wind
+features rather than fixed globally, and compares its learned feature
+sensitivity against the SHAP ranking as a convergent validity check. This is
+a draft: terrain and wind feature extraction and model training are not yet
+complete, and results in this version are placeholders or illustrative
+figures from an earlier dataset and workflow, clearly marked as such.
+}
+
+\maketitle
+
+\newenvironment{ethics}
+   {\begin{frontenv}{Research Ethics Approval}{\LARGE}}
+   {\end{frontenv}\newpage}
+
+\begin{ethics}
+This project was planned in accordance with the Informatics Research
+Ethics policy. It did not involve any aspects that required approval
+from the Informatics Research Ethics committee. The project uses
+plot-level forest inventory and remote-sensing data supplied by Forest
+Research; it does not involve human participants.
+
+\standarddeclaration
+\end{ethics}
+
+
+\begin{acknowledgements}
+Thanks to Dr Suárez-Minguez for supervision and for access to the Aberfoyle
+LiDAR and inventory data.
+\end{acknowledgements}
+
+
+\tableofcontents
+\end{preliminary}
+
+
+\input{chapters/introduction}
+\input{chapters/background}
+\input{chapters/data}
+\input{chapters/methodology}
+\input{chapters/results}
+\input{chapters/discussion}
+\input{chapters/conclusion}
+\input{chapters/research_plan}
+
+\bibliographystyle{plainnat}
+\bibliography{mybibfile}
+
+\appendix
+\input{chapters/appendices}
+
+\end{document}

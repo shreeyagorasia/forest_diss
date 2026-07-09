@@ -1,0 +1,38 @@
+\chapter{Background}
+\label{ch:background}
+
+\section{Sitka spruce ecology}
+
+Sitka spruce needs at least 900--1000\,mm of annual rainfall. In Scottish conditions, growth is limited more by soil water deficit than by dry air \citep{morison2010UnderstandingGrowthSitka}. Wind exposure produces shorter, stockier trees through thigmomorphogenesis, a mechanical growth response to repeated flexing \citep{telewski2006UnifiedHypothesisMechanoperception}. \citet{worrell1987PredictingProductivitySitka} found Yield Class fell by roughly 3.2 to 4.0\,m\textsuperscript{3}/ha/yr per 100\,m of elevation gain in upland Scotland, with TOPEX (a wind shelter index) among the strongest predictors. Waterlogged soils reduce rooting depth and nutrient uptake \citep{forestresearch2026SitkaSpruce}; within one forest this is largely terrain-driven and is approximated here by the Topographic Wetness Index (TWI). These mechanisms are what an environmentally conditioned growth ceiling should reflect, though this dataset can only test their terrain signatures, not the mechanisms directly.
+
+\section{Chapman-Richards growth modelling}
+
+The Chapman-Richards equation \citep{pienaar1973ChapmanRichardsGeneralization} is a three-parameter sigmoid growth curve, widely used in UK forestry:
+\[
+y(t) = y_{\max} \left(1 - e^{-kt}\right)^{p}
+\]
+where $t$ is age, $y_{\max}$ is the maximum height, $k$ is a rate parameter, and $p$ is a shape parameter. Its main limit here is structural: fixed global parameters cannot represent plot-level variation. \citet{socha2021RegionalHeightGrowth} showed that letting the asymptote vary by region improved prediction accuracy for Scots pine. \citet{manso2022DiameterHeightVolume} found a clear but unexplained site effect between two Scottish Sitka spruce sites; with only two sites, they could not attribute the cause. That unresolved effect is close to this dissertation's question, with many more sites available. A more complex alternative, the 3-PG process model \citep{landsberg1997GeneralisedModelForest}, needs monthly climate inputs that Aberfoyle's irregular LiDAR surveys cannot supply, so CR remains the practical choice.
+
+\section{Terrain, wind, and water as growth controls}
+
+Climate and water availability are widely reported as dominant drivers of growth variation in conifer stands, and terrain mediates these effects locally: elevation affects temperature and frost exposure, slope and aspect affect radiation, and topographic position affects drainage. The clearest unobserved confounder is management: thinning changes canopy cover and apparent growth in ways that can look like an environmental effect when records are missing (Section~\ref{sec:data-leakage}).
+
+\section{LiDAR-derived forest attributes}
+
+Airborne LiDAR point clouds are processed into plot-level attributes such as top height, canopy cover, and volume, usually by taking percentiles of the return-height distribution within a plot \citep{tompalski2021EstimatingChangesForest}. This is the general approach behind the Aberfoyle data, though the exact acquisition platform is not confirmed (Section~\ref{sec:data-lidar}). Repeated surveys let growth be tracked directly, rather than inferred from one snapshot and an assumed curve.
+
+\section{Physics-informed neural networks}
+
+Physics-informed neural networks (PINNs) add a governing equation to a network's loss function, so the network is penalised for deviating from it \citep{raissi2019PhysicsinformedNeuralNetworks}. \citet{karniadakis2021PhysicsinformedMachineLearning} argue this improves data efficiency in small-data regimes, which matters given Aberfoyle's six timestamps. \citet{wesselkamp2024ProcessInformedNeuralNetworks} found process-informed networks outperformed both pure process models and pure neural networks, especially under data sparsity. \citet{jin2026KnowledgeGuidedMachine} call this knowledge-guided machine learning, and separate two strategies: shaping network structure, and shaping the loss function. The Env-PINN in Chapter~\ref{ch:methodology} uses both: a sub-network replaces the fixed $y_{\max}$, and the CR equation still constrains the loss.
+
+\section{XGBoost and SHAP}
+
+Gradient-boosted trees such as XGBoost \citep{chen2016XGBoostScalableTree} are a strong baseline for tabular ecological data. SHAP values \citep{lundberg2017UnifiedApproachInterpreting}, computed exactly for trees via TreeSHAP \citep{lundberg2020LocalExplanationsGlobal}, give a feature-importance ranking on a consistent mathematical basis. This dissertation fits XGBoost and SHAP before any neural network, so the features given to the Env-PINN are chosen from an explicit ranking, not assumption.
+
+\section{Spatial validation}
+
+Nearby plots tend to be more similar than distant ones. Moran's I \citep{moran1950NotesContinuousStochastic} tests whether a variable, here the mean CR residual per plot, is more spatially clustered than chance predicts. LISA \citep{anselin1995LocalIndicatorsSpatial} extends this to locate specific clusters. \citet{roberts2017CrossvalidationStrategiesData} show that random cross-validation overstates performance on spatially autocorrelated data, since training and test points end up close together. This motivates the spatial holdout validation used in Chapter~\ref{ch:methodology}.
+
+\section{Digital Twin context}
+
+Digital Twin frameworks for forestry combine live monitoring with predictive models for management decisions \citep{buonocore2022ProposalForestDigital}, with LSTM-based prediction shown as one route \citep{jiang2022DigitalTwinForest}. This dissertation does not build one. It aims to produce one input layer for a future one: a spatial map of learned, environmentally conditioned growth ceilings.

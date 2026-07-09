@@ -1,0 +1,29 @@
+\chapter{Discussion}
+\label{ch:discussion}
+
+This chapter is written ahead of the results it discusses, since terrain and wind extraction and model training are not yet complete (Chapter~\ref{ch:results}). It sets out how the expected results should be read, and what they would not prove.
+
+\section{What the expected results would mean}
+
+If terrain and wind features explain a meaningful share of the CR residual variation, and the Env-PINN's learned $\hat{y}_{\max}(\mathbf{e})$ agrees with the independent SHAP ranking, that would be reasonable evidence that some of Aberfoyle's plot-to-plot growth variation is linked to terrain and exposure, not just noise. It would not prove that terrain \emph{causes} the difference, since the analysis is observational: terrain is not randomly assigned to plots, and it correlates with unmeasured factors such as land-use history.
+
+\section{What attribution can and cannot prove}
+
+A significant Moran's I result would show that residuals cluster spatially. It would not, on its own, separate a genuine terrain effect from a proximity effect, since neighbouring plots share many unmeasured traits beyond terrain. This is why Moran's I is also planned on the XGBoost residuals, not just the raw CR residuals: if clustering drops once terrain and wind are included, that better supports the features capturing real structure, rather than just standing in for proximity.
+
+\section{Management and thinning as a confounder}
+
+Thinning is the most likely source of misleading results here. The \texttt{Thin} field only records whether a last-thinning year exists, not whether it affected the observed growth interval, and windthrow hazard class correlates with thinning status in ways that suggest management is not independent of terrain (Chapter~\ref{ch:data}). A plot classed as a persistent over-performer could, in some cases, simply have been thinned in a way the data does not capture. This cannot be fixed with the current data. It is a boundary on how strongly the results can be read, and requesting fuller management records from Forest Research is the highest-value follow-up (Section~\ref{sec:future-work}).
+
+\section{Limits from sparse timestamps and coarse climate data}
+
+Six survey years, with a nine-year gap between 2012 and 2021, limits the temporal sub-question. HadUK-Grid climate indices are averaged across each gap, so a single index cannot tell a bad year followed by a good one apart from steady moderate conditions; any claim about which interval mattered most for growth is descriptive, not a controlled comparison. HadUK-Grid, at 1\,km, is also coarse next to plot scale and may smooth over local terrain-driven microclimate. This is why it is used for forest-wide temporal indices, not spatial predictors, and why soil data is included only if extraction shows it varies meaningfully within the forest.
+
+\section{Practical value for a forest Digital Twin}
+
+Even with these limits, a spatial map of learned growth ceilings has direct use: it can flag plots where the CR baseline is likely wrong before a manager relies on it, without resurveying every stand. That is narrower than a full Digital Twin, but it is the kind of attribution layer such a system would need, and it is deliverable from the current dataset regardless of what the temporal question finds.
+
+\section{Future work}
+\label{sec:future-work}
+
+The single highest-value addition would be fuller thinning and felling records from Forest Research, so management events can be flagged directly rather than inferred from canopy cover and windthrow class. Three further extensions follow from the current design: replacing the CR physics loss with a process-based model such as 3-PG once monthly climate inputs are available; letting the growth-rate parameter $k$, not only $y_{\max}$, vary with interval-level climate; and running the Env-PINN forward under future climate scenarios once a suitable projection dataset is identified. None of these are part of the current scope.
