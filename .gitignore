@@ -3,6 +3,7 @@
 venv/
 __pycache__/
 *.py[cod]
+.claude
 
 # Jupyter
 .ipynb_checkpoints/
@@ -21,4 +22,5 @@ data/interim/
 data/processed/
 
 # Archived datasets are also local and too large for Git.
-legacy_code/data/
+legacy/**/data/
+legacy/**/*.gpkg
