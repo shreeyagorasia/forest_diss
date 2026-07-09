@@ -1,0 +1,62 @@
+\chapter{Methodology}
+\label{ch:methodology}
+
+The methodology is ordered from simplest to most complex. Each stage is intended to produce a result that stands on its own, so that if later stages are not completed the earlier stages still answer part of the research question.
+
+\section{Chapman-Richards baseline}
+
+CR parameters ($y_{\max}$, $k$, $p$) are fitted once by least squares across all plot-timestamp pairs in the four-survey cohort, using \texttt{Age} as the time input and \texttt{Top\_Height95} as the response. This single global fit is the baseline every later model is compared against, and it is also the source of the residuals used in the spatial analysis below.
+
+\section{CR residuals and trajectory classification}
+
+The residual $\varepsilon_{i,t}$ for each plot-timestamp pair is the observed height minus the CR-predicted height at that age (Section~\ref{ch:data}). Plots with at least two timestamps are summarised by their mean residual $\bar{\varepsilon}_i$ and classified into three groups: persistent under-performers ($\bar{\varepsilon}_i < -\delta$), CR-conformant plots ($|\bar{\varepsilon}_i| < \delta$), and persistent over-performers ($\bar{\varepsilon}_i > \delta$), where $\delta$ is a threshold of roughly 2\,m tuned from the residual distribution rather than fixed in advance.
+
+\section{Spatial residual analysis}
+
+Global Moran's I \citep{moran1950NotesContinuousStochastic} is computed on $\bar{\varepsilon}_i$ using a $k = 8$ nearest-neighbour spatial weights matrix, to test whether over- and under-performing plots cluster spatially or are scattered at random. A significant positive result would support treating the residuals as spatially structured and worth attributing to terrain; a null result would not rule out terrain effects, but would mean the case for spatial attribution has to rest more heavily on the feature-level results in Section~\ref{sec:methodology-xgb}. Local Moran's I (LISA) \citep{anselin1995LocalIndicatorsSpatial} is used afterward to locate specific clusters rather than only report a single global statistic.
+
+\section{Simple baselines}
+
+Before any machine learning model is fitted, the CR model and a linear regression are both evaluated on a temporal train/test split (fitted on 2002--2012, tested on 2021 and 2023) as a sanity check. If these baselines behave unexpectedly -- for example, if the linear model outperforms CR by a wide margin, which would suggest the growth-curve assumption itself is a poor fit for this data -- the cleaning pipeline is revisited before proceeding to XGBoost or the PINN.
+
+\section{XGBoost and SHAP attribution}
+\label{sec:methodology-xgb}
+
+XGBoost \citep{chen2016XGBoostScalableTree} is fitted in up to three feature-set versions, summarised in Table~\ref{tab:xgb-versions}. Models use a spatial (regional) holdout split rather than a random split, because random splits on spatially autocorrelated data place training and test points close together and can overstate accuracy \citep{roberts2017CrossvalidationStrategiesData}.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lll}
+\toprule
+Version & Features & Purpose \\
+\midrule
+XGB-A & Terrain only & What does terrain alone explain? \\
+XGB-B & Terrain + WASP wind speed & Does measured wind add beyond the TOPEX proxy? \\
+XGB-C & Terrain + Global Wind Atlas & Public-data fallback if WASP is unavailable \\
+\bottomrule
+\end{tabular}
+\caption{Planned XGBoost feature-set versions.}
+\label{tab:xgb-versions}
+\end{table}
+
+SHAP values \citep{lundberg2017UnifiedApproachInterpreting}, computed via TreeSHAP \citep{lundberg2020LocalExplanationsGlobal} for exact tree-ensemble attribution, are used to rank feature importance for whichever version (expected to be XGB-B) has the richest available feature set. This ranking determines which features are given to the Env-PINN sub-network described below, so the SHAP step happens before any PINN training, not after.
+
+\section{Baseline PINN (Version 1)}
+
+The baseline PINN follows the standard physics-informed formulation \citep{raissi2019PhysicsinformedNeuralNetworks}: a neural network branch and the CR branch run in parallel on the same age input, and the CR parameters from Section~\ref{ch:methodology} stay frozen throughout training, so gradients only update the neural network. The physics loss term in this implementation compares derivatives, $d(\text{Height})/d(\text{Age})$, from the network against the same derivative from the CR equation, rather than comparing raw predicted heights. This is a stricter, more specific version of process-informed regularisation than a generic penalty on predicted values \citep{wesselkamp2024ProcessInformedNeuralNetworks}, and it is worth stating explicitly here so the distinction is not read as a mislabelling of the general framework. The baseline PINN is trained on 2002--2012 and tested on 2021 and 2023; it uses the single global $y_{\max}$, $k$, and $p$ from the CR fit, and is the model every later PINN version must improve on.
+
+\section{Environmentally conditioned PINN (Env-PINN)}
+
+The Env-PINN replaces the fixed global $y_{\max}$ with a learned function of environmental features $\mathbf{e}$:
+\[
+\hat{y}_{\max}(\mathbf{e}) = g_\phi(\mathbf{e}), \qquad g_\phi : \mathbb{R}^{n_e} \to \mathbb{R}_{>0}
+\]
+implemented as a small sub-network (two hidden layers of 32 units, ReLU activations, softplus output to keep $\hat{y}_{\max}$ positive). An anchor regularisation term, $\lambda_{\text{anc}} \cdot \frac{1}{N}\sum_i (\hat{y}_{\max}(\mathbf{e}_i) - \bar{y}_{\max})^2$, penalises large deviations from the mean learned ceiling, to prevent the sub-network from collapsing to a degenerate solution. The sub-network is pre-trained on XGB-B residuals before joint training, for stability. Two versions are planned: Version~2 uses terrain features only (elevation, TWI, TOPEX, northness, eastness); Version~3 uses the full SHAP-selected feature set, expected to include wind speed if WASP or Global Wind Atlas data is available and shown to add value.
+
+\section{Ablation experiments}
+
+Three ablations are planned once the Env-PINN trains successfully: a sweep of the physics loss weight $\lambda_{\text{ph}}$ across six values, an anchor-strength ablation with $\lambda_{\text{anc}} \in \{0, 0.001, 0.1\}$ to test whether learned ceilings collapse without the anchor term, and a batch-size comparison (32 vs.\ 128) to check whether the PINN's typical preference for smaller batches holds here.
+
+\section{Convergent validity: SHAP versus Env-PINN sensitivity}
+
+As a check on the attribution, the Env-PINN sub-network's gradient sensitivity, $\partial \hat{y}_{\max} / \partial e_j$ for each environmental feature $e_j$, is ranked and compared against the independent SHAP ranking from XGB-B using Spearman rank correlation. Agreement between two independently fitted methods is treated as stronger evidence for a feature's role than either method alone would provide \citep{karniadakis2021PhysicsinformedMachineLearning, lundberg2017UnifiedApproachInterpreting}; disagreement would not necessarily mean one method is wrong, but it would mean the attribution needs more caution before it is reported with confidence.

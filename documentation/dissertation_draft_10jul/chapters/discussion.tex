@@ -1,0 +1,33 @@
+\chapter{Discussion}
+\label{ch:discussion}
+
+This chapter is written ahead of the results it discusses, since the terrain and wind extraction and model training are not yet complete (Chapter~\ref{ch:results}). It sets out how the expected results should be interpreted and, more importantly, what they would not prove.
+
+\section{What the expected results would mean}
+
+If terrain and wind features explain a meaningful share of the CR residual variation, and if the Env-PINN's learned $\hat{y}_{\max}(\mathbf{e})$ agrees with the independent SHAP ranking, that would be reasonably strong evidence that some of Aberfoyle's plot-to-plot growth variation is associated with terrain and exposure rather than being unstructured noise. It would not, on its own, prove that terrain \emph{causes} the growth difference in a strict sense, because the analysis is observational: terrain is not randomly assigned to plots, and terrain correlates with other unmeasured factors such as historical land use and planting choices.
+
+\section{What terrain and wind attribution can and cannot prove}
+
+A significant Moran's I result would show that residuals cluster spatially; it would not by itself distinguish a genuine terrain effect from a proximity effect, since neighbouring plots share many unmeasured characteristics beyond terrain (management history, planting stock, local microclimate). This is one reason the methodology plans to check Moran's I on the XGBoost residuals as well as the raw CR residuals: if spatial clustering drops substantially after terrain and wind features are included, that is more consistent with those features capturing real structure, rather than the model merely reproducing spatial proximity under a different name.
+
+\section{Management and thinning as a confounder}
+
+Thinning is the most likely source of misleading results in this dissertation. The data audit (Chapter~\ref{ch:data}) shows that the \texttt{Thin} field only records whether a last-thinning year exists, not whether a specific observed growth interval was affected by it, and that windthrow hazard class and thinning status are correlated in ways that suggest management decisions are not independent of terrain. A plot that looks like a persistent over-performer in the trajectory classification could, in some cases, be a plot that was thinned in a way this dataset does not fully capture, which would inflate its apparent height growth for reasons unrelated to terrain or wind exposure. This limitation cannot be resolved with the current data; it is acknowledged here as a boundary on how strongly the attribution results can be interpreted, and requesting fuller management records from Forest Research is identified below as the highest-value follow-up.
+
+\section{Limits from sparse timestamps}
+
+Six survey years, with a nine-year gap between 2012 and 2021, limits what the temporal sub-question (Section~1.4) can support. Interval-level climate indices from HadUK-Grid are averaged or summed across each gap, so any climate signal within the 2012--2021 interval is necessarily coarse -- a single index cannot distinguish a bad year followed by a good one from steady moderate conditions. Any claim about which interval "mattered most" for growth should be read as descriptive rather than as a controlled comparison, since intervals differ in both length and climate.
+
+\section{Limits from coarse climate and soil data}
+
+HadUK-Grid, at 1\,km resolution, is coarse relative to the plot scale and may smooth over local terrain-driven microclimate variation within Aberfoyle. This is why the dissertation treats HadUK-Grid indices as forest-wide temporal signals rather than as spatial predictors, and why soil data is included only if extraction shows it varies meaningfully within the forest. If neither source shows useful within-forest variation once extracted, both will be reported as excluded from the spatial model, rather than force-fit as predictors that add little information.
+
+\section{Practical value for a forest Digital Twin}
+
+Even with these limitations, a spatial map of learned, environmentally conditioned growth ceilings has direct practical use: it can flag plots where the CR baseline is likely to be a poor fit before a manager relies on it, without needing repeated re-surveying of every stand. That is a narrower claim than a full Digital Twin, but it is the kind of attribution layer such a system would need as an input, and it is deliverable from the current dataset regardless of whether the temporal sub-question yields anything conclusive.
+
+\section{Future work}
+\label{sec:future-work}
+
+The single highest-value addition to this work would be requesting fuller thinning and felling records from Forest Research, since that would let known management events be excluded or flagged directly rather than inferred indirectly from canopy cover and windthrow class. Beyond that, three extensions follow naturally from the current design: replacing the CR physics loss with a process-based model such as 3-PG once monthly climate inputs are available, allowing the growth-rate parameter $k$ (not only $y_{\max}$) to vary with interval-level climate, and running the Env-PINN forward under future climate scenarios once a suitable projection dataset is identified. None of these are part of the current dissertation scope.

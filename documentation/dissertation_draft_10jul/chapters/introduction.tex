@@ -1,0 +1,62 @@
+\chapter{Introduction}
+\label{ch:introduction}
+
+Sitka spruce plots in Aberfoyle Forest, Scotland, do not all grow at the same rate, even when they are the same species and similar age. Some plots consistently reach a greater height than a standard growth curve predicts; others consistently fall short. This dissertation asks why, using terrain and wind exposure as candidate explanations, and proposes a physics-informed neural network that lets the growth ceiling vary by plot instead of assuming one value for the whole forest.
+
+\section{Motivation}
+
+The Chapman-Richards (CR) equation \citep{pienaar1973ChapmanRichardsGeneralization} is a standard growth model in forestry. It fits height against age with three parameters: a growth ceiling $y_{\max}$, a rate parameter $k$, and a shape parameter $p$. In most applications these three parameters are fitted once for an entire stand or region, which means every plot is assumed to share the same maximum height.
+
+That assumption is questionable within a single forest that spans steep glens, exposed ridges, and sheltered valley floors. Wind exposure suppresses height growth through a mechanical response known as thigmomorphogenesis \citep{telewski2006UnifiedHypothesisMechanoperception}, and \citet{worrell1987PredictingProductivitySitka} found that a terrain-derived wind shelter index (TOPEX) was among the strongest predictors of Sitka spruce Yield Class across upland sites in northern Britain. A single global $y_{\max}$ cannot represent this kind of terrain-driven variation.
+
+\section{Why forest growth attribution matters}
+
+Forest managers use growth curves to plan thinning, felling, and replanting. A model that assumes uniform growth conditions will over-predict height on exposed ground and under-predict height on sheltered ground, and neither error is obvious without checking against terrain. Explaining which plots are constrained by their environment, and by roughly how much, has practical value on its own, independent of whether the explanation later feeds into a more accurate predictive model.
+
+This dissertation treats the problem as attribution rather than prediction accuracy. The aim is to explain persistent deviations from the CR baseline using terrain and wind data, not to build the single best height predictor. Predictive performance is reported later as a way of checking the attribution, not as the main outcome.
+
+\section{Why Aberfoyle and Sitka spruce}
+
+Aberfoyle has an unusually long observation record for this kind of study: LiDAR-derived plot attributes are available for six survey years between 2002 and 2023, so some plots have up to 21 years of growth history. The forest also has a strong terrain gradient over a compact area, with elevation ranging from around 25\,m at the valley floor to over 500\,m on the ridges, so exposure effects can plausibly be tested within one forest rather than only by comparing distant sites.
+
+Sitka spruce (\emph{Picea sitchensis}) is the dominant species in the dataset and in Scottish upland forestry generally. Restricting the analysis to Sitka spruce, using the Forest Research inventory species code (\texttt{spis == "SS"}), removes species-driven variation that would otherwise be difficult to separate from terrain effects.
+
+\section{Research questions}
+
+The core question is: what environmental and terrain factors explain why some plots in Aberfoyle consistently grow faster or slower than the Chapman-Richards biological baseline predicts?
+
+This splits into a primary spatial question and a secondary temporal question.
+
+\textbf{Spatial (primary):}
+\begin{itemize}
+  \item Do plots that grow faster or slower than expected cluster spatially, or are they scattered at random?
+  \item Can plots be grouped into persistent over-performers, conformant plots, and persistent under-performers based on their residuals across timestamps?
+  \item Which terrain and wind features best predict whether a plot over- or under-performs?
+  \item Do some features show a threshold effect, for example a growth penalty that only appears above a certain wind exposure level?
+  \item Does a model's own internal sense of feature importance agree with an independent feature-attribution method?
+\end{itemize}
+
+\textbf{Temporal (secondary, pursued only if time and data allow):}
+\begin{itemize}
+  \item How much did plots grow within each inter-survey interval, and which interval showed the most variation?
+  \item Does prediction accuracy differ between short gaps (2 years) and the long 2012--2021 gap (9 years)?
+  \item Does environmental conditioning reduce any accuracy drop-off across the long gap?
+\end{itemize}
+
+With only five inter-survey intervals, the temporal question cannot support strong causal claims about climate. It is framed here around model behaviour across gap lengths rather than climate attribution.
+
+\section{Contributions}
+
+\begin{enumerate}
+  \item A trajectory analysis of Sitka spruce growth in Aberfoyle using LiDAR-derived plot attributes across multiple survey years, at a spatial scale not previously reported for this forest.
+  \item An environmental attribution of persistent growth anomalies using XGBoost and SHAP, comparing terrain-only and terrain-plus-wind feature sets.
+  \item An environmentally conditioned Chapman-Richards PINN (Env-PINN), in which the growth ceiling $y_{\max}$ is a learned function of terrain and wind features rather than a single global value.
+  \item An ablation study intended to show which parts of the Env-PINN design (physics loss weight, anchor regularisation, feature set) drive any improvement over the baseline PINN.
+  \item A convergent validity check comparing the Env-PINN sub-network's feature sensitivity against the independent SHAP ranking.
+\end{enumerate}
+
+\section{Scope and limitations}
+
+The findings are specific to Aberfoyle and to Sitka spruce; this is not a claim about Sitka spruce growth at national or species scale. Predictive accuracy is reported as a validation step, not as the target the dissertation is optimising for. The dissertation is not a complete forest Digital Twin; it aims to produce one attribution layer that a future Digital Twin pipeline could use.
+
+The dataset has only six survey years, unevenly spaced, with a nine-year gap between 2012 and 2021. Management actions such as thinning are not fully recorded and are an unobserved confounder throughout: a plot that looks like an over-performer may in some cases simply have been thinned in a way the data does not capture. This limitation is discussed further in Chapter~\ref{ch:discussion} and is treated as a limit on how strong the causal language in this dissertation can be, rather than something the modelling can resolve on its own.

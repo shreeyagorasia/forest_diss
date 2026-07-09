@@ -1,0 +1,94 @@
+\chapter{Abbreviations}
+\label{app:abbreviations}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+Abbreviation & Expansion \\
+\midrule
+CR & Chapman-Richards \\
+PINN & Physics-Informed Neural Network \\
+Env-PINN & Environmentally conditioned PINN (this work) \\
+TWI & Topographic Wetness Index \\
+TOPEX & Topographic Exposure index (wind shelter) \\
+SMD & Soil Moisture Deficit \\
+PET & Potential Evapotranspiration \\
+GDD & Growing Degree Days \\
+SHAP & SHapley Additive exPlanations \\
+WASP & Wind Atlas Analysis and Application Program \\
+HadUK-Grid & Met Office 1\,km gridded UK climate observations \\
+OS & Ordnance Survey \\
+DT & Digital Twin \\
+VIF & Variance Inflation Factor \\
+LISA & Local Indicators of Spatial Association \\
+\bottomrule
+\end{tabular}
+\caption{Abbreviations used in this dissertation.}
+\end{table}
+
+\chapter{Data Dictionary and Variable Exclusions}
+\label{app:data-dictionary}
+
+This appendix summarises the variable exclusions described in Section~\ref{sec:data-leakage}. It is a draft summary; the full field dictionary from Forest Research metadata is not yet reproduced here in full.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lp{9cm}}
+\toprule
+Variable(s) & Reason excluded from top-height predictor sets \\
+\midrule
+\texttt{Vol95}, \texttt{Vol99}, \texttt{Vol\_RM95} & Derived from height, area, and canopy cover; would leak the height target. \\
+\texttt{GYCspec95}, \texttt{GYCspec99} & Derived from height and age via a Chapman-Richards-style formula; also contain infinite/extreme values in places. \\
+\texttt{elev\_percentile\_95th}, \texttt{elev\_percentile\_99th} & Direct raw inputs to \texttt{Top\_Height95}/\texttt{Top\_Height99}; using them would duplicate the target. \\
+\texttt{Top\_Height99} & Alternative height outcome, not an independent predictor; also affected by the \texttt{Top\_Height99 < Top\_Height95} inconsistency. \\
+\texttt{whcl} & Forest Research windthrow hazard class; management-linked, not a raw wind measurement. Retained for audit/stratification only. \\
+\texttt{p1--p5}, \texttt{g1}, \texttt{g3} & Chapman-Richards and volume-equation lookup coefficients, not plot-level environmental predictors. \\
+\texttt{Species}, \texttt{SPIS\_RF} & Disagree systematically with the inventory \texttt{spis} field used for Sitka spruce filtering. \\
+\bottomrule
+\end{tabular}
+\caption{Summary of excluded variables and reasons.}
+\end{table}
+
+\chapter{Cleaning Audit}
+\label{app:cleaning-audit}
+
+The cleaning rules applied to produce the balanced Sitka spruce cohorts (Section~\ref{ch:data}) are, in order: keep the required cohort years; keep plots present in every required year; filter to Sitka spruce using \texttt{spis == "SS"}; keep valid planting years; keep plausible age (\texttt{Age = LiDAR\_year - plyr}); keep plausible \texttt{Top\_Height95} values. A plot failing any rule in any required year is removed entirely, so the retained cohort stays balanced across timestamps. Volume-based filtering is not applied as a general cleaning rule; negative \texttt{Vol\_RM95} values remain in the master export.
+
+Outstanding audit questions to raise with Forest Research before final modelling: confirmation of the LiDAR acquisition platform; confirmation of exact plot/grid-cell geometry; and clarification of the \texttt{Top\_Height99 < Top\_Height95} inversion beyond the known multiplier effect.
+
+\chapter{Mathematical Details}
+\label{app:math-details}
+
+\section{Chapman-Richards equation}
+
+\[
+y(t) = y_{\max} \left(1 - e^{-kt}\right)^{p}
+\]
+
+where $y(t)$ is height at age $t$, $y_{\max}$ is the asymptotic maximum height, $k$ controls the growth rate, and $p$ controls curve shape. Parameters are fitted by least squares across all plot-timestamp pairs (Section~\ref{ch:methodology}).
+
+\section{Topographic Wetness Index (TWI)}
+
+\[
+\text{TWI} = \ln\left(\frac{A}{\tan \beta}\right)
+\]
+
+where $A$ is the upslope contributing area per unit contour length and $\beta$ is the local slope angle, both derived from the DTM. Higher TWI indicates greater expected soil water accumulation.
+
+\section{TOPEX}
+
+TOPEX is computed as the sum of angles to the horizon in a fixed set of compass directions (commonly eight), measured from the DTM at each point, giving a single index of topographic shelter versus exposure. Higher TOPEX values indicate more sheltered locations; lower (more negative) values indicate more exposed locations. The exact radius and direction count used for the Aberfoyle extraction is to be confirmed during Phase 2 (Chapter~\ref{ch:research-plan}).
+
+\section{Env-PINN loss function}
+
+\[
+\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{data}} + \lambda_{\text{ph}} \cdot \mathcal{L}_{\text{physics}}\big(\hat{y}_{\max}(\mathbf{e})\big) + \lambda_1 |\theta|_1 + \lambda_2 |\phi|_1 + \lambda_{\text{anc}} \cdot \frac{1}{N}\sum_i \big(\hat{y}_{\max}(\mathbf{e}_i) - \bar{y}_{\max}\big)^2
+\]
+
+where $\theta$ are the main network parameters, $\phi$ are the environmental sub-network parameters, $\mathcal{L}_{\text{physics}}$ compares network and CR derivatives with respect to age (Section~\ref{ch:methodology}), and the final anchor term regularises the learned growth ceiling toward the cohort mean $\bar{y}_{\max}$.
+
+\chapter{Extra Figures}
+\label{app:extra-figures}
+
+Reserved for additional figures once terrain extraction and model training are complete: full (unclipped) SHAP spatial maps, Env-PINN training loss curves across ablation configurations, a high-resolution $\hat{y}_{\max}(\mathbf{e})$ surface, the full trajectory class map, and the full feature correlation matrix. None of these are available at the current draft stage.

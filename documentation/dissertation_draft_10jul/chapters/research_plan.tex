@@ -1,0 +1,65 @@
+\chapter{Research Plan, Milestones, and Deliverables}
+\label{ch:research-plan}
+
+This chapter sets out the remaining work needed to complete the dissertation. It updates an earlier project-proposal planning section to the current growth-attribution scope; the earlier proposal covered a windthrow-classification project using NFI plots, AlphaEarth embeddings, and a Harwood Forest transfer test, none of which are part of this dissertation and none of which are carried forward here.
+
+\section{Phase 1: Data verification and cleaning}
+
+Verify the LiDAR-derived Aberfoyle plot data against Forest Research metadata where possible. Confirm the current GeoPackage (\texttt{LiDAR\_Years\_All\_7jul.gpkg}), the Sitka spruce layer, and the cleaned four-survey and six-survey cohorts described in Chapter~\ref{ch:data}. Confirm \texttt{Top\_Height95}, \texttt{Age}, \texttt{spis}, and the excluded leakage variables against the field documentation. Identify what metadata is still missing from Forest Research -- in particular, confirmation of the LiDAR acquisition platform and exact plot/grid-cell geometry.
+
+\section{Phase 2: Spatial feature extraction}
+
+Extract elevation, slope, aspect (as northness and eastness), TWI, and TOPEX from OS Terrain 50 or the best available DTM, at each plot centroid. Add WASP wind data if it becomes available with a documented resolution. Add Global Wind Atlas as a public fallback or comparison layer if WASP is unavailable or undocumented. Test whether HadUK-Grid or candidate soil datasets show meaningful within-forest variation before treating either as a spatial predictor, rather than assuming coarse products are unusable without checking.
+
+\section{Phase 3: Baseline growth and residual analysis}
+
+Fit the Chapman-Richards baseline using \texttt{Age} and \texttt{Top\_Height95} on the current cleaned cohorts. Compute CR residuals for every plot-timestamp pair. Map the residuals. Test spatial clustering using Moran's I and, if the result supports it, LISA. Classify plots into persistent under-performers, conformant plots, and over-performers.
+
+\section{Phase 4: Interpretable attribution models}
+
+Fit simple baselines (CR, linear regression) first, as a sanity check before any machine learning model. Fit XGBoost using terrain-only, terrain-plus-WASP, and terrain-plus-Global-Wind-Atlas feature sets where data availability allows. Use SHAP to identify the terrain and wind features that best explain growth residuals. Use spatial, not random-only, validation throughout.
+
+\section{Phase 5: Env-PINN development}
+
+Build the baseline CR-PINN (Section~\ref{ch:methodology}). Build the environmentally conditioned PINN in which $\hat{y}_{\max}(\mathbf{e})$ is learned from terrain and wind features. Run ablations for physics loss weight, anchor regularisation strength, and feature set. Compare the Env-PINN's feature sensitivity against the XGBoost SHAP ranking.
+
+\section{Phase 6: Evaluation, discussion, and writing}
+
+Compare CR, linear regression, XGBoost, the baseline PINN, and the Env-PINN on a consistent evaluation set. Evaluate whether terrain and wind features reduce residual spatial structure (Moran's I on model residuals versus raw CR residuals). State limitations clearly: sparse and unevenly spaced timestamps, management and thinning confounding, uncertain wind-data resolution, and coarse climate and soil products. Complete the dissertation write-up, figures, appendices, and bibliography.
+
+\section{Deliverables}
+
+\begin{itemize}
+  \item Cleaned modelling cohort documentation (this draft, Chapter~\ref{ch:data}).
+  \item Data audit table (Chapter~\ref{ch:data}; Appendix~\ref{app:data-dictionary}).
+  \item Terrain and wind feature extraction table, once features are extracted.
+  \item CR residual maps.
+  \item Moran's I and LISA results.
+  \item XGBoost and SHAP attribution results.
+  \item Env-PINN model and ablation results.
+  \item A learned spatial map of plot-level growth ceilings.
+  \item The final dissertation draft.
+  \item Reproducible code and notebooks, where practical, alongside the dissertation.
+\end{itemize}
+
+\section{Timeline}
+
+Table~\ref{tab:timeline} gives an indicative weekly timeline for the remaining work. Timing is approximate and will be updated as data availability (particularly WASP wind data) and early model results become clear.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{cll}
+\toprule
+Weeks & Phase & Notes \\
+\midrule
+1--2 & Phase 1: Data verification & Confirm metadata gaps with Forest Research \\
+2--4 & Phase 2: Spatial feature extraction & OS Terrain 50 first; WASP/GWA as available \\
+4--6 & Phase 3: Baseline and residual analysis & CR fit, Moran's I, trajectory classes \\
+6--9 & Phase 4: XGBoost + SHAP attribution & Feature ranking feeds into Phase 5 \\
+9--13 & Phase 5: Env-PINN development & Baseline PINN, then Env-PINN v2/v3, ablations \\
+13--15 & Phase 6: Evaluation and writing & Model comparison, discussion, final polish \\
+\bottomrule
+\end{tabular}
+\caption{Planned dissertation workflow. Timing is indicative and will be updated as data availability and model results become clear.}
+\label{tab:timeline}
+\end{table}
