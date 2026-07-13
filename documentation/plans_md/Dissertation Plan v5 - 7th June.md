@@ -46,8 +46,8 @@ This plan is broadly sound as a growth-attribution study, but several data detai
 | "Species variation negligible"                       | Needs evidence                                            | Filter to Sitka spruce using`spis == "SS"`rather than assuming species variation is negligible. The audit notes that`spis`and`Species`disagree, and`spis`is the better Forest Research inventory code.                                                                          |
 | "Duplicate plot/year pairs: keep higher CanopyCover" | Too arbitrary                                             | Prefer the cleaned GeoPackage / audited cohort logic. If duplicate handling is still needed for the legacy CSV, document a reproducible rule and run sensitivity checks; do not treat higher canopy cover as automatically authoritative.                                       |
 | `plyr = 0`and negative ages                          | Now better resolved                                       | `Age = LiDAR_year - plyr`. Valid planting-year and plausible-age filtering is already part of the cleaned cohort logic; do not frame`Age = LiDAR_year`as a modelling option.                                                                                                    |
-| Top-height variable                                  | Needs consistency                                         | Use`Top_Height95`as the main response. It is documented as`elev_percentile_95th * 1.1`. Treat`Top_Height99`as an alternative/audit variable because`Top_Height99 < Top_Height95`occurs often after the multiplier.                                                              |
-| Height-derived predictors                            | Important leakage risk                                    | Exclude`Vol95`,`Vol99`,`Vol_RM95`,`GYCspec95`,`GYCspec99`, raw height percentiles, and`Top_Height99`from top-height predictor sets. They are derived from height and/or age.                                                                                                    |
+| Top-height variable                                  | Resolved — flipped from v5's original guidance            | Use`Top_Height99`as the main response, per the cleaning notebook's final column-selection logic (section 11.2:`target_column = "Top_Height99"`).`Top_Height95`(documented as`elev_percentile_95th * 1.1`) is kept as the fallback/audit target. Known caveat, not fully resolved:`Top_Height99 < Top_Height95`in ~64% of rows, flagged during exploratory cleaning as a possible measurement/smoothing artefact — acknowledge explicitly in the methodology chapter rather than treating it as settled.                                                              |
+| Height-derived predictors                            | Important leakage risk                                    | Exclude`Vol95`,`Vol99`,`Vol_RM95`,`GYCspec95`,`GYCspec99`, raw height percentiles, and`Top_Height95`from top-height predictor sets. They are derived from height and/or age, or are the alternate height target.                                                                                                    |
 | `whcl`                                               | Not raw wind exposure                                     | `whcl`is a Forest Research inventory windthrow hazard class, likely management-linked. Keep for audit/stratification, not baseline environmental modelling.                                                                                                                     |
 | Soil and climate exclusion                           | Correct direction, but soften the claim                   | Coarse soil/climate products may still support broad covariate adjustment or temporal indices, but they should not be sold as plot-level spatial attribution unless unique within-forest variation is demonstrated after extraction.                                            |
 
@@ -65,7 +65,7 @@ This plan is broadly sound as a growth-attribution study, but several data detai
 | Approximate forest extent | ~20km × 15km                                            | Non-uniform plot distribution; clustered by compartment                        |
 | Elevation range           | ~25m (valley floor) to ~500m+ (ridges)                  | Forested plots typically 25–400m                                               |
 | Terrain character         | Steep-sided glens, exposed ridges, lochs                | Highland Boundary Fault geology; glacially scoured U-shaped valleys            |
-| Plot/grid-cell size       | To confirm from Forest Research metadata                | Current modelling treats records as spatial polygons/centroids in OSGB36       |
+| Plot/grid-cell size       | Confirmed: adaptive 20m/40m grid, clipped to sub-compartment boundaries via an R`sf`workflow (fine 20m grid intersected with the study area; full 20m cells kept, remainder filled by a coarser 40m grid; slivers <250m² dropped) | Plot geometry is a`MultiPolygon`grid cell per plot in`EPSG:27700`(OSGB36 / British National Grid); plot centroid = grid-cell centre, extracted once per plot in`models/common/export_coordinates.py`       |
 | Legacy raw rows           | 1,152,801                                               | 23 columns; legacy`LiDAR_Years_All_attributes.csv`from 29 June                 |
 | Current GeoPackage rows   | 795,645 total; 376,080 Sitka spruce                     | `data/raw/LiDAR_Years_All_7jul.gpkg`; layers`LiDAR_Years`,`LiDAR_Years_SS`     |
 | Cleaned balanced cohorts  | 71,766 plots / 287,064 rows; 13,897 plots / 83,382 rows | Four-survey and six-survey Sitka cohorts from cleaning audit                   |
@@ -73,8 +73,8 @@ This plan is broadly sound as a growth-attribution study, but several data detai
 | LiDAR scan method         | Airborne LiDAR-derived plot attributes                  | Acquisition platform to confirm; Top Height derived from elevation percentiles |
 | Timestamps available      | 2002, 2006, 2008, 2012, 2021, 2023                      | Six timestamps, five inter-scan intervals                                      |
 | Total temporal span       | 21 years (2002–2023)                                    |                                                                                |
-| Main response variable    | `Top_Height95`                                          | `Top_Height95 = elev_percentile_95th × 1.1`; avoid height-derived predictors   |
-| CR parameters             | To be optimised from new dataset                        | Least squares optimisation over all plot-timestamp pairs after cleaning        |
+| Main response variable    | `Top_Height99`                                          | Primary target per cleaning notebook section 11.2;`Top_Height95`(`= elev_percentile_95th × 1.1`) kept as fallback/audit target; avoid height-derived predictors   |
+| CR parameters             | Fitted (bounded`curve_fit`,`y_max`≥ observed max height) | Four-survey:`y_max=53.4909, k=0.010582, p=0.830202`. Six-survey:`y_max=46.5132, k=0.023444, p=1.146632`. Fitted on the training split only (`plot_level_split`, 60/20/20);`Age >= 20`and yield class 2–50 filters applied first. See`outputs/chapman_richards/<cohort>/params.json`        |
 
 
 *Note: use the 2008–2023 four-survey balanced Sitka cohort as the main spatial analysis unless later coverage checks show the six-survey cohort is large and spatially representative enough. Earlier timestamps (2002–2006) are valuable for sensitivity checks and temporal sub-questions, but the balanced six-survey cohort is much smaller.*
@@ -275,7 +275,18 @@ Derived indices per inter-scan interval (one value per interval, applied to all 
 
 \$\$\varepsilon\_{i,t} = y\_{i,t}^{\text{obs}} - y\_{\text{CR}}(t\_i \mid y\_{\max}, k, p)\$\$
 
-Main observed response: `Top_Height95`. Parameters are optimised from the cleaned dataset via least squares using `Age` as the biological time input. Positive residual = taller/faster than expected for age; negative = suppressed relative to the age-matched CR baseline. Avoid using `GYCspec95/99`, volumes, or raw height percentiles as predictors because they are derived from height and/or age.
+Main observed response: `Top_Height99` (`Top_Height95` retained as fallback/audit target — see the Accuracy Review row above for the known `Top_Height99 < Top_Height95` inversion caveat). Parameters are optimised from the cleaned dataset via bounded least squares (`scipy.optimize.curve_fit`, `y_max` constrained ≥ the observed max training height) using `Age` as the biological time input, fitted on the training split of `plot_level_split()` only.
+
+Fitted values so far (four-survey and six-survey cohorts, filtered to `Age >= 20` and yield class 2–50):
+
+| Cohort | y_max | k | p |
+| --- | --- | --- | --- |
+| Four-survey | 53.4909 | 0.010582 | 0.830202 |
+| Six-survey | 46.5132 | 0.023444 | 1.146632 |
+
+For comparison, the prior dissertation's fit (Lynch, 2025) was `y_max=46.1126, k=0.01866979, p=1.0175`. Both cohorts here land at a noticeably higher `y_max`, tied to Top_Height99 rather than Top_Height95 and to the new bounded-fit constraint — worth a methods note rather than treating the values as directly comparable.
+
+Positive residual = taller/faster than expected for age; negative = suppressed relative to the age-matched CR baseline. Avoid using `GYCspec95/99`, volumes, or raw height percentiles as predictors because they are derived from height and/or age.
 
 ***
 
@@ -288,15 +299,29 @@ From the 29 June legacy CSV and the 7 July GeoPackage audit. Send remaining ques
 | Duplicate plot/year pairs in legacy CSV                       | Prefer current GeoPackage / cleaned cohort logic. If using legacy CSV, apply a reproducible rule and sensitivity check; do not assume higher canopy cover is automatically correct. |
 | Planting year / age problems                                  | Use documented`Age = LiDAR_year - plyr`; keep only valid planting years and plausible ages in balanced modelling cohorts.                                                           |
 | Species disagreement (`spis`vs`Species`)                      | Use`spis == "SS"`for Sitka spruce filtering because it is the Forest Research inventory species code.                                                                               |
-| `Top_Height99 < Top_Height95`                                 | Known consequence of`Top_Height95 = elev_percentile_95th * 1.1`; use`Top_Height95`as main response and keep`Top_Height99`for audit/sensitivity only.                                |
+| `Top_Height99 < Top_Height95`                                 | Occurs in ~64% of rows, likely linked to how`Top_Height95 = elev_percentile_95th * 1.1`is derived. Despite this,`Top_Height99`is used as the main response per the cleaning notebook's final decision (section 11.2), with`Top_Height95`kept as fallback/audit target. Flag the inversion explicitly as a known, unresolved data-quality caveat in the methodology chapter.                                |
 | Negative volume                                               | Do not use volume for height-model cleaning. Volume is height-derived and should be filtered only in volume-specific analyses.                                                      |
-| Height-derived/leakage-prone variables                        | Exclude`Vol95`,`Vol99`,`Vol_RM95`,`GYCspec95`,`GYCspec99`, raw height percentiles, and`Top_Height99`from top-height predictors.                                                     |
+| Height-derived/leakage-prone variables                        | Exclude`Vol95`,`Vol99`,`Vol_RM95`,`GYCspec95`,`GYCspec99`, raw height percentiles, and`Top_Height95`from top-height predictors.                                                     |
 | `whcl`windthrow hazard class                                  | Keep for audit/stratification; exclude from baseline environmental predictors because it is inventory/management-linked, not raw wind exposure.                                     |
 | Management fields (`Thin`,`last_thinn`,`time_since_thinning`) | Useful contextual covariates and confounder flags, but not substitutes for terrain/wind attribution.                                                                                |
 | Non-standard plot areas / edge polygons                       | Confirm geometry interpretation; avoid deleting solely for area unless the cleaned cohort logic or Forest Research metadata requires it.                                            |
 
 
 **Strategy:** use the audited balanced Sitka cohorts for main modelling, retain wider master exports for sensitivity and diagnostics, and document any exclusions at plot level so temporal trajectories remain internally consistent.
+
+***
+
+## Implementation Status (as of 13 July 2026)
+
+A standing status marker, updated as work lands — reflects what has actually been built in the `forest_diss` repository, ahead of the Work Plan tiers below.
+
+**Repository structure.** `models/` package with one folder per model (`chapman_richards/`, `average_by_age/` implemented; `linear_baseline/`, `rf_baseline/` scaffolded, not yet implemented) plus `models/common/` for shared, reusable infrastructure (`metrics.py`, `splits.py`, `plotting.py`, `saving.py`, `data.py`, `geo.py`). `models/baselines/` holds the cross-model fit/evaluate orchestration scripts (`run_baselines.py`, `evaluate_baselines.py`). Outputs land in `outputs/<model_name>/<cohort>/` (fitted params or lookup table, `metrics.json`, `predictions.csv`); split assignments in `outputs/splits/<cohort>/`.
+
+**Data pipeline (Tier 1, partial).** The cleaning notebook (`data_exploration_gpkg/notebooks/lidar_years_all_data_cleaning.ipynb`) exports the balanced four-survey (71,766 plots) and six-survey (13,897 plots) Sitka cohorts to `data/processed/{master,current_state,transitions}/`, with `Top_Height99` as the primary target and `Top_Height95` as fallback (section 11.2 — see the Accuracy Review and Data Audit updates above for the known inversion caveat). Plot centroids (one per plot, `EPSG:27700`) are extracted separately from the raw GeoPackage's grid-cell polygons via `models/common/export_coordinates.py`, confirming the plot/grid-cell size question in the Study Area Statistics table above.
+
+**Split infrastructure (ahead of Tier 2 / section 4.4).** `models/common/splits.py` already implements all three split types the later chapters need: `plot_level_split()` (60/20/20, currently used by the CR/average-by-age baselines), `spatial_block_split()` (compartment-based, size-aware block assignment, with a programmatically-verified `buffer_distance` exclusion zone — see `data_exploration_gpkg/notebooks/spatial_temporal_split_visualisation.ipynb` for maps and a pros/cons discussion), and `temporal_split()` (year-based, for the SQ2 gap-length questions). Only `plot_level_split()` is wired into a model so far; the other two are implemented and tested against real 4survey/6survey data (`models/common/test_splits.py`) but not yet used for training, since no model uses terrain/wind features or does temporal generalisation testing yet.
+
+**Baselines (Tier 2, partial).** CR and average-by-age are fitted and evaluated on both cohorts (filters: `Age >= 20`, yield class 2–50). Fitted CR parameters and test-set metrics are folded into the relevant sections above (Study Area Statistics, Response Variable, section 4.3). Linear regression, RF, XGBoost, and all PINN work have not started.
 
 ***
 
@@ -386,7 +411,7 @@ DT frameworks for forestry have been proposed by Buonocore et al. (2022) and dem
 
 ### Chapter 3: Data and Feature Engineering
 
-**3.1 LiDAR data** Six timestamps (2002, 2006, 2008, 2012, 2021, 2023) covering Aberfoyle's predominantly Sitka spruce forest. Report both the legacy CSV and current GeoPackage sources so row counts are not confused. The main response is `Top_Height95`; `Top_Height99`, volumes, raw height percentiles, and `GYCspec95/99` are audit variables, not predictors for height. Top Height distributions are visualised across all six scans to show the 21-year growth evolution, alongside a gap structure table noting key climate events per interval.
+**3.1 LiDAR data** Six timestamps (2002, 2006, 2008, 2012, 2021, 2023) covering Aberfoyle's predominantly Sitka spruce forest. Report both the legacy CSV and current GeoPackage sources so row counts are not confused. The main response is `Top_Height99`; `Top_Height95`, volumes, raw height percentiles, and `GYCspec95/99` are audit variables, not predictors for height. Note the `Top_Height99 < Top_Height95` inversion in ~64% of rows (flagged during cleaning as a possible artefact, not fully resolved) as an explicit limitation. Top Height distributions are visualised across all six scans to show the 21-year growth evolution, alongside a gap structure table noting key climate events per interval.
 
 **3.2 Plot matching and cleaned cohorts** Use the audited plot-level cleaning logic. The main spatial cohort is the balanced Sitka spruce four-survey set (2008, 2012, 2021, 2023; 71,766 plots). The six-survey balanced set (13,897 plots) is used for full-span sensitivity analysis. Missing observations are left as structurally missing rather than imputed in any unbalanced exploratory analysis.
 
@@ -408,7 +433,7 @@ DT frameworks for forestry have been proposed by Buonocore et al. (2022) and dem
 
 **4.2 Moran's I** Global Moran's I on \$\bar{\varepsilon}\_i\$ using PySAL (k=8 neighbours). Significant positive result justifies spatial attribution. Local Moran's I (LISA) identifies specific clusters.
 
-**4.3 Simple baselines** CR model and linear regression fitted on 2002–2012, tested on 2021–2023. Sanity check before any ML model is built.
+**4.3 Simple baselines** Implemented so far: CR (Chapman-Richards) and average-by-age, both fitted on a 60/20/20 plot-level split (`plot_level_split()`; `val` is saved for schema consistency with later models but unused by either, since neither has anything to tune), with `Age >= 20` and yield class 2–50 filters applied first. Linear regression is scaffolded (`models/linear_baseline/`) but not yet implemented; RF is scaffolded too. This deliberately differs from the 2002–2012 train / 2021–2023 test framing below — that temporal holdout is reserved for `temporal_split()` and the SQ2-B/C gap-length questions, kept separate from this plot-level sanity-check pass so a spatial-vs-temporal failure cannot be conflated. Baseline test-set metrics (MAE, RMSE, MSE, R², MRE, Accuracy, Bias, plus an age-banded breakdown) are already computed per cohort — see `outputs/{chapman_richards,average_by_age}/<cohort>/metrics.json`. CR shows a large one-signed bias in the oldest age bands (e.g. six-survey 60-80yr band: bias ≈ -11.2m), which is likely a genuine limitation of a 3-parameter curve with a small old-growth sample, not a bug — worth reporting as a baseline weakness the PINN work can improve on.
 
 **4.4 XGBoost spatial attribution**
 
@@ -419,7 +444,7 @@ DT frameworks for forestry have been proposed by Buonocore et al. (2022) and dem
 | XGB-C   | Terrain + GWA wind speed  | Public-data fallback if WASP is unavailable or undocumented |
 
 
-Spatial regional holdout split (not random — spatially autocorrelated data violates standard CV independence). SHAP outputs from XGB-B determine which features enter the Env-PINN sub-network.
+Spatial block holdout split (not random — spatially autocorrelated data violates standard CV independence; Roberts et al., 2017), already implemented as `spatial_block_split()`: whole forestry compartments (`cpmt`, 296 units) — not `blk`, which only has 8 wildly uneven-sized units (81 to 29,182 plots) — are assigned to train/val/test via a size-aware greedy assignment that keeps proportions close to the requested 60/20/20 despite compartment sizes ranging from 1 to 1,336 plots. A `buffer_distance` (currently 50m, roughly one grid-cell ring out from a split boundary; tuned down from an initial 100m to reduce data loss) excludes plots within that distance of a plot in a different split, verified programmatically via a KDTree nearest-neighbour search rather than assumed — see `data_exploration_gpkg/notebooks/spatial_temporal_split_visualisation.ipynb` for maps and a pros/cons discussion of the buffer trade-off. Not yet wired into a model, since no model uses terrain/wind features yet. SHAP outputs from XGB-B determine which features enter the Env-PINN sub-network.
 
 **4.5 PINN Version 1 (baseline)** CR-PINN architecture trained on 2002–2012, tested on 2021 and 2023. Global \$y\_{\max}\$, \$k\$, \$p\$ from dataset optimisation. This is the baseline every subsequent version must beat.
 
