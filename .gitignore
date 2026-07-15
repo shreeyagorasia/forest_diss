@@ -43,5 +43,3 @@ logs/*
 !logs/dnn/.gitkeep
 !logs/pinn/
 !logs/pinn/.gitkeep
-!logs/torch/
-!logs/torch/.gitkeep
