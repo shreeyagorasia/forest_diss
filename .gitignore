@@ -36,10 +36,3 @@ outputs/
 # Cluster logs are generated files. Keep the folder layout in Git via
 # .gitkeep files, but do not commit SLURM stdout/stderr.
 logs/*
-!logs/.gitkeep
-!logs/data_processing/
-!logs/data_processing/.gitkeep
-!logs/dnn/
-!logs/dnn/.gitkeep
-!logs/pinn/
-!logs/pinn/.gitkeep
