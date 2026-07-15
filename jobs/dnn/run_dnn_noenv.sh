@@ -1,4 +1,26 @@
 #!/bin/bash
+#
+# Run on the ICF cluster from the project root:
+#
+#   cd ~/forest_diss
+#   sbatch jobs/dnn/run_dnn_noenv.sh [cohort] [max_epochs] [patience]
+#
+# Examples:
+#   sbatch jobs/dnn/run_dnn_noenv.sh 4survey 5 3
+#   sbatch jobs/dnn/run_dnn_noenv.sh 6survey 500 20
+#
+# Arguments:
+#   cohort      4survey or 6survey. Defaults to 4survey.
+#   max_epochs  Maximum training epochs. Defaults to 5 for a quick test.
+#   patience    Early-stopping patience. Defaults to 3 for a quick test.
+#
+# Logs:
+#   stdout -> logs/dnn/dnn_noenv_<jobid>.out
+#   stderr -> logs/dnn/dnn_noenv_<jobid>.err
+#
+# Results:
+#   outputs/dnn_noenv/<cohort>/
+
 #SBATCH --job-name=dnn_noenv
 #SBATCH --output=logs/dnn/%x_%j.out
 #SBATCH --error=logs/dnn/%x_%j.err

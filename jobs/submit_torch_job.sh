@@ -1,5 +1,29 @@
 #!/bin/bash
 
+# Generic torch model submitter for DNN/PINN jobs.
+#
+# Run on the ICF cluster from the project root:
+#
+#   cd ~/forest_diss
+#   sbatch --job-name=<name> jobs/submit_torch_job.sh <model_name> <cohort> [max_epochs] [patience]
+#
+# Examples:
+#   sbatch --job-name=dnn_test_4survey  jobs/submit_torch_job.sh dnn_noenv  4survey 5 3
+#   sbatch --job-name=pinn_full_6survey jobs/submit_torch_job.sh pinn_noenv 6survey 500 20
+#
+# Arguments:
+#   model_name  dnn_noenv or pinn_noenv.
+#   cohort      4survey or 6survey.
+#   max_epochs  Optional. If omitted, Python uses its default of 500.
+#   patience    Optional. If omitted, Python uses its default of 20.
+#
+# Logs:
+#   stdout -> logs/torch/<job_name>_<jobid>.out
+#   stderr -> logs/torch/<job_name>_<jobid>.err
+#
+# Results:
+#   outputs/<model_name>/<cohort>/
+
 #SBATCH --job-name=growth_model_torch
 #SBATCH --output=logs/torch/%x_%j.out
 #SBATCH --error=logs/torch/%x_%j.err
