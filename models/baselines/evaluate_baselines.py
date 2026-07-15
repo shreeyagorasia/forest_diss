@@ -23,9 +23,14 @@ from models.baselines.run_baselines import output_dir
 from models.chapman_richards.chapman_richards import chapman_richards
 from models.common.data import filter_data, load_cohort_data, load_model_table
 from models.common.metrics import compute_metrics
+from models.common.run_logging import RunTimer, format_error, write_run_log, write_started_marker
 from models.linear_baseline.linear_baseline import predict as predict_linear_baseline
 from models.rf_baseline.rf_baseline import load_model as load_rf_model
 from models.rf_baseline.rf_baseline import predict as predict_rf_baseline
+
+# None of these four baselines use a GPU. Recorded in every log entry
+# anyway for schema consistency with the DNN/PINN logs.
+DEVICE = "cpu"
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 COHORTS = ["4survey", "6survey"]
@@ -186,9 +191,33 @@ def main():
 
         cohort_results = {}
         for model_name in MODEL_NAMES:
-            metrics = evaluators[model_name](cohort, split_type)
-            flag_issues(cohort, model_name, metrics)
-            cohort_results[model_name] = metrics
+            timer = RunTimer().start()
+            attempt_id = write_started_marker(
+                model_name=model_name, cohort=cohort, split_type=split_type, run_phase="evaluate",
+                is_test_run=False, device=DEVICE, hyperparameters={},
+            )
+            try:
+                metrics = evaluators[model_name](cohort, split_type)
+                flag_issues(cohort, model_name, metrics)
+                cohort_results[model_name] = metrics
+                write_run_log(
+                    attempt_id=attempt_id,
+                    model_name=model_name, cohort=cohort, split_type=split_type, run_phase="evaluate",
+                    status="success", is_test_run=False, device=DEVICE,
+                    hyperparameters={}, metrics=metrics, error=None,
+                    output_dir=output_dir(model_name, cohort, split_type=split_type),
+                    runtime_seconds=timer.elapsed_seconds(),
+                )
+            except Exception as error:
+                write_run_log(
+                    attempt_id=attempt_id,
+                    model_name=model_name, cohort=cohort, split_type=split_type, run_phase="evaluate",
+                    status="failed", is_test_run=False, device=DEVICE,
+                    hyperparameters={}, metrics=None, error=format_error(error),
+                    output_dir=None, runtime_seconds=timer.elapsed_seconds(),
+                )
+                print(f"  WARNING: evaluation failed for {model_name}/{cohort}/{split_type}: {error}")
+                cohort_results[model_name] = None
 
         all_results[cohort] = cohort_results
         print()
@@ -207,6 +236,9 @@ def print_summary_table(all_results):
     for cohort in COHORTS:
         for model_name in MODEL_NAMES:
             m = all_results[cohort][model_name]
+            if m is None:
+                print(f"{cohort:<10}{model_name:<20}  evaluation failed, see outputs/run_logs/")
+                continue
             print(
                 f"{cohort:<10}{model_name:<20}"
                 f"{m['mae']:>12.6f}{m['rmse']:>12.6f}{m['mse']:>14.6f}"
@@ -221,6 +253,9 @@ def print_age_band_table(all_results):
         print(f"{cohort}:")
         for model_name in MODEL_NAMES:
             print(f"  {model_name}:")
+            if all_results[cohort][model_name] is None:
+                print("    evaluation failed, see outputs/run_logs/")
+                continue
             header = f"    {'band':<8}{'n_rows':>10}{'MAE':>12}{'RMSE':>12}{'Bias':>12}{'MRE':>12}"
             print(header)
             for band in all_results[cohort][model_name].get("age_bands", []):

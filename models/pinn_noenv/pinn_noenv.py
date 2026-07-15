@@ -19,6 +19,13 @@
 # CR's y_max/k/p are always plain Python floats (never tensors) so they can
 # never accumulate a gradient -- training only ever updates the network,
 # never the process model.
+#
+# This file only knows how to build, train, and save/load the PINN. It does
+# NOT load data or evaluate on the test set -- that split is deliberate:
+# models/pinn_noenv/run_pinn_noenv.py (fit only, meant to run on the SLURM
+# cluster where the GPU is) and models/pinn_noenv/evaluate_pinn_noenv.py
+# (evaluate only, cheap enough to run locally on a laptop CPU) are two
+# separate scripts, so a GPU job is never spent on the cheap part.
 
 import itertools
 import json
@@ -29,6 +36,10 @@ import torch
 
 from models.common.torch_model import NoEnvNetwork, chapman_richards_derivative, compute_l1_penalty
 
+# ----- Fixed hyperparameters for this model -----
+# These are not swept or tuned in this project (see the instructions doc
+# for why) -- they are simple constants so every part of the code, and
+# every log file, uses the exact same numbers.
 L1_COEFFICIENT = 1e-5
 PHYSICS_WEIGHT = 1.0
 TRAJECTORY_WEIGHT = 1.0
@@ -37,6 +48,14 @@ LR_SCHEDULER_FACTOR = 0.8
 LR_SCHEDULER_PATIENCE = 10
 BATCH_SIZE = 32
 PAIRS_BATCH_SIZE = 32
+
+# How often to PRINT progress during training (every 10 epochs, not every
+# epoch). This only affects what gets printed to the screen / the SLURM
+# .out file -- every single epoch's numbers (including the three separate
+# loss terms) are still saved to training_history.csv regardless, so
+# nothing is ever lost, this just keeps the printed log readable over a
+# run of hundreds of epochs.
+PRINT_EVERY_N_EPOCHS = 10
 
 
 def build_model(n_other_features, device, seed):
@@ -217,13 +236,34 @@ def fit(
             "learning_rate": current_lr,
         })
 
-        if best_val_loss is None or val_loss < best_val_loss:
+        # Has this epoch beaten every previous epoch's validation loss?
+        is_new_best = best_val_loss is None or val_loss < best_val_loss
+        if is_new_best:
             best_val_loss = val_loss
+            # .clone() makes an independent copy of the weights -- without
+            # it, best_model_state would just keep pointing at the SAME
+            # weights that keep changing every epoch.
             best_model_state = {key: value.clone() for key, value in model.state_dict().items()}
             epochs_without_improvement = 0
         else:
             epochs_without_improvement = epochs_without_improvement + 1
 
+        # Only PRINT every PRINT_EVERY_N_EPOCHS epochs (plus always print
+        # epoch 1) -- every epoch is still in history_rows above either
+        # way. Shows all three loss terms separately so it's visible at a
+        # glance whether the physics/trajectory terms are doing anything.
+        should_print_this_epoch = (epoch == 1) or (epoch % PRINT_EVERY_N_EPOCHS == 0)
+        if should_print_this_epoch:
+            best_marker = " (new best)" if is_new_best else ""
+            print(
+                f"  epoch {epoch}/{max_epochs}  data_loss={epoch_losses['data_loss']:.4f}  "
+                f"physics_loss={epoch_losses['physics_loss']:.4f}  "
+                f"trajectory_loss={epoch_losses['trajectory_loss']:.4f}  "
+                f"val_loss={val_loss:.4f}  learning_rate={current_lr:.6f}{best_marker}"
+            )
+
+        # Stop early if validation loss has not improved for
+        # early_stopping_patience epochs in a row.
         if epochs_without_improvement >= early_stopping_patience:
             print(f"  Early stopping at epoch {epoch} (no val_loss improvement for {early_stopping_patience} epochs).")
             break
@@ -245,11 +285,29 @@ def predict(model, age, other_features):
 
 
 def save_checkpoints(best_model, final_model_state, n_other_features, output_dir):
+    # n_other_features is saved alongside the weights so a fresh script --
+    # possibly on a different machine, evaluating a checkpoint trained on
+    # the SLURM cluster -- can rebuild the exact same
+    # NoEnvNetwork(n_other_features=...) architecture before calling
+    # load_state_dict().
     output_dir.mkdir(parents=True, exist_ok=True)
     torch.save(best_model.state_dict(), output_dir / "best_model.pt")
     torch.save(final_model_state, output_dir / "final_model.pt")
     with open(output_dir / "architecture.json", "w") as f:
         json.dump({"n_other_features": n_other_features}, f, indent=2)
+
+
+def load_best_model(n_other_features, device, checkpoint_dir):
+    # The other half of save_checkpoints(): rebuilds the network
+    # architecture, then loads the saved best-epoch weights into it. Used
+    # by evaluate_pinn_noenv.py, which never calls fit() at all -- it only
+    # needs a trained model to make predictions with. Note this loads the
+    # PLAIN network only -- the physics/trajectory loss terms are a
+    # TRAINING-time concept, nothing to load or reuse at evaluation time.
+    model = NoEnvNetwork(n_other_features=n_other_features)
+    model.load_state_dict(torch.load(checkpoint_dir / "best_model.pt", map_location=device))
+    model.to(device)
+    return model
 
 
 def save_run_metadata(cohort, n_rows_fit, hyperparameters, output_path):

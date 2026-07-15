@@ -21,6 +21,11 @@
 # output path is kept separate per split type (outputs/spatial_block/...,
 # outputs/temporal/... vs outputs/...), so running one never overwrites
 # another.
+#
+# Every model's fit attempt is logged to outputs/run_logs/, one JSON file
+# per model per cohort, whether it succeeds or fails -- see
+# models/common/run_logging.py. A failed fit is caught, logged, and printed
+# as a warning; it does NOT stop the other three models from being fit.
 
 import argparse
 from pathlib import Path
@@ -30,6 +35,7 @@ from models.average_by_age.average_by_age import save_lookup
 from models.chapman_richards.chapman_richards import fit as fit_chapman_richards
 from models.chapman_richards.chapman_richards import save_params as save_cr_params
 from models.common.data import filter_data, load_cohort_data, load_model_table
+from models.common.run_logging import RunTimer, format_error, write_run_log, write_started_marker
 from models.common.splits import TEMPORAL_YEARS, plot_level_split, spatial_block_split, temporal_split
 from models.linear_baseline.linear_baseline import fit as fit_linear_baseline
 from models.linear_baseline.linear_baseline import save_params as save_linear_params
@@ -46,6 +52,11 @@ SEED = 42
 # data_exploration_gpkg/notebooks/spatial_temporal_split_visualisation.ipynb.
 SPATIAL_BLOCK_COL = "cpmt"
 SPATIAL_BUFFER_METRES = 60
+
+# None of these four baselines use a GPU -- sklearn/scipy only. Recorded in
+# every log entry anyway for schema consistency with the DNN/PINN logs,
+# where device actually varies (cpu/cuda/mps).
+DEVICE = "cpu"
 
 # The prior dissertation's Chapman-Richards fit, for a quick sanity check.
 PRIOR_CR_PARAMS = {"y_max": 46.1126, "k": 0.01866979, "p": 1.0175}
@@ -141,22 +152,18 @@ def load_train_rows(cohort, table_name, split_assignment):
     return merged[merged["split"] == "train"]
 
 
-def run_for_cohort(cohort, split_type):
-    print(f"===== {cohort} ({split_type}) =====")
-    filtered_df, split_assignment = build_split_for_cohort(cohort, split_type)
-    n_rows_fit = int((filtered_df["split"] == "train").sum())
-
-    cr_train_df = filtered_df[filtered_df["split"] == "train"]
-    avg_train_df = cr_train_df  # average-by-age uses the same age-only table as CR
-
-    # --- Chapman-Richards ---
-    cr_params = None
+def fit_chapman_richards_logged(cohort, split_type, cr_train_df, n_rows_fit):
+    # Returns cr_params, or None if the fit failed/didn't converge -- callers
+    # already handle a None result (average-by-age and the summary printers
+    # skip it gracefully).
+    timer = RunTimer().start()
+    hyperparameters = {"seed": SEED}
+    attempt_id = write_started_marker(
+        model_name="chapman_richards", cohort=cohort, split_type=split_type, run_phase="fit",
+        is_test_run=False, device=DEVICE, hyperparameters=hyperparameters,
+    )
     try:
         cr_params = fit_chapman_richards(cr_train_df)
-    except RuntimeError as error:
-        print(f"  WARNING: Chapman-Richards fit did not converge for {cohort}: {error}")
-
-    if cr_params is not None:
         cr_output_path = output_dir("chapman_richards", cohort, "params.json", split_type=split_type)
         save_cr_params(cr_params, cohort, n_rows_fit, cr_output_path)
         print(f"  Chapman-Richards params saved -> {cr_output_path}")
@@ -172,25 +179,136 @@ def run_for_cohort(cohort, split_type):
                 "this fit looks unstable, not just a low asymptote."
             )
 
-    # --- Average-by-age ---
-    lookup_table, fallback_mean_height = fit_average_by_age(avg_train_df)
-    avg_output_path = output_dir("average_by_age", cohort, "lookup.json", split_type=split_type)
-    save_lookup(lookup_table, fallback_mean_height, cohort, n_rows_fit, avg_output_path)
-    print(f"  Average-by-age lookup saved -> {avg_output_path}")
+        write_run_log(
+            attempt_id=attempt_id,
+            model_name="chapman_richards", cohort=cohort, split_type=split_type, run_phase="fit",
+            status="success", is_test_run=False, device=DEVICE,
+            hyperparameters=hyperparameters, metrics=None, error=None,
+            output_dir=cr_output_path.parent, runtime_seconds=timer.elapsed_seconds(), n_rows_fit=n_rows_fit,
+        )
+        return cr_params
+    except Exception as error:
+        write_run_log(
+            attempt_id=attempt_id,
+            model_name="chapman_richards", cohort=cohort, split_type=split_type, run_phase="fit",
+            status="failed", is_test_run=False, device=DEVICE,
+            hyperparameters=hyperparameters, metrics=None, error=format_error(error),
+            output_dir=None, runtime_seconds=timer.elapsed_seconds(), n_rows_fit=n_rows_fit,
+        )
+        print(f"  WARNING: Chapman-Richards fit failed for {cohort}: {error}")
+        return None
 
-    # --- Linear baseline ---
-    linear_train_df = load_train_rows(cohort, "linear_baseline", split_assignment)
-    linear_params = fit_linear_baseline(linear_train_df)
-    linear_output_path = output_dir("linear_baseline", cohort, "params.json", split_type=split_type)
-    save_linear_params(linear_params, cohort, len(linear_train_df), linear_output_path)
-    print(f"  Linear baseline params saved -> {linear_output_path}")
 
-    # --- RF baseline ---
-    rf_train_df = load_train_rows(cohort, "rf_baseline", split_assignment)
-    rf_model = fit_rf_baseline(rf_train_df)
-    rf_output_dir = output_dir("rf_baseline", cohort, split_type=split_type)
-    rf_model_path = save_rf_model(rf_model, cohort, len(rf_train_df), rf_output_dir)
-    print(f"  RF baseline model saved -> {rf_model_path}")
+def fit_average_by_age_logged(cohort, split_type, avg_train_df, n_rows_fit):
+    timer = RunTimer().start()
+    hyperparameters = {"seed": SEED}
+    attempt_id = write_started_marker(
+        model_name="average_by_age", cohort=cohort, split_type=split_type, run_phase="fit",
+        is_test_run=False, device=DEVICE, hyperparameters=hyperparameters,
+    )
+    try:
+        lookup_table, fallback_mean_height = fit_average_by_age(avg_train_df)
+        avg_output_path = output_dir("average_by_age", cohort, "lookup.json", split_type=split_type)
+        save_lookup(lookup_table, fallback_mean_height, cohort, n_rows_fit, avg_output_path)
+        print(f"  Average-by-age lookup saved -> {avg_output_path}")
+
+        write_run_log(
+            attempt_id=attempt_id,
+            model_name="average_by_age", cohort=cohort, split_type=split_type, run_phase="fit",
+            status="success", is_test_run=False, device=DEVICE,
+            hyperparameters=hyperparameters, metrics=None, error=None,
+            output_dir=avg_output_path.parent, runtime_seconds=timer.elapsed_seconds(), n_rows_fit=n_rows_fit,
+        )
+        return lookup_table, fallback_mean_height
+    except Exception as error:
+        write_run_log(
+            attempt_id=attempt_id,
+            model_name="average_by_age", cohort=cohort, split_type=split_type, run_phase="fit",
+            status="failed", is_test_run=False, device=DEVICE,
+            hyperparameters=hyperparameters, metrics=None, error=format_error(error),
+            output_dir=None, runtime_seconds=timer.elapsed_seconds(), n_rows_fit=n_rows_fit,
+        )
+        print(f"  WARNING: average-by-age fit failed for {cohort}: {error}")
+        return None, None
+
+
+def fit_linear_baseline_logged(cohort, split_type, split_assignment):
+    timer = RunTimer().start()
+    hyperparameters = {"seed": SEED}
+    attempt_id = write_started_marker(
+        model_name="linear_baseline", cohort=cohort, split_type=split_type, run_phase="fit",
+        is_test_run=False, device=DEVICE, hyperparameters=hyperparameters,
+    )
+    try:
+        linear_train_df = load_train_rows(cohort, "linear_baseline", split_assignment)
+        linear_params = fit_linear_baseline(linear_train_df)
+        linear_output_path = output_dir("linear_baseline", cohort, "params.json", split_type=split_type)
+        save_linear_params(linear_params, cohort, len(linear_train_df), linear_output_path)
+        print(f"  Linear baseline params saved -> {linear_output_path}")
+
+        write_run_log(
+            attempt_id=attempt_id,
+            model_name="linear_baseline", cohort=cohort, split_type=split_type, run_phase="fit",
+            status="success", is_test_run=False, device=DEVICE,
+            hyperparameters=hyperparameters, metrics=None, error=None,
+            output_dir=linear_output_path.parent, runtime_seconds=timer.elapsed_seconds(),
+            n_rows_fit=len(linear_train_df),
+        )
+    except Exception as error:
+        write_run_log(
+            attempt_id=attempt_id,
+            model_name="linear_baseline", cohort=cohort, split_type=split_type, run_phase="fit",
+            status="failed", is_test_run=False, device=DEVICE,
+            hyperparameters=hyperparameters, metrics=None, error=format_error(error),
+            output_dir=None, runtime_seconds=timer.elapsed_seconds(),
+        )
+        print(f"  WARNING: linear baseline fit failed for {cohort}: {error}")
+
+
+def fit_rf_baseline_logged(cohort, split_type, split_assignment):
+    timer = RunTimer().start()
+    hyperparameters = {"seed": SEED}
+    attempt_id = write_started_marker(
+        model_name="rf_baseline", cohort=cohort, split_type=split_type, run_phase="fit",
+        is_test_run=False, device=DEVICE, hyperparameters=hyperparameters,
+    )
+    try:
+        rf_train_df = load_train_rows(cohort, "rf_baseline", split_assignment)
+        rf_model = fit_rf_baseline(rf_train_df)
+        rf_output_dir = output_dir("rf_baseline", cohort, split_type=split_type)
+        rf_model_path = save_rf_model(rf_model, cohort, len(rf_train_df), rf_output_dir)
+        print(f"  RF baseline model saved -> {rf_model_path}")
+
+        write_run_log(
+            attempt_id=attempt_id,
+            model_name="rf_baseline", cohort=cohort, split_type=split_type, run_phase="fit",
+            status="success", is_test_run=False, device=DEVICE,
+            hyperparameters=hyperparameters, metrics=None, error=None,
+            output_dir=rf_output_dir, runtime_seconds=timer.elapsed_seconds(), n_rows_fit=len(rf_train_df),
+        )
+    except Exception as error:
+        write_run_log(
+            attempt_id=attempt_id,
+            model_name="rf_baseline", cohort=cohort, split_type=split_type, run_phase="fit",
+            status="failed", is_test_run=False, device=DEVICE,
+            hyperparameters=hyperparameters, metrics=None, error=format_error(error),
+            output_dir=None, runtime_seconds=timer.elapsed_seconds(),
+        )
+        print(f"  WARNING: RF baseline fit failed for {cohort}: {error}")
+
+
+def run_for_cohort(cohort, split_type):
+    print(f"===== {cohort} ({split_type}) =====")
+    filtered_df, split_assignment = build_split_for_cohort(cohort, split_type)
+    n_rows_fit = int((filtered_df["split"] == "train").sum())
+
+    cr_train_df = filtered_df[filtered_df["split"] == "train"]
+    avg_train_df = cr_train_df  # average-by-age uses the same age-only table as CR
+
+    cr_params = fit_chapman_richards_logged(cohort, split_type, cr_train_df, n_rows_fit)
+    lookup_table, fallback_mean_height = fit_average_by_age_logged(cohort, split_type, avg_train_df, n_rows_fit)
+    fit_linear_baseline_logged(cohort, split_type, split_assignment)
+    fit_rf_baseline_logged(cohort, split_type, split_assignment)
 
     print()
     return cr_params, lookup_table, fallback_mean_height
@@ -228,6 +346,9 @@ def print_average_by_age_summary(results):
     print("===== Average-by-age: lookup table summary =====")
     for cohort in COHORTS:
         lookup_table, fallback_mean_height = results[cohort][1], results[cohort][2]
+        if lookup_table is None:
+            print(f"{cohort}: fit failed, see outputs/run_logs/")
+            continue
         ages_covered = sorted(lookup_table.keys())
         print(f"{cohort}:")
         print(f"  Ages covered: {ages_covered[0]} to {ages_covered[-1]} ({len(ages_covered)} distinct ages)")

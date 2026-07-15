@@ -1,0 +1,141 @@
+# Run as: python -m models.pinn_noenv.evaluate_pinn_noenv --cohort 4survey
+#
+# EVALUATES an already-trained PINN on the held-out test split (2023). Does
+# not train anything -- just loads the checkpoint + scalers that
+# run_pinn_noenv.py already saved, makes predictions on the test rows, and
+# computes accuracy metrics (MAE, RMSE, R2, Bias, etc). The physics and
+# trajectory loss terms are a TRAINING-time concept only -- there is
+# nothing to evaluate about them here, this is a plain forward pass.
+#
+# Deliberately cheap and CPU-friendly: this is a small network doing a
+# single forward pass over a few tens of thousands of rows, not a training
+# loop -- there is no need for a GPU or a SLURM job for this step. Meant
+# to be run locally, after copying the trained checkpoint down from the
+# cluster.
+
+import argparse
+import json
+from pathlib import Path
+
+import joblib
+import pandas as pd
+
+from models.common.metrics import compute_metrics
+from models.common.run_logging import RunTimer, format_error, write_run_log, write_started_marker
+from models.common.torch_data import TARGET_COLUMN, build_tensors, load_split_table, select_device
+from models.pinn_noenv.pinn_noenv import load_best_model, predict
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+MODEL_NAME = "pinn_noenv"
+
+
+def run_for_cohort(cohort):
+    print(f"===== {cohort} ({MODEL_NAME}) — EVALUATE ONLY =====")
+    device = select_device()
+    print(f"  Using device: {device}")
+
+    timer = RunTimer().start()
+    attempt_id = write_started_marker(
+        model_name=MODEL_NAME, cohort=cohort, split_type="temporal", run_phase="evaluate",
+        is_test_run=False, device=str(device), hyperparameters={},
+    )
+
+    try:
+        output_dir = PROJECT_ROOT / "outputs" / MODEL_NAME / cohort
+        checkpoints_dir = output_dir / "checkpoints"
+        preprocessing_dir = output_dir / "preprocessing"
+
+        # ----- Load everything run_pinn_noenv.py already saved -----
+        with open(checkpoints_dir / "architecture.json") as f:
+            n_other_features = json.load(f)["n_other_features"]
+
+        scaler_age = joblib.load(preprocessing_dir / "scaler_age.joblib")
+        scaler_other_features = joblib.load(preprocessing_dir / "scaler_other_features.joblib")
+        scaler_height = joblib.load(preprocessing_dir / "scaler_height.joblib")
+        with open(preprocessing_dir / "encoded_column_names.json") as f:
+            encoded_column_names = json.load(f)
+
+        model = load_best_model(n_other_features, device, checkpoints_dir)
+
+        # ----- Load ONLY the test rows (2023) -----
+        split_df = load_split_table(cohort, MODEL_NAME)
+        test_df = split_df[split_df["split"] == "test"]
+
+        age_test, other_test, target_test = build_tensors(
+            test_df, scaler_age, scaler_other_features, scaler_height, encoded_column_names, device
+        )
+
+        # ----- Make predictions and unscale them back to real metres -----
+        predicted_height_test_scaled = predict(model, age_test, other_test)
+        predicted_height_test = scaler_height.inverse_transform(
+            predicted_height_test_scaled.cpu().numpy()
+        ).flatten()
+        observed_height_test = test_df[TARGET_COLUMN].values
+
+        metrics = compute_metrics(observed_height_test, predicted_height_test, age=test_df["Age"].values)
+
+        predictions_df = pd.DataFrame({
+            "identification": test_df["identification"].values,
+            "blk": test_df["blk"].values,
+            "cpmt": test_df["cpmt"].values,
+            "LiDAR_year": test_df["LiDAR_year"].values,
+            "Age": test_df["Age"].values,
+            "observed_top_height": observed_height_test,
+            "predicted_top_height": predicted_height_test,
+            "residual": observed_height_test - predicted_height_test,
+            "split": "test",
+        })
+
+        predictions_df.to_csv(output_dir / "predictions.csv", index=False)
+        with open(output_dir / "metrics.json", "w") as f:
+            json.dump(metrics, f, indent=2)
+
+        write_run_log(
+            attempt_id=attempt_id,
+            model_name=MODEL_NAME, cohort=cohort, split_type="temporal", run_phase="evaluate",
+            status="success", is_test_run=False, device=str(device),
+            hyperparameters={}, metrics=metrics, error=None,
+            output_dir=output_dir, runtime_seconds=timer.elapsed_seconds(), n_rows_fit=len(test_df),
+        )
+
+        print(f"  MAE={metrics['mae']:.4f}  RMSE={metrics['rmse']:.4f}  R2={metrics['r2']:.4f}  Bias={metrics['bias']:+.4f}")
+        print(f"  Saved -> {output_dir / 'predictions.csv'}")
+        print(f"  Saved -> {output_dir / 'metrics.json'}")
+        print()
+        return metrics
+
+    except Exception as error:
+        write_run_log(
+            attempt_id=attempt_id,
+            model_name=MODEL_NAME, cohort=cohort, split_type="temporal", run_phase="evaluate",
+            status="failed", is_test_run=False, device=str(device),
+            hyperparameters={}, metrics=None, error=format_error(error),
+            output_dir=None, runtime_seconds=timer.elapsed_seconds(),
+        )
+        print(f"  WARNING: {MODEL_NAME} evaluation failed for {cohort}: {error}")
+        print(f"  (Did you run 'python -m models.pinn_noenv.run_pinn_noenv --cohort {cohort}' first?)")
+        print()
+        return None
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--cohort", choices=["4survey", "6survey"], default=None, help="Omit to run both cohorts.")
+    args = parser.parse_args()
+
+    cohorts = [args.cohort] if args.cohort else ["4survey", "6survey"]
+
+    all_metrics = {}
+    for cohort in cohorts:
+        all_metrics[cohort] = run_for_cohort(cohort)
+
+    print("===== Summary: test-split metrics =====")
+    for cohort, metrics in all_metrics.items():
+        if metrics is None:
+            print(f"  {cohort}: FAILED, see outputs/run_logs/")
+            continue
+        print(f"  {cohort}: MAE={metrics['mae']:.4f}  RMSE={metrics['rmse']:.4f}  R2={metrics['r2']:.4f}  Bias={metrics['bias']:+.4f}")
+
+
+if __name__ == "__main__":
+    main()
