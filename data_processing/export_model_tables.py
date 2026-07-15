@@ -41,9 +41,12 @@
 #     audit/stratification only.
 #   - LAI: kept for canopy data-quality checks; not used alongside
 #     CanopyCover in baseline models, to avoid two redundant canopy inputs.
-#   - identification, LiDAR_year, blk: row identity and the spatial
-#     grouping column used for splitting -- metadata, not predictors.
-#     blk in particular must NEVER be passed to a model as a feature.
+#   - identification, LiDAR_year, blk, cpmt: row identity and the spatial
+#     grouping columns used for splitting -- metadata, not predictors. blk
+#     and cpmt in particular must NEVER be passed to a model as a feature.
+#     cpmt (forestry compartment) is the block_col spatial_block_split()
+#     groups by, so a model that saw cpmt as a feature could effectively
+#     memorise which compartment a row came from.
 
 from pathlib import Path
 
@@ -53,9 +56,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
 COHORTS = ["4survey", "6survey"]
 
-# Row identity and the spatial split column. Kept in every table for
-# splitting/evaluation, but never passed to a model as a feature.
-METADATA_COLUMNS = ["identification", "LiDAR_year", "blk"]
+# Row identity and the spatial split columns. Kept in every table for
+# splitting/evaluation, but never passed to a model as a feature. blk and
+# cpmt in particular must NEVER be passed to a model as a feature -- cpmt
+# (forestry compartment) is the block_col spatial_block_split() groups by.
+METADATA_COLUMNS = ["identification", "LiDAR_year", "blk", "cpmt"]
 
 # Top_Height99 is the primary modelling target (see the cleaning notebook's
 # section 11.2 and documentation/plans_md's Accuracy Review for the reasoning
@@ -117,10 +122,20 @@ MODEL_FEATURE_SETS["pinn_noenv"] = FULL_NOENV_FEATURES
 # Columns kept in the transition (growth-between-surveys) tables. This is a
 # different question to the current-state tables above: the target here is
 # annual_height99_increment, not Top_Height99 itself.
+#
+# previous_Thin / previous_time_since_thinning / previous_time_since_thinning_missing
+# / previous_recent_thinning_5yr / previous_thinning_status / previous_yldc give the
+# EARLIER survey's full no-environment feature values, alongside the plain (unprefixed)
+# versions which are the LATER survey's values -- both endpoints of a transition pair
+# now carry the full no-environment feature set. This is what the PINN's trajectory
+# loss needs (see documentation/model_instructions/age_only_dnn_pinn_instructions.md,
+# section 3): a forward pass on each endpoint of a pair, using that endpoint's own
+# real feature values, not just its Age and height.
 TRANSITION_COLUMNS = [
     "identification",
     "LiDAR_year",
     "blk",
+    "cpmt",
     "previous_lidar_year",
     "survey_interval_years",
     "previous_age",
@@ -134,11 +149,17 @@ TRANSITION_COLUMNS = [
     "previous_canopy_cover",
     "CanopyCover",
     "canopy_change",
+    "previous_Thin",
     "Thin",
+    "previous_time_since_thinning",
     "time_since_thinning",
+    "previous_time_since_thinning_missing",
     "time_since_thinning_missing",
+    "previous_recent_thinning_5yr",
     "recent_thinning_5yr",
+    "previous_thinning_status",
     "thinning_status",
+    "previous_yldc",
     "yldc",
 ]
 
@@ -178,6 +199,16 @@ def build_transition_table(master_df):
     data["previous_top_height99"] = grouped["Top_Height99"].shift()
     data["previous_top_height95"] = grouped["Top_Height95"].shift()
     data["previous_canopy_cover"] = grouped["CanopyCover"].shift()
+
+    # Earlier-survey values of every other no-environment feature, so a
+    # transition row carries full feature sets for BOTH endpoints of the
+    # pair, not just the later one.
+    data["previous_Thin"] = grouped["Thin"].shift()
+    data["previous_time_since_thinning"] = grouped["time_since_thinning"].shift()
+    data["previous_time_since_thinning_missing"] = grouped["time_since_thinning_missing"].shift()
+    data["previous_recent_thinning_5yr"] = grouped["recent_thinning_5yr"].shift()
+    data["previous_thinning_status"] = grouped["thinning_status"].shift()
+    data["previous_yldc"] = grouped["yldc"].shift()
 
     data["height99_increment"] = data["Top_Height99"] - data["previous_top_height99"]
     data["annual_height99_increment"] = data["height99_increment"] / data["survey_interval_years"]

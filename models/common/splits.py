@@ -1,5 +1,18 @@
 import numpy as np
 
+# Chronological train/val/test years per cohort, holding out the most recent
+# survey as test so the split matches "does the model predict future growth".
+# 2021 is held out as val (not folded into train) so early stopping has a
+# genuine, untouched validation year -- confirmed as the year assignment to
+# use for both the baseline models and the DNN/PINN work. Moved here (out of
+# test_splits.py, where it started as a local test config) so every script
+# that needs a temporal split reads this one definition, not several copies
+# that could silently drift apart.
+TEMPORAL_YEARS = {
+    "4survey": {"train_years": [2008, 2012], "val_years": [2021], "test_years": [2023]},
+    "6survey": {"train_years": [2002, 2006, 2008, 2012], "val_years": [2021], "test_years": [2023]},
+}
+
 
 def plot_level_split(df, plot_col="identification", test_size=0.2, val_size=0.2, seed=42):
     # Splitting by plot (not by row) means every survey year for one plot ends

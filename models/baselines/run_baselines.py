@@ -1,8 +1,28 @@
 # Run as: python -m models.baselines.run_baselines
+#     or: python -m models.baselines.run_baselines --split-type spatial_block
+#     or: python -m models.baselines.run_baselines --split-type temporal
+#
 # Fits Chapman-Richards, average-by-age, linear regression, and random
 # forest baselines for both cohorts. This pass only fits and saves
 # parameters/models -- evaluation happens separately in evaluate_baselines.py.
+#
+# --split-type plot_level (default) is the easy, already-established split:
+# individual plots are shuffled randomly into train/val/test, so a test plot
+# usually sits right next to a training plot. --split-type spatial_block is
+# a harder, more realistic test: whole forestry compartments (cpmt) are
+# shuffled into train/val/test instead, so a test plot's nearest training
+# neighbour can be kilometres away. --split-type temporal is a third,
+# different question: does the model predict a real FUTURE survey it never
+# trained on -- train on 2008+2012 (4survey) / 2002-2012 (6survey), validate
+# on 2021, test on 2023 (see TEMPORAL_YEARS in models/common/splits.py).
+# Unlike the other two splits, the same plot legitimately appears in both
+# train and test rows here -- that is expected, not a leak, since this
+# split tests time generalisation, not plot or place generalisation. Every
+# output path is kept separate per split type (outputs/spatial_block/...,
+# outputs/temporal/... vs outputs/...), so running one never overwrites
+# another.
 
+import argparse
 from pathlib import Path
 
 from models.average_by_age.average_by_age import fit as fit_average_by_age
@@ -10,7 +30,7 @@ from models.average_by_age.average_by_age import save_lookup
 from models.chapman_richards.chapman_richards import fit as fit_chapman_richards
 from models.chapman_richards.chapman_richards import save_params as save_cr_params
 from models.common.data import filter_data, load_cohort_data, load_model_table
-from models.common.splits import plot_level_split
+from models.common.splits import TEMPORAL_YEARS, plot_level_split, spatial_block_split, temporal_split
 from models.linear_baseline.linear_baseline import fit as fit_linear_baseline
 from models.linear_baseline.linear_baseline import save_params as save_linear_params
 from models.rf_baseline.rf_baseline import fit as fit_rf_baseline
@@ -21,47 +41,85 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 COHORTS = ["4survey", "6survey"]
 SEED = 42
 
+# cpmt is the forestry-compartment column spatial_block_split groups by.
+# buffer_distance=60 matches the value already validated in
+# data_exploration_gpkg/notebooks/spatial_temporal_split_visualisation.ipynb.
+SPATIAL_BLOCK_COL = "cpmt"
+SPATIAL_BUFFER_METRES = 60
+
 # The prior dissertation's Chapman-Richards fit, for a quick sanity check.
 PRIOR_CR_PARAMS = {"y_max": 46.1126, "k": 0.01866979, "p": 1.0175}
 
 
-def build_split_for_cohort(cohort):
+def output_dir(*parts, split_type):
+    # Keeps every output path for a spatial_block or temporal run under its
+    # own outputs/<split_type>/ subtree, so it can never overwrite the
+    # already-established plot_level results living directly under outputs/.
+    if split_type in ("spatial_block", "temporal"):
+        return PROJECT_ROOT / "outputs" / split_type / Path(*parts)
+    return PROJECT_ROOT / "outputs" / Path(*parts)
+
+
+def build_split_for_cohort(cohort, split_type):
     # The split is computed ONCE per cohort, from the smallest shared table
-    # (identification, LiDAR_year, blk, Age, yldc, Top_Height99 -- everything
-    # Chapman-Richards and average-by-age need), then saved. linear_baseline
-    # and rf_baseline reuse this exact split by merging onto it (in
-    # load_train_rows), rather than recomputing plot_level_split()
-    # separately -- that guarantees all four baselines share identical
-    # train/val/test membership, even though they load different source
-    # files with possibly different row orders.
+    # (identification, LiDAR_year, blk, cpmt, Age, yldc, Top_Height99 --
+    # everything Chapman-Richards and average-by-age need), then saved.
+    # linear_baseline and rf_baseline reuse this exact split by merging onto
+    # it (in load_train_rows), rather than recomputing the split separately
+    # -- that guarantees all four baselines share identical train/val/test
+    # membership, even though they load different source files with
+    # possibly different row orders.
     #
     # Note: cr_age.csv.gz itself has no yldc column, so this filtered table
     # (not a fresh read of cr_age.csv.gz) is what CR and average-by-age are
     # actually fitted on below.
+    #
+    # filter_data() now gates whole plots on their Age at the 2023 survey
+    # (see models/common/data.py), so a plot's early rows here can still show
+    # Age well under 20 -- that is expected, not a bug.
     df = load_cohort_data(cohort)
     filtered_df = filter_data(df)
 
-    # plot_level_split returns a three-way train/val/test split (60/20/20).
-    # Neither Chapman-Richards, average-by-age, nor linear regression has
-    # anything to tune (no hyperparameters, no early stopping), and the RF
-    # baseline isn't tuned yet either, so val is saved here for schema
-    # consistency with later models only -- it is not read by any model
-    # fitted in this script. Only train is used for fitting.
-    filtered_df["split"] = plot_level_split(filtered_df, seed=SEED)
+    if split_type == "plot_level":
+        # Returns a three-way train/val/test split (60/20/20). Neither
+        # Chapman-Richards, average-by-age, nor linear regression has
+        # anything to tune (no hyperparameters, no early stopping), and the
+        # RF baseline isn't tuned yet either, so val is saved here for
+        # schema consistency with later models only -- it is not read by
+        # any model fitted in this script. Only train is used for fitting.
+        filtered_df["split"] = plot_level_split(filtered_df, seed=SEED)
+    elif split_type == "spatial_block":
+        # Whole compartments go to train/val/test together, with a 60m
+        # buffer removing any TRAINING plot too close to a val/test plot --
+        # see spatial_block_split()/apply_spatial_buffer() in
+        # models/common/splits.py for why only the train side is buffered.
+        # coordinates_df=None makes it load_plot_coordinates() itself.
+        filtered_df["split"] = spatial_block_split(
+            filtered_df,
+            block_col=SPATIAL_BLOCK_COL,
+            buffer_distance=SPATIAL_BUFFER_METRES,
+            seed=SEED,
+        )
+    elif split_type == "temporal":
+        # Every plot in this data has full year coverage for its cohort (see
+        # documentation/model_instructions), so this always covers every row
+        # -- no "unassigned" rows are expected here.
+        filtered_df["split"] = temporal_split(
+            filtered_df,
+            year_col="LiDAR_year",
+            **TEMPORAL_YEARS[cohort],
+        )
+    else:
+        raise ValueError(f"Unknown split_type: {split_type!r}")
 
-    split_path = PROJECT_ROOT / "outputs" / "splits" / cohort / "split_assignment.csv"
+    split_path = output_dir("splits", cohort, "split_assignment.csv", split_type=split_type)
     split_path.parent.mkdir(parents=True, exist_ok=True)
     filtered_df[["identification", "LiDAR_year", "split"]].to_csv(split_path, index=False)
     print(f"  Saved split assignment -> {split_path}")
 
-    val_row_count = (filtered_df["split"] == "val").sum()
-    test_row_count = (filtered_df["split"] == "test").sum()
-    train_row_count = (filtered_df["split"] == "train").sum()
-    print(
-        f"  Training rows: {train_row_count:,}  "
-        f"(val rows saved but unused by these models: {val_row_count:,}; "
-        f"test rows held out, not touched: {test_row_count:,})"
-    )
+    for split_name in sorted(filtered_df["split"].unique()):
+        row_count = (filtered_df["split"] == split_name).sum()
+        print(f"  {split_name} rows: {row_count:,}")
 
     split_assignment = filtered_df[["identification", "LiDAR_year", "split"]]
     return filtered_df, split_assignment
@@ -83,9 +141,9 @@ def load_train_rows(cohort, table_name, split_assignment):
     return merged[merged["split"] == "train"]
 
 
-def run_for_cohort(cohort):
-    print(f"===== {cohort} =====")
-    filtered_df, split_assignment = build_split_for_cohort(cohort)
+def run_for_cohort(cohort, split_type):
+    print(f"===== {cohort} ({split_type}) =====")
+    filtered_df, split_assignment = build_split_for_cohort(cohort, split_type)
     n_rows_fit = int((filtered_df["split"] == "train").sum())
 
     cr_train_df = filtered_df[filtered_df["split"] == "train"]
@@ -99,7 +157,7 @@ def run_for_cohort(cohort):
         print(f"  WARNING: Chapman-Richards fit did not converge for {cohort}: {error}")
 
     if cr_params is not None:
-        cr_output_path = PROJECT_ROOT / "outputs" / "chapman_richards" / cohort / "params.json"
+        cr_output_path = output_dir("chapman_richards", cohort, "params.json", split_type=split_type)
         save_cr_params(cr_params, cohort, n_rows_fit, cr_output_path)
         print(f"  Chapman-Richards params saved -> {cr_output_path}")
 
@@ -116,21 +174,21 @@ def run_for_cohort(cohort):
 
     # --- Average-by-age ---
     lookup_table, fallback_mean_height = fit_average_by_age(avg_train_df)
-    avg_output_path = PROJECT_ROOT / "outputs" / "average_by_age" / cohort / "lookup.json"
+    avg_output_path = output_dir("average_by_age", cohort, "lookup.json", split_type=split_type)
     save_lookup(lookup_table, fallback_mean_height, cohort, n_rows_fit, avg_output_path)
     print(f"  Average-by-age lookup saved -> {avg_output_path}")
 
     # --- Linear baseline ---
     linear_train_df = load_train_rows(cohort, "linear_baseline", split_assignment)
     linear_params = fit_linear_baseline(linear_train_df)
-    linear_output_path = PROJECT_ROOT / "outputs" / "linear_baseline" / cohort / "params.json"
+    linear_output_path = output_dir("linear_baseline", cohort, "params.json", split_type=split_type)
     save_linear_params(linear_params, cohort, len(linear_train_df), linear_output_path)
     print(f"  Linear baseline params saved -> {linear_output_path}")
 
     # --- RF baseline ---
     rf_train_df = load_train_rows(cohort, "rf_baseline", split_assignment)
     rf_model = fit_rf_baseline(rf_train_df)
-    rf_output_dir = PROJECT_ROOT / "outputs" / "rf_baseline" / cohort
+    rf_output_dir = output_dir("rf_baseline", cohort, split_type=split_type)
     rf_model_path = save_rf_model(rf_model, cohort, len(rf_train_df), rf_output_dir)
     print(f"  RF baseline model saved -> {rf_model_path}")
 
@@ -178,9 +236,21 @@ def print_average_by_age_summary(results):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--split-type",
+        choices=["plot_level", "spatial_block", "temporal"],
+        default="plot_level",
+        help=(
+            "plot_level (default, easy/established), spatial_block (harder, "
+            "unseen-compartment test), or temporal (predict a real future survey)."
+        ),
+    )
+    args = parser.parse_args()
+
     results = {}
     for cohort in COHORTS:
-        results[cohort] = run_for_cohort(cohort)
+        results[cohort] = run_for_cohort(cohort, args.split_type)
 
     print_chapman_richards_summary(results)
     print_average_by_age_summary(results)

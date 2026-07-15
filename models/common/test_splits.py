@@ -10,7 +10,7 @@ from pathlib import Path
 import pandas as pd
 
 from models.common.geo import find_train_plots_near_holdout, load_plot_coordinates
-from models.common.splits import spatial_block_split, temporal_split
+from models.common.splits import TEMPORAL_YEARS, spatial_block_split, temporal_split
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 COHORTS = ["4survey", "6survey"]
@@ -25,13 +25,6 @@ SPATIAL_BLOCK_COLUMN = "cpmt"
 # 2-3x more plots for the same leakage protection at close range (see the
 # notebook comparison in data_exploration_gpkg).
 TEST_BUFFER_DISTANCE_METRES = 60
-
-# Chronological train/val/test years per cohort, holding out the most recent
-# survey as test so the split matches "does the model predict future growth".
-TEMPORAL_YEARS = {
-    "4survey": {"train_years": [2008, 2012], "val_years": [2021], "test_years": [2023]},
-    "6survey": {"train_years": [2002, 2006, 2008, 2012], "val_years": [2021], "test_years": [2023]},
-}
 
 # If a split ends up with fewer rows or blocks than this share of the total,
 # print a warning so it does not go unnoticed.

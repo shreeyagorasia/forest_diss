@@ -1,8 +1,17 @@
 # Run as: python -m models.baselines.evaluate_baselines
+#     or: python -m models.baselines.evaluate_baselines --split-type spatial_block
+#     or: python -m models.baselines.evaluate_baselines --split-type temporal
+#
 # Evaluates the already-fitted Chapman-Richards, average-by-age, linear
 # regression, and random forest baselines on the held-out test split. Does
 # not refit anything and does not touch the training split.
+#
+# --split-type must match whichever split_type run_baselines.py was run
+# with -- it reads the params/model files and split_assignment.csv that
+# script saved for that split type, from the matching outputs/ subtree
+# (see output_dir() in run_baselines.py).
 
+import argparse
 import json
 from pathlib import Path
 
@@ -10,6 +19,7 @@ import numpy as np
 import pandas as pd
 
 from models.average_by_age.average_by_age import predict as predict_average_by_age
+from models.baselines.run_baselines import output_dir
 from models.chapman_richards.chapman_richards import chapman_richards
 from models.common.data import filter_data, load_cohort_data, load_model_table
 from models.common.metrics import compute_metrics
@@ -26,21 +36,22 @@ MIN_ROWS_TO_TRUST_A_BAND = 30
 LARGE_BIAS_METRES = 2.0
 
 
-def load_test_rows(cohort, table_name):
+def load_test_rows(cohort, table_name, split_type):
     # Rebuild the same filtered rows used for fitting (filtering is
     # deterministic, so this reproduces the same rows every time), then
     # attach the split labels that were already saved by run_baselines.py —
     # this does NOT create a new split, and it is the same merge-based
     # approach used there so every model agrees on which rows are test rows.
     #
-    # The saved split assignment is a three-way train/val/test split, but
-    # none of these four baselines have anything to tune, so they are only
-    # ever evaluated on test — val exists in the file for schema consistency
-    # with later models and is deliberately never read here.
+    # The saved split assignment is a three-way train/val/test split (plus
+    # "buffer" for spatial_block, which is neither train nor test), but none
+    # of these four baselines have anything to tune, so they are only ever
+    # evaluated on test — val exists in the file for schema consistency with
+    # later models only and is deliberately never read here.
     #
     # cr_age.csv.gz itself has no yldc column, so Chapman-Richards and
     # average-by-age are evaluated against the same trimmed
-    # (identification, LiDAR_year, blk, Age, yldc, Top_Height99) table
+    # (identification, LiDAR_year, blk, cpmt, Age, yldc, Top_Height99) table
     # load_cohort_data() uses for fitting, not a fresh read of cr_age.csv.gz.
     if table_name == "cr_age":
         table = load_cohort_data(cohort)
@@ -48,7 +59,7 @@ def load_test_rows(cohort, table_name):
         table = load_model_table(cohort, table_name)
     filtered_table = filter_data(table)
 
-    split_path = PROJECT_ROOT / "outputs" / "splits" / cohort / "split_assignment.csv"
+    split_path = output_dir("splits", cohort, "split_assignment.csv", split_type=split_type)
     split_assignment = pd.read_csv(split_path)
 
     merged_df = filtered_table.merge(split_assignment, on=["identification", "LiDAR_year"], how="inner")
@@ -60,52 +71,52 @@ def load_test_rows(cohort, table_name):
     return merged_df[merged_df["split"] == "test"].copy()
 
 
-def evaluate_chapman_richards(cohort):
-    test_df = load_test_rows(cohort, "cr_age")
+def evaluate_chapman_richards(cohort, split_type):
+    test_df = load_test_rows(cohort, "cr_age", split_type)
 
-    params_path = PROJECT_ROOT / "outputs" / "chapman_richards" / cohort / "params.json"
+    params_path = output_dir("chapman_richards", cohort, "params.json", split_type=split_type)
     with open(params_path) as f:
         params = json.load(f)
 
     predicted_heights = chapman_richards(test_df["Age"].values, params["y_max"], params["k"], params["p"])
-    return build_results("chapman_richards", cohort, test_df, predicted_heights)
+    return build_results("chapman_richards", cohort, test_df, predicted_heights, split_type)
 
 
-def evaluate_average_by_age(cohort):
-    test_df = load_test_rows(cohort, "cr_age")  # same age-only table CR uses
+def evaluate_average_by_age(cohort, split_type):
+    test_df = load_test_rows(cohort, "cr_age", split_type)  # same age-only table CR uses
 
-    lookup_path = PROJECT_ROOT / "outputs" / "average_by_age" / cohort / "lookup.json"
+    lookup_path = output_dir("average_by_age", cohort, "lookup.json", split_type=split_type)
     with open(lookup_path) as f:
         lookup_data = json.load(f)
 
     predicted_heights = predict_average_by_age(
         test_df["Age"].values, lookup_data["lookup_table"], lookup_data["fallback_mean_height"]
     )
-    return build_results("average_by_age", cohort, test_df, predicted_heights)
+    return build_results("average_by_age", cohort, test_df, predicted_heights, split_type)
 
 
-def evaluate_linear_baseline(cohort):
-    test_df = load_test_rows(cohort, "linear_baseline")
+def evaluate_linear_baseline(cohort, split_type):
+    test_df = load_test_rows(cohort, "linear_baseline", split_type)
 
-    params_path = PROJECT_ROOT / "outputs" / "linear_baseline" / cohort / "params.json"
+    params_path = output_dir("linear_baseline", cohort, "params.json", split_type=split_type)
     with open(params_path) as f:
         params = json.load(f)
 
     predicted_heights = predict_linear_baseline(test_df, params)
-    return build_results("linear_baseline", cohort, test_df, predicted_heights)
+    return build_results("linear_baseline", cohort, test_df, predicted_heights, split_type)
 
 
-def evaluate_rf_baseline(cohort):
-    test_df = load_test_rows(cohort, "rf_baseline")
+def evaluate_rf_baseline(cohort, split_type):
+    test_df = load_test_rows(cohort, "rf_baseline", split_type)
 
-    model_dir = PROJECT_ROOT / "outputs" / "rf_baseline" / cohort
+    model_dir = output_dir("rf_baseline", cohort, split_type=split_type)
     model = load_rf_model(model_dir)
 
     predicted_heights = predict_rf_baseline(test_df, model)
-    return build_results("rf_baseline", cohort, test_df, predicted_heights)
+    return build_results("rf_baseline", cohort, test_df, predicted_heights, split_type)
 
 
-def build_results(model_name, cohort, test_df, predicted_heights):
+def build_results(model_name, cohort, test_df, predicted_heights, split_type):
     observed_heights = test_df["Top_Height99"].values
     predicted_heights = np.asarray(predicted_heights, dtype=float)
     residuals = observed_heights - predicted_heights
@@ -113,6 +124,8 @@ def build_results(model_name, cohort, test_df, predicted_heights):
     predictions_df = pd.DataFrame({
         "identification": test_df["identification"].values,
         "blk": test_df["blk"].values,
+        "cpmt": test_df["cpmt"].values,
+        "LiDAR_year": test_df["LiDAR_year"].values,
         "Age": test_df["Age"].values,
         "observed_top_height": observed_heights,
         "predicted_top_height": predicted_heights,
@@ -122,14 +135,14 @@ def build_results(model_name, cohort, test_df, predicted_heights):
 
     metrics = compute_metrics(observed_heights, predicted_heights, age=test_df["Age"].values)
 
-    output_dir = PROJECT_ROOT / "outputs" / model_name / cohort
-    output_dir.mkdir(parents=True, exist_ok=True)
-    predictions_df.to_csv(output_dir / "predictions.csv", index=False)
-    with open(output_dir / "metrics.json", "w") as f:
+    results_dir = output_dir(model_name, cohort, split_type=split_type)
+    results_dir.mkdir(parents=True, exist_ok=True)
+    predictions_df.to_csv(results_dir / "predictions.csv", index=False)
+    with open(results_dir / "metrics.json", "w") as f:
         json.dump(metrics, f, indent=2)
 
-    print(f"  [{model_name}] saved -> {output_dir / 'predictions.csv'}")
-    print(f"  [{model_name}] saved -> {output_dir / 'metrics.json'}")
+    print(f"  [{model_name}] saved -> {results_dir / 'predictions.csv'}")
+    print(f"  [{model_name}] saved -> {results_dir / 'metrics.json'}")
 
     return metrics
 
@@ -150,6 +163,16 @@ def flag_issues(cohort, model_name, metrics):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--split-type",
+        choices=["plot_level", "spatial_block", "temporal"],
+        default="plot_level",
+        help="Must match whichever split_type run_baselines.py was run with.",
+    )
+    args = parser.parse_args()
+    split_type = args.split_type
+
     all_results = {}
     evaluators = {
         "chapman_richards": evaluate_chapman_richards,
@@ -159,11 +182,11 @@ def main():
     }
 
     for cohort in COHORTS:
-        print(f"===== {cohort} =====")
+        print(f"===== {cohort} ({split_type}) =====")
 
         cohort_results = {}
         for model_name in MODEL_NAMES:
-            metrics = evaluators[model_name](cohort)
+            metrics = evaluators[model_name](cohort, split_type)
             flag_issues(cohort, model_name, metrics)
             cohort_results[model_name] = metrics
 
