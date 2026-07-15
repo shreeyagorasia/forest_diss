@@ -100,3 +100,36 @@ def plot_bias_by_year(lidar_year, y_true, y_pred, ax=None):
     ax.set_xlabel("Survey year")
     ax.set_ylabel("Bias (observed - predicted), m")
     return ax
+
+
+def plot_loss_curve(history_df, ax=None):
+    # history_df is training_history.csv read back in (one row per epoch).
+    # Every model's history has train_loss/val_loss; the PINN's history also
+    # has data_loss/physics_loss/trajectory_loss, which get drawn as thin
+    # dashed lines automatically if those columns exist -- so this one
+    # function works for both the DNN and the PINN's training_history.csv,
+    # nothing to change when switching between them.
+    if ax is None:
+        _, ax = plt.subplots()
+
+    ax.plot(history_df["epoch"], history_df["train_loss"], label="train_loss", color="#1f77b4")
+    ax.plot(history_df["epoch"], history_df["val_loss"], label="val_loss", color="#d62728")
+
+    for component in ["data_loss", "physics_loss", "trajectory_loss"]:
+        if component in history_df.columns:
+            ax.plot(
+                history_df["epoch"], history_df[component],
+                label=component, linestyle="--", linewidth=1, alpha=0.6,
+            )
+
+    # Mark the epoch with the lowest val_loss -- this is the epoch whose
+    # weights load_best_model() actually loads, not necessarily the last
+    # epoch trained (early stopping keeps training a while longer after the
+    # best epoch, to make sure it really has stopped improving).
+    best_epoch = history_df.loc[history_df["val_loss"].idxmin(), "epoch"]
+    ax.axvline(best_epoch, color="black", linewidth=1, linestyle=":", alpha=0.6, label="best epoch")
+
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("Loss")
+    ax.legend(fontsize=8)
+    return ax
