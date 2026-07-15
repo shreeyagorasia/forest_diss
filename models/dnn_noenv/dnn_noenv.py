@@ -11,6 +11,7 @@
 # separate scripts, so a GPU job is never spent on the cheap part.
 
 import json
+import time
 from datetime import datetime, timezone
 
 import pandas as pd
@@ -119,7 +120,8 @@ def fit(
     #     epoch trained, saved too in case it's ever useful to compare
     #     against the best one
     #   - history_df: one row per epoch actually trained, with the loss
-    #     numbers and learning rate at that point
+    #     numbers, learning rate, and elapsed training time at that point
+    training_start_time = time.time()
     model = build_model(n_other_features, device, seed)
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
     # ReduceLROnPlateau automatically shrinks the learning rate once
@@ -141,11 +143,18 @@ def fit(
 
         current_lr = optimizer.param_groups[0]["lr"]
 
+        # elapsed_seconds is the time since training started, not the time
+        # for this one epoch -- so plotting loss against elapsed_seconds
+        # shows how training speed changes on the actual machine it ran on
+        # (e.g. comparing a cluster GPU run to a laptop CPU sanity check).
+        elapsed_seconds = time.time() - training_start_time
+
         # Save EVERY epoch's numbers to the history list -- this becomes
         # training_history.csv later, with nothing skipped, regardless of
         # how often we print below.
         history_rows.append({
-            "epoch": epoch, "train_loss": train_loss, "val_loss": val_loss, "learning_rate": current_lr,
+            "epoch": epoch, "train_loss": train_loss, "val_loss": val_loss,
+            "learning_rate": current_lr, "elapsed_seconds": elapsed_seconds,
         })
 
         # Has this epoch beaten every previous epoch's validation loss?

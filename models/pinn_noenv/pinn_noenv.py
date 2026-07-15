@@ -29,6 +29,7 @@
 
 import itertools
 import json
+import time
 from datetime import datetime, timezone
 
 import pandas as pd
@@ -203,6 +204,7 @@ def fit(
     n_other_features, device, seed,
     max_epochs, early_stopping_patience,
 ):
+    training_start_time = time.time()
     model = build_model(n_other_features, device, seed)
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -225,6 +227,13 @@ def fit(
         scheduler.step(val_loss)
 
         current_lr = optimizer.param_groups[0]["lr"]
+
+        # elapsed_seconds is the time since training started, not the time
+        # for this one epoch -- lets loss be plotted against wall-clock time
+        # instead of epoch count, useful for comparing cluster GPU speed to
+        # a local CPU sanity check.
+        elapsed_seconds = time.time() - training_start_time
+
         history_rows.append({
             "epoch": epoch,
             "train_loss": epoch_losses["data_loss"] + PHYSICS_WEIGHT * epoch_losses["physics_loss"]
@@ -234,6 +243,7 @@ def fit(
             "trajectory_loss": epoch_losses["trajectory_loss"],
             "val_loss": val_loss,
             "learning_rate": current_lr,
+            "elapsed_seconds": elapsed_seconds,
         })
 
         # Has this epoch beaten every previous epoch's validation loss?
