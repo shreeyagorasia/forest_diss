@@ -1,0 +1,8 @@
+--- DNN job start ---
+Node: saxa.inf.ed.ac.uk
+Cohort: 4survey
+Max epochs: 5
+Patience: 3
+===== 4survey (dnn_noenv) =====
+  Using device: cuda
+--- DNN job end ---

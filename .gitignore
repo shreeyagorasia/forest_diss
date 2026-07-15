@@ -33,6 +33,3 @@ legacy/**/*.gpkg
 # models/rf_baseline/rf_baseline.py's save_model() for details.
 outputs/
 
-# Cluster logs are generated files. Keep the folder layout in Git via
-# .gitkeep files, but do not commit SLURM stdout/stderr.
-logs/*
