@@ -1,8 +1,8 @@
 #!/bin/bash
 
 #SBATCH --job-name=growth_model_torch
-#SBATCH --output=logs/%x_%j.out
-#SBATCH --error=logs/%x_%j.err
+#SBATCH --output=logs/torch/%x_%j.out
+#SBATCH --error=logs/torch/%x_%j.err
 #SBATCH --time=04:00:00
 #SBATCH --partition=Teaching
 #SBATCH --gres=gpu:nvidia_rtx_a6000:1
@@ -34,10 +34,10 @@
 . /home/htang2/toolchain-20251006/toolchain.rc
 
 # 2. Activate this project's venv. SLURM starts the job in the directory
-#    you submitted `sbatch` from, so this assumes a venv/ folder sits at
+#    you submitted `sbatch` from, so this assumes a .venv/ folder sits at
 #    the project root there -- rename this line if your cluster venv has a
 #    different name or location.
-source ./venv/bin/activate
+source ./.venv/bin/activate
 
 # --- adapting this to how THIS project's code is actually laid out -------
 # The original template this script is based on assumed a top-level
@@ -75,7 +75,7 @@ if [ ! -d "models/${MODEL_NAME}" ]; then
     exit 1
 fi
 
-mkdir -p logs outputs
+mkdir -p logs/torch outputs
 
 # max_epochs/patience are only appended to the command if actually given --
 # omitting them lets run_<model_name>.py fall back to its own defaults

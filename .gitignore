@@ -32,3 +32,16 @@ legacy/**/*.gpkg
 # for artifacts this cheap and fast to regenerate locally. See
 # models/rf_baseline/rf_baseline.py's save_model() for details.
 outputs/
+
+# Cluster logs are generated files. Keep the folder layout in Git via
+# .gitkeep files, but do not commit SLURM stdout/stderr.
+logs/*
+!logs/.gitkeep
+!logs/data_processing/
+!logs/data_processing/.gitkeep
+!logs/dnn/
+!logs/dnn/.gitkeep
+!logs/pinn/
+!logs/pinn/.gitkeep
+!logs/torch/
+!logs/torch/.gitkeep
