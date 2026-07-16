@@ -1,0 +1,22 @@
+--- PINN job start ---
+Node: opencast.inf.ed.ac.uk
+Cohort: 4survey
+Max epochs: 500
+Patience: 20
+===== 4survey (pinn_noenv) — FIT ONLY, no test-set evaluation =====
+  Using device: cuda
+  Frozen CR params: y_max=53.4909, k=0.010990, p=0.858848
+  Rows before filtering: 287,064
+  Removed by Age < 30 at the 2023 survey (whole plot dropped): 54,616 rows
+  Removed by yield class between 2 and 50: 0 rows
+  Rows after filtering: 232,448
+  ----- Pre-training diagnostic: 4survey -----
+  Training plots (unique identification): 58,112
+  Test plots (unique identification): 58,112
+  Training plots with at least one usable trajectory pair: 58,112
+  annual_height99_increment across training pairs: mean=0.5872 m/yr, std=0.3998 m/yr
+  Training rows by survey year:
+    2008: 58,112 rows
+    2012: 58,112 rows
+
+  epoch 1/500  data_loss=0.3374  physics_loss=0.0119  trajectory_loss=0.0222  val_loss=0.5607  learning_rate=0.000100 (new best)

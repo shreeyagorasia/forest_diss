@@ -31,7 +31,7 @@
 #SBATCH --error=logs/pinn_noenv/%x_%j.err
 #SBATCH --time=04:00:00
 #SBATCH --partition=Teaching
-#SBATCH --gres=gpu:nvidia_rtx_a6000:1
+#SBATCH --gres=gpu:1
 #SBATCH --mem=16G
 
 cd ~/forest_diss

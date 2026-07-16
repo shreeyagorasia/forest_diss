@@ -1,0 +1,26 @@
+--- PINN job start ---
+Node: opencast.inf.ed.ac.uk
+Cohort: 6survey
+Max epochs: 500
+Patience: 20
+===== 6survey (pinn_noenv) — FIT ONLY, no test-set evaluation =====
+  Using device: cuda
+  Frozen CR params: y_max=46.5132, k=0.023737, p=1.162634
+  Rows before filtering: 83,382
+  Removed by Age < 30 at the 2023 survey (whole plot dropped): 768 rows
+  Removed by yield class between 2 and 50: 0 rows
+  Rows after filtering: 82,614
+  ----- Pre-training diagnostic: 6survey -----
+  Training plots (unique identification): 13,769
+  Test plots (unique identification): 13,769
+  Training plots with at least one usable trajectory pair: 13,769
+  annual_height99_increment across training pairs: mean=0.5523 m/yr, std=0.3664 m/yr
+  Training rows by survey year:
+    2002: 13,769 rows
+    2006: 13,769 rows
+    2008: 13,769 rows
+    2012: 13,769 rows
+
+  epoch 1/500  data_loss=0.3598  physics_loss=0.0265  trajectory_loss=0.0262  val_loss=0.6543  learning_rate=0.000100 (new best)
+  epoch 10/500  data_loss=0.3020  physics_loss=0.0049  trajectory_loss=0.0073  val_loss=0.5375  learning_rate=0.000100
+  epoch 20/500  data_loss=0.2988  physics_loss=0.0039  trajectory_loss=0.0074  val_loss=0.5072  learning_rate=0.000100
