@@ -130,7 +130,7 @@ def train_one_epoch(
     model, optimizer,
     age_train, other_train, target_train,
     pair_tensors, cr_params, scaler_age, scaler_height,
-    device,
+    device, physics_weight, trajectory_weight,
 ):
     model.train()
 
@@ -179,7 +179,7 @@ def train_one_epoch(
 
         l1_loss = L1_COEFFICIENT * compute_l1_penalty(model)
 
-        total_loss = data_loss + PHYSICS_WEIGHT * physics_loss + TRAJECTORY_WEIGHT * trajectory_loss + l1_loss
+        total_loss = data_loss + physics_weight * physics_loss + trajectory_weight * trajectory_loss + l1_loss
 
         total_loss.backward()
         # Shrinks the gradient if its overall size is above GRAD_CLIP_MAX_NORM,
@@ -231,6 +231,7 @@ def fit(
     n_other_features, device, seed,
     max_epochs, early_stopping_patience,
     optimizer_name="adam",
+    physics_weight=PHYSICS_WEIGHT, trajectory_weight=TRAJECTORY_WEIGHT,
 ):
     training_start_time = time.time()
     model = build_model(n_other_features, device, seed)
@@ -250,7 +251,7 @@ def fit(
             model, optimizer,
             age_train, other_train, target_train,
             pair_tensors, cr_params, scaler_age, scaler_height,
-            device,
+            device, physics_weight, trajectory_weight,
         )
         val_loss = evaluate_on_validation_set(model, age_val, other_val, target_val)
         scheduler.step(val_loss)
@@ -275,8 +276,8 @@ def fit(
 
         history_rows.append({
             "epoch": epoch,
-            "train_loss": epoch_losses["data_loss"] + PHYSICS_WEIGHT * epoch_losses["physics_loss"]
-                          + TRAJECTORY_WEIGHT * epoch_losses["trajectory_loss"],
+            "train_loss": epoch_losses["data_loss"] + physics_weight * epoch_losses["physics_loss"]
+                          + trajectory_weight * epoch_losses["trajectory_loss"],
             "data_loss": epoch_losses["data_loss"],
             "physics_loss": epoch_losses["physics_loss"],
             "trajectory_loss": epoch_losses["trajectory_loss"],

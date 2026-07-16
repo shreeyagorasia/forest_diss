@@ -94,8 +94,22 @@ def load_cr_params(cohort):
     return {"y_max": params["y_max"], "k": params["k"], "p": params["p"]}
 
 
-def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed, optimizer_name):
-    print(f"===== {cohort} ({MODEL_NAME}, {split_type}) — FIT ONLY, no test-set evaluation =====")
+def run_for_cohort(
+    cohort, split_type, max_epochs, early_stopping_patience, seed, optimizer_name,
+    physics_weight, trajectory_weight, run_name,
+):
+    # run_name only changes where results are SAVED (output_dir below) and
+    # how this run is labelled in outputs/run_logs/ -- it never changes
+    # which underlying data table gets loaded (that always uses the plain
+    # MODEL_NAME, "pinn_noenv", a few lines down), since a physics_weight/
+    # trajectory_weight sweep is still the same network on the same data,
+    # just a different loss-weighting choice. Without a distinct run_name,
+    # every sweep run would silently overwrite the primary result at the
+    # same output_dir -- see the pinn_noenv_crmatched naming precedent in
+    # documentation/experiment_log.md for why a different PINN
+    # configuration gets its own name rather than reusing MODEL_NAME.
+    output_model_name = run_name if run_name else MODEL_NAME
+    print(f"===== {cohort} ({output_model_name}, {split_type}) — FIT ONLY, no test-set evaluation =====")
 
     is_test_run = max_epochs < TEST_RUN_MAX_EPOCHS_THRESHOLD
     device = select_device()
@@ -110,8 +124,8 @@ def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed
         "grad_clip_max_norm": GRAD_CLIP_MAX_NORM,
         "val_loss_smoothing_window": VAL_LOSS_SMOOTHING_WINDOW,
         "optimizer_name": optimizer_name,
-        "physics_weight": PHYSICS_WEIGHT,
-        "trajectory_weight": TRAJECTORY_WEIGHT,
+        "physics_weight": physics_weight,
+        "trajectory_weight": trajectory_weight,
         "batch_size": BATCH_SIZE,
         "pairs_batch_size": PAIRS_BATCH_SIZE,
         "max_epochs": max_epochs,
@@ -130,7 +144,7 @@ def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed
     # IS the signal that something went wrong.
     timer = RunTimer().start()
     attempt_id = write_started_marker(
-        model_name=MODEL_NAME, cohort=cohort, split_type=split_type, run_phase="fit",
+        model_name=output_model_name, cohort=cohort, split_type=split_type, run_phase="fit",
         is_test_run=is_test_run, device=str(device), hyperparameters=hyperparameters,
     )
 
@@ -169,6 +183,7 @@ def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed
             n_other_features, device, seed,
             max_epochs, early_stopping_patience,
             optimizer_name=optimizer_name,
+            physics_weight=physics_weight, trajectory_weight=trajectory_weight,
         )
         last_row = history_df.iloc[-1]
         # The smoothed column is what actually decided which epoch's
@@ -184,7 +199,7 @@ def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed
 
         # ----- Save everything needed to evaluate this model LATER, on a
         # different machine -----
-        output_dir = model_output_dir(MODEL_NAME, cohort, split_type=split_type)
+        output_dir = model_output_dir(output_model_name, cohort, split_type=split_type)
         output_dir.mkdir(parents=True, exist_ok=True)
 
         history_df.to_csv(output_dir / "training_history.csv", index=False)
@@ -212,7 +227,7 @@ def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed
         # exist once evaluate_pinn_noenv.py has been run.
         write_run_log(
             attempt_id=attempt_id,
-            model_name=MODEL_NAME, cohort=cohort, split_type=split_type, run_phase="fit",
+            model_name=output_model_name, cohort=cohort, split_type=split_type, run_phase="fit",
             status="success", is_test_run=is_test_run, device=str(device),
             hyperparameters={
                 **hyperparameters,
@@ -232,19 +247,23 @@ def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed
         )
 
         print(f"  Saved checkpoint + scalers + history -> {output_dir}")
-        print(f"  Next step: python -m models.pinn_noenv.evaluate_pinn_noenv --cohort {cohort} --split-type {split_type}")
+        run_name_flag = f" --run-name {run_name}" if run_name else ""
+        print(
+            f"  Next step: python -m models.pinn_noenv.evaluate_pinn_noenv "
+            f"--cohort {cohort} --split-type {split_type}{run_name_flag}"
+        )
         print()
         return best_val_loss
 
     except Exception as error:
         write_run_log(
             attempt_id=attempt_id,
-            model_name=MODEL_NAME, cohort=cohort, split_type=split_type, run_phase="fit",
+            model_name=output_model_name, cohort=cohort, split_type=split_type, run_phase="fit",
             status="failed", is_test_run=is_test_run, device=str(device),
             hyperparameters=hyperparameters, metrics=None, error=format_error(error),
             output_dir=None, runtime_seconds=timer.elapsed_seconds(),
         )
-        print(f"  WARNING: {MODEL_NAME} fit failed for {cohort}: {error}")
+        print(f"  WARNING: {output_model_name} fit failed for {cohort}: {error}")
         print()
         return None
 
@@ -260,6 +279,23 @@ def main():
         "--optimizer", choices=["adam", "sgd_momentum"], default=DEFAULT_OPTIMIZER,
         help="adam is the default everywhere so far; sgd_momentum is an A/B-test alternative.",
     )
+    parser.add_argument(
+        "--physics-weight", type=float, default=PHYSICS_WEIGHT,
+        help=f"Weight on the instantaneous-derivative physics loss term. Default {PHYSICS_WEIGHT}, never tuned before.",
+    )
+    parser.add_argument(
+        "--trajectory-weight", type=float, default=TRAJECTORY_WEIGHT,
+        help=f"Weight on the trajectory (finite-difference) physics loss term. Default {TRAJECTORY_WEIGHT}, never tuned before.",
+    )
+    parser.add_argument(
+        "--run-name", default=None,
+        help=(
+            "Only changes where results are saved and how this run is labelled in "
+            "outputs/run_logs/ -- use this whenever --physics-weight/--trajectory-weight "
+            "differ from the defaults, so a sweep run doesn't overwrite the primary "
+            "pinn_noenv result at the same output_dir. E.g. pinn_noenv_pw2_tw2."
+        ),
+    )
     args = parser.parse_args()
 
     cohorts = [args.cohort] if args.cohort else ["4survey", "6survey"]
@@ -267,7 +303,8 @@ def main():
     results = {}
     for cohort in cohorts:
         results[cohort] = run_for_cohort(
-            cohort, args.split_type, args.max_epochs, args.patience, args.seed, args.optimizer
+            cohort, args.split_type, args.max_epochs, args.patience, args.seed, args.optimizer,
+            args.physics_weight, args.trajectory_weight, args.run_name,
         )
 
     print("===== Summary: best validation loss reached =====")
