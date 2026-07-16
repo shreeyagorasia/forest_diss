@@ -34,12 +34,20 @@ legacy/**/*.gpkg
 outputs/
 
 # Cluster logs are generated. Keep only optional .gitkeep placeholders.
+# Un-ignoring a directory (e.g. !logs/dnn_noenv/) only makes git look inside
+# it -- it does NOT stop individual files inside from being tracked, so each
+# subdirectory also needs its own "ignore everything, then un-ignore
+# .gitkeep" pair; otherwise real .out/.err run logs get committed.
 logs/*
 !logs/baselines/
+logs/baselines/*
 !logs/baselines/.gitkeep
 !logs/data_processing/
+logs/data_processing/*
 !logs/data_processing/.gitkeep
 !logs/dnn_noenv/
+logs/dnn_noenv/*
 !logs/dnn_noenv/.gitkeep
 !logs/pinn_noenv/
+logs/pinn_noenv/*
 !logs/pinn_noenv/.gitkeep
