@@ -4,7 +4,7 @@
 # TRAINS the CR-PINN (no-environment feature set, two physics loss terms on
 # top of plain MSE) on temporal_split's training years, early-stopping on
 # the validation year (2021). Meant to run on the SLURM cluster where the
-# GPU is -- see jobs/submit_torch_job.sh.
+# GPU is -- see jobs/pinn_noenv/run_pinn_noenv.sh.
 #
 # This script deliberately does NOT touch the test split (2023) or compute
 # any accuracy metrics. That is a separate, cheap step

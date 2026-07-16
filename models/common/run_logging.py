@@ -6,8 +6,8 @@
 # "failed" entry never gets written -- but the "started" entry survives, and
 # its absence of a matching completion entry is itself the signal that
 # something died externally. Check the run's SLURM job_id (recorded below)
-# against logs/<model_name>/<job_name>_<job_id>.err for what actually
-# happened in that case.
+# against the matching SLURM stderr file under logs/<job family>/ for what
+# actually happened in that case.
 #
 # Deliberately a plain, append-only folder of small files (not a database
 # or one growing log file), so a run that's no longer useful can just be
@@ -82,8 +82,8 @@ def get_slurm_info():
     # None for every field when not running under SLURM (e.g. a local Mac
     # run) -- these are only set inside an actual SLURM job. job_id is what
     # lets a run_logs/*.json entry be matched back to its raw
-    # logs/<model_name>/<job_name>_<job_id>.out / .err files, which have
-    # the full per-epoch print output this summary doesn't include.
+    # logs/<job family>/<job_name>_<job_id>.out / .err files, which have
+    # the full print output this summary doesn't include.
     return {
         "job_id": os.environ.get("SLURM_JOB_ID"),
         "job_name": os.environ.get("SLURM_JOB_NAME"),

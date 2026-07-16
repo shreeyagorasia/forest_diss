@@ -11,7 +11,8 @@
 # single forward pass over a few tens of thousands of rows, not a training
 # loop -- there is no need for a GPU or a SLURM job for this step. Meant
 # to be run locally, after copying the trained checkpoint down from the
-# cluster.
+# cluster. If evaluating on the cluster instead, use
+# jobs/pinn_noenv/evaluate_pinn_noenv.sh.
 
 import argparse
 import json

@@ -3,11 +3,11 @@
 # Run on the ICF cluster from the project root:
 #
 #   cd ~/forest_diss
-#   sbatch jobs/pinn/run_pinn_noenv.sh [cohort] [max_epochs] [patience]
+#   sbatch jobs/pinn_noenv/run_pinn_noenv.sh [cohort] [max_epochs] [patience]
 #
 # Examples:
-#   sbatch jobs/pinn/run_pinn_noenv.sh 4survey 5 3
-#   sbatch jobs/pinn/run_pinn_noenv.sh 6survey 500 20
+#   sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 5 3
+#   sbatch jobs/pinn_noenv/run_pinn_noenv.sh 6survey 500 20
 #
 # Arguments:
 #   cohort      4survey or 6survey. Defaults to 4survey.
@@ -15,8 +15,8 @@
 #   patience    Early-stopping patience. Defaults to 3 for a quick test.
 #
 # Logs:
-#   stdout -> logs/pinn/pinn_noenv_<jobid>.out
-#   stderr -> logs/pinn/pinn_noenv_<jobid>.err
+#   stdout -> logs/pinn_noenv/pinn_noenv_<jobid>.out
+#   stderr -> logs/pinn_noenv/pinn_noenv_<jobid>.err
 #
 # Results:
 #   outputs/pinn_noenv/<cohort>/
@@ -27,14 +27,16 @@
 #   Run/transfer the baseline outputs before submitting this job.
 
 #SBATCH --job-name=pinn_noenv
-#SBATCH --output=logs/pinn/%x_%j.out
-#SBATCH --error=logs/pinn/%x_%j.err
+#SBATCH --output=logs/pinn_noenv/%x_%j.out
+#SBATCH --error=logs/pinn_noenv/%x_%j.err
 #SBATCH --time=04:00:00
 #SBATCH --partition=Teaching
 #SBATCH --gres=gpu:nvidia_rtx_a6000:1
 #SBATCH --mem=16G
 
 cd ~/forest_diss
+
+mkdir -p logs/pinn_noenv outputs
 
 . /home/htang2/toolchain-20251006/toolchain.rc
 . .venv/bin/activate

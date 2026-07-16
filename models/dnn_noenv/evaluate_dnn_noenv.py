@@ -9,8 +9,8 @@
 # single forward pass over a few tens of thousands of rows, not a training
 # loop -- there is no need for a GPU or a SLURM job for this step. Meant
 # to be run locally, after copying the trained checkpoint down from the
-# cluster (see the rsync example in documentation/experiment_log.md-style
-# notes, or jobs/submit_torch_job.sh's comments).
+# cluster. If evaluating on the cluster instead, use
+# jobs/dnn_noenv/evaluate_dnn_noenv.sh.
 
 import argparse
 import json

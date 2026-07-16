@@ -38,8 +38,12 @@ data_exploration_gpkg/notebooks/
 └── spatial_temporal_split_visualisation.ipynb # maps/visualises the three split types
 
 jobs/                  # SLURM submission scripts (user-maintained)
-├── dnn/run_dnn_noenv.sh
-├── pinn/run_pinn_noenv.sh
+├── baselines/run_baselines.sh
+├── baselines/evaluate_baselines.sh
+├── dnn_noenv/run_dnn_noenv.sh
+├── dnn_noenv/evaluate_dnn_noenv.sh
+├── pinn_noenv/run_pinn_noenv.sh
+├── pinn_noenv/evaluate_pinn_noenv.sh
 └── data_processing/export_model_tables.sh
 
 documentation/
@@ -164,15 +168,17 @@ max_epochs`) before trusting an evaluate result as real.
    git): `rsync` `data/processed/master/*.parquet` to the cluster, then on the cluster run
    `python -m data_processing.export_model_tables` to regenerate `data/processed/current_state/`
    there (proven byte-for-byte deterministic — safe to regenerate on a different machine).
-2. **Submit real training jobs** on the cluster: `jobs/dnn/run_dnn_noenv.sh` and
-   `jobs/pinn/run_pinn_noenv.sh` (these call `run_dnn_noenv.py`/`run_pinn_noenv.py` with the real
-   `--max-epochs 500`, not a quick sanity check). Cluster logs land in `logs/<model>/<job>_<id>.out`
-   /`.err`.
+2. **Submit real training jobs** on the cluster: `jobs/dnn_noenv/run_dnn_noenv.sh` and
+   `jobs/pinn_noenv/run_pinn_noenv.sh` (these call `run_dnn_noenv.py`/`run_pinn_noenv.py` with the
+   real `--max-epochs 500`, not a quick sanity check). Cluster logs land in the matching
+   `logs/dnn_noenv/` or `logs/pinn_noenv/` folder.
 3. **Pull results back**: `rsync` `outputs/dnn_noenv/`, `outputs/pinn_noenv/`, and
    `outputs/run_logs/` down from the cluster to the laptop.
-4. **Evaluate locally** (cheap, CPU): `python -m models.dnn_noenv.evaluate_dnn_noenv` and
-   `python -m models.pinn_noenv.evaluate_pinn_noenv` (omit `--cohort` to run both 4survey and
-   6survey). This writes the real `metrics.json`/`predictions.csv` and its own run-log entry.
+4. **Evaluate** (cheap, CPU): either locally with `python -m models.dnn_noenv.evaluate_dnn_noenv`
+   / `python -m models.pinn_noenv.evaluate_pinn_noenv`, or on the cluster with
+   `jobs/dnn_noenv/evaluate_dnn_noenv.sh` / `jobs/pinn_noenv/evaluate_pinn_noenv.sh`. Omit
+   `--cohort` (or omit the SLURM script argument) to run both 4survey and 6survey. This writes the
+   real `metrics.json`/`predictions.csv` and its own run-log entry.
 
 ## Checking a run is good, not just present
 

@@ -33,3 +33,13 @@ legacy/**/*.gpkg
 # models/rf_baseline/rf_baseline.py's save_model() for details.
 outputs/
 
+# Cluster logs are generated. Keep only optional .gitkeep placeholders.
+logs/*
+!logs/baselines/
+!logs/baselines/.gitkeep
+!logs/data_processing/
+!logs/data_processing/.gitkeep
+!logs/dnn_noenv/
+!logs/dnn_noenv/.gitkeep
+!logs/pinn_noenv/
+!logs/pinn_noenv/.gitkeep
