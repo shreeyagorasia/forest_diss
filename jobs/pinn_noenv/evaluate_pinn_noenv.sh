@@ -3,27 +3,29 @@
 # Run on the ICF cluster from the project root:
 #
 #   cd ~/forest_diss
-#   sbatch jobs/pinn_noenv/evaluate_pinn_noenv.sh [cohort]
+#   sbatch jobs/pinn_noenv/evaluate_pinn_noenv.sh [cohort] [split_type]
 #
 # Examples:
 #   sbatch jobs/pinn_noenv/evaluate_pinn_noenv.sh 4survey
-#   sbatch jobs/pinn_noenv/evaluate_pinn_noenv.sh 6survey
+#   sbatch jobs/pinn_noenv/evaluate_pinn_noenv.sh 6survey temporal
+#   sbatch jobs/pinn_noenv/evaluate_pinn_noenv.sh 4survey spatial_block
 #   sbatch jobs/pinn_noenv/evaluate_pinn_noenv.sh
 #
-# Argument:
-#   cohort  4survey or 6survey. Omit to evaluate both cohorts.
+# Arguments:
+#   cohort      4survey or 6survey. Omit to evaluate both cohorts.
+#   split_type  temporal or spatial_block. Defaults to temporal.
 #
 # Purpose:
 #   Evaluates an already-trained pinn_noenv checkpoint on the test split.
-#   Run jobs/pinn_noenv/run_pinn_noenv.sh first.
+#   Run jobs/pinn_noenv/run_pinn_noenv.sh first, with the SAME split_type.
 #
 # Logs:
 #   stdout -> logs/pinn_noenv/evaluate_pinn_noenv_<jobid>.out
 #   stderr -> logs/pinn_noenv/evaluate_pinn_noenv_<jobid>.err
 #
 # Results:
-#   outputs/pinn_noenv/<cohort>/predictions.csv
-#   outputs/pinn_noenv/<cohort>/metrics.json
+#   outputs/<split_type>/pinn_noenv/<cohort>/predictions.csv
+#   outputs/<split_type>/pinn_noenv/<cohort>/metrics.json
 #
 # Notes:
 #   This is a CPU job. It does not request a GPU.
@@ -45,15 +47,17 @@ mkdir -p logs/pinn_noenv outputs
 export PYTHONPATH="$(pwd)"
 
 COHORT=${1:-}
+SPLIT_TYPE=${2:-temporal}
 
 echo "--- PINN evaluate job start ---"
 echo "Node: $(hostname)"
 echo "Cohort: ${COHORT:-both}"
+echo "Split type: ${SPLIT_TYPE}"
 
 if [ -n "$COHORT" ]; then
-  python -u -m models.pinn_noenv.evaluate_pinn_noenv --cohort "${COHORT}"
+  python -u -m models.pinn_noenv.evaluate_pinn_noenv --cohort "${COHORT}" --split-type "${SPLIT_TYPE}"
 else
-  python -u -m models.pinn_noenv.evaluate_pinn_noenv
+  python -u -m models.pinn_noenv.evaluate_pinn_noenv --split-type "${SPLIT_TYPE}"
 fi
 
 echo "--- PINN evaluate job end ---"

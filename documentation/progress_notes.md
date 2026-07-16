@@ -105,18 +105,32 @@ notebook's own section 11.2 decision, despite an earlier exploratory finding tha
 
 All four sklearn/CR baselines have now been run under all three split types (see
 `baseline_results.ipynb` section 10 for the plot_level vs spatial_block vs temporal comparison).
-DNN/PINN train under `temporal_split` specifically (train on early years, early-stop on 2021,
-held-out test on 2023) — see "DNN and PINN (no-environment)" below. `spatial_block_split` is not
-yet wired into DNN/PINN. Visualised in `spatial_temporal_split_visualisation.ipynb`.
+DNN/PINN can run under either `temporal_split` or `spatial_block_split` (both wired into
+`models/common/torch_data.py::load_split_table()` as of 16 July 2026) — see "DNN and PINN
+(no-environment)" below. Note: `spatial_block_split`, not `temporal_split`, is the split that
+actually matches the dissertation's central research question (spatial/environmental
+attribution) — `temporal_split` was run first because it happened to be the split most useful for
+proving the physics-loss machinery works at all (see `documentation/experiment_log.md`'s Findings
+log), not because it's the primary result. Visualised in
+`spatial_temporal_split_visualisation.ipynb`.
 
 ***
 
 ## DNN and PINN (no-environment)
 
-Both trained under `temporal_split` (train on early years → early-stop on 2021 → held-out test on
-2023), age + thinning-status features only, no terrain/wind covariates yet (matches the baselines'
-current feature set). Shared architecture: `NoEnvNetwork`, 3 hidden layers, 128 neurons, LeakyReLU
+Both run under either `temporal_split` (train on early years → early-stop on 2021 → held-out test
+on 2023) or `spatial_block_split` (whole held-in compartments → held-out val/test compartments),
+selected via `--split-type` on the fit/evaluate scripts (defaults to `temporal`). Age +
+thinning-status features only, no terrain/wind covariates yet (matches the baselines' current
+feature set). Shared architecture: `NoEnvNetwork`, 3 hidden layers, 128 neurons, LeakyReLU
 (`models/common/torch_model.py`).
+
+The PINN's trajectory-consistency loss needs pairs of consecutive-survey rows of the same plot
+that are both in the training split — under `temporal_split` that meant "both years in
+`train_years`", but under `spatial_block_split` a whole plot (all its survey years) moves to
+train/val/test together, so the correct general rule is "both endpoints are themselves labelled
+`train`" (`models/common/torch_data.py::load_trajectory_pairs()`) — this one rule is correct under
+either split type without branching on which one is active.
 
 - **DNN** (`models/dnn_noenv/`) — plain regression, MSE loss only.
 - **PINN** (`models/pinn_noenv/`) — MSE loss plus two Chapman-Richards physics terms: a
@@ -170,15 +184,21 @@ max_epochs`) before trusting an evaluate result as real.
    there (proven byte-for-byte deterministic — safe to regenerate on a different machine).
 2. **Submit real training jobs** on the cluster: `jobs/dnn_noenv/run_dnn_noenv.sh` and
    `jobs/pinn_noenv/run_pinn_noenv.sh` (these call `run_dnn_noenv.py`/`run_pinn_noenv.py` with the
-   real `--max-epochs 500`, not a quick sanity check). Cluster logs land in the matching
-   `logs/dnn_noenv/` or `logs/pinn_noenv/` folder.
-3. **Pull results back**: `rsync` `outputs/dnn_noenv/`, `outputs/pinn_noenv/`, and
+   real `--max-epochs 500`, not a quick sanity check). Both take a `split_type` argument
+   (`temporal` or `spatial_block`, e.g. `sbatch jobs/dnn_noenv/run_dnn_noenv.sh 4survey 500 20 spatial_block`)
+   — defaults to `temporal` if omitted. Cluster logs land in the matching `logs/dnn_noenv/` or
+   `logs/pinn_noenv/` folder.
+3. **Pull results back**: `rsync` `outputs/temporal/`, `outputs/spatial_block/`, and
    `outputs/run_logs/` down from the cluster to the laptop.
-4. **Evaluate** (cheap, CPU): either locally with `python -m models.dnn_noenv.evaluate_dnn_noenv`
-   / `python -m models.pinn_noenv.evaluate_pinn_noenv`, or on the cluster with
-   `jobs/dnn_noenv/evaluate_dnn_noenv.sh` / `jobs/pinn_noenv/evaluate_pinn_noenv.sh`. Omit
-   `--cohort` (or omit the SLURM script argument) to run both 4survey and 6survey. This writes the
-   real `metrics.json`/`predictions.csv` and its own run-log entry.
+4. **Evaluate** (cheap, CPU): either locally with
+   `python -m models.dnn_noenv.evaluate_dnn_noenv --split-type <temporal|spatial_block>`
+   / `python -m models.pinn_noenv.evaluate_pinn_noenv --split-type <temporal|spatial_block>`, or on
+   the cluster with `jobs/dnn_noenv/evaluate_dnn_noenv.sh` / `jobs/pinn_noenv/evaluate_pinn_noenv.sh`
+   (same `split_type` argument). Omit `--cohort` (or the SLURM script's cohort argument) to run both
+   4survey and 6survey. This writes the real `metrics.json`/`predictions.csv` and its own run-log
+   entry, at `outputs/<split_type>/<model>/<cohort>/` — matching whichever `split_type` you fit
+   under; using the wrong one here loads no checkpoint and fails loudly rather than silently
+   comparing mismatched results.
 
 ## Checking a run is good, not just present
 
@@ -316,8 +336,10 @@ model binaries.
 
 ## What's not started yet
 
-Real (500-epoch) DNN/PINN training runs on the cluster (code is built and verified with short
-sanity-check runs, but no full-length results exist yet as of 15 July 2026). Also not started:
-terrain/wind feature extraction, XGBoost + SHAP, `spatial_block_split` wired into DNN/PINN, and a
-DNN/PINN results notebook comparable to `baseline_results.ipynb` (waiting on real training results
-to exist first).
+Real (500-epoch) DNN/PINN training runs under `spatial_block_split` — the split that actually
+matches the dissertation's central research question, wired in on 16 July 2026 but not yet run at
+full length (only real results so far are under `temporal_split`, see `experiment_log.md`). Also
+not started: terrain/wind feature extraction, XGBoost + SHAP, temporal split Design 2, and the
+PINN's Route B (temporal-restricted CR anchor). A DNN/PINN results notebook now exists
+(`results_notebooks/baseline_models_parameter_tuning.ipynb`) covering loss curves and metrics for
+both split types, updated automatically as real runs land.

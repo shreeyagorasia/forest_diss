@@ -28,8 +28,17 @@ sensitive to the training-year cutoff, then decide whether to report one,
 both, or pick per-question based on what spatial vs. temporal turns out to
 need.
 
+**Note on `dnn_noenv`/`pinn_noenv` under `spatial_block_split`**: this is not a
+robustness check on a temporal result — per the dissertation's actual research
+question (spatial/environmental attribution, not primarily temporal extrapolation),
+`spatial_block_split` is the more central test of the two, with `temporal_split`
+being the important secondary one. It's listed here only because it wasn't run yet
+as of 2026-07-16 (infrastructure just wired in — see the Findings log), not because
+it's lower priority than the temporal result already in the table above.
+
 | Planned experiment | Question it answers | Trigger to run it |
 |---|---|---|
+| `dnn_noenv`/`pinn_noenv` under `spatial_block_split`, `--max-epochs 500` | Does the PINN's physics constraint help spatial generalization the way CR helped it over RF/linear/average-by-age in the baseline spatial-block result? This is the closest the no-environment models can get to the dissertation's actual central question before terrain/wind features exist. | Now — infrastructure is ready (`--split-type spatial_block` on both fit scripts) |
 | Temporal split, Design 2 (train 2008+2012+2021, test 2023 only) | Is Design 1's dramatic temporal degradation an artefact of the specific 11-year train/test gap, or does it hold under a shorter, easier gap too? | After Design 1 (primary) results are fully written up for baselines + DNN + PINN |
 | PINN physics anchor, Route B (CR fit restricted to 2008+2012 only, matching the PINN's own training years) | Does the PINN-vs-DNN temporal comparison hold up under a stricter ablation with zero information leakage into the physics term? | Cheap to run alongside Design 1 primary results — worth doing early as a documented caveat, not necessarily gated on anything |
 
@@ -40,10 +49,10 @@ need.
 | `plot_level_v1` | 2026-07-13 | `plot_level_split` (random 60/20/20 by plot) | n/a (all years pooled) | n/a | CR, average-by-age, linear, RF | both | primary | `outputs/<model>/<cohort>/` | RF best on both cohorts (RMSE 4.65/3.86); see `baseline_results.ipynb` §2 |
 | `spatial_block_v1` | 2026-07-14 | `spatial_block_split` (whole `cpmt` compartments, 60m buffer) | n/a (all years pooled) | n/a | CR, average-by-age, linear, RF | both | primary | `outputs/spatial_block/<model>/<cohort>/` | RF loses its plot_level advantage (RMSE +28.7%/+19.4%); see `baseline_results.ipynb` §8.1 |
 | `temporal_design1_baselines` | 2026-07-15 | `temporal_split`, Design 1 | train=[2008,2012] (4survey) / [2002,2006,2008,2012] (6survey), val=[2021], test=[2023] | n/a | CR, average-by-age, linear, RF | both | primary | `outputs/temporal/<model>/<cohort>/` | Much larger degradation than spatial (up to +141.7% RMSE, `average_by_age`/6survey R² negative); CR most temporally robust, not RF — see `baseline_results.ipynb` §8.1 |
-| `dnn_noenv_design1_smoketest` | 2026-07-15 | `temporal_split`, Design 1 | same as above | n/a (no physics term) | dnn_noenv | both | superseded (2-epoch sanity check only, not a real result) | `outputs/dnn_noenv/<cohort>/` | Pipeline verified working; superseded by `dnn_noenv_design1` below |
-| `pinn_noenv_design1_routeA_smoketest` | 2026-07-15 | `temporal_split`, Design 1 | same as above | Route A: plot_level CR fit (`outputs/chapman_richards/<cohort>/params.json`) | pinn_noenv | both | superseded (2-epoch sanity check only) | `outputs/pinn_noenv/<cohort>/` | Pipeline verified working; superseded by `pinn_noenv_design1` below |
-| `dnn_noenv_design1` | 2026-07-16 | `temporal_split`, Design 1 | same as above | n/a (no physics term) | dnn_noenv | both | primary | `outputs/dnn_noenv/<cohort>/` | First real (`--max-epochs 500`, cluster GPU) run. 4survey: RMSE=5.8648, R²=0.4524, early-stopped epoch 21 with **best epoch=1** (val_loss never improved after epoch 1 — flagged, see Findings log). 6survey: RMSE=4.9182, R²=0.2810, early-stopped epoch 54, best epoch=34 (normal pattern). Both beat all four temporal-split baselines |
-| `pinn_noenv_design1` | 2026-07-16 | `temporal_split`, Design 1 | same as above | Route A: plot_level CR fit | pinn_noenv | both | primary | `outputs/pinn_noenv/<cohort>/` | First real run. 4survey: RMSE=6.0748, R²=0.4125, early-stopped epoch 39, best epoch=19 (normal). 6survey: RMSE=4.7717, R²=0.3232, early-stopped epoch 109, best epoch=89 (normal). Both beat all four temporal-split baselines |
+| `dnn_noenv_design1_smoketest` | 2026-07-15 | `temporal_split`, Design 1 | same as above | n/a (no physics term) | dnn_noenv | both | superseded (2-epoch sanity check only, not a real result) | `outputs/temporal/dnn_noenv/<cohort>/` | Pipeline verified working; superseded by `dnn_noenv_design1` below |
+| `pinn_noenv_design1_routeA_smoketest` | 2026-07-15 | `temporal_split`, Design 1 | same as above | Route A: plot_level CR fit (`outputs/chapman_richards/<cohort>/params.json`) | pinn_noenv | both | superseded (2-epoch sanity check only) | `outputs/temporal/pinn_noenv/<cohort>/` | Pipeline verified working; superseded by `pinn_noenv_design1` below |
+| `dnn_noenv_design1` | 2026-07-16 | `temporal_split`, Design 1 | same as above | n/a (no physics term) | dnn_noenv | both | primary | `outputs/temporal/dnn_noenv/<cohort>/` | First real (`--max-epochs 500`, cluster GPU) run. 4survey: RMSE=5.8648, R²=0.4524, early-stopped epoch 21 with **best epoch=1** (val_loss never improved after epoch 1 — flagged, see Findings log). 6survey: RMSE=4.9182, R²=0.2810, early-stopped epoch 54, best epoch=34 (normal pattern). Both beat all four temporal-split baselines |
+| `pinn_noenv_design1` | 2026-07-16 | `temporal_split`, Design 1 | same as above | Route A: plot_level CR fit | pinn_noenv | both | primary | `outputs/temporal/pinn_noenv/<cohort>/` | First real run. 4survey: RMSE=6.0748, R²=0.4125, early-stopped epoch 39, best epoch=19 (normal). 6survey: RMSE=4.7717, R²=0.3232, early-stopped epoch 109, best epoch=89 (normal). Both beat all four temporal-split baselines |
 
 ## Findings log (what I found → what's working / not → what it means for next steps)
 
@@ -195,6 +204,40 @@ Route B (temporal-restricted CR anchor) is still worth running to check whether
 4survey's PINN result is sensitive to the CR anchor being fit on 2021/2023 data it
 never trains on.
 
+**2026-07-16 — Realized `temporal_split` was never meant to be the dissertation's
+main experiment for DNN/PINN — `spatial_block_split` was, and it wasn't wired in.**
+**What I found:** all the framing above (Design 1/2, Route A/B) is about which
+*temporal* setup to prioritize — but per the dissertation's actual research question
+(spatial/environmental attribution, not primarily temporal extrapolation),
+`spatial_block_split` is the more central test, with `temporal_split` an important
+secondary one. Checked `models/common/torch_data.py::load_split_table()`: it
+hardcoded `temporal_split()` with no split-type parameter at all, so DNN/PINN
+literally could not have been run under `spatial_block_split` even if asked to.
+**What's working:** `run_baselines.py` already had this exact split-type-parameter
+pattern for the four sklearn/CR models — reused directly rather than inventing a
+second convention. Also caught (before it caused a real bug): DNN/PINN's fit/evaluate
+scripts hardcoded the string `"temporal"` in every `run_logging` call — harmless
+while only temporal ran, but would have silently mislabeled every spatial-block run
+in `outputs/run_logs/` if left in place.
+**What's not working / open concern:** the PINN's trajectory-consistency loss needed
+a real generalization, not just a parameter passthrough — `load_trajectory_pairs()`
+used to filter pairs by an explicit `train_years` list, which only makes sense when
+train years are fixed ahead of time (temporal). Under `spatial_block_split`, whole
+plots (not years) move together, so the correct rule is "both endpoints of a pair
+must themselves be labelled train" — verified this produces byte-identical behavior
+to the old code under `temporal_split` (same 58,112-row-per-year training counts) and
+correct behavior under `spatial_block_split` (all four survey years present in
+training data, since a train-plot keeps every year) via an isolated smoke test
+before touching any real output.
+**What this means for what's next:** `--split-type spatial_block` now works on both
+fit scripts (`run_dnn_noenv.py`/`run_pinn_noenv.py`) and both evaluate scripts;
+existing real temporal-split results were moved to `outputs/temporal/{dnn,pinn}_noenv/<cohort>/`
+to match the baselines' path convention (DNN/PINN never run `plot_level_split`, so
+their path is now always split-type-prefixed, never bare). Next real step: run
+`--max-epochs 500` under `spatial_block_split` for both models, both cohorts — the
+first result that actually speaks to this dissertation's central question, not just
+its secondary one.
+
 ## Decisions log (the "why", chronological)
 
 **2026-07-15 — Temporal split Design 1 chosen over Design 2 for the primary run.** Design 1
@@ -223,9 +266,23 @@ this matters, not because Route A is expected to be wrong.
 
 ## Output-path naming convention (for when new variants are actually run)
 
-Follows the pattern already established for split types (`outputs/<split_type>/<model>/<cohort>/`,
-vs. plain `outputs/<model>/<cohort>/` for the original plot_level default):
+Split-type prefixing (`outputs/<split_type>/<model>/<cohort>/`) is now shared by the
+baselines AND dnn_noenv/pinn_noenv (`models/common/saving.py::model_output_dir()`,
+imported by both `run_baselines.py` and the DNN/PINN fit/evaluate scripts, so there
+is exactly one definition of this convention, not two that could drift apart). One
+difference: the baselines reserve the plain, unprefixed `outputs/<model>/<cohort>/`
+path for `plot_level_split` specifically (their original default before the other two
+split types existed). DNN/PINN never run `plot_level_split` at all, so their output
+path is *always* prefixed — there is no unprefixed `outputs/dnn_noenv/...` or
+`outputs/pinn_noenv/...` any more (the real 2026-07-16 temporal-split results were
+moved to `outputs/temporal/dnn_noenv/<cohort>/` / `outputs/temporal/pinn_noenv/<cohort>/`
+for exactly this reason, once `spatial_block_split` was wired in as a second option).
 
+- **`spatial_block_split` for DNN/PINN** (wired in 2026-07-16): `--split-type spatial_block`
+  on `run_dnn_noenv.py`/`run_pinn_noenv.py`/the two evaluate scripts writes to
+  `outputs/spatial_block/dnn_noenv/<cohort>/` / `outputs/spatial_block/pinn_noenv/<cohort>/`
+  — no separate naming decision needed, it's the same `split_type` mechanism the
+  baselines already use.
 - **Design 2** (different train/val/test years), if run: `outputs/temporal_design2/<model>/<cohort>/`
   — a distinct split-type-style prefix, never overwriting `outputs/temporal/...` (Design 1).
 - **PINN Route B** (temporal-restricted CR anchor), if run: a distinct model name,
@@ -234,7 +291,7 @@ vs. plain `outputs/<model>/<cohort>/` for the original plot_level default):
   `run_metadata.json`'s `frozen_cr_params` field already records exactly which values were used
   either way, but a distinct output path is required so Route A and Route B results can coexist on
   disk rather than one overwriting the other.
-- Whichever configuration is the **primary** one for the write-up should be the one living at the
-  plain, unprefixed/unsuffixed path (`outputs/temporal/...`, `outputs/pinn_noenv/...`) — robustness
-  checks get the longer, more specific path. This keeps "the result I'm citing in Chapter 5" always
-  findable at the short, predictable path without needing to check this log first.
+- For the **baselines**, whichever configuration is primary for the write-up lives at
+  the plain, unprefixed path; for **DNN/PINN**, `temporal` and `spatial_block` are
+  both always prefixed, so "which one is primary" is a fact to check in this log's
+  Experiment table (Status column), not something the path itself tells you.

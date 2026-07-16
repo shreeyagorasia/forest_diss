@@ -1,10 +1,19 @@
 # Run as: python -m models.pinn_noenv.run_pinn_noenv --cohort 4survey
 #     or: python -m models.pinn_noenv.run_pinn_noenv --cohort 4survey --max-epochs 5
+#     or: python -m models.pinn_noenv.run_pinn_noenv --cohort 4survey --split-type spatial_block
 #
 # TRAINS the CR-PINN (no-environment feature set, two physics loss terms on
-# top of plain MSE) on temporal_split's training years, early-stopping on
-# the validation year (2021). Meant to run on the SLURM cluster where the
-# GPU is -- see jobs/pinn_noenv/run_pinn_noenv.sh.
+# top of plain MSE) under either temporal_split or spatial_block_split --
+# see --split-type below. Meant to run on the SLURM cluster where the GPU
+# is -- see jobs/pinn_noenv/run_pinn_noenv.sh.
+#
+# The frozen CR physics anchor (load_cr_params below) always reads the
+# plot_level Chapman-Richards fit, regardless of which split_type the PINN
+# itself uses -- this is "Route A" (see documentation/experiment_log.md's
+# Decisions log): y_max/k/p are treated as population-level biological
+# constants, not something requiring the PINN's own train/test discipline,
+# so the same reasoning applies whether the PINN is being tested temporally
+# or spatially.
 #
 # This script deliberately does NOT touch the test split (2023) or compute
 # any accuracy metrics. That is a separate, cheap step
@@ -37,7 +46,7 @@ from models.common.run_logging import (
     write_run_log,
     write_started_marker,
 )
-from models.common.saving import get_git_commit
+from models.common.saving import get_git_commit, model_output_dir
 from models.common.splits import TEMPORAL_YEARS
 from models.common.torch_data import (
     build_pair_tensors,
@@ -79,8 +88,8 @@ def load_cr_params(cohort):
     return {"y_max": params["y_max"], "k": params["k"], "p": params["p"]}
 
 
-def run_for_cohort(cohort, max_epochs, early_stopping_patience, seed):
-    print(f"===== {cohort} ({MODEL_NAME}) — FIT ONLY, no test-set evaluation =====")
+def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed):
+    print(f"===== {cohort} ({MODEL_NAME}, {split_type}) — FIT ONLY, no test-set evaluation =====")
 
     is_test_run = max_epochs < TEST_RUN_MAX_EPOCHS_THRESHOLD
     device = select_device()
@@ -98,8 +107,11 @@ def run_for_cohort(cohort, max_epochs, early_stopping_patience, seed):
         "max_epochs": max_epochs,
         "early_stopping_patience": early_stopping_patience,
         "seed": seed,
-        "temporal_split_years": TEMPORAL_YEARS[cohort],
     }
+    # See the matching note in run_dnn_noenv.py -- only meaningful for
+    # temporal_split, where train/val/test years are fixed ahead of time.
+    if split_type == "temporal":
+        hyperparameters["temporal_split_years"] = TEMPORAL_YEARS[cohort]
 
     # Write a "started" log entry BEFORE doing any real work -- if SLURM
     # kills this job (out of memory, out of time, node crash) rather than
@@ -108,7 +120,7 @@ def run_for_cohort(cohort, max_epochs, early_stopping_patience, seed):
     # IS the signal that something went wrong.
     timer = RunTimer().start()
     attempt_id = write_started_marker(
-        model_name=MODEL_NAME, cohort=cohort, split_type="temporal", run_phase="fit",
+        model_name=MODEL_NAME, cohort=cohort, split_type=split_type, run_phase="fit",
         is_test_run=is_test_run, device=str(device), hyperparameters=hyperparameters,
     )
 
@@ -117,14 +129,12 @@ def run_for_cohort(cohort, max_epochs, early_stopping_patience, seed):
         print(f"  Frozen CR params: y_max={cr_params['y_max']:.4f}, k={cr_params['k']:.6f}, p={cr_params['p']:.6f}")
 
         # ----- Load and prepare the data -----
-        split_df = load_split_table(cohort, MODEL_NAME)
+        split_df = load_split_table(cohort, MODEL_NAME, split_type)
         train_df = split_df[split_df["split"] == "train"]
         val_df = split_df[split_df["split"] == "val"]
         # Note: test_df is deliberately never loaded here at all.
 
-        eligible_plot_ids = set(split_df["identification"].unique())
-        train_years = TEMPORAL_YEARS[cohort]["train_years"]
-        pairs_df = load_trajectory_pairs(cohort, eligible_plot_ids, train_years)
+        pairs_df = load_trajectory_pairs(cohort, split_df)
         print_pre_training_diagnostic(cohort, split_df, pairs_df)
 
         scaler_age, scaler_other_features, scaler_height = fit_scalers(train_df)
@@ -159,7 +169,7 @@ def run_for_cohort(cohort, max_epochs, early_stopping_patience, seed):
 
         # ----- Save everything needed to evaluate this model LATER, on a
         # different machine -----
-        output_dir = PROJECT_ROOT / "outputs" / MODEL_NAME / cohort
+        output_dir = model_output_dir(MODEL_NAME, cohort, split_type=split_type)
         output_dir.mkdir(parents=True, exist_ok=True)
 
         history_df.to_csv(output_dir / "training_history.csv", index=False)
@@ -187,7 +197,7 @@ def run_for_cohort(cohort, max_epochs, early_stopping_patience, seed):
         # exist once evaluate_pinn_noenv.py has been run.
         write_run_log(
             attempt_id=attempt_id,
-            model_name=MODEL_NAME, cohort=cohort, split_type="temporal", run_phase="fit",
+            model_name=MODEL_NAME, cohort=cohort, split_type=split_type, run_phase="fit",
             status="success", is_test_run=is_test_run, device=str(device),
             hyperparameters={
                 **hyperparameters,
@@ -207,14 +217,14 @@ def run_for_cohort(cohort, max_epochs, early_stopping_patience, seed):
         )
 
         print(f"  Saved checkpoint + scalers + history -> {output_dir}")
-        print(f"  Next step: python -m models.pinn_noenv.evaluate_pinn_noenv --cohort {cohort}")
+        print(f"  Next step: python -m models.pinn_noenv.evaluate_pinn_noenv --cohort {cohort} --split-type {split_type}")
         print()
         return best_val_loss
 
     except Exception as error:
         write_run_log(
             attempt_id=attempt_id,
-            model_name=MODEL_NAME, cohort=cohort, split_type="temporal", run_phase="fit",
+            model_name=MODEL_NAME, cohort=cohort, split_type=split_type, run_phase="fit",
             status="failed", is_test_run=is_test_run, device=str(device),
             hyperparameters=hyperparameters, metrics=None, error=format_error(error),
             output_dir=None, runtime_seconds=timer.elapsed_seconds(),
@@ -227,6 +237,7 @@ def run_for_cohort(cohort, max_epochs, early_stopping_patience, seed):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--cohort", choices=["4survey", "6survey"], default=None, help="Omit to run both cohorts.")
+    parser.add_argument("--split-type", choices=["temporal", "spatial_block"], default="temporal")
     parser.add_argument("--max-epochs", type=int, default=DEFAULT_MAX_EPOCHS)
     parser.add_argument("--patience", type=int, default=DEFAULT_EARLY_STOPPING_PATIENCE)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
@@ -236,7 +247,7 @@ def main():
 
     results = {}
     for cohort in cohorts:
-        results[cohort] = run_for_cohort(cohort, args.max_epochs, args.patience, args.seed)
+        results[cohort] = run_for_cohort(cohort, args.split_type, args.max_epochs, args.patience, args.seed)
 
     print("===== Summary: best validation loss reached =====")
     for cohort, best_val_loss in results.items():

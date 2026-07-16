@@ -14,33 +14,32 @@
 
 import argparse
 import json
-from pathlib import Path
 
 import joblib
 import pandas as pd
 
 from models.common.metrics import compute_metrics
 from models.common.run_logging import RunTimer, format_error, write_run_log, write_started_marker
+from models.common.saving import model_output_dir
 from models.common.torch_data import TARGET_COLUMN, build_tensors, load_split_table, select_device
 from models.dnn_noenv.dnn_noenv import load_best_model, predict
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MODEL_NAME = "dnn_noenv"
 
 
-def run_for_cohort(cohort):
-    print(f"===== {cohort} ({MODEL_NAME}) — EVALUATE ONLY =====")
+def run_for_cohort(cohort, split_type):
+    print(f"===== {cohort} ({MODEL_NAME}, {split_type}) — EVALUATE ONLY =====")
     device = select_device()
     print(f"  Using device: {device}")
 
     timer = RunTimer().start()
     attempt_id = write_started_marker(
-        model_name=MODEL_NAME, cohort=cohort, split_type="temporal", run_phase="evaluate",
+        model_name=MODEL_NAME, cohort=cohort, split_type=split_type, run_phase="evaluate",
         is_test_run=False, device=str(device), hyperparameters={},
     )
 
     try:
-        output_dir = PROJECT_ROOT / "outputs" / MODEL_NAME / cohort
+        output_dir = model_output_dir(MODEL_NAME, cohort, split_type=split_type)
         checkpoints_dir = output_dir / "checkpoints"
         preprocessing_dir = output_dir / "preprocessing"
 
@@ -56,9 +55,9 @@ def run_for_cohort(cohort):
 
         model = load_best_model(n_other_features, device, checkpoints_dir)
 
-        # ----- Load ONLY the test rows (2023) -- this is the one place in
-        # the whole DNN/PINN pipeline where the test split is touched -----
-        split_df = load_split_table(cohort, MODEL_NAME)
+        # ----- Load ONLY the test rows -- this is the one place in the
+        # whole DNN/PINN pipeline where the test split is touched -----
+        split_df = load_split_table(cohort, MODEL_NAME, split_type)
         test_df = split_df[split_df["split"] == "test"]
 
         age_test, other_test, target_test = build_tensors(
@@ -92,7 +91,7 @@ def run_for_cohort(cohort):
 
         write_run_log(
             attempt_id=attempt_id,
-            model_name=MODEL_NAME, cohort=cohort, split_type="temporal", run_phase="evaluate",
+            model_name=MODEL_NAME, cohort=cohort, split_type=split_type, run_phase="evaluate",
             status="success", is_test_run=False, device=str(device),
             hyperparameters={}, metrics=metrics, error=None,
             output_dir=output_dir, runtime_seconds=timer.elapsed_seconds(), n_rows_fit=len(test_df),
@@ -107,13 +106,13 @@ def run_for_cohort(cohort):
     except Exception as error:
         write_run_log(
             attempt_id=attempt_id,
-            model_name=MODEL_NAME, cohort=cohort, split_type="temporal", run_phase="evaluate",
+            model_name=MODEL_NAME, cohort=cohort, split_type=split_type, run_phase="evaluate",
             status="failed", is_test_run=False, device=str(device),
             hyperparameters={}, metrics=None, error=format_error(error),
             output_dir=None, runtime_seconds=timer.elapsed_seconds(),
         )
         print(f"  WARNING: {MODEL_NAME} evaluation failed for {cohort}: {error}")
-        print(f"  (Did you run 'python -m models.dnn_noenv.run_dnn_noenv --cohort {cohort}' first?)")
+        print(f"  (Did you run 'python -m models.dnn_noenv.run_dnn_noenv --cohort {cohort} --split-type {split_type}' first?)")
         print()
         return None
 
@@ -121,13 +120,14 @@ def run_for_cohort(cohort):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--cohort", choices=["4survey", "6survey"], default=None, help="Omit to run both cohorts.")
+    parser.add_argument("--split-type", choices=["temporal", "spatial_block"], default="temporal")
     args = parser.parse_args()
 
     cohorts = [args.cohort] if args.cohort else ["4survey", "6survey"]
 
     all_metrics = {}
     for cohort in cohorts:
-        all_metrics[cohort] = run_for_cohort(cohort)
+        all_metrics[cohort] = run_for_cohort(cohort, args.split_type)
 
     print("===== Summary: test-split metrics =====")
     for cohort, metrics in all_metrics.items():

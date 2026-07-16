@@ -36,7 +36,15 @@ from models.chapman_richards.chapman_richards import fit as fit_chapman_richards
 from models.chapman_richards.chapman_richards import save_params as save_cr_params
 from models.common.data import filter_data, load_cohort_data, load_model_table
 from models.common.run_logging import RunTimer, format_error, write_run_log, write_started_marker
-from models.common.splits import TEMPORAL_YEARS, plot_level_split, spatial_block_split, temporal_split
+from models.common.saving import model_output_dir as output_dir
+from models.common.splits import (
+    SPATIAL_BLOCK_COL,
+    SPATIAL_BUFFER_METRES,
+    TEMPORAL_YEARS,
+    plot_level_split,
+    spatial_block_split,
+    temporal_split,
+)
 from models.linear_baseline.linear_baseline import fit as fit_linear_baseline
 from models.linear_baseline.linear_baseline import save_params as save_linear_params
 from models.rf_baseline.rf_baseline import fit as fit_rf_baseline
@@ -47,12 +55,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 COHORTS = ["4survey", "6survey"]
 SEED = 42
 
-# cpmt is the forestry-compartment column spatial_block_split groups by.
-# buffer_distance=60 matches the value already validated in
-# data_exploration_gpkg/notebooks/spatial_temporal_split_visualisation.ipynb.
-SPATIAL_BLOCK_COL = "cpmt"
-SPATIAL_BUFFER_METRES = 60
-
 # None of these four baselines use a GPU -- sklearn/scipy only. Recorded in
 # every log entry anyway for schema consistency with the DNN/PINN logs,
 # where device actually varies (cpu/cuda/mps).
@@ -60,15 +62,6 @@ DEVICE = "cpu"
 
 # The prior dissertation's Chapman-Richards fit, for a quick sanity check.
 PRIOR_CR_PARAMS = {"y_max": 46.1126, "k": 0.01866979, "p": 1.0175}
-
-
-def output_dir(*parts, split_type):
-    # Keeps every output path for a spatial_block or temporal run under its
-    # own outputs/<split_type>/ subtree, so it can never overwrite the
-    # already-established plot_level results living directly under outputs/.
-    if split_type in ("spatial_block", "temporal"):
-        return PROJECT_ROOT / "outputs" / split_type / Path(*parts)
-    return PROJECT_ROOT / "outputs" / Path(*parts)
 
 
 def build_split_for_cohort(cohort, split_type):

@@ -13,6 +13,19 @@ TEMPORAL_YEARS = {
     "6survey": {"train_years": [2002, 2006, 2008, 2012], "val_years": [2021], "test_years": [2023]},
 }
 
+# Shared spatial_block_split() settings -- one definition every script reads
+# (baselines and DNN/PINN alike), same reasoning as TEMPORAL_YEARS above.
+# cpmt is the forestry-compartment column to group by (see spatial_block_split
+# below for why, not 'blk'). buffer_distance=60m is 3x the ~20m grid cell
+# width -- validated in
+# data_exploration_gpkg/notebooks/spatial_temporal_split_visualisation.ipynb.
+# SPLIT_SEED controls which compartments land in train/val/test -- it is
+# fixed and shared so every model gets the identical split, independent of
+# whatever --seed a particular training run uses for its own weight init.
+SPATIAL_BLOCK_COL = "cpmt"
+SPATIAL_BUFFER_METRES = 60
+SPLIT_SEED = 42
+
 
 def plot_level_split(df, plot_col="identification", test_size=0.2, val_size=0.2, seed=42):
     # Splitting by plot (not by row) means every survey year for one plot ends

@@ -14,7 +14,14 @@ import torch
 from sklearn.preprocessing import StandardScaler
 
 from models.common.data import filter_data, load_model_table
-from models.common.splits import TEMPORAL_YEARS, temporal_split
+from models.common.splits import (
+    SPATIAL_BLOCK_COL,
+    SPATIAL_BUFFER_METRES,
+    SPLIT_SEED,
+    TEMPORAL_YEARS,
+    spatial_block_split,
+    temporal_split,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -55,21 +62,39 @@ def select_device():
     return torch.device("cpu")
 
 
-def load_split_table(cohort, table_name):
+def load_split_table(cohort, table_name, split_type):
     # table_name is "dnn_noenv" or "pinn_noenv". Applies the same maturity +
     # yield-class filter every other baseline uses, then labels every row
-    # train/val/test using temporal_split() and this cohort's TEMPORAL_YEARS
-    # (see models/common/splits.py) -- train on the earliest years, validate
-    # on 2021, test on 2023.
+    # train/val/test using either temporal_split() or spatial_block_split()
+    # -- same two split functions and shared constants (models/common/
+    # splits.py) that models/baselines/run_baselines.py uses, so a DNN/PINN
+    # run and a baseline run under the same split_type see identical
+    # train/val/test membership.
     table = load_model_table(cohort, table_name)
     filtered_table = filter_data(table)
-
     filtered_table = filtered_table.copy()
-    filtered_table["split"] = temporal_split(
-        filtered_table,
-        year_col="LiDAR_year",
-        **TEMPORAL_YEARS[cohort],
-    )
+
+    if split_type == "temporal":
+        filtered_table["split"] = temporal_split(
+            filtered_table,
+            year_col="LiDAR_year",
+            **TEMPORAL_YEARS[cohort],
+        )
+    elif split_type == "spatial_block":
+        # coordinates_df=None makes spatial_block_split() load plot
+        # centroids itself. Whole compartments go to train/val/test
+        # together, so (unlike temporal_split) every survey year of a
+        # train-plot is "train" -- see load_trajectory_pairs() below for why
+        # that matters for the PINN specifically.
+        filtered_table["split"] = spatial_block_split(
+            filtered_table,
+            block_col=SPATIAL_BLOCK_COL,
+            buffer_distance=SPATIAL_BUFFER_METRES,
+            seed=SPLIT_SEED,
+        )
+    else:
+        raise ValueError(f"Unknown split_type: {split_type!r}")
+
     return filtered_table
 
 
@@ -169,23 +194,37 @@ _EARLIER_ENDPOINT_COLUMNS = {
 }
 
 
-def load_trajectory_pairs(cohort, eligible_plot_ids, train_years):
+def load_trajectory_pairs(cohort, split_df):
     # Loads the transition (growth-between-surveys) table and keeps only
-    # pairs that are usable for the trajectory loss: both endpoints belong
-    # to a plot that survived filter_data() (eligible_plot_ids, computed
-    # from the SAME filtering already applied to the main per-row table, so
-    # the two agree exactly), and both endpoints' years are training years
-    # -- never touching the validation year, so the trajectory loss can
-    # never leak validation-year information into training (see
+    # pairs usable for the trajectory loss: BOTH endpoints must themselves
+    # be labelled "train" in split_df (the same table load_split_table()
+    # just built). This one rule is correct under either split type,
+    # without needing to branch on which one is active:
+    #   - under temporal_split, a plot's rows are split by YEAR, so this
+    #     keeps only pairs whose two years are both training years --
+    #     exactly what the old train_years-based filter did.
+    #   - under spatial_block_split, a whole plot goes to train/val/test
+    #     together (every survey year gets the same split label), so this
+    #     keeps only pairs whose PLOT itself was assigned to train -- any
+    #     two of its survey years qualify.
+    # Never matches a val/test row either way, so validation/test
+    # information can never leak into the trajectory loss (see
     # documentation/model_instructions/age_only_dnn_pinn_instructions.md,
-    # section 1's leakage rule).
+    # section 1's leakage rule). split_df already reflects filter_data(), so
+    # a plot that didn't survive that filter has no "train" rows here and
+    # is automatically excluded too -- no separate eligible-plots check
+    # needed.
     transitions_path = PROJECT_ROOT / "data" / "processed" / "transitions" / f"transition_growth_{cohort}.parquet"
-    pairs = pd.read_parquet(transitions_path)
+    pairs = pd.read_parquet(transitions_path).reset_index(drop=True)
 
-    pairs = pairs[pairs["identification"].isin(eligible_plot_ids)]
-    pairs = pairs[pairs["previous_lidar_year"].isin(train_years) & pairs["LiDAR_year"].isin(train_years)]
+    train_keys = set(zip(
+        split_df.loc[split_df["split"] == "train", "identification"],
+        split_df.loc[split_df["split"] == "train", "LiDAR_year"],
+    ))
+    earlier_is_train = pd.Series(zip(pairs["identification"], pairs["previous_lidar_year"])).isin(train_keys)
+    later_is_train = pd.Series(zip(pairs["identification"], pairs["LiDAR_year"])).isin(train_keys)
 
-    return pairs.reset_index(drop=True)
+    return pairs[(earlier_is_train & later_is_train).values].reset_index(drop=True)
 
 
 def build_pair_tensors(pairs_df, scaler_age, scaler_other_features, scaler_height, encoded_column_names, device):
