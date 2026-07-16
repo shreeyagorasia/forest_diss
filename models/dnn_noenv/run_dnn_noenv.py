@@ -52,10 +52,13 @@ from models.common.torch_data import (
 )
 from models.dnn_noenv.dnn_noenv import (
     BATCH_SIZE,
+    GRAD_CLIP_MAX_NORM,
     L1_COEFFICIENT,
     LEARNING_RATE,
     LR_SCHEDULER_FACTOR,
     LR_SCHEDULER_PATIENCE,
+    VAL_LOSS_SMOOTHING_WINDOW,
+    WEIGHT_DECAY,
     fit,
     save_checkpoints,
     save_run_metadata,
@@ -64,10 +67,11 @@ from models.dnn_noenv.dnn_noenv import (
 MODEL_NAME = "dnn_noenv"
 DEFAULT_SEED = 42
 DEFAULT_MAX_EPOCHS = 500
-DEFAULT_EARLY_STOPPING_PATIENCE = 20
+DEFAULT_EARLY_STOPPING_PATIENCE = 40
+DEFAULT_OPTIMIZER = "adam"
 
 
-def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed):
+def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed, optimizer_name):
     print(f"===== {cohort} ({MODEL_NAME}, {split_type}) — FIT ONLY, no test-set evaluation =====")
 
     # A "test run" is just a quick sanity check with very few epochs (see
@@ -84,6 +88,10 @@ def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed
         "lr_scheduler_factor": LR_SCHEDULER_FACTOR,
         "lr_scheduler_patience": LR_SCHEDULER_PATIENCE,
         "l1_coefficient": L1_COEFFICIENT,
+        "weight_decay": WEIGHT_DECAY,
+        "grad_clip_max_norm": GRAD_CLIP_MAX_NORM,
+        "val_loss_smoothing_window": VAL_LOSS_SMOOTHING_WINDOW,
+        "optimizer_name": optimizer_name,
         "batch_size": BATCH_SIZE,
         "max_epochs": max_epochs,
         "early_stopping_patience": early_stopping_patience,
@@ -136,8 +144,13 @@ def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed
             age_val, other_val, target_val,
             n_other_features, device, seed,
             max_epochs, early_stopping_patience,
+            optimizer_name=optimizer_name,
         )
-        best_val_loss = float(history_df["val_loss"].min())
+        # The smoothed column is what actually decided which epoch's
+        # weights got saved as "best" (see dnn_noenv.py::fit()) -- reporting
+        # its minimum here, not the raw val_loss column's, keeps this
+        # number consistent with which checkpoint this run actually kept.
+        best_val_loss = float(history_df["val_loss_smoothed"].min())
         final_val_loss = float(history_df["val_loss"].iloc[-1])
         print(
             f"  Trained for {len(history_df)} epochs in {timer.elapsed_seconds():.1f}s. "
@@ -206,13 +219,19 @@ def main():
     parser.add_argument("--max-epochs", type=int, default=DEFAULT_MAX_EPOCHS)
     parser.add_argument("--patience", type=int, default=DEFAULT_EARLY_STOPPING_PATIENCE)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    parser.add_argument(
+        "--optimizer", choices=["adam", "sgd_momentum"], default=DEFAULT_OPTIMIZER,
+        help="adam is the default everywhere so far; sgd_momentum is an A/B-test alternative.",
+    )
     args = parser.parse_args()
 
     cohorts = [args.cohort] if args.cohort else ["4survey", "6survey"]
 
     results = {}
     for cohort in cohorts:
-        results[cohort] = run_for_cohort(cohort, args.split_type, args.max_epochs, args.patience, args.seed)
+        results[cohort] = run_for_cohort(
+            cohort, args.split_type, args.max_epochs, args.patience, args.seed, args.optimizer
+        )
 
     print("===== Summary: best validation loss reached =====")
     for cohort, best_val_loss in results.items():

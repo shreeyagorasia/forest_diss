@@ -178,10 +178,17 @@ max_epochs`) before trusting an evaluate result as real.
 
 ## Runbook: what to run, in what order
 
-1. **Push cleaned data to the cluster** (`data/processed/` is gitignored, so it never travels via
-   git): `rsync` `data/processed/master/*.parquet` to the cluster, then on the cluster run
-   `python -m data_processing.export_model_tables` to regenerate `data/processed/current_state/`
-   there (proven byte-for-byte deterministic — safe to regenerate on a different machine).
+1. **Push cleaned data to the cluster** (`data/processed/` and `data/interim/` are both
+   gitignored, so neither travels via git):
+   - `rsync` `data/processed/master/*.parquet` to the cluster, then on the cluster run
+     `python -m data_processing.export_model_tables` to regenerate `data/processed/current_state/`
+     there (proven byte-for-byte deterministic — safe to regenerate on a different machine).
+   - `rsync` `data/interim/plot_coordinates.csv.gz` directly (small, ~3MB, no need to regenerate --
+     it doesn't even need `geopandas` on the cluster). Only needed for `spatial_block_split`
+     specifically — `temporal_split` never touches plot coordinates, which is why this was missed
+     the first time `spatial_block_split` was wired into DNN/PINN: a job failing with
+     `No such file or directory: .../data/interim/plot_coordinates.csv.gz` means this step was
+     skipped.
 2. **Submit real training jobs** on the cluster: `jobs/dnn_noenv/run_dnn_noenv.sh` and
    `jobs/pinn_noenv/run_pinn_noenv.sh` (these call `run_dnn_noenv.py`/`run_pinn_noenv.py` with the
    real `--max-epochs 500`, not a quick sanity check). Both take a `split_type` argument
@@ -336,10 +343,16 @@ model binaries.
 
 ## What's not started yet
 
-Real (500-epoch) DNN/PINN training runs under `spatial_block_split` — the split that actually
-matches the dissertation's central research question, wired in on 16 July 2026 but not yet run at
-full length (only real results so far are under `temporal_split`, see `experiment_log.md`). Also
-not started: terrain/wind feature extraction, XGBoost + SHAP, temporal split Design 2, and the
-PINN's Route B (temporal-restricted CR anchor). A DNN/PINN results notebook now exists
+DNN/PINN under `spatial_block_split` now has a first real result (16 July 2026) — both beat every
+baseline on both cohorts, and beat their own `temporal_split` numbers too — but it's not yet
+confirmed whether that reflects genuine convergence or an early-stopping artefact (see
+`experiment_log.md`'s hyperparameter-tuning plan; each candidate fix is cheap to test at only
+21-30 epochs per run). All 8 real runs so far stop well short of the 500-epoch budget, and DNN
+specifically shows unstable behaviour across settings (healthy on one cohort/split, a textbook
+overfitting collapse on another) — tuning effort is prioritized on PINN, the more consistent model
+and the actual research focus, going forward (see `experiment_log.md`). Also not started:
+terrain/wind feature extraction, XGBoost + SHAP, `temporal_narrow_gap`, and the PINN's `cr_matched`
+anchor variant (see `experiment_log.md`'s naming glossary for what these are). A DNN/PINN results
+notebook now exists
 (`results_notebooks/baseline_models_parameter_tuning.ipynb`) covering loss curves and metrics for
 both split types, updated automatically as real runs land.

@@ -26,8 +26,29 @@ from models.common.torch_model import NoEnvNetwork, compute_l1_penalty
 L1_COEFFICIENT = 1e-5
 LEARNING_RATE = 0.0001
 LR_SCHEDULER_FACTOR = 0.8
-LR_SCHEDULER_PATIENCE = 10
-BATCH_SIZE = 128
+LR_SCHEDULER_PATIENCE = 15
+BATCH_SIZE = 512
+
+# L2 penalty built into the optimizer itself (distinct from L1_COEFFICIENT
+# above, which is added to the loss manually) -- a second, standard way to
+# discourage the network from fitting training-set noise. Kept small and the
+# same order of magnitude as L1_COEFFICIENT so the two don't fight each
+# other or squash genuine learning.
+WEIGHT_DECAY = 1e-5
+
+# Caps how large a single weight update can be, regardless of how big the
+# loss gradient is that step. Cheap insurance against one noisy/unlucky
+# batch causing a big, destabilising jump -- exactly the kind of thing that
+# could explain a val_loss that suddenly climbs (see the DNN/4survey
+# overfitting case in documentation/experiment_log.md).
+GRAD_CLIP_MAX_NORM = 1.0
+
+# How many of the most recent epochs' val_loss to average together before
+# deciding "is this a new best" / "has training stopped improving". A
+# single epoch's val_loss is noisy (see the same experiment_log.md
+# discussion); averaging over a short window stops one lucky or unlucky
+# epoch from being mistaken for real progress or real stalling.
+VAL_LOSS_SMOOTHING_WINDOW = 5
 
 # How often to PRINT progress during training (every 10 epochs, not every
 # epoch). This only affects what gets printed to the screen / the SLURM
@@ -84,6 +105,9 @@ def train_one_epoch(model, optimizer, age_train, other_train, target_train, batc
         total_loss = data_loss + l1_loss
 
         total_loss.backward()  # work out how much each weight contributed to the loss
+        # Shrinks the gradient if its overall size is above GRAD_CLIP_MAX_NORM,
+        # so one noisy batch can never cause an oversized weight update.
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=GRAD_CLIP_MAX_NORM)
         optimizer.step()  # nudge every weight a little bit to reduce the loss
 
         total_data_loss = total_data_loss + data_loss.item()
@@ -106,16 +130,35 @@ def evaluate_on_validation_set(model, age_val, other_val, target_val):
     return val_loss.item()
 
 
+def build_optimizer(model, optimizer_name):
+    # "adam" is the default used everywhere so far. "sgd_momentum" is a
+    # genuinely different optimizer (not an addition to Adam -- Adam
+    # already has momentum built in, via its beta1=0.9 first-moment
+    # estimate) offered as an easy A/B test: SGD with Nesterov momentum
+    # sometimes finds flatter, better-generalizing minima than Adam does.
+    if optimizer_name == "adam":
+        return torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
+    elif optimizer_name == "sgd_momentum":
+        return torch.optim.SGD(
+            model.parameters(), lr=LEARNING_RATE, momentum=0.9, nesterov=True, weight_decay=WEIGHT_DECAY
+        )
+    else:
+        raise ValueError(f"Unknown optimizer_name: {optimizer_name!r}")
+
+
 def fit(
     age_train, other_train, target_train,
     age_val, other_val, target_val,
     n_other_features, device, seed,
     max_epochs, early_stopping_patience,
+    optimizer_name="adam",
 ):
     # Trains the DNN, one epoch at a time, stopping early if the
     # validation loss stops improving. Returns:
     #   - best_model: the network from whichever epoch had the LOWEST
-    #     validation loss (not necessarily the last epoch)
+    #     SMOOTHED validation loss (not necessarily the last epoch, and not
+    #     necessarily the single lowest raw epoch either -- see
+    #     VAL_LOSS_SMOOTHING_WINDOW above)
     #   - final_model_state: the network's weights from the VERY LAST
     #     epoch trained, saved too in case it's ever useful to compare
     #     against the best one
@@ -123,7 +166,7 @@ def fit(
     #     numbers, learning rate, and elapsed training time at that point
     training_start_time = time.time()
     model = build_model(n_other_features, device, seed)
-    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    optimizer = build_optimizer(model, optimizer_name)
     # ReduceLROnPlateau automatically shrinks the learning rate once
     # validation loss stops improving for a while -- this often helps a
     # network fine-tune once it's close to its best result.
@@ -131,10 +174,15 @@ def fit(
         optimizer, factor=LR_SCHEDULER_FACTOR, patience=LR_SCHEDULER_PATIENCE
     )
 
-    best_val_loss = None
+    best_smoothed_val_loss = None
     best_model_state = None
     epochs_without_improvement = 0
     history_rows = []
+    # Keeps only the most recent VAL_LOSS_SMOOTHING_WINDOW raw val_loss
+    # values -- recent_val_losses.pop(0) below drops the oldest one once
+    # the window is full, so this is always a short rolling window, not the
+    # whole history.
+    recent_val_losses = []
 
     for epoch in range(1, max_epochs + 1):
         train_loss = train_one_epoch(model, optimizer, age_train, other_train, target_train, BATCH_SIZE, device)
@@ -149,18 +197,30 @@ def fit(
         # (e.g. comparing a cluster GPU run to a laptop CPU sanity check).
         elapsed_seconds = time.time() - training_start_time
 
+        # Smoothed val_loss: the average of the last VAL_LOSS_SMOOTHING_WINDOW
+        # epochs (fewer, early on, before the window fills up). Used instead
+        # of the raw per-epoch val_loss for "is this a new best" / "has
+        # training stalled" below, so a single noisy epoch can't trigger a
+        # false best or falsely count toward early stopping.
+        recent_val_losses.append(val_loss)
+        if len(recent_val_losses) > VAL_LOSS_SMOOTHING_WINDOW:
+            recent_val_losses.pop(0)
+        smoothed_val_loss = sum(recent_val_losses) / len(recent_val_losses)
+
         # Save EVERY epoch's numbers to the history list -- this becomes
         # training_history.csv later, with nothing skipped, regardless of
         # how often we print below.
         history_rows.append({
             "epoch": epoch, "train_loss": train_loss, "val_loss": val_loss,
+            "val_loss_smoothed": smoothed_val_loss,
             "learning_rate": current_lr, "elapsed_seconds": elapsed_seconds,
         })
 
-        # Has this epoch beaten every previous epoch's validation loss?
-        is_new_best = best_val_loss is None or val_loss < best_val_loss
+        # Has this epoch beaten every previous epoch's SMOOTHED validation
+        # loss? (Not the raw val_loss -- see above.)
+        is_new_best = best_smoothed_val_loss is None or smoothed_val_loss < best_smoothed_val_loss
         if is_new_best:
-            best_val_loss = val_loss
+            best_smoothed_val_loss = smoothed_val_loss
             # .clone() makes an independent copy of the weights -- without
             # it, best_model_state would just keep pointing at the SAME
             # weights that keep changing every epoch, and by the end it
@@ -180,7 +240,8 @@ def fit(
             best_marker = " (new best)" if is_new_best else ""
             print(
                 f"  epoch {epoch}/{max_epochs}  train_loss={train_loss:.4f}  "
-                f"val_loss={val_loss:.4f}  learning_rate={current_lr:.6f}{best_marker}"
+                f"val_loss={val_loss:.4f}  val_loss_smoothed={smoothed_val_loss:.4f}  "
+                f"learning_rate={current_lr:.6f}{best_marker}"
             )
 
         # Stop early if validation loss has not improved for

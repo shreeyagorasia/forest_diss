@@ -103,9 +103,7 @@ MODEL_FEATURE_SETS = {
 }
 
 # DNN and PINN (no-environment) tables share one feature set, so there is
-# only one predictor list to keep in sync between them. Not consumed by any
-# model script yet -- exported now so the tables are ready when that work
-# starts, matching what the cleaning notebook already produced.
+# only one predictor list to keep in sync between them.
 FULL_NOENV_FEATURES = [
     "Age",
     "CanopyCover",

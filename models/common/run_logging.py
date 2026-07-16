@@ -23,12 +23,13 @@ import json
 import os
 import platform
 import socket
-import subprocess
 import sys
 import time
 import traceback
 from datetime import datetime, timezone
 from pathlib import Path
+
+from models.common.saving import get_git_commit
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RUN_LOGS_DIR = PROJECT_ROOT / "outputs" / "run_logs"
@@ -67,15 +68,6 @@ def make_attempt_id(model_name, cohort, split_type, run_phase):
     # in the same second.
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     return f"{model_name}_{cohort}_{split_type}_{run_phase}_{timestamp}"
-
-
-def get_git_commit():
-    try:
-        return subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], text=True, stderr=subprocess.DEVNULL
-        ).strip()
-    except Exception:
-        return None
 
 
 def get_slurm_info():

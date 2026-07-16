@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 from scipy.spatial import cKDTree
 
@@ -12,52 +11,6 @@ def load_plot_coordinates():
     # One row per plot: identification, x, y (metres, EPSG:27700).
     # Built once by models/common/export_coordinates.py.
     return pd.read_csv(COORDINATES_PATH)
-
-
-def find_plots_near_split_boundary(coordinates_df, plot_to_split, buffer_distance):
-    # For every plot, find the distance to its nearest neighbouring plot
-    # that landed in a DIFFERENT split. If that distance is under
-    # buffer_distance, the plot sits right next to a split boundary, so its
-    # measurements could leak spatial information across the split (two
-    # neighbouring grid cells share almost identical terrain and wind
-    # exposure). Returns the set of plot ids that are too close to a
-    # different split and should be excluded.
-
-    coordinates = coordinates_df.copy()
-    coordinates["split"] = coordinates["identification"].map(plot_to_split)
-    coordinates = coordinates.dropna(subset=["split"])
-
-    split_names = sorted(coordinates["split"].unique())
-
-    # Build one KDTree of plot coordinates per split, so "nearest plot in a
-    # different split" can be looked up quickly instead of comparing every
-    # plot to every other plot.
-    coordinates_by_split = {}
-    trees_by_split = {}
-    for split_name in split_names:
-        rows_in_split = coordinates[coordinates["split"] == split_name]
-        coordinates_by_split[split_name] = rows_in_split
-        trees_by_split[split_name] = cKDTree(rows_in_split[["x", "y"]].values)
-
-    plots_near_boundary = set()
-
-    for split_name in split_names:
-        rows_in_split = coordinates_by_split[split_name]
-        other_split_names = [name for name in split_names if name != split_name]
-
-        # start with "infinitely far away", then shrink it down as we check
-        # each other split
-        nearest_other_split_distance = np.full(len(rows_in_split), np.inf)
-        for other_split_name in other_split_names:
-            other_tree = trees_by_split[other_split_name]
-            distances, _ = other_tree.query(rows_in_split[["x", "y"]].values)
-            nearest_other_split_distance = np.minimum(nearest_other_split_distance, distances)
-
-        too_close = nearest_other_split_distance < buffer_distance
-        plot_ids_too_close = rows_in_split.loc[too_close, "identification"]
-        plots_near_boundary.update(plot_ids_too_close)
-
-    return plots_near_boundary
 
 
 def find_train_plots_near_holdout(coordinates_df, plot_to_split, buffer_distance, holdout_splits=("val", "test")):

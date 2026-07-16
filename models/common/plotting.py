@@ -113,7 +113,17 @@ def plot_loss_curve(history_df, ax=None):
         _, ax = plt.subplots()
 
     ax.plot(history_df["epoch"], history_df["train_loss"], label="train_loss", color="#1f77b4")
-    ax.plot(history_df["epoch"], history_df["val_loss"], label="val_loss", color="#d62728")
+    ax.plot(history_df["epoch"], history_df["val_loss"], label="val_loss", color="#d62728", alpha=0.4)
+
+    # val_loss_smoothed (a short rolling average -- see fit()'s
+    # VAL_LOSS_SMOOTHING_WINDOW) only exists in newer training_history.csv
+    # files. Drawn on top, solid, since it's what actually decides the best
+    # epoch below; val_loss itself is kept faint so the raw noise is still
+    # visible underneath.
+    best_loss_column = "val_loss"
+    if "val_loss_smoothed" in history_df.columns:
+        ax.plot(history_df["epoch"], history_df["val_loss_smoothed"], label="val_loss_smoothed", color="#d62728")
+        best_loss_column = "val_loss_smoothed"
 
     for component in ["data_loss", "physics_loss", "trajectory_loss"]:
         if component in history_df.columns:
@@ -122,11 +132,12 @@ def plot_loss_curve(history_df, ax=None):
                 label=component, linestyle="--", linewidth=1, alpha=0.6,
             )
 
-    # Mark the epoch with the lowest val_loss -- this is the epoch whose
-    # weights load_best_model() actually loads, not necessarily the last
-    # epoch trained (early stopping keeps training a while longer after the
-    # best epoch, to make sure it really has stopped improving).
-    best_epoch = history_df.loc[history_df["val_loss"].idxmin(), "epoch"]
+    # Mark the epoch with the lowest (smoothed, if available) val_loss --
+    # this is the epoch whose weights load_best_model() actually loads, not
+    # necessarily the last epoch trained (early stopping keeps training a
+    # while longer after the best epoch, to make sure it really has stopped
+    # improving).
+    best_epoch = history_df.loc[history_df[best_loss_column].idxmin(), "epoch"]
     ax.axvline(best_epoch, color="black", linewidth=1, linestyle=":", alpha=0.6, label="best epoch")
 
     ax.set_xlabel("Epoch")

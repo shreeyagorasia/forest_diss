@@ -9,11 +9,13 @@
 #
 # The frozen CR physics anchor (load_cr_params below) always reads the
 # plot_level Chapman-Richards fit, regardless of which split_type the PINN
-# itself uses -- this is "Route A" (see documentation/experiment_log.md's
-# Decisions log): y_max/k/p are treated as population-level biological
-# constants, not something requiring the PINN's own train/test discipline,
-# so the same reasoning applies whether the PINN is being tested temporally
-# or spatially.
+# itself uses -- this is "cr_pooled" (see documentation/experiment_log.md's
+# naming glossary and Decisions log): y_max/k/p are treated as
+# population-level biological constants, not something requiring the PINN's
+# own train/test discipline, so the same reasoning applies whether the PINN
+# is being tested temporally or spatially. The alternative ("cr_matched" --
+# fitting CR only on the PINN's own training years) is a planned, not yet
+# run, stricter robustness check.
 #
 # This script deliberately does NOT touch the test split (2023) or compute
 # any accuracy metrics. That is a separate, cheap step
@@ -60,6 +62,7 @@ from models.common.torch_data import (
 )
 from models.pinn_noenv.pinn_noenv import (
     BATCH_SIZE,
+    GRAD_CLIP_MAX_NORM,
     L1_COEFFICIENT,
     LEARNING_RATE,
     LR_SCHEDULER_FACTOR,
@@ -67,6 +70,8 @@ from models.pinn_noenv.pinn_noenv import (
     PAIRS_BATCH_SIZE,
     PHYSICS_WEIGHT,
     TRAJECTORY_WEIGHT,
+    VAL_LOSS_SMOOTHING_WINDOW,
+    WEIGHT_DECAY,
     fit,
     save_checkpoints,
     save_run_metadata,
@@ -76,7 +81,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MODEL_NAME = "pinn_noenv"
 DEFAULT_SEED = 42
 DEFAULT_MAX_EPOCHS = 500
-DEFAULT_EARLY_STOPPING_PATIENCE = 20
+DEFAULT_EARLY_STOPPING_PATIENCE = 40
+DEFAULT_OPTIMIZER = "adam"
 
 
 def load_cr_params(cohort):
@@ -88,7 +94,7 @@ def load_cr_params(cohort):
     return {"y_max": params["y_max"], "k": params["k"], "p": params["p"]}
 
 
-def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed):
+def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed, optimizer_name):
     print(f"===== {cohort} ({MODEL_NAME}, {split_type}) — FIT ONLY, no test-set evaluation =====")
 
     is_test_run = max_epochs < TEST_RUN_MAX_EPOCHS_THRESHOLD
@@ -100,6 +106,10 @@ def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed
         "lr_scheduler_factor": LR_SCHEDULER_FACTOR,
         "lr_scheduler_patience": LR_SCHEDULER_PATIENCE,
         "l1_coefficient": L1_COEFFICIENT,
+        "weight_decay": WEIGHT_DECAY,
+        "grad_clip_max_norm": GRAD_CLIP_MAX_NORM,
+        "val_loss_smoothing_window": VAL_LOSS_SMOOTHING_WINDOW,
+        "optimizer_name": optimizer_name,
         "physics_weight": PHYSICS_WEIGHT,
         "trajectory_weight": TRAJECTORY_WEIGHT,
         "batch_size": BATCH_SIZE,
@@ -158,9 +168,14 @@ def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed
             pair_tensors, cr_params, scaler_age, scaler_height,
             n_other_features, device, seed,
             max_epochs, early_stopping_patience,
+            optimizer_name=optimizer_name,
         )
         last_row = history_df.iloc[-1]
-        best_val_loss = float(history_df["val_loss"].min())
+        # The smoothed column is what actually decided which epoch's
+        # weights got saved as "best" (see pinn_noenv.py::fit()) -- reporting
+        # its minimum here keeps this number consistent with the checkpoint
+        # this run actually kept.
+        best_val_loss = float(history_df["val_loss_smoothed"].min())
         print(
             f"  Trained for {len(history_df)} epochs in {timer.elapsed_seconds():.1f}s. "
             f"best_val_loss={best_val_loss:.6f}  final: data_loss={last_row['data_loss']:.6f}  "
@@ -241,13 +256,19 @@ def main():
     parser.add_argument("--max-epochs", type=int, default=DEFAULT_MAX_EPOCHS)
     parser.add_argument("--patience", type=int, default=DEFAULT_EARLY_STOPPING_PATIENCE)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    parser.add_argument(
+        "--optimizer", choices=["adam", "sgd_momentum"], default=DEFAULT_OPTIMIZER,
+        help="adam is the default everywhere so far; sgd_momentum is an A/B-test alternative.",
+    )
     args = parser.parse_args()
 
     cohorts = [args.cohort] if args.cohort else ["4survey", "6survey"]
 
     results = {}
     for cohort in cohorts:
-        results[cohort] = run_for_cohort(cohort, args.split_type, args.max_epochs, args.patience, args.seed)
+        results[cohort] = run_for_cohort(
+            cohort, args.split_type, args.max_epochs, args.patience, args.seed, args.optimizer
+        )
 
     print("===== Summary: best validation loss reached =====")
     for cohort, best_val_loss in results.items():

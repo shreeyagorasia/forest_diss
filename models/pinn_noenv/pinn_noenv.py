@@ -46,9 +46,17 @@ PHYSICS_WEIGHT = 1.0
 TRAJECTORY_WEIGHT = 1.0
 LEARNING_RATE = 0.0001
 LR_SCHEDULER_FACTOR = 0.8
-LR_SCHEDULER_PATIENCE = 10
-BATCH_SIZE = 32
-PAIRS_BATCH_SIZE = 32
+LR_SCHEDULER_PATIENCE = 15
+BATCH_SIZE = 128
+PAIRS_BATCH_SIZE = 128
+
+# See the matching constants in models/dnn_noenv/dnn_noenv.py for why each
+# of these exists -- same reasoning, shared across both models so a
+# DNN-vs-PINN comparison never differs because of an unrelated training
+# knob.
+WEIGHT_DECAY = 1e-5
+GRAD_CLIP_MAX_NORM = 1.0
+VAL_LOSS_SMOOTHING_WINDOW = 5
 
 # How often to PRINT progress during training (every 10 epochs, not every
 # epoch). This only affects what gets printed to the screen / the SLURM
@@ -174,6 +182,11 @@ def train_one_epoch(
         total_loss = data_loss + PHYSICS_WEIGHT * physics_loss + TRAJECTORY_WEIGHT * trajectory_loss + l1_loss
 
         total_loss.backward()
+        # Shrinks the gradient if its overall size is above GRAD_CLIP_MAX_NORM,
+        # so one noisy batch (or one batch where the physics/trajectory
+        # terms disagree sharply with the data) can never cause an
+        # oversized, destabilising weight update.
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=GRAD_CLIP_MAX_NORM)
         optimizer.step()
 
         totals["data_loss"] = totals["data_loss"] + data_loss.item()
@@ -197,24 +210,40 @@ def evaluate_on_validation_set(model, age_val, other_val, target_val):
     return val_loss.item()
 
 
+def build_optimizer(model, optimizer_name):
+    # See models/dnn_noenv/dnn_noenv.py::build_optimizer() -- identical
+    # reasoning, kept in sync so a DNN-vs-PINN comparison never differs
+    # because of a mismatched optimizer choice.
+    if optimizer_name == "adam":
+        return torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
+    elif optimizer_name == "sgd_momentum":
+        return torch.optim.SGD(
+            model.parameters(), lr=LEARNING_RATE, momentum=0.9, nesterov=True, weight_decay=WEIGHT_DECAY
+        )
+    else:
+        raise ValueError(f"Unknown optimizer_name: {optimizer_name!r}")
+
+
 def fit(
     age_train, other_train, target_train,
     age_val, other_val, target_val,
     pair_tensors, cr_params, scaler_age, scaler_height,
     n_other_features, device, seed,
     max_epochs, early_stopping_patience,
+    optimizer_name="adam",
 ):
     training_start_time = time.time()
     model = build_model(n_other_features, device, seed)
-    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    optimizer = build_optimizer(model, optimizer_name)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, factor=LR_SCHEDULER_FACTOR, patience=LR_SCHEDULER_PATIENCE
     )
 
-    best_val_loss = None
+    best_smoothed_val_loss = None
     best_model_state = None
     epochs_without_improvement = 0
     history_rows = []
+    recent_val_losses = []
 
     for epoch in range(1, max_epochs + 1):
         epoch_losses = train_one_epoch(
@@ -234,6 +263,16 @@ def fit(
         # a local CPU sanity check.
         elapsed_seconds = time.time() - training_start_time
 
+        # Smoothed val_loss: see models/dnn_noenv/dnn_noenv.py::fit() for
+        # why -- same rolling-window logic, used instead of the raw
+        # per-epoch val_loss for the best-model/early-stopping decision
+        # below, so one noisy epoch can't be mistaken for real progress or
+        # real stalling.
+        recent_val_losses.append(val_loss)
+        if len(recent_val_losses) > VAL_LOSS_SMOOTHING_WINDOW:
+            recent_val_losses.pop(0)
+        smoothed_val_loss = sum(recent_val_losses) / len(recent_val_losses)
+
         history_rows.append({
             "epoch": epoch,
             "train_loss": epoch_losses["data_loss"] + PHYSICS_WEIGHT * epoch_losses["physics_loss"]
@@ -242,14 +281,16 @@ def fit(
             "physics_loss": epoch_losses["physics_loss"],
             "trajectory_loss": epoch_losses["trajectory_loss"],
             "val_loss": val_loss,
+            "val_loss_smoothed": smoothed_val_loss,
             "learning_rate": current_lr,
             "elapsed_seconds": elapsed_seconds,
         })
 
-        # Has this epoch beaten every previous epoch's validation loss?
-        is_new_best = best_val_loss is None or val_loss < best_val_loss
+        # Has this epoch beaten every previous epoch's SMOOTHED validation
+        # loss? (Not the raw val_loss -- see above.)
+        is_new_best = best_smoothed_val_loss is None or smoothed_val_loss < best_smoothed_val_loss
         if is_new_best:
-            best_val_loss = val_loss
+            best_smoothed_val_loss = smoothed_val_loss
             # .clone() makes an independent copy of the weights -- without
             # it, best_model_state would just keep pointing at the SAME
             # weights that keep changing every epoch.
@@ -269,7 +310,8 @@ def fit(
                 f"  epoch {epoch}/{max_epochs}  data_loss={epoch_losses['data_loss']:.4f}  "
                 f"physics_loss={epoch_losses['physics_loss']:.4f}  "
                 f"trajectory_loss={epoch_losses['trajectory_loss']:.4f}  "
-                f"val_loss={val_loss:.4f}  learning_rate={current_lr:.6f}{best_marker}"
+                f"val_loss={val_loss:.4f}  val_loss_smoothed={smoothed_val_loss:.4f}  "
+                f"learning_rate={current_lr:.6f}{best_marker}"
             )
 
         # Stop early if validation loss has not improved for

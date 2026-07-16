@@ -1,9 +1,9 @@
 # Run as: python -m models.common.test_splits
 #
-# spatial_block_split() and temporal_split() are not wired into any model
-# yet (no model uses terrain/wind or does temporal generalisation testing
-# yet). This script just exercises them against the real 4survey/6survey
-# data so they are checked and ready before that work starts.
+# Exercises spatial_block_split() and temporal_split() against the real
+# 4survey/6survey data -- both are now used by the baselines and by
+# dnn_noenv/pinn_noenv (see models/common/splits.py), so this is a
+# regression check for that shared code, not a check on unused code.
 
 from pathlib import Path
 
