@@ -20,3 +20,14 @@ Patience: 20
     2012: 58,112 rows
 
   epoch 1/500  data_loss=0.3374  physics_loss=0.0119  trajectory_loss=0.0222  val_loss=0.5607  learning_rate=0.000100 (new best)
+  epoch 10/500  data_loss=0.2992  physics_loss=0.0090  trajectory_loss=0.0194  val_loss=0.5454  learning_rate=0.000100 (new best)
+  epoch 20/500  data_loss=0.2954  physics_loss=0.0091  trajectory_loss=0.0192  val_loss=0.5674  learning_rate=0.000100
+  epoch 30/500  data_loss=0.2933  physics_loss=0.0094  trajectory_loss=0.0188  val_loss=0.5463  learning_rate=0.000080
+  Early stopping at epoch 39 (no val_loss improvement for 20 epochs).
+  Trained for 39 epochs in 2440.0s. best_val_loss=0.538902  final: data_loss=0.291858  physics_loss=0.009305  trajectory_loss=0.018597
+  Saved checkpoint + scalers + history -> /home/s2887183/forest_diss/outputs/pinn_noenv/4survey
+  Next step: python -m models.pinn_noenv.evaluate_pinn_noenv --cohort 4survey
+
+===== Summary: best validation loss reached =====
+  4survey: best_val_loss=0.538902
+--- PINN job end ---
