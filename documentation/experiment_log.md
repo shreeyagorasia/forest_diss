@@ -56,7 +56,9 @@ just not equally central.
 |---|---|---|
 | `temporal_narrow_gap` (train 2008+2012+2021, test 2023 only) | Is `temporal_wide_gap`'s dramatic temporal degradation an artefact of the specific 11-year train/test gap, or does it hold under a shorter, easier gap too? A secondary-question robustness check, not gating the primary spatial result. | After `temporal_wide_gap` results are fully written up for baselines + DNN + PINN |
 | PINN physics anchor, `cr_matched` (CR fit restricted to 2008+2012 only, matching the PINN's own training years) | Does the DNN-vs-PINN temporal comparison hold up under a stricter ablation with zero information leakage into the physics term? | Cheap to run alongside `temporal_wide_gap` results — worth doing early as a documented caveat |
-| Hyperparameter variants of the primary `spatial_block` PINN run (see the tuning plan in the Findings log) | Is the current `spatial_block` result genuine convergence or a premature stop? | Now — cheap, 15-30 min per run |
+| `physics_weight`/`trajectory_weight` sweep, applied to `temporal_split` (currently only run under `spatial_block_split`) | Does the same low-weight finding (`W=0.05` beats `W=1.0`) hold under temporal generalization too, or is it spatial_block-specific? | Cheap, same sweep mechanics already built (`--physics-weight`/`--trajectory-weight`/`--run-name` on `run_pinn_noenv.py`) |
+
+**Resolved 2026-07-17** (removed from the table above, kept here for the record): "Hyperparameter variants of the primary `spatial_block` PINN run — is the result genuine convergence or a premature stop?" — yes, genuine convergence. Loosening patience/smoothing/batch size trained both models roughly 2x longer but barely moved final test RMSE (see the 2026-07-17 Findings entry) — the pre-tuning numbers were already close to real optima, except DNN/4survey's overfitting climb, which only softened, not fixed (a data-limitation, not a tuning-limitation — see the same entry).
 
 ## Experiment table
 
@@ -67,10 +69,11 @@ just not equally central.
 | `temporal_design1_baselines` | 2026-07-15 | `temporal_split`, temporal_wide_gap | train=[2008,2012] (4survey) / [2002,2006,2008,2012] (6survey), val=[2021], test=[2023] | n/a | CR, average-by-age, linear, RF | both | secondary | `outputs/temporal/<model>/<cohort>/` | Much larger degradation than spatial (up to +141.7% RMSE, `average_by_age`/6survey R² negative); CR most temporally robust, not RF — see `baseline_results.ipynb` §8.1 |
 | `dnn_noenv_design1_smoketest` | 2026-07-15 | `temporal_split`, temporal_wide_gap | same as above | n/a (no physics term) | dnn_noenv | both | superseded (2-epoch sanity check only, not a real result) | `outputs/temporal/dnn_noenv/<cohort>/` | Pipeline verified working; superseded by `dnn_noenv_design1` below |
 | `pinn_noenv_design1_routeA_smoketest` | 2026-07-15 | `temporal_split`, temporal_wide_gap | same as above | cr_pooled: plot_level CR fit (`outputs/chapman_richards/<cohort>/params.json`) | pinn_noenv | both | superseded (2-epoch sanity check only) | `outputs/temporal/pinn_noenv/<cohort>/` | Pipeline verified working; superseded by `pinn_noenv_design1` below |
-| `dnn_noenv_design1` | 2026-07-16 | `temporal_split`, temporal_wide_gap | same as above | n/a (no physics term) | dnn_noenv | both | secondary | `outputs/temporal/dnn_noenv/<cohort>/` | First real (`--max-epochs 500`, cluster GPU) run. 4survey: RMSE=5.8648, R²=0.4524, early-stopped epoch 21 with **best epoch=1** (val_loss never improved after epoch 1 — flagged, see Findings log). 6survey: RMSE=4.9182, R²=0.2810, early-stopped epoch 54, best epoch=34 (normal pattern). Both beat all four temporal-split baselines |
-| `pinn_noenv_design1` | 2026-07-16 | `temporal_split`, temporal_wide_gap | same as above | cr_pooled: plot_level CR fit | pinn_noenv | both | secondary | `outputs/temporal/pinn_noenv/<cohort>/` | First real run. 4survey: RMSE=6.0748, R²=0.4125, early-stopped epoch 39, best epoch=19 (normal). 6survey: RMSE=4.7717, R²=0.3232, early-stopped epoch 109, best epoch=89 (normal). Both beat all four temporal-split baselines |
-| `dnn_noenv_spatialblock` | 2026-07-16 | `spatial_block_split` | n/a (all years pooled per train-plot) | n/a (no physics term) | dnn_noenv | both | primary | `outputs/spatial_block/dnn_noenv/<cohort>/` | First real run under the dissertation's actual central split. 4survey: RMSE=5.0686, R²=0.6012, early-stopped epoch 30, best epoch=10. 6survey: RMSE=3.6194, R²=0.7477, early-stopped epoch 23, best epoch=3. Beats every spatial-block baseline on both cohorts (best baseline RMSE: 5.8167 linear/4survey, 3.8915 avg-by-age/6survey) |
-| `pinn_noenv_spatialblock` | 2026-07-16 | `spatial_block_split` | same as above | cr_pooled: plot_level CR fit | pinn_noenv | both | primary | `outputs/spatial_block/pinn_noenv/<cohort>/` | First real run. 4survey: RMSE=5.4862, R²=0.5328, early-stopped epoch 22, best epoch=2. 6survey: RMSE=3.7153, R²=0.7342, early-stopped epoch 21, best epoch=1. Beats every spatial-block baseline on both cohorts, but DNN beats PINN on both this time (unlike the split result under temporal_split) |
+| `dnn_noenv_design1` | 2026-07-17 (tuned rerun; first run 2026-07-16) | `temporal_split`, temporal_wide_gap | same as above | n/a (no physics term) | dnn_noenv | both | secondary | `outputs/temporal/dnn_noenv/<cohort>/` | Tuned hyperparameters (see 2026-07-17 Findings entry): `lr_scheduler_patience` 10→15, `early_stopping_patience` 20→40, `BATCH_SIZE` 128→512, added `WEIGHT_DECAY`/`GRAD_CLIP_MAX_NORM`, 5-epoch `val_loss` smoothing for the best-epoch decision. 4survey: RMSE=5.8600, R²=0.4533, trained 43 epochs, best epoch=3 (overfitting climb softened, not fixed — `val_loss` still climbs +12% vs +19% pre-tuning). 6survey: RMSE=4.9388, R²=0.2749, trained 105 epochs, best epoch=65 (healthy). Both still beat all four temporal-split baselines |
+| `pinn_noenv_design1` | 2026-07-17 (tuned rerun; first run 2026-07-16) | `temporal_split`, temporal_wide_gap | same as above | cr_pooled: plot_level CR fit | pinn_noenv | both | secondary | `outputs/temporal/pinn_noenv/<cohort>/` | Same tuning as above, `physics_weight`/`trajectory_weight` still at the untested default of 1.0 (see 2026-07-17 weight-sweep entry — that sweep only covers `spatial_block` so far). 4survey: RMSE=6.0870, R²=0.4101, trained 71 epochs, best epoch=31. 6survey: RMSE=4.8857, R²=0.2904, trained 107 epochs, best epoch=67. Both still beat all four temporal-split baselines |
+| `dnn_noenv_spatialblock` | 2026-07-17 (tuned rerun; first run 2026-07-16) | `spatial_block_split` | n/a (all years pooled per train-plot) | n/a (no physics term) | dnn_noenv | both | primary | `outputs/spatial_block/dnn_noenv/<cohort>/` | Same tuning as above. 4survey: RMSE=5.0185, R²=0.6091, trained 52 epochs, best epoch=12. 6survey: RMSE=3.6498, R²=0.7434, trained 52 epochs, best epoch=12 (dramatically healthier curve than pre-tuning — `val_loss` now drops -42.9% over training instead of the pre-tuning +5% drift, though final RMSE barely changed). Beats every spatial-block baseline on both cohorts |
+| `pinn_noenv_spatialblock` | 2026-07-17 (tuned rerun; first run 2026-07-16) | `spatial_block_split` | same as above | cr_pooled: plot_level CR fit | pinn_noenv | both | superseded by `pinn_noenv_spatialblock_weightsweep` below | `outputs/spatial_block/pinn_noenv/<cohort>/` | Same tuning as above, `physics_weight`/`trajectory_weight` still at the untested default of 1.0. 4survey: RMSE=5.4642, R²=0.5366, trained 42 epochs, best epoch=2. 6survey: RMSE=3.7039, R²=0.7358, trained 48 epochs, best epoch=8. Beats every spatial-block baseline on both cohorts, but DNN still beats PINN on both — turned out to be because `physics_weight`/`trajectory_weight=1.0` was never actually tested against any other value, see below |
+| `pinn_noenv_spatialblock_weightsweep` | 2026-07-17 | `spatial_block_split` | same as above | cr_pooled: plot_level CR fit | pinn_noenv | both | primary (this is now the reference PINN result, replacing the row above) | `outputs/spatial_block/pinn_noenv_pw<W>_tw<W>/<cohort>/` for `W` in `{0.0, 0.05, 0.1, 0.2, 0.5, 5.0}` (`W=1.0` is the row above, at the plain `pinn_noenv` path) | Swept `physics_weight`=`trajectory_weight` jointly across 7 values. Best per-cohort: 4survey at `W=0.0` (RMSE=5.0822, R²=0.5991, physics fully off); 6survey at `W=0.05` (RMSE=3.6265, R²=0.7467, beats DNN's 3.6498). Chosen shared default going forward: **`W=0.05`** (4survey RMSE=5.1209, R²=0.5930 — only 0.7% worse than 4survey's own optimum, while being 6survey's actual best). See Findings log for the full table and the val_loss cross-check confirming this isn't test-set cherry-picking |
 
 ## Findings log (what I found → what's working / not → what it means for next steps)
 
@@ -347,6 +350,76 @@ re-checking the same instability/convergence questions again at that point rathe
 than assuming they're automatically solved, but this round of tuning isn't throwaway
 work specific to the no-environment version.
 
+**2026-07-17 — Ran the hyperparameter-tuning plan above: confirms genuine convergence
+for 3 of 4 configs, and shows DNN's overfitting collapse is a data limit, not a
+tuning limit.**
+**What I found:** re-ran all four DNN/PINN × split-type combinations with the tuned
+settings (`lr_scheduler_patience` 10→15, `early_stopping_patience` 20→40, `BATCH_SIZE`
+128/32→512/128, added `WEIGHT_DECAY`/`GRAD_CLIP_MAX_NORM`, 5-epoch `val_loss`
+smoothing for the best-epoch decision). Final test RMSE/R² barely moved anywhere
+despite training roughly 2x longer (see the Experiment table rows above for exact
+numbers) — except DNN/4survey's `temporal` overfitting climb, which only softened
+(`best_epoch` 1→3, climb +19%→+12%), it didn't go away.
+**What's working:** for `spatial_block` (both models, both cohorts) and 3 of 4
+`temporal` configs, the pre-tuning numbers were already close to real convergence —
+not premature stops. `dnn_noenv`/`temporal`/6survey's curve got dramatically
+healthier mid-training (`val_loss` -42.9% instead of the pre-tuning -24.6%) even
+though its final RMSE barely changed, confirming more training years (not more
+patience) is what actually drives a healthy curve.
+**What's not working / open concern:** DNN/4survey's collapse persisting even after
+loosening every training-dynamics knob available means it isn't an optimization
+problem — `temporal`'s 4survey split has only 2 distinct training years (2008, 2012),
+which is underdetermined for learning a trajectory almost by definition, independent
+of how carefully you train on it.
+**What this means for what's next:** don't spend more tuning budget trying to fix
+DNN/4survey's collapse with training-dynamics knobs — it needs `temporal_narrow_gap`
+(a genuinely different, less extreme train/test gap) to actually test whether the
+problem is "any temporal split breaks this" or specifically "an 11-year extrapolation
+from 2 years breaks this." These tuned numbers replace the pre-tuning ones in the
+Experiment table above (same rows, updated in place per this file's convention).
+
+**2026-07-17 — Physics/trajectory weight sweep: the untested default (`W=1.0`) was
+quietly hurting PINN the whole time; properly weighted, PINN beats DNN on 6survey.**
+**What I found:** `PHYSICS_WEIGHT`/`TRAJECTORY_WEIGHT` had been fixed at `1.0` since
+the PINN was first built — never tuned, never tested against any other value.
+Swept both jointly across `{0.0, 0.05, 0.1, 0.2, 0.5, 1.0, 5.0}` under
+`spatial_block`, both cohorts:
+
+| W | 4survey RMSE / R² | 6survey RMSE / R² |
+|---|---|---|
+| 0.0 | 5.0822 / 0.5991 | 3.6402 / 0.7448 |
+| 0.05 | 5.1209 / 0.5930 | **3.6265 / 0.7467** |
+| 0.1 | 5.1562 / 0.5873 | 3.6296 / 0.7463 |
+| 0.2 | 5.1319 / 0.5912 | 3.6302 / 0.7462 |
+| 0.5 | 5.3522 / 0.5554 | 3.6918 / 0.7375 |
+| 1.0 (old default) | 5.4642 / 0.5366 | 3.7039 / 0.7358 |
+| 5.0 | 5.7476 / 0.4872 | 3.7601 / 0.7277 |
+| DNN (reference) | 5.0185 / 0.6091 | 3.6498 / 0.7434 |
+
+4survey's best result is physics fully **off** (`W=0.0`) — every value above 0 makes
+it monotonically worse. 6survey wants a small nonzero weight (`W=0.05`), which beats
+DNN outright (3.6265 vs. 3.6498).
+**What's working:** cross-checked against `val_loss_smoothed` (computed during
+training, never touches the test set) — it shows the exact same ranking for both
+cohorts (4survey monotonically best at 0.0, 6survey best at 0.05), so this isn't
+test-set cherry-picking; the same choice would follow from validation data alone.
+**What's not working / open concern:** the cohorts genuinely disagree on whether the
+physics constraint helps at all. Most likely explanation, consistent with earlier
+findings: 6survey has more distinct training years, so its trajectory pairs carry a
+real, learnable signal the physics term can anchor to; 4survey's pairs are thinner
+and the same constraint mostly adds noise instead of biological signal.
+**What this means for what's next:** chose **`W=0.05`** as a single shared default
+for both cohorts, rather than tuning per-cohort — it's 6survey's actual optimum and
+only 0.7% worse than 4survey's own optimum (5.1209 vs. 5.0822), a small price for
+keeping "one PINN configuration" a clean, defensible claim (same reasoning as
+keeping architecture fixed across splits). This becomes the new primary PINN
+`spatial_block` result (see `pinn_noenv_spatialblock_weightsweep` row above). Two
+things this does NOT settle: (a) whether the same weight is right for `temporal`
+(not yet swept there — added to the Planned robustness checks table), and (b)
+whether `W=0.05` still holds once Env-PINN adds terrain/wind features and the
+sub-network changes what `y_max` means — worth re-sweeping there rather than
+assuming it carries over.
+
 ## Decisions log (the "why", chronological)
 
 **2026-07-15 — `temporal_wide_gap` chosen over `temporal_narrow_gap` for the primary run.** `temporal_wide_gap`
@@ -390,6 +463,19 @@ the temporal results gets discarded; the Experiment table's Status column for th
 `temporal_wide_gap` rows changed from `primary` to `secondary` to reflect this, not
 `superseded`.
 
+**2026-07-17 — `physics_weight`/`trajectory_weight=0.05` (jointly) chosen as the
+PINN's shared default, replacing the never-tested `1.0`.** Swept 7 values under
+`spatial_block`; 4survey's true optimum is `0.0` (physics fully off) and 6survey's
+is `0.05`. Picked one shared value for both cohorts rather than tuning per-cohort,
+since `0.05` costs 4survey almost nothing (0.7% RMSE) while being 6survey's actual
+best and letting PINN beat DNN there for the first time. A per-cohort-tuned pair of
+hyperparameters would be harder to defend as "the PINN" in the write-up than one
+number that's very close to optimal everywhere. Not yet decided: whether to change
+`PHYSICS_WEIGHT`/`TRAJECTORY_WEIGHT`'s code defaults in `pinn_noenv.py` from `1.0` to
+`0.05` (so future runs don't need `--physics-weight 0.05 --trajectory-weight 0.05`
+passed explicitly) — flagged for a decision, not done automatically as part of this
+logging update.
+
 ## Output-path naming convention (for when new variants are actually run)
 
 Split-type prefixing (`outputs/<split_type>/<model>/<cohort>/`) is now shared by the
@@ -417,6 +503,16 @@ for exactly this reason, once `spatial_block_split` was wired in as a second opt
   `run_metadata.json`'s `frozen_cr_params` field already records exactly which values were used
   either way, but a distinct output path is required so cr_pooled and cr_matched results can coexist on
   disk rather than one overwriting the other.
+- **PINN `physics_weight`/`trajectory_weight` sweep** (2026-07-17), same reasoning as
+  `cr_matched` above: `--run-name pinn_noenv_pw<W>_tw<W>` on `run_pinn_noenv.py`/
+  `evaluate_pinn_noenv.py` writes to `outputs/<split_type>/pinn_noenv_pw<W>_tw<W>/<cohort>/`,
+  never touching the plain `pinn_noenv` path — see `models/pinn_noenv/run_pinn_noenv.py`'s
+  `run_name` handling (data loading always uses the plain `pinn_noenv` table; only the
+  output path and `run_logs` identity change). `W=1.0` has no suffix (it's the
+  historical default, living at the plain path); the chosen `W=0.05` result lives at
+  `outputs/spatial_block/pinn_noenv_pw0.05_tw0.05/<cohort>/`, not at the plain path —
+  promoting it there would mean overwriting a checkpoint, which this file's own
+  2026-07-16 near-miss (see progress notes) is reason enough to avoid doing casually.
 - For the **baselines**, whichever configuration is primary for the write-up lives at
   the plain, unprefixed path; for **DNN/PINN**, `temporal` and `spatial_block` are
   both always prefixed, so "which one is primary" is a fact to check in this log's
