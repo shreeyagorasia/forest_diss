@@ -11,6 +11,9 @@ re-running after a code fix), update that row's date/output location rather
 than adding a new one — a new row means a genuinely different setting
 (different split years, different CR fit, different model), not a rerun.
 
+**Dates include time of day, from 2026-07-18 onward** (e.g. `2026-07-18 14:30`), not just the
+date — useful once multiple entries land on the same day, which was already happening.
+
 ## Naming glossary
 
 Two short-named choices come up repeatedly below — named for what they actually are,
