@@ -10,7 +10,7 @@ from pathlib import Path
 import pandas as pd
 
 from models.common.geo import find_train_plots_near_holdout, load_plot_coordinates
-from models.common.splits import TEMPORAL_YEARS, spatial_block_split, temporal_split
+from models.common.splits import TEMPORAL_YEARS, TEMPORAL_YEARS_NARROW_GAP, spatial_block_split, temporal_split
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 COHORTS = ["4survey", "6survey"]
@@ -117,9 +117,9 @@ def test_spatial_block_split_with_buffer(cohort, coordinates_df):
     print()
 
 
-def test_temporal_split(cohort):
-    years = TEMPORAL_YEARS[cohort]
-    print(f"----- temporal_split: {cohort} (train={years['train_years']}, val={years['val_years']}, test={years['test_years']}) -----")
+def test_temporal_split(cohort, years=None, label="temporal_split"):
+    years = years if years is not None else TEMPORAL_YEARS[cohort]
+    print(f"----- {label}: {cohort} (train={years['train_years']}, val={years['val_years']}, test={years['test_years']}) -----")
     df = load_master(cohort)
 
     split_labels = temporal_split(df, year_col="LiDAR_year", **years)
@@ -159,6 +159,7 @@ def main():
         test_spatial_block_split(cohort)
         test_spatial_block_split_with_buffer(cohort, coordinates_df)
         test_temporal_split(cohort)
+        test_temporal_split(cohort, years=TEMPORAL_YEARS_NARROW_GAP[cohort], label="temporal_split (narrow gap)")
 
 
 if __name__ == "__main__":

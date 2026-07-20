@@ -41,6 +41,7 @@ from models.common.splits import (
     SPATIAL_BLOCK_COL,
     SPATIAL_BUFFER_METRES,
     TEMPORAL_YEARS,
+    TEMPORAL_YEARS_NARROW_GAP,
     plot_level_split,
     spatial_block_split,
     temporal_split,
@@ -112,6 +113,15 @@ def build_split_for_cohort(cohort, split_type):
             filtered_df,
             year_col="LiDAR_year",
             **TEMPORAL_YEARS[cohort],
+        )
+    elif split_type == "temporal_narrow_gap":
+        # Same temporal_split() function, a different year assignment (2-year
+        # train-to-test gap instead of temporal's 11 years) -- see
+        # TEMPORAL_YEARS_NARROW_GAP in models/common/splits.py.
+        filtered_df["split"] = temporal_split(
+            filtered_df,
+            year_col="LiDAR_year",
+            **TEMPORAL_YEARS_NARROW_GAP[cohort],
         )
     else:
         raise ValueError(f"Unknown split_type: {split_type!r}")
@@ -353,11 +363,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--split-type",
-        choices=["plot_level", "spatial_block", "temporal"],
+        choices=["plot_level", "spatial_block", "temporal", "temporal_narrow_gap"],
         default="plot_level",
         help=(
             "plot_level (default, easy/established), spatial_block (harder, "
-            "unseen-compartment test), or temporal (predict a real future survey)."
+            "unseen-compartment test), temporal (predict a real future survey, "
+            "11-year train-to-test gap), or temporal_narrow_gap (same idea, 2-year gap)."
         ),
     )
     args = parser.parse_args()

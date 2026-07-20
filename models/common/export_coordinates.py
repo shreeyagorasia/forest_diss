@@ -1,8 +1,9 @@
 # Run as: python -m models.common.export_coordinates
 #
 # One-off preprocessing step: reads the raw GeoPackage and saves one x/y
-# coordinate per plot to a small CSV. This is the only place in models/ that
-# needs geopandas — every other script just reads the CSV this produces.
+# coordinate (plus its forestry compartment, `cpmt`) per plot to a small
+# CSV. This is the only place in models/ that needs geopandas — every other
+# script just reads the CSV this produces.
 #
 # Each plot's geometry is a cell from an adaptive 20m/40m grid (see
 # data_exploration_gpkg's grid generation notes), and that geometry is the
@@ -22,7 +23,7 @@ OUTPUT_PATH = PROJECT_ROOT / "data" / "interim" / "plot_coordinates.csv.gz"
 
 def export_plot_coordinates():
     print(f"Reading {GPKG_PATH} ...")
-    gdf = gpd.read_file(GPKG_PATH, layer=LAYER_NAME, columns=["identification"])
+    gdf = gpd.read_file(GPKG_PATH, layer=LAYER_NAME, columns=["identification", "cpmt"])
     print(f"  Read {len(gdf):,} rows, CRS = {gdf.crs}")
 
     # Keep one row per plot — the geometry does not change across survey years.
@@ -30,7 +31,7 @@ def export_plot_coordinates():
     print(f"  {len(one_row_per_plot):,} unique plots")
 
     centroids = one_row_per_plot.geometry.centroid
-    coordinates = one_row_per_plot[["identification"]].copy()
+    coordinates = one_row_per_plot[["identification", "cpmt"]].copy()
     coordinates["x"] = centroids.x.values
     coordinates["y"] = centroids.y.values
 

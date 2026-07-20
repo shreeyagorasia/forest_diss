@@ -129,7 +129,9 @@ def run_for_cohort(cohort, split_type, run_name=None):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--cohort", choices=["4survey", "6survey"], default=None, help="Omit to run both cohorts.")
-    parser.add_argument("--split-type", choices=["temporal", "spatial_block"], default="temporal")
+    parser.add_argument(
+        "--split-type", choices=["temporal", "spatial_block", "temporal_narrow_gap"], default="temporal"
+    )
     parser.add_argument(
         "--run-name", default=None,
         help="Must match the --run-name used when fitting, if one was used (e.g. for a physics_weight/trajectory_weight sweep).",

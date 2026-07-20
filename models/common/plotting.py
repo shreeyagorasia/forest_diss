@@ -144,3 +144,98 @@ def plot_loss_curve(history_df, ax=None):
     ax.set_ylabel("Loss")
     ax.legend(fontsize=8)
     return ax
+
+
+def plot_loss_curve_comparison(histories, ax=None, value_column="val_loss_smoothed"):
+    # histories: dict of {label: training_history.csv DataFrame}, e.g. one
+    # entry per physics_weight value in a sweep, or one entry per seed in a
+    # reseed check. Plots all of them on ONE set of axes so their shapes
+    # (not just their final numbers) can be compared directly -- a
+    # side-by-side grid of separate panels makes it easy to compare final
+    # height but hard to compare convergence speed/stability at a glance.
+    #
+    # Colour: labels that parse as numbers (e.g. physics_weight values)
+    # get a sequential colormap ordered by value, since the weight itself
+    # is ordinal and a shared colour scale makes "does a higher weight
+    # trend toward a worse plateau" visible directly. Non-numeric labels
+    # (e.g. seed identifiers) fall back to a fixed qualitative palette.
+    if ax is None:
+        _, ax = plt.subplots()
+
+    labels = list(histories.keys())
+    try:
+        numeric_labels = [float(label) for label in labels]
+        order = sorted(range(len(labels)), key=lambda i: numeric_labels[i])
+        colormap = plt.cm.viridis
+        colors = {
+            labels[i]: colormap(rank / max(len(labels) - 1, 1))
+            for rank, i in enumerate(order)
+        }
+    except (TypeError, ValueError):
+        qualitative_colors = plt.cm.tab10.colors
+        colors = {label: qualitative_colors[i % len(qualitative_colors)] for i, label in enumerate(labels)}
+
+    for label, history_df in histories.items():
+        if value_column not in history_df.columns:
+            continue
+        ax.plot(history_df["epoch"], history_df[value_column], label=str(label), color=colors[label])
+
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel(value_column)
+    ax.legend(fontsize=7, ncol=2)
+    return ax
+
+
+def plot_learning_rate_curve(history_df, ax=None):
+    # The ReduceLROnPlateau scheduler shrinks the learning rate whenever
+    # val_loss stalls -- this plot shows WHEN that happened, which is
+    # usually the explanation for a sudden change in the loss curve's
+    # slope that looking at loss alone doesn't make obvious.
+    if ax is None:
+        _, ax = plt.subplots()
+
+    ax.plot(history_df["epoch"], history_df["learning_rate"], color="#2ca02c")
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("Learning rate")
+    ax.set_yscale("log")
+    return ax
+
+
+def plot_generalization_gap(history_df, ax=None):
+    # val_loss - train_loss, plotted directly, epoch by epoch. A gap that
+    # grows over training is the overfitting signal; a gap that's flat or
+    # shrinking is healthy -- more direct to read off one line than to
+    # eyeball the distance between two separate lines that are also each
+    # moving.
+    if ax is None:
+        _, ax = plt.subplots()
+
+    gap = history_df["val_loss"] - history_df["train_loss"]
+    ax.plot(history_df["epoch"], gap, color="#8c564b")
+    ax.axhline(0, color="black", linewidth=1, linestyle=":", alpha=0.6)
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("val_loss - train_loss")
+    return ax
+
+
+def plot_gradient_norm_curve(history_df, ax=None, grad_clip_max_norm=None):
+    # Pre-clip gradient norm per epoch (see train_one_epoch() in
+    # dnn_noenv.py/pinn_noenv.py -- clip_grad_norm_ returns this value
+    # before shrinking it). If grad_clip_max_norm is given, draws it as a
+    # reference line: gradient norms that sit clearly above it mean
+    # clipping is engaging almost every epoch (a sign of real training
+    # instability the clip is masking); norms that stay below it mean
+    # clipping is rarely/never actually doing anything.
+    if ax is None:
+        _, ax = plt.subplots()
+    if "grad_norm" not in history_df.columns:
+        ax.set_title("grad_norm not logged for this run")
+        return ax
+
+    ax.plot(history_df["epoch"], history_df["grad_norm"], color="#e377c2")
+    if grad_clip_max_norm is not None:
+        ax.axhline(grad_clip_max_norm, color="black", linewidth=1, linestyle=":", alpha=0.6, label="clip threshold")
+        ax.legend(fontsize=7)
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("Gradient norm (pre-clip)")
+    return ax

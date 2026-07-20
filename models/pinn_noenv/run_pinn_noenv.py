@@ -271,7 +271,9 @@ def run_for_cohort(
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--cohort", choices=["4survey", "6survey"], default=None, help="Omit to run both cohorts.")
-    parser.add_argument("--split-type", choices=["temporal", "spatial_block"], default="temporal")
+    parser.add_argument(
+        "--split-type", choices=["temporal", "spatial_block", "temporal_narrow_gap"], default="temporal"
+    )
     parser.add_argument("--max-epochs", type=int, default=DEFAULT_MAX_EPOCHS)
     parser.add_argument("--patience", type=int, default=DEFAULT_EARLY_STOPPING_PATIENCE)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)

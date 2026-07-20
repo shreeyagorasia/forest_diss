@@ -27,19 +27,23 @@ from models.dnn_noenv.dnn_noenv import load_best_model, predict
 MODEL_NAME = "dnn_noenv"
 
 
-def run_for_cohort(cohort, split_type):
-    print(f"===== {cohort} ({MODEL_NAME}, {split_type}) — EVALUATE ONLY =====")
+def run_for_cohort(cohort, split_type, run_name=None):
+    # run_name only changes where the checkpoint is READ from -- see the
+    # matching note in run_dnn_noenv.py. The underlying data table to
+    # evaluate on always uses the plain MODEL_NAME.
+    output_model_name = run_name if run_name else MODEL_NAME
+    print(f"===== {cohort} ({output_model_name}, {split_type}) — EVALUATE ONLY =====")
     device = select_device()
     print(f"  Using device: {device}")
 
     timer = RunTimer().start()
     attempt_id = write_started_marker(
-        model_name=MODEL_NAME, cohort=cohort, split_type=split_type, run_phase="evaluate",
+        model_name=output_model_name, cohort=cohort, split_type=split_type, run_phase="evaluate",
         is_test_run=False, device=str(device), hyperparameters={},
     )
 
     try:
-        output_dir = model_output_dir(MODEL_NAME, cohort, split_type=split_type)
+        output_dir = model_output_dir(output_model_name, cohort, split_type=split_type)
         checkpoints_dir = output_dir / "checkpoints"
         preprocessing_dir = output_dir / "preprocessing"
 
@@ -91,7 +95,7 @@ def run_for_cohort(cohort, split_type):
 
         write_run_log(
             attempt_id=attempt_id,
-            model_name=MODEL_NAME, cohort=cohort, split_type=split_type, run_phase="evaluate",
+            model_name=output_model_name, cohort=cohort, split_type=split_type, run_phase="evaluate",
             status="success", is_test_run=False, device=str(device),
             hyperparameters={}, metrics=metrics, error=None,
             output_dir=output_dir, runtime_seconds=timer.elapsed_seconds(), n_rows_fit=len(test_df),
@@ -106,13 +110,17 @@ def run_for_cohort(cohort, split_type):
     except Exception as error:
         write_run_log(
             attempt_id=attempt_id,
-            model_name=MODEL_NAME, cohort=cohort, split_type=split_type, run_phase="evaluate",
+            model_name=output_model_name, cohort=cohort, split_type=split_type, run_phase="evaluate",
             status="failed", is_test_run=False, device=str(device),
             hyperparameters={}, metrics=None, error=format_error(error),
             output_dir=None, runtime_seconds=timer.elapsed_seconds(),
         )
-        print(f"  WARNING: {MODEL_NAME} evaluation failed for {cohort}: {error}")
-        print(f"  (Did you run 'python -m models.dnn_noenv.run_dnn_noenv --cohort {cohort} --split-type {split_type}' first?)")
+        print(f"  WARNING: {output_model_name} evaluation failed for {cohort}: {error}")
+        run_name_flag = f" --run-name {run_name}" if run_name else ""
+        print(
+            f"  (Did you run 'python -m models.dnn_noenv.run_dnn_noenv "
+            f"--cohort {cohort} --split-type {split_type}{run_name_flag}' first?)"
+        )
         print()
         return None
 
@@ -120,14 +128,20 @@ def run_for_cohort(cohort, split_type):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--cohort", choices=["4survey", "6survey"], default=None, help="Omit to run both cohorts.")
-    parser.add_argument("--split-type", choices=["temporal", "spatial_block"], default="temporal")
+    parser.add_argument(
+        "--split-type", choices=["temporal", "spatial_block", "temporal_narrow_gap"], default="temporal"
+    )
+    parser.add_argument(
+        "--run-name", default=None,
+        help="Must match the --run-name used when fitting, if one was used (e.g. for a reseed variance check).",
+    )
     args = parser.parse_args()
 
     cohorts = [args.cohort] if args.cohort else ["4survey", "6survey"]
 
     all_metrics = {}
     for cohort in cohorts:
-        all_metrics[cohort] = run_for_cohort(cohort, args.split_type)
+        all_metrics[cohort] = run_for_cohort(cohort, args.split_type, args.run_name)
 
     print("===== Summary: test-split metrics =====")
     for cohort, metrics in all_metrics.items():

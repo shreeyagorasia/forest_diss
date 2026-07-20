@@ -1,0 +1,14 @@
+# temporal_narrow_gap: minimal first pass -- one tuned DNN run + one PINN run (20th jul 3.48pm)
+# (at the chosen shared pw=tw=0.05 default) per cohort. Baselines already ran
+# locally, no cluster needed for those.
+#
+# Run on the ICF cluster: ssh in, then `cd ~/forest_diss`, then paste
+# everything below this line. Delete this file once submitted.
+
+# DNN, temporal_narrow_gap, both cohorts
+sbatch jobs/dnn_noenv/run_dnn_noenv.sh 4survey 500 40 temporal_narrow_gap
+sbatch jobs/dnn_noenv/run_dnn_noenv.sh 6survey 500 40 temporal_narrow_gap
+
+# PINN, temporal_narrow_gap, both cohorts, at the chosen shared default pw=tw=0.05
+sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 temporal_narrow_gap 0.05 0.05 pinn_noenv_pw0.05_tw0.05
+sbatch jobs/pinn_noenv/run_pinn_noenv.sh 6survey 500 40 temporal_narrow_gap 0.05 0.05 pinn_noenv_pw0.05_tw0.05

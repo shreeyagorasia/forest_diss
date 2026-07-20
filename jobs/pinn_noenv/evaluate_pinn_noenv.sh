@@ -13,7 +13,7 @@
 #
 # Arguments:
 #   cohort      4survey or 6survey. Omit to evaluate both cohorts.
-#   split_type  temporal or spatial_block. Defaults to temporal.
+#   split_type  temporal, temporal_narrow_gap, or spatial_block. Defaults to temporal.
 #
 # Purpose:
 #   Evaluates an already-trained pinn_noenv checkpoint on the test split.

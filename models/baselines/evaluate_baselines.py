@@ -171,7 +171,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--split-type",
-        choices=["plot_level", "spatial_block", "temporal"],
+        choices=["plot_level", "spatial_block", "temporal", "temporal_narrow_gap"],
         default="plot_level",
         help="Must match whichever split_type run_baselines.py was run with.",
     )

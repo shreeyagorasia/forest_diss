@@ -19,6 +19,7 @@ from models.common.splits import (
     SPATIAL_BUFFER_METRES,
     SPLIT_SEED,
     TEMPORAL_YEARS,
+    TEMPORAL_YEARS_NARROW_GAP,
     spatial_block_split,
     temporal_split,
 )
@@ -79,6 +80,15 @@ def load_split_table(cohort, table_name, split_type):
             filtered_table,
             year_col="LiDAR_year",
             **TEMPORAL_YEARS[cohort],
+        )
+    elif split_type == "temporal_narrow_gap":
+        # Same temporal_split() function, different year assignment -- see
+        # TEMPORAL_YEARS_NARROW_GAP in models/common/splits.py for why this
+        # is a separate dict, not a variant of TEMPORAL_YEARS.
+        filtered_table["split"] = temporal_split(
+            filtered_table,
+            year_col="LiDAR_year",
+            **TEMPORAL_YEARS_NARROW_GAP[cohort],
         )
     elif split_type == "spatial_block":
         # coordinates_df=None makes spatial_block_split() load plot

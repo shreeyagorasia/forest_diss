@@ -5,12 +5,26 @@ from scipy.spatial import cKDTree
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 COORDINATES_PATH = PROJECT_ROOT / "data" / "interim" / "plot_coordinates.csv.gz"
+COMPARTMENT_BOUNDARIES_PATH = PROJECT_ROOT / "data" / "interim" / "compartment_boundaries.parquet"
 
 
 def load_plot_coordinates():
     # One row per plot: identification, x, y (metres, EPSG:27700).
     # Built once by models/common/export_coordinates.py.
     return pd.read_csv(COORDINATES_PATH)
+
+
+def load_compartment_boundaries():
+    # One dissolved boundary polygon per forestry compartment (`cpmt`),
+    # metres, EPSG:27700 -- same coordinate system as load_plot_coordinates().
+    # Built once by models/common/export_compartment_boundaries.py.
+    # Presentation-only (plotting a map background) -- geopandas is imported
+    # here, not at module level, so scripts that only need
+    # load_plot_coordinates()/find_train_plots_near_holdout() still don't
+    # need geopandas installed.
+    import geopandas as gpd
+
+    return gpd.read_parquet(COMPARTMENT_BOUNDARIES_PATH)
 
 
 def find_train_plots_near_holdout(coordinates_df, plot_to_split, buffer_distance, holdout_splits=("val", "test")):

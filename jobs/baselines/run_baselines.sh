@@ -11,7 +11,7 @@
 #   sbatch jobs/baselines/run_baselines.sh spatial_block
 #
 # Argument:
-#   split_type  plot_level, temporal, or spatial_block. Defaults to plot_level.
+#   split_type  plot_level, temporal, temporal_narrow_gap, or spatial_block. Defaults to plot_level.
 #
 # Purpose:
 #   Fits all baseline models for both cohorts:

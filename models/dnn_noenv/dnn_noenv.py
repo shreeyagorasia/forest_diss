@@ -84,6 +84,7 @@ def train_one_epoch(model, optimizer, age_train, other_train, target_train, batc
     shuffled_row_order = torch.randperm(n_rows, device=device)
 
     total_data_loss = 0.0
+    total_grad_norm = 0.0
     n_batches = 0
 
     # Walk through the shuffled rows, batch_size rows at a time.
@@ -107,14 +108,20 @@ def train_one_epoch(model, optimizer, age_train, other_train, target_train, batc
         total_loss.backward()  # work out how much each weight contributed to the loss
         # Shrinks the gradient if its overall size is above GRAD_CLIP_MAX_NORM,
         # so one noisy batch can never cause an oversized weight update.
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=GRAD_CLIP_MAX_NORM)
+        # clip_grad_norm_ returns the norm BEFORE clipping -- logging that
+        # (not a post-clip value, which would just be min(norm, max_norm))
+        # is what actually shows whether clipping is engaging often or
+        # rarely across training.
+        grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=GRAD_CLIP_MAX_NORM)
         optimizer.step()  # nudge every weight a little bit to reduce the loss
 
         total_data_loss = total_data_loss + data_loss.item()
+        total_grad_norm = total_grad_norm + grad_norm.item()
         n_batches = n_batches + 1
 
     average_data_loss = total_data_loss / n_batches
-    return average_data_loss
+    average_grad_norm = total_grad_norm / n_batches
+    return average_data_loss, average_grad_norm
 
 
 def evaluate_on_validation_set(model, age_val, other_val, target_val):
@@ -185,7 +192,9 @@ def fit(
     recent_val_losses = []
 
     for epoch in range(1, max_epochs + 1):
-        train_loss = train_one_epoch(model, optimizer, age_train, other_train, target_train, BATCH_SIZE, device)
+        train_loss, grad_norm = train_one_epoch(
+            model, optimizer, age_train, other_train, target_train, BATCH_SIZE, device
+        )
         val_loss = evaluate_on_validation_set(model, age_val, other_val, target_val)
         scheduler.step(val_loss)
 
@@ -212,7 +221,7 @@ def fit(
         # how often we print below.
         history_rows.append({
             "epoch": epoch, "train_loss": train_loss, "val_loss": val_loss,
-            "val_loss_smoothed": smoothed_val_loss,
+            "val_loss_smoothed": smoothed_val_loss, "grad_norm": grad_norm,
             "learning_rate": current_lr, "elapsed_seconds": elapsed_seconds,
         })
 

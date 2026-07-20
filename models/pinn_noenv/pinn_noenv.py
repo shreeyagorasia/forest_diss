@@ -150,7 +150,7 @@ def train_one_epoch(
     # main per-row training data, same meaning as for the DNN.
     pair_batch_cycle = itertools.cycle(pair_batch_starts)
 
-    totals = {"data_loss": 0.0, "physics_loss": 0.0, "trajectory_loss": 0.0}
+    totals = {"data_loss": 0.0, "physics_loss": 0.0, "trajectory_loss": 0.0, "grad_norm": 0.0}
     n_batches = 0
 
     for batch_start in main_batch_starts:
@@ -185,13 +185,17 @@ def train_one_epoch(
         # Shrinks the gradient if its overall size is above GRAD_CLIP_MAX_NORM,
         # so one noisy batch (or one batch where the physics/trajectory
         # terms disagree sharply with the data) can never cause an
-        # oversized, destabilising weight update.
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=GRAD_CLIP_MAX_NORM)
+        # oversized, destabilising weight update. clip_grad_norm_ returns
+        # the norm BEFORE clipping -- logging that (not a post-clip value,
+        # which would just be min(norm, max_norm)) is what actually shows
+        # whether clipping is engaging often or rarely across training.
+        grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=GRAD_CLIP_MAX_NORM)
         optimizer.step()
 
         totals["data_loss"] = totals["data_loss"] + data_loss.item()
         totals["physics_loss"] = totals["physics_loss"] + physics_loss.item()
         totals["trajectory_loss"] = totals["trajectory_loss"] + trajectory_loss.item()
+        totals["grad_norm"] = totals["grad_norm"] + grad_norm.item()
         n_batches = n_batches + 1
 
     return {key: value / n_batches for key, value in totals.items()}
@@ -281,6 +285,7 @@ def fit(
             "data_loss": epoch_losses["data_loss"],
             "physics_loss": epoch_losses["physics_loss"],
             "trajectory_loss": epoch_losses["trajectory_loss"],
+            "grad_norm": epoch_losses["grad_norm"],
             "val_loss": val_loss,
             "val_loss_smoothed": smoothed_val_loss,
             "learning_rate": current_lr,

@@ -13,6 +13,34 @@ TEMPORAL_YEARS = {
     "6survey": {"train_years": [2002, 2006, 2008, 2012], "val_years": [2021], "test_years": [2023]},
 }
 
+# The "narrow gap" temporal split (see documentation/experiment_log.md's naming
+# glossary): trains through 2021 instead of stopping at the earliest years, so
+# the gap between the last trained-on year and the test year (2023) shrinks
+# from 11 years (TEMPORAL_YEARS above) to 2 -- closer to interpolation than
+# extrapolation. Kept as its own dict, not a rename of TEMPORAL_YEARS above,
+# so both split designs stay independently runnable and comparable.
+#
+# val_years holds out the EARLIEST available pre-test year, not 2021 or a
+# middle year -- two things forced this, found by an actual smoke test, not
+# guessed upfront:
+#   1. 2021 must be in TRAIN for the gap to actually be 2 years; a held-out
+#      2021 would leave the last TRAINED year at 2012, identical to the
+#      wide-gap split above and defeating the point of this variant.
+#   2. The PINN's trajectory loss needs a pair of CHRONOLOGICALLY ADJACENT
+#      real surveys both labelled "train" (data/processed/transitions/ only
+#      has adjacent-survey pairs, e.g. 2012->2021, never e.g. 2008->2021) --
+#      holding out any YEAR IN THE MIDDLE of the sequence (e.g. 2012 for
+#      4survey) leaves no such pair and silently starves the trajectory
+#      loss (a first attempt at this dict did exactly that: 0% of plots had
+#      a usable pair, and PINN failed outright with an empty-array error;
+#      DNN and the baselines ran "successfully" on the same years since
+#      neither uses trajectory pairs, which is what made this easy to miss).
+#      Holding out only the EARLIEST year keeps every later adjacency intact.
+TEMPORAL_YEARS_NARROW_GAP = {
+    "4survey": {"train_years": [2012, 2021], "val_years": [2008], "test_years": [2023]},
+    "6survey": {"train_years": [2006, 2008, 2012, 2021], "val_years": [2002], "test_years": [2023]},
+}
+
 # Shared spatial_block_split() settings -- one definition every script reads
 # (baselines and DNN/PINN alike), same reasoning as TEMPORAL_YEARS above.
 # cpmt is the forestry-compartment column to group by (see spatial_block_split

@@ -3,18 +3,25 @@
 # Run on the ICF cluster from the project root:
 #
 #   cd ~/forest_diss
-#   sbatch jobs/dnn_noenv/run_dnn_noenv.sh [cohort] [max_epochs] [patience] [split_type]
+#   sbatch jobs/dnn_noenv/run_dnn_noenv.sh [cohort] [max_epochs] [patience] [split_type] [seed] [run_name]
 #
 # Examples:
 #   sbatch jobs/dnn_noenv/run_dnn_noenv.sh 4survey 5 3
 #   sbatch jobs/dnn_noenv/run_dnn_noenv.sh 6survey 500 20
 #   sbatch jobs/dnn_noenv/run_dnn_noenv.sh 4survey 500 20 spatial_block
+#   sbatch jobs/dnn_noenv/run_dnn_noenv.sh 6survey 500 40 temporal 43 dnn_noenv_seed43
 #
 # Arguments:
 #   cohort      4survey or 6survey. Defaults to 4survey.
 #   max_epochs  Maximum training epochs. Defaults to 5 for a quick test.
 #   patience    Early-stopping patience. Defaults to 3 for a quick test.
-#   split_type  temporal or spatial_block. Defaults to temporal.
+#   split_type  temporal, temporal_narrow_gap, or spatial_block. Defaults to temporal.
+#   seed        Random seed (network init + batch shuffling). Defaults to 42 (the
+#               model's own default) -- pass a different value to test run-to-run
+#               variance.
+#   run_name    Only changes where results are saved -- set this whenever seed
+#               isn't the default, so the run doesn't overwrite the primary
+#               dnn_noenv checkpoint. Blank by default.
 #
 # Logs:
 #   stdout -> logs/dnn_noenv/dnn_noenv_<jobid>.out
@@ -44,6 +51,8 @@ COHORT=${1:-4survey}
 MAX_EPOCHS=${2:-5}
 PATIENCE=${3:-3}
 SPLIT_TYPE=${4:-temporal}
+SEED=${5:-42}
+RUN_NAME=${6:-}
 
 echo "--- DNN job start ---"
 echo "Node: $(hostname)"
@@ -51,11 +60,20 @@ echo "Cohort: ${COHORT}"
 echo "Max epochs: ${MAX_EPOCHS}"
 echo "Patience: ${PATIENCE}"
 echo "Split type: ${SPLIT_TYPE}"
+echo "Seed: ${SEED}"
+echo "Run name: ${RUN_NAME:-(none, uses default dnn_noenv path)}"
+
+RUN_NAME_ARGS=()
+if [ -n "${RUN_NAME}" ]; then
+  RUN_NAME_ARGS=(--run-name "${RUN_NAME}")
+fi
 
 python -u -m models.dnn_noenv.run_dnn_noenv \
   --cohort "${COHORT}" \
   --max-epochs "${MAX_EPOCHS}" \
   --patience "${PATIENCE}" \
-  --split-type "${SPLIT_TYPE}"
+  --split-type "${SPLIT_TYPE}" \
+  --seed "${SEED}" \
+  "${RUN_NAME_ARGS[@]}"
 
 echo "--- DNN job end ---"

@@ -71,8 +71,17 @@ DEFAULT_EARLY_STOPPING_PATIENCE = 40
 DEFAULT_OPTIMIZER = "adam"
 
 
-def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed, optimizer_name):
-    print(f"===== {cohort} ({MODEL_NAME}, {split_type}) — FIT ONLY, no test-set evaluation =====")
+def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed, optimizer_name, run_name=None):
+    # run_name only changes where results are SAVED (output_dir below) and
+    # how this run is labelled in outputs/run_logs/ -- it never changes
+    # which underlying data table gets loaded (that always uses the plain
+    # MODEL_NAME, "dnn_noenv", a few lines down). Without a distinct
+    # run_name, a reseed (different --seed, same everything else) would
+    # silently overwrite the primary checkpoint at the same output_dir --
+    # mirrors run_pinn_noenv.py's run_name handling for the physics-weight
+    # sweep, same reasoning.
+    output_model_name = run_name if run_name else MODEL_NAME
+    print(f"===== {cohort} ({output_model_name}, {split_type}) — FIT ONLY, no test-set evaluation =====")
 
     # A "test run" is just a quick sanity check with very few epochs (see
     # TEST_RUN_MAX_EPOCHS_THRESHOLD) -- recorded in the log automatically,
@@ -113,7 +122,7 @@ def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed
     # gets written at the end.
     timer = RunTimer().start()
     attempt_id = write_started_marker(
-        model_name=MODEL_NAME, cohort=cohort, split_type=split_type, run_phase="fit",
+        model_name=output_model_name, cohort=cohort, split_type=split_type, run_phase="fit",
         is_test_run=is_test_run, device=str(device), hyperparameters=hyperparameters,
     )
 
@@ -159,7 +168,7 @@ def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed
 
         # ----- Save everything needed to evaluate this model LATER, on a
         # different machine -----
-        output_dir = model_output_dir(MODEL_NAME, cohort, split_type=split_type)
+        output_dir = model_output_dir(output_model_name, cohort, split_type=split_type)
         output_dir.mkdir(parents=True, exist_ok=True)
 
         history_df.to_csv(output_dir / "training_history.csv", index=False)
@@ -186,7 +195,7 @@ def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed
         # small and clearly named so the two are never confused.
         write_run_log(
             attempt_id=attempt_id,
-            model_name=MODEL_NAME, cohort=cohort, split_type=split_type, run_phase="fit",
+            model_name=output_model_name, cohort=cohort, split_type=split_type, run_phase="fit",
             status="success", is_test_run=is_test_run, device=str(device),
             hyperparameters={**hyperparameters, "n_epochs_trained": len(history_df)},
             metrics={"best_val_loss": best_val_loss, "final_val_loss": final_val_loss},
@@ -195,19 +204,23 @@ def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed
         )
 
         print(f"  Saved checkpoint + scalers + history -> {output_dir}")
-        print(f"  Next step: python -m models.dnn_noenv.evaluate_dnn_noenv --cohort {cohort} --split-type {split_type}")
+        run_name_flag = f" --run-name {run_name}" if run_name else ""
+        print(
+            f"  Next step: python -m models.dnn_noenv.evaluate_dnn_noenv "
+            f"--cohort {cohort} --split-type {split_type}{run_name_flag}"
+        )
         print()
         return best_val_loss
 
     except Exception as error:
         write_run_log(
             attempt_id=attempt_id,
-            model_name=MODEL_NAME, cohort=cohort, split_type=split_type, run_phase="fit",
+            model_name=output_model_name, cohort=cohort, split_type=split_type, run_phase="fit",
             status="failed", is_test_run=is_test_run, device=str(device),
             hyperparameters=hyperparameters, metrics=None, error=format_error(error),
             output_dir=None, runtime_seconds=timer.elapsed_seconds(),
         )
-        print(f"  WARNING: {MODEL_NAME} fit failed for {cohort}: {error}")
+        print(f"  WARNING: {output_model_name} fit failed for {cohort}: {error}")
         print()
         return None
 
@@ -215,13 +228,20 @@ def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--cohort", choices=["4survey", "6survey"], default=None, help="Omit to run both cohorts.")
-    parser.add_argument("--split-type", choices=["temporal", "spatial_block"], default="temporal")
+    parser.add_argument(
+        "--split-type", choices=["temporal", "spatial_block", "temporal_narrow_gap"], default="temporal"
+    )
     parser.add_argument("--max-epochs", type=int, default=DEFAULT_MAX_EPOCHS)
     parser.add_argument("--patience", type=int, default=DEFAULT_EARLY_STOPPING_PATIENCE)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument(
         "--optimizer", choices=["adam", "sgd_momentum"], default=DEFAULT_OPTIMIZER,
         help="adam is the default everywhere so far; sgd_momentum is an A/B-test alternative.",
+    )
+    parser.add_argument(
+        "--run-name", default=None,
+        help="Set this whenever --seed isn't the default, so the run doesn't overwrite the "
+             "primary dnn_noenv checkpoint (e.g. for a reseed variance check).",
     )
     args = parser.parse_args()
 
@@ -230,7 +250,7 @@ def main():
     results = {}
     for cohort in cohorts:
         results[cohort] = run_for_cohort(
-            cohort, args.split_type, args.max_epochs, args.patience, args.seed, args.optimizer
+            cohort, args.split_type, args.max_epochs, args.patience, args.seed, args.optimizer, args.run_name
         )
 
     print("===== Summary: best validation loss reached =====")

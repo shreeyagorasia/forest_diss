@@ -1,0 +1,30 @@
+# Reseed check for the PINN physics-weight sweep and the DNN-vs-PINN margin. (20th jul 3.48pm)
+# Run on the ICF cluster: ssh in, then `cd ~/forest_diss`, then paste
+# everything below this line. Each `sbatch ...` line submits one job to the
+# Slurm queue (returns immediately with a job ID; doesn't run in your
+# terminal). Check progress with: squeue -u <your-username>
+#
+# Delete this file once the jobs are submitted -- it's just a scratch copy
+# of the commands, not something that needs to be kept.
+
+# ===== PINN reseed: low-weight band x both cohorts x both splits x seeds 43/44 (32 jobs) =====
+for SPLIT in temporal spatial_block; do
+  for COHORT in 4survey 6survey; do
+    for W in 0.0 0.05 0.1 0.2; do
+      for SEED in 43 44; do
+        RUN_NAME="pinn_noenv_pw${W}_tw${W}_seed${SEED}"
+        sbatch jobs/pinn_noenv/run_pinn_noenv.sh "${COHORT}" 500 40 "${SPLIT}" "${W}" "${W}" "${RUN_NAME}" "${SEED}"
+      done
+    done
+  done
+done
+
+# ===== DNN reseed: plain DNN x both cohorts x both splits x seeds 43/44 (8 jobs) =====
+for SPLIT in temporal spatial_block; do
+  for COHORT in 4survey 6survey; do
+    for SEED in 43 44; do
+      RUN_NAME="dnn_noenv_seed${SEED}"
+      sbatch jobs/dnn_noenv/run_dnn_noenv.sh "${COHORT}" 500 40 "${SPLIT}" "${SEED}" "${RUN_NAME}"
+    done
+  done
+done

@@ -12,7 +12,7 @@ def model_output_dir(*parts, split_type):
     # default before spatial_block/temporal existed). Shared by the
     # baselines and by DNN/PINN, which never run plot_level at all, so
     # their output path is always prefixed.
-    if split_type in ("spatial_block", "temporal"):
+    if split_type in ("spatial_block", "temporal", "temporal_narrow_gap"):
         return PROJECT_ROOT / "outputs" / split_type / Path(*parts)
     return PROJECT_ROOT / "outputs" / Path(*parts)
 
