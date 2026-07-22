@@ -53,17 +53,20 @@ def save_model(model, cohort, n_rows_fit, output_dir):
     # model.joblib is NOT committed to Git (see outputs/ in .gitignore) --
     # with sklearn's default unlimited tree depth, it can be hundreds of MB
     # to over 1GB depending on training set size, well past GitHub's 100MB
-    # limit. It is deterministic and fast to regenerate (fixed random_state,
-    # well under a minute), so there is no real cost to leaving it out of
-    # version control -- just rerun models/baselines/run_baselines.py.
+    # limit. Compressed joblib keeps the same load path/API while reducing
+    # disk usage for newly generated artifacts. The model is deterministic and
+    # fast to regenerate (fixed random_state, well under a minute), so there is
+    # no real cost to leaving it out of version control -- just rerun
+    # models/baselines/run_baselines.py.
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     model_path = output_dir / "model.joblib"
-    joblib.dump(model, model_path)
+    joblib.dump(model, model_path, compress=3)
 
     metadata = {
         "n_estimators": model.n_estimators,
+        "joblib_compress": 3,
         "feature_columns": FEATURE_COLUMNS,
         "cohort": cohort,
         "n_rows_fit": n_rows_fit,

@@ -149,31 +149,36 @@ def plot_loss_curve(history_df, ax=None):
 def plot_loss_curve_comparison(histories, ax=None, value_column="val_loss_smoothed"):
     # histories: dict of {label: training_history.csv DataFrame}, e.g. one
     # entry per physics_weight value in a sweep, or one entry per seed in a
-    # reseed check. Plots all of them on ONE set of axes so their shapes
-    # (not just their final numbers) can be compared directly -- a
-    # side-by-side grid of separate panels makes it easy to compare final
-    # height but hard to compare convergence speed/stability at a glance.
-    #
-    # Colour: labels that parse as numbers (e.g. physics_weight values)
-    # get a sequential colormap ordered by value, since the weight itself
-    # is ordinal and a shared colour scale makes "does a higher weight
-    # trend toward a worse plateau" visible directly. Non-numeric labels
-    # (e.g. seed identifiers) fall back to a fixed qualitative palette.
+    # reseed check. Plots all of them on ONE set of axes, so their shapes
+    # (not just their final numbers) can be compared directly.
     if ax is None:
         _, ax = plt.subplots()
 
     labels = list(histories.keys())
-    try:
-        numeric_labels = [float(label) for label in labels]
-        order = sorted(range(len(labels)), key=lambda i: numeric_labels[i])
+
+    # If every label is a number (e.g. physics_weight values), colour them
+    # from small to large using a colour gradient -- this makes "does a
+    # higher weight trend toward a worse plateau" visible at a glance.
+    # Otherwise (e.g. seed numbers just used as names), give each label its
+    # own distinct colour instead.
+    all_labels_are_numbers = True
+    for label in labels:
+        try:
+            float(label)
+        except (TypeError, ValueError):
+            all_labels_are_numbers = False
+
+    colors = {}
+    if all_labels_are_numbers:
+        sorted_labels = sorted(labels, key=float)
         colormap = plt.cm.viridis
-        colors = {
-            labels[i]: colormap(rank / max(len(labels) - 1, 1))
-            for rank, i in enumerate(order)
-        }
-    except (TypeError, ValueError):
+        for i, label in enumerate(sorted_labels):
+            position = i / max(len(sorted_labels) - 1, 1)
+            colors[label] = colormap(position)
+    else:
         qualitative_colors = plt.cm.tab10.colors
-        colors = {label: qualitative_colors[i % len(qualitative_colors)] for i, label in enumerate(labels)}
+        for i, label in enumerate(labels):
+            colors[label] = qualitative_colors[i % len(qualitative_colors)]
 
     for label, history_df in histories.items():
         if value_column not in history_df.columns:

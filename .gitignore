@@ -21,6 +21,7 @@ data/raw/
 data/interim/
 data/processed/
 !data/processed/README.md
+data/new_data_22jul/
 
 # Archived datasets are also local and too large for Git.
 legacy/**/data/
@@ -51,3 +52,5 @@ logs/dnn_noenv/*
 !logs/pinn_noenv/
 logs/pinn_noenv/*
 !logs/pinn_noenv/.gitkeep
+data_exploration_gpkg/notebooks/spatial_viz_comparison_scratch.ipynb
+notebooks/scratch/spatial_viz_comparison_scratch.ipynb

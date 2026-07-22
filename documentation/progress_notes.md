@@ -19,8 +19,11 @@ models/
 ├── baselines/          # run_baselines.py + evaluate_baselines.py orchestrate all four sklearn/CR models
 ├── dnn_noenv/           # dnn_noenv.py (network+fit/predict) + run_dnn_noenv.py (FIT, cluster)
 │                        # + evaluate_dnn_noenv.py (EVALUATE, local)
-└── pinn_noenv/          # pinn_noenv.py (network+physics losses+fit/predict) + run_pinn_noenv.py (FIT)
-                         # + evaluate_pinn_noenv.py (EVALUATE, local)
+├── pinn_noenv/          # pinn_noenv.py (network+physics losses+fit/predict) + run_pinn_noenv.py (FIT)
+│                        # + evaluate_pinn_noenv.py (EVALUATE, local)
+├── dnn_env_terrain/     # scaffolded 21 July 2026, empty __init__.py only -- not implemented yet,
+│                        # blocked on the terrain/wind feature extraction step below
+└── pinn_env_terrain/    # scaffolded 21 July 2026, same status as dnn_env_terrain/
 
 data_processing/
 └── export_model_tables.py   # standalone, no notebook dependency (see below)
@@ -29,13 +32,31 @@ outputs/
 ├── <model_name>/<cohort>/   # gitignored, regenerate by running the model
 └── run_logs/                # gitignored, one JSON per run attempt — see "Run logging" below
 
-results_notebooks/
-└── baseline_results.ipynb       # reads outputs/ only, never refits — sklearn/CR baselines only,
-                                  # covers all three split types (plot_level, spatial_block, temporal)
-
-data_exploration_gpkg/notebooks/
-├── lidar_years_all_data_cleaning.ipynb        # the cleaning funnel, still notebook-only
-└── spatial_temporal_split_visualisation.ipynb # maps/visualises the three split types
+notebooks/    # restructured 22 July 2026 from three separate top-level notebook folders
+              # (data_exploration_gpkg/notebooks/, environmental_data_exploration/,
+              # results_notebooks/) into one tree, grouped by purpose rather than by when the
+              # notebook was created. Filenames unchanged, only their folder moved -- any doc
+              # or notebook comment still citing the old paths is stale.
+├── data_exploration/
+│   ├── lidar_years_all_data_cleaning.ipynb        # the cleaning funnel, still notebook-only
+│   └── lidar_years_all_data_understanding.ipynb
+├── environmental_data/
+│   ├── environmental_data_sources_survey.ipynb   # Tier 1 data-source survey, see section below
+│   ├── aux_data_resolution_check.ipynb           # empirical re-check of every source (real
+│   │                                              # extraction + statistical screen), see below
+│   └── figures/   # aux_data_resolution_check_results.csv lives here now
+├── spatial_analysis/
+│   ├── spatial_temporal_split_visualisation.ipynb # maps/visualises the three split types
+│   └── spatial_residual_autocorrelation.ipynb     # PLANNED, not built yet -- Moran's I / LISA
+│                                                   # step of the spatial-question plan below
+├── model_results/
+│   ├── baseline_results.ipynb       # reads outputs/ only, never refits — sklearn/CR baselines
+│   │                                 # only, covers all three split types
+│   └── baseline_models_parameter_tuning.ipynb
+├── scratch/
+│   └── spatial_viz_comparison_scratch.ipynb   # gitignored — throwaway, re-grows large on
+│                                               # every re-run, see charting decision below
+└── archive/    # empty for now -- for notebooks that get superseded later, none yet
 
 jobs/                  # SLURM submission scripts (user-maintained)
 ├── baselines/run_baselines.sh
@@ -155,6 +176,18 @@ This split exists because training happens on the cluster (GPU, minutes-to-hours
 test metrics is a single cheap forward pass — no reason to wait for/pay for cluster time twice, or
 to touch the test split from a script that might get re-run mid-experimentation.
 
+**`--seed`/`--run-name`, both scripts, both models (as of 20 July 2026)**: `run_dnn_noenv.py`
+didn't have `--run-name` until now — only `run_pinn_noenv.py` did (added for the physics-weight
+sweep). Added it to DNN too, same handling as PINN's: `--run-name` only changes where results are
+saved, never which data table is loaded, so a reseed (`--seed 43 --run-name dnn_noenv_seed43`)
+never overwrites the primary seed-42 checkpoint. This was blocking a DNN reseed check — see
+"What's not started yet" below.
+
+**`grad_norm` now logged per epoch** (both models' `training_history.csv`, as of 20 July 2026):
+the pre-clip value `clip_grad_norm_()` already computed internally but never saved. Free diagnostic
+on any future run; not retroactive on existing checkpoints, so older `training_history.csv` files
+won't have this column.
+
 ## Run logging (`models/common/run_logging.py`)
 
 Every fit/evaluate script (baselines included) writes one JSON file per run attempt to
@@ -233,7 +266,190 @@ max_epochs`) before trusting an evaluate result as real.
 5. `models/pinn_noenv/pinn_noenv.py` — same shape as the DNN, plus `compute_physics_loss()` and
    `compute_trajectory_loss()`.
 6. `models/common/run_logging.py` — the started/success/failed logging pattern used by every script.
-7. `results_notebooks/baseline_results.ipynb` — how metrics get read back and compared across splits.
+7. `notebooks/model_results/baseline_results.ipynb` — how metrics get read back and compared across splits.
+
+***
+
+## Environmental data sources (Tier 1, started 21 July 2026)
+
+`notebooks/environmental_data/environmental_data_sources_survey.ipynb` — the dissertation
+plan's Tier 1, step 2 ("research and get access to terrain/wind data sources"). Live
+access/resolution tests, not per-plot extraction yet (that's step 3, next).
+
+- **OS Terrain 50 DTM — confirmed working, no API key needed.** Public OS Downloads API;
+  downloaded the whole-GB ASCII Grid bundle (~160MB, one-time, cached in
+  `data/raw/environmental/`, gitignored) and read a real tile (`NN40`) covering Aberfoyle's grid
+  centre. Confirmed 50m resolution, plausible elevation range (21.6-726.1m on that tile).
+  Verdict: include — source for elevation, slope, northness, eastness, TWI; TOPEX derives from
+  it too (no separate access needed for TOPEX).
+- **Global Wind Atlas — confirmed working, no API key needed**, public REST API, whole-GB
+  GeoTIFF per height (10/50/100/150/200m; used 10m per the plan's "lowest suitable height"
+  guidance). Real finding worth keeping: the advertised "250m" resolution is only true
+  north-south — at Aberfoyle's latitude (~56N) the actual ground resolution came out ~155m
+  east-west / ~278m north-south (a longitude-degree isn't a fixed distance), confirmed by
+  reading real wind-speed values over the study bbox (0.07-18.77 m/s, mean 3.60 m/s at 10m).
+  Verdict: include now, as the plan's own designated WASP fallback.
+- **WASP wind atlas — not testable, access not yet requested.** No public API; access is via Dr
+  Suárez-Minguez per the plan. **Action item, not yet done: email to request it** (plan's Day
+  1-2 timeline; this is currently the blocking step for the "wind" side of Env-PINN v3).
+- **HadUK-Grid, ERA5-Land, CEH soil, James Hutton soil map** — **correction, superseded below.**
+  This line originally said these were ruled out on resolution grounds without live-testing them.
+  That was wrong — see `aux_data_resolution_check.ipynb` below, which actually extracted and
+  statistically screened all four (plus more) and found real, significant plot-level structure in
+  most of them. Left here so the correction is visible, not silently dropped.
+
+**Next (not started yet):** extract OS Terrain 50 + Global Wind Atlas features at every plot
+centroid (needs every `NN`/`NS` DTM tile intersecting the study bbox, not just the one spot-check
+tile above) — this is Tier 1 step 3. `models/dnn_env_terrain/` and `models/pinn_env_terrain/` are
+scaffolded (empty `__init__.py`, same convention `linear_baseline`/`rf_baseline` used before they
+were implemented) but have no real code yet — blocked on this extraction step.
+
+***
+
+## Environmental data sources, re-checked empirically (21 July 2026, `aux_data_resolution_check.ipynb`)
+
+Settles the "resolution label alone" problem above with real extraction + a statistical screen
+(CV, variogram range, Moran's I, within/between-compartment ICC, Spearman vs. the CR residual) on
+the full 4survey plot set (71,766 plots), not a spot-check tile. A `trust_score` (0-1) combines
+these plus provenance and temporal match into one comparable number per source; full table in
+`notebooks/environmental_data/figures/aux_data_resolution_check_results.csv`.
+
+**Climate and soil are NOT ruled out — the opposite of what this doc said above.** HadUK-Grid
+(1km temperature) has the *strongest* Spearman correlation with the CR residual of anything
+tested (0.291, p<0.001), Moran's I=0.94. CEH 50m soil (pedotope class) is also real and
+significant (Spearman -0.145). James Hutton's 1:250,000 soil map showed 6 distinct WRB soil
+groups in a 150-plot sample, more than the plan's assumed "~3-5 polygons total."
+
+**GEE is fixed** (a real Google Cloud project ID was supplied mid-session) — this unblocked both
+ERA5-Land and AlphaEarth. Neither is excluded for access reasons anymore:
+- **HadUK-Grid**: real and strongest signal found, but only one year (2021) downloaded so far —
+  needs multi-year averaging before it's trustworthy, not an access issue.
+- **ERA5-Land**: real (~11.1km resolution via GEE, `ECMWF/ERA5_LAND/MONTHLY_AGGR`), but weak
+  (Spearman 0.106) and coarse (8 distinct values over the whole forest) — not worth it next to
+  CHELSA/HadUK-Grid on information-content grounds.
+- **AlphaEarth**: access fixed, but 2017-onward coverage only — can't support the 2002-2023 study
+  span regardless of access.
+- **WASP** remains the only genuinely blocked source (people-dependency, email to Dr
+  Suárez-Minguez still not sent).
+
+**Ready to use now** for `dnn_env_terrain`/`pinn_env_terrain`: OS Terrain 50 terrain group
+(elevation, slope, northness, eastness, TWI, TOPEX), Global Wind Atlas, SoilGrids pH, CHELSA
+bio1, CEH pedotope class, distance-to-compartment-boundary, distance-to-forest-perimeter,
+elevation roughness.
+
+**Held back, not a blocked source but a real modelling risk**: neighbour mean height / height
+differential (from nearby plots) have the *single strongest* raw correlation with the CR residual
+found (Spearman 0.653) — but this is a spatial-lag feature (derived from the target itself via
+neighbouring plots), likely to dominate a naive SHAP run without being a genuine environmental
+driver. Needs a with/without SHAP check before use, not optional.
+
+**TOPEX finding worth flagging directly**: TOPEX's raw correlation with the CR residual
+(Spearman +0.098) is **entirely explained by elevation** — controlling for elevation drops it to
+0.001 (p=0.836, not significant). Global Wind Atlas wind speed keeps about half its signal after
+the same control (-0.213 raw -> -0.095 elevation-controlled, still p<0.001). A windward-only
+(south-west-facing, Scotland's prevailing wind) variant of TOPEX was also built and tested — no
+better than the omnidirectional version (Spearman 0.077 vs. GWA, 0.077 vs. residual, both
+slightly *weaker* than omnidirectional) — a real null result, not just unexplored. Sign
+convention, checked directly in the code rather than assumed: **positive TOPEX = sheltered,
+negative = exposed** (validated on a synthetic conical hill, summit scored -133).
+
+**New candidates identified, not yet built**: Global Wind Atlas also serves Ruggedness Index
+(RIX), power-density, air-density, and capacity-factor layers via the same already-working API —
+RIX is the most promising (flags "complex terrain" where standard wind models break down,
+conceptually different from TOPEX/wind speed). DAMS (the UK forestry-standard windiness score,
+validated on Sitka spruce anchorage specifically) was checked and explicitly set aside — its
+underlying Wind Zone base map has no bulk GIS download, would need a formal Forest Research data
+request. WASP's separate "Extreme Wind Atlas" product is self-service downloadable (no formal
+request), but its own documentation explicitly warns it's unsuitable for mountainous terrain
+(Aberfoyle's actual terrain), needs further WAsP Engineering software to become site-specific
+rather than a simple raster, and measures rare extreme-gust events, not the chronic wind exposure
+this study is centred on — not pursued for the general covariate set on these grounds.
+
+`whcl` (raw GPKG windthrow hazard class) has only been visually checked
+(`lidar_years_all_data_understanding.ipynb`), not run through the same real-extraction +
+statistical screen as everything else here — still an open item, not resolved either way. Worth
+checking its correlation against TOPEX/elevation specifically before treating it as independent,
+since it may be a DAMS-like composite of the same underlying terrain inputs.
+
+***
+
+## Storm/windthrow diagnostic idea (raised 21 July 2026, not yet built)
+
+A way to distinguish *chronic* wind exposure (gradually suppresses growth rate, what
+TOPEX/Global Wind Atlas above are testing) from a *discrete* storm/windthrow event (sudden
+damage, different signature) using data already on hand: chronic exposure should show as a
+persistent residual offset across every survey year for a plot; a storm event should show as a
+sudden drop at one specific survey-year transition, not before. No new external data needed —
+this is a shape-of-trajectory check on the existing per-plot CR residuals across survey years.
+
+Known storms mapped against the actual survey-year transitions:
+
+| Transition | Cohort | Known storm(s) in the gap |
+|---|---|---|
+| 2002 -> 2006 | 6survey only | Storm Erwin/Gudrun, 7-9 Jan 2005 -- clean, one candidate |
+| 2006 -> 2008 | 6survey only | None found -- useful as a "quiet" control transition |
+| 2008 -> 2012 | both | Hurricane Bawbag/Cyclone Friedhelm, 7-8 Dec 2011 -- plausibly clean |
+| 2012 -> 2021 | both | **Confounded** -- Dec 2013 (possibly the stormiest December on record), the 2014-15 season also flagged as stormy, and Storm Arwen (26 Nov 2021) all fall inside this one 9-year gap. Too many candidates to isolate one -- weakest transition for this diagnostic despite Arwen being the most famous. |
+| 2021 -> 2023 | both | Storm Eunice/Storm Franklin, Feb 2022 -- clean, 2-year gap |
+
+**Open item**: the exact month the 2021 LiDAR survey was flown isn't documented anywhere in this
+repo, only the year — matters a lot, since Storm Arwen hit 26 November 2021 and whether the
+survey flew before or after that date changes which transition (2012->2021 vs. 2021->2023) its
+damage would actually show up in. Check Forest Research's flight records before trusting any
+Arwen-specific before/after comparison.
+
+Corroborating checks, not yet run: spatial clustering of "sudden-drop" plots (ties into the LISA
+work below — a real storm should hit specific compartments, not scatter randomly), and
+cross-referencing against `whcl` (a plot with high documented windthrow hazard class *and* a
+sudden decline at the right transition is converging evidence, not proof either way alone).
+
+***
+
+## Spatial-question analysis plan (21 July 2026)
+
+Full plan built via Ultraplan, saved at `.claude/plans/optimized-wiggling-catmull.md` (outside
+this repo) — summarised here so the decision isn't only recorded somewhere ephemeral.
+
+**Scope decision**: focusing on the spatial question only for now (attribution: why do plots
+deviate from the CR/average growth curve, and prediction: does a model generalise to unseen
+locations — the latter already done, see spatial_block_split results elsewhere in this doc). The
+temporal-attribution question (why did a plot's deviation change over time) is data-starved, not
+just unstarted — it needs time-varying environmental covariates, and the available terrain/wind
+sources are all static present-day snapshots; HadUK-Grid/ERA5-Land are the only time-varying
+options and were already deprioritised/found weak above.
+
+**Cohort decision**: sticking with the existing balanced 4survey/6survey cohorts for the spatial
+work too, not building a bigger "unbalanced" dataset. Reasoning: a plot with only 1-2 survey years
+makes curve fitting harder regardless of whether the panel is balanced, so relaxing the
+"present-in-every-year" requirement doesn't net-remove noise, just trades one kind for another —
+not worth the pipeline churn for that trade.
+
+**Planned sequence**: (1) Moran's I on CR residuals — the gate, confirms real spatial structure
+exists before attributing it to anything; (2) LISA cluster maps — the rigorous version of
+eyeballing a colour map, reuses the plotly machinery from
+`spatial_viz_comparison_scratch.ipynb`; (3) XGBoost + SHAP on the "ready now" covariate list
+above; (4) **NLME, sequenced right after SHAP, not after Env-PINN** — SHAP's confirmed continuous
+covariates (TOPEX, wind speed, elevation, etc.) become NLME's fixed effects directly on `y_max`,
+plot/compartment as the random effect (the Slovakia beech paper's structure, not the Larch
+paper's categorical-site-type structure — worth stating that distinction plainly when this gets
+written up, since it's adapting the two-stage template, not copying it exactly). NLME needs to
+come before/alongside Env-PINN architecture decisions, not after — it gives an interpretable
+"how much does terrain/wind explain" number that should inform how much complexity the PINN's
+sub-network actually needs to earn its place, and building it after Env-PINN risks retrofitting it
+to match whatever the PINN happened to use rather than being an independent check; (5) GAMLSS and
+GWR — worth a paragraph each in the methods/limitations discussion regardless of whether they get
+built; GWR is moderate effort and worth doing, GAMLSS's full implementation is a bigger lift than
+the rest of this plan combined (thin Python tooling) and shouldn't be prioritised unless there's
+clearly spare time.
+
+**Charting decision**: built `notebooks/scratch/spatial_viz_comparison_scratch.ipynb`
+comparing 5 spatial-plotting approaches (matplotlib hexbin, ipympl, HoloViews+Datashader,
+Lonboard, Plotly) on the same RF/spatial_block/4survey residual data. **Plotly is the standard
+going forward** for every future spatial figure (residual maps, learned `y_max` maps, attribution
+maps) — Lonboard was dropped after real rendering failures in the user's Jupyter environment, on
+top of already being the less mature/supported option of the two on paper (19x fewer GitHub stars
+than plotly, no built-in static export). Follow-up task, not done yet: turn the winning approach
+into a shared `spatial_plot.py` utility so this decision only gets made once.
 
 ***
 
@@ -339,11 +555,63 @@ free LFS tier (1GB storage/bandwidth) would already be exceeded by these two fil
 is gitignored entirely for this reason — regenerate on demand, don't try to version-control fitted
 model binaries.
 
+Update 2026-07-21: future RF saves now use `joblib.dump(..., compress=3)` and record
+`joblib_compress` in `model_metadata.json`. This does not change predictions or notebook outputs,
+but it only affects models saved after this change. Existing `model.joblib` files stay large unless
+the RF baselines are rerun.
+
+If storage pressure later justifies a smaller RF itself, use an explicit new rerun/config rather
+than silently replacing the current baseline. Candidate modest-RF controls: keep `n_estimators=100`,
+set a finite `max_depth` (for example 20-24), and use `min_samples_leaf=2` or higher. That would
+change the fitted trees and may change RMSE/MAE, so update `model_metadata.json`, `metrics.json`,
+`predictions.csv`, and the results notebooks together, and describe it as a new RF baseline
+configuration rather than a pure storage-only change. Making model saving optional is a separate
+pipeline change because `evaluate_baselines.py` currently expects `model.joblib` to exist.
+
 ***
 
 ## What's not started yet
 
-DNN/PINN under `spatial_block_split` now has a first real result (16 July 2026) — both beat every
+**Status update, 18 July 2026** (supersedes the paragraph below, kept for the historical record):
+DNN/PINN are now built, tuned, and evaluated under both `spatial_block_split` (primary) and
+`temporal_split` (secondary) — genuine convergence confirmed for both (a hyperparameter-tuning pass
+barely moved final RMSE, see `experiment_log.md`'s 2026-07-17 Findings entry), except DNN's
+`temporal`/4survey run, which still shows an overfitting-adjacent pattern tuning only softened, not
+fixed (a data-design limit: only 2 distinct training years, not a tuning problem). The PINN's
+`physics_weight`/`trajectory_weight` had been left at an untested default of `1.0` since it was
+first built — a weight sweep (7 values, 0.0-5.0) run under both splits found this was actively
+hurting accuracy; **`pw=tw=0.05` is now the shared default for both `spatial_block` and
+`temporal`** (see `experiment_log.md`'s Decisions log for the full reasoning, including the honest
+nuance that the per-cohort optimum isn't identical to `0.05` under every split). Both results now
+live in `notebooks/model_results/baseline_results.ipynb` (organized by split type, sections 5 and 6).
+Not yet started: terrain/wind feature extraction, XGBoost + SHAP, and the PINN's `cr_matched`
+anchor variant (see `experiment_log.md`'s naming glossary for what these are).
+
+**`temporal_narrow_gap`: code added 20 July 2026, no jobs run yet.** `--split-type
+temporal_narrow_gap` now works end-to-end (smoke-tested locally for baselines, DNN, and PINN,
+all cohorts) on `run_baselines.py`/`run_dnn_noenv.py`/`run_pinn_noenv.py` and their matching
+`evaluate_*` scripts — see `TEMPORAL_YEARS_NARROW_GAP` in `models/common/splits.py`. Worth knowing
+if extending this split further: the year assignment isn't simply "move `temporal`'s val year
+(2021) into train" — the PINN's trajectory loss needs a pair of chronologically ADJACENT real
+surveys both labelled train, and holding out a YEAR IN THE MIDDLE of the sequence (rather than the
+earliest) silently starves it to 0% usable pairs. A first attempt at this dict did exactly that and
+PINN failed outright, while DNN and the baselines ran "successfully" on the same years since
+neither uses trajectory pairs — easy to miss without a real smoke test of all three model types.
+
+**Status update, 20 July 2026**: every result above (both weight sweeps, DNN-vs-PINN on every
+split/cohort) is a SINGLE random seed per configuration — never tested for run-to-run variance. An
+audit of every close-margin claim found DNN-vs-PINN on 6survey (0.6-1.0% RMSE apart) is tighter than
+any weight-sweep gap, and it's the basis for the "PINN's edge is stability, not accuracy" framing.
+**A reseed batch (40 cluster jobs: PINN's low-weight band + plain DNN, both cohorts, both splits,
+seeds 43/44) has been submitted but not yet returned** — this is a submitted-job status, not a
+result, so no claim above should be revised on the strength of it yet. Once it lands: evaluate
+locally, fill in `baseline_models_parameter_tuning.ipynb` section 10 (already wired to read
+whichever of the 40 results exist and report on them), and update this file / `experiment_log.md`
+with whatever the actual variance turns out to be — do not treat this status update itself as
+confirming or refuting anything, it only records that the check is running.
+
+**Original entry (15-16 July 2026, now historical):** DNN/PINN under `spatial_block_split` now has
+a first real result (16 July 2026) — both beat every
 baseline on both cohorts, and beat their own `temporal_split` numbers too — but it's not yet
 confirmed whether that reflects genuine convergence or an early-stopping artefact (see
 `experiment_log.md`'s hyperparameter-tuning plan; each candidate fix is cheap to test at only
@@ -354,5 +622,14 @@ and the actual research focus, going forward (see `experiment_log.md`). Also not
 terrain/wind feature extraction, XGBoost + SHAP, `temporal_narrow_gap`, and the PINN's `cr_matched`
 anchor variant (see `experiment_log.md`'s naming glossary for what these are). A DNN/PINN results
 notebook now exists
-(`results_notebooks/baseline_models_parameter_tuning.ipynb`) covering loss curves and metrics for
+(`notebooks/model_results/baseline_models_parameter_tuning.ipynb`) covering loss curves and metrics for
 both split types, updated automatically as real runs land.
+
+**Deferred, 2026-07-21 (user's call — revisit later or fold into Env-PINN, not before)**:
+- No formal statistical test on the reseed results yet — current analysis is informal seed-counting
+  and eyeballing spread vs. mean gap. A bootstrap CI or Cohen's d on the DNN-vs-PINN gap would be
+  more defensible (n=3 seeds limits precision either way).
+- Not checked whether no-env DNN/PINN errors come from underfitting (not learning real patterns) or
+  over-reliance on one feature (e.g. mostly `Age`, ignoring the rest) — a permutation-importance or
+  partial-dependence check would answer this, and the same check applies again once terrain/wind
+  features exist.
