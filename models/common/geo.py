@@ -6,6 +6,8 @@ from scipy.spatial import cKDTree
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 COORDINATES_PATH = PROJECT_ROOT / "data" / "interim" / "plot_coordinates.csv.gz"
 COMPARTMENT_BOUNDARIES_PATH = PROJECT_ROOT / "data" / "interim" / "compartment_boundaries.parquet"
+SUBCOMPARTMENT_BOUNDARIES_PATH = PROJECT_ROOT / "data" / "interim" / "subcompartment_boundaries.parquet"
+BLOCK_BOUNDARIES_PATH = PROJECT_ROOT / "data" / "interim" / "block_boundaries.parquet"
 
 
 def load_plot_coordinates():
@@ -25,6 +27,24 @@ def load_compartment_boundaries():
     import geopandas as gpd
 
     return gpd.read_parquet(COMPARTMENT_BOUNDARIES_PATH)
+
+
+def load_subcompartment_boundaries():
+    # Same as load_compartment_boundaries() but one level finer -- dissolved by cpmt+scpt
+    # together (scpt labels like "A"/"B"/"C" repeat across different compartments, so scpt alone
+    # would wrongly merge unrelated sub-compartments). Built by the same
+    # export_compartment_boundaries.py script.
+    import geopandas as gpd
+
+    return gpd.read_parquet(SUBCOMPARTMENT_BOUNDARIES_PATH)
+
+
+def load_block_boundaries():
+    # Same idea, one level coarser -- dissolved by `blk` (only 8 distinct blocks across the
+    # whole forest). Built by the same export_compartment_boundaries.py script.
+    import geopandas as gpd
+
+    return gpd.read_parquet(BLOCK_BOUNDARIES_PATH)
 
 
 def find_train_plots_near_holdout(coordinates_df, plot_to_split, buffer_distance, holdout_splits=("val", "test")):
