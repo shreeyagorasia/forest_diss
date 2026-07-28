@@ -153,7 +153,7 @@ def run_for_cohort(
         print(f"  Frozen CR params: y_max={cr_params['y_max']:.4f}, k={cr_params['k']:.6f}, p={cr_params['p']:.6f}")
 
         # ----- Load and prepare the data -----
-        split_df = load_split_table(cohort, MODEL_NAME, split_type)
+        split_df = load_split_table(cohort, split_type)
         train_df = split_df[split_df["split"] == "train"]
         val_df = split_df[split_df["split"] == "val"]
         # Note: test_df is deliberately never loaded here at all.

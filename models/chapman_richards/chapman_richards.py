@@ -13,26 +13,32 @@ def chapman_richards(age, y_max, k, p):
     return y_max * (1 - np.exp(-k * age)) ** p
 
 
-def fit(train_df, age_col="Age", height_col="Top_Height99"):
+def fit(train_df, age_col="Age", height_col="elev_percentile_95th"):
     # Fit y_max, k and p so the curve matches the training data as closely
     # as possible.
     age_values = train_df[age_col].values
     height_values = train_df[height_col].values
     max_observed_height = height_values.max()
 
-    # y_max is the height the curve approaches as age goes to infinity, so it
-    # must be at least as big as the tallest tree we actually measured.
+    # y_max is the height the curve approaches as age goes to infinity, so it must be strictly
+    # bigger than the tallest tree we actually measured -- a real asymptote is approached but
+    # never reached, even by the tallest observed tree. The lower bound used to be exactly
+    # max_observed_height (not above it), which let curve_fit land precisely on that boundary
+    # instead of finding a genuine asymptote -- confirmed happening for both the old and new
+    # height target (2026-07-28, see progress_notes.md), so this is a pre-existing fragility in
+    # these bounds, not something the target change caused. A 0.1% buffer is enough to stop the
+    # optimizer sitting exactly on the boundary, without meaningfully changing the search space.
     # k must be positive (height should not shrink as age increases), and p
     # shapes the early part of the curve. The upper bounds are generous so
     # curve_fit has room to search without wandering into silly values.
-    lower_bounds = [max_observed_height, 0.0001, 0.01]
+    lower_bounds = [max_observed_height * 1.001, 0.0001, 0.01]
     upper_bounds = [max_observed_height * 5, 2.0, 15.0]
 
     # A single starting guess can lead curve_fit to a poor local solution, so
     # we try several different starting guesses and keep whichever one fits
     # the training data best (smallest sum of squared errors).
     starting_guesses = [
-        [max_observed_height * 1.0, 0.01, 1.0],
+        [max_observed_height * 1.01, 0.01, 1.0],
         [max_observed_height * 1.2, 0.02, 1.0],
         [max_observed_height * 1.5, 0.03, 1.5],
         [max_observed_height * 2.0, 0.05, 2.0],

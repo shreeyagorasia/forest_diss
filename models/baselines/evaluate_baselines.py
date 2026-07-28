@@ -54,14 +54,15 @@ def load_test_rows(cohort, table_name, split_type):
     # evaluated on test — val exists in the file for schema consistency with
     # later models only and is deliberately never read here.
     #
-    # cr_age.csv.gz itself has no yldc column, so Chapman-Richards and
-    # average-by-age are evaluated against the same trimmed
-    # (identification, LiDAR_year, blk, cpmt, Age, yldc, Top_Height99) table
-    # load_cohort_data() uses for fitting, not a fresh read of cr_age.csv.gz.
+    # Chapman-Richards and average-by-age are evaluated against the same trimmed
+    # (identification, LiDAR_year, blk, cpmt, Age, yldc, elev_percentile_95th) table
+    # load_cohort_data() uses for fitting. Every model reads the same consolidated
+    # model_table.parquet now (2026-07-28) -- table_name only picks between that trimmed view
+    # and the full table, it no longer selects a different source file.
     if table_name == "cr_age":
         table = load_cohort_data(cohort)
     else:
-        table = load_model_table(cohort, table_name)
+        table = load_model_table(cohort)
     filtered_table = filter_data(table)
 
     split_path = output_dir("splits", cohort, "split_assignment.csv", split_type=split_type)
@@ -122,7 +123,7 @@ def evaluate_rf_baseline(cohort, split_type):
 
 
 def build_results(model_name, cohort, test_df, predicted_heights, split_type):
-    observed_heights = test_df["Top_Height99"].values
+    observed_heights = test_df["elev_percentile_95th"].values
     predicted_heights = np.asarray(predicted_heights, dtype=float)
     residuals = observed_heights - predicted_heights
 

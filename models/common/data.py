@@ -4,25 +4,23 @@ import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-# Both the Chapman-Richards and average-by-age baselines only need these
-# columns. linear_baseline.parquet is the smallest exported table that has
-# yldc sitting alongside Age and Top_Height99, so we read from there.
-COLUMNS_NEEDED = ["identification", "LiDAR_year", "blk", "cpmt", "Age", "yldc", "Top_Height99"]
+# Both the Chapman-Richards and average-by-age baselines only need these columns, out of the one
+# consolidated table every model now reads (see data_processing/export_model_tables.py -- one
+# model_table.parquet per cohort replaced five near-duplicate per-model files 2026-07-28).
+COLUMNS_NEEDED = ["identification", "LiDAR_year", "blk", "cpmt", "Age", "yldc", "elev_percentile_95th"]
 
 
 def load_cohort_data(cohort):
     # cohort is either "4survey" or "6survey"
-    path = PROJECT_ROOT / "data" / "processed" / "current_state" / cohort / "linear_baseline.parquet"
+    path = PROJECT_ROOT / "data" / "processed" / "current_state" / cohort / "model_table.parquet"
     full_table = pd.read_parquet(path)
     return full_table[COLUMNS_NEEDED].copy()
 
 
-def load_model_table(cohort, table_name):
-    # table_name is one of "cr_age", "linear_baseline", "rf_baseline" -- the
-    # exported table names under data/processed/current_state/<cohort>/.
-    # Unlike load_cohort_data, this returns every column in the file, since
-    # different models need different feature columns.
-    path = PROJECT_ROOT / "data" / "processed" / "current_state" / cohort / f"{table_name}.parquet"
+def load_model_table(cohort):
+    # Returns every column in the one consolidated table -- different models select their own
+    # feature subset from it (e.g. models/rf_baseline/rf_baseline.py's own FEATURE_COLUMNS).
+    path = PROJECT_ROOT / "data" / "processed" / "current_state" / cohort / "model_table.parquet"
     return pd.read_parquet(path)
 
 

@@ -61,7 +61,7 @@ def run_for_cohort(cohort, split_type, run_name=None):
 
         # ----- Load ONLY the test rows -- this is the one place in the
         # whole DNN/PINN pipeline where the test split is touched -----
-        split_df = load_split_table(cohort, MODEL_NAME, split_type)
+        split_df = load_split_table(cohort, split_type)
         test_df = split_df[split_df["split"] == "test"]
 
         age_test, other_test, target_test = build_tensors(

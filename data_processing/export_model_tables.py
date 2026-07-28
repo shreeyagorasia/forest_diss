@@ -1,52 +1,41 @@
 # Run as: python -m data_processing.export_model_tables
 #
-# WHAT THIS SCRIPT DOES
-# ----------------------
 # Reads the already-cleaned master exports (clean_master_4survey.parquet,
-# clean_master_6survey.parquet) and builds every table the models/ package
-# reads: one "current-state" table per baseline model, plus two "transition"
-# tables for later growth-rate modelling.
+# clean_master_6survey.parquet, built by data_processing/clean_master_data.py) and builds the
+# tables the models/ package reads: ONE consolidated "current-state" table per cohort, plus one
+# "transition" table per cohort for growth-rate modelling.
 #
-# WHY THIS IS A SEPARATE SCRIPT, NOT PART OF THE NOTEBOOK
-# ----------------------------------------------------------
-# The master exports are the actual output of the cleaning funnel: species
-# filtering to Sitka spruce, age/height validity checks, duplicate removal,
-# and balancing each cohort to exactly 4 or 6 surveys per plot. That cleaning
-# work only happens in data_exploration_gpkg/notebooks/lidar_years_all_data_cleaning.ipynb,
-# and it's a large, actively-edited notebook -- not somewhere you want the
-# one thing every model depends on (which columns go into which table) to
-# also live, if there's a simpler and more robust place for it.
+# CONSOLIDATED, NOT ONE FILE PER MODEL (changed 2026-07-28)
+# ------------------------------------------------------------
+# Previously this script wrote a separate parquet per model (cr_age.parquet, linear_baseline.
+# parquet, rf_baseline.parquet, dnn_noenv.parquet, pinn_noenv.parquet). Checked directly:
+# dnn_noenv.parquet and pinn_noenv.parquet were byte-for-byte IDENTICAL, and the other three were
+# each a strict subset of the same core columns -- five files carrying the same handful of
+# columns in slightly different combinations. Now there is ONE table per cohort
+# (current_state/<cohort>/model_table.parquet) containing every column any model needs; each
+# model's own module (e.g. models/rf_baseline/rf_baseline.py's FEATURE_COLUMNS) selects its own
+# subset at load time, the same way it already selects columns out of any dataframe.
 #
-# Once the master exports exist on disk, this script needs nothing else from
-# that notebook: choosing predictor columns, deriving target/fallback
-# columns, and building the transition tables is pure pandas column
-# selection, not anything that depends on the raw GeoPackage or the cleaning
-# funnel. So if the notebook is ever broken or mid-edit, every table below
-# can still be regenerated from the stable master files alone.
+# TARGET CHANGED FROM Top_Height99 TO elev_percentile_95th (2026-07-28)
+# ------------------------------------------------------------------------
+# See data_processing/clean_master_data.py's own header comment for the full reasoning.
+# Top_Height99 is retired everywhere; there is no fallback target column anymore (Top_Height95
+# is kept in the master table, but only as an audit ingredient for Vol95/GYCspec95, never a
+# target or feature -- see clean_master_data.py).
 #
-# WHICH COLUMNS ARE FEATURES VS EVALUATION-ONLY
-# ------------------------------------------------
-# The master exports deliberately carry more columns than any model should
-# ever see as a predictor. The ones NOT listed as predictors below are kept
-# in the master file for a reason, but must never be fed into a model:
-#   - Vol95, Vol99, Vol_RM95, GYCspec95, GYCspec99: derived FROM height
-#     and/or age, so using them as predictors would leak the answer.
-#   - area, p1-p5, g1, g3: formula ingredients needed to recompute those
-#     derived quantities after a model makes a height prediction (to check
-#     whether the prediction implies a sensible volume/yield class), not
-#     independent plot measurements.
-#   - Top_Height95: the fallback target. Never a predictor for Top_Height99.
-#   - whcl: a management-linked windthrow hazard class from the forest
-#     inventory, not a raw measurement of wind exposure -- kept for
-#     audit/stratification only.
-#   - LAI: kept for canopy data-quality checks; not used alongside
-#     CanopyCover in baseline models, to avoid two redundant canopy inputs.
-#   - identification, LiDAR_year, blk, cpmt: row identity and the spatial
-#     grouping columns used for splitting -- metadata, not predictors. blk
-#     and cpmt in particular must NEVER be passed to a model as a feature.
-#     cpmt (forestry compartment) is the block_col spatial_block_split()
-#     groups by, so a model that saw cpmt as a feature could effectively
-#     memorise which compartment a row came from.
+# yldc REMOVED AS A FEATURE (2026-07-28)
+# ------------------------------------------
+# Confirmed via real held-out ablation (not just theory) that yldc hurts generalisation in every
+# model checked (see documentation/progress_notes.md's 2026-07-28 entry for the numbers). Still
+# present in the master table and in this consolidated export (useful for audit/stratification,
+# same treatment as whcl), just no longer in any model's own FEATURE_COLUMNS list.
+#
+# WHY THIS IS A SEPARATE SCRIPT, NOT PART OF THE CLEANING SCRIPT
+# -------------------------------------------------------------------
+# clean_master_data.py does the expensive, one-way work (reading the raw GeoPackage, applying
+# the cleaning funnel). Everything here is pure pandas column selection on the already-cleaned
+# master files, so it can be re-run instantly whenever a model's column needs change, without
+# ever touching the raw GeoPackage again.
 
 from pathlib import Path
 
@@ -56,55 +45,25 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
 COHORTS = ["4survey", "6survey"]
 
-# Row identity and the spatial split columns. Kept in every table for
-# splitting/evaluation, but never passed to a model as a feature. blk and
-# cpmt in particular must NEVER be passed to a model as a feature -- cpmt
-# (forestry compartment) is the block_col spatial_block_split() groups by.
+# Row identity and the spatial split columns. Kept in every table for splitting/evaluation, but
+# never passed to a model as a feature. blk and cpmt in particular must NEVER be passed to a
+# model as a feature -- cpmt (forestry compartment) is the block_col spatial_block_split()
+# groups by, so a model that saw cpmt as a feature could effectively memorise which compartment
+# a row came from.
 METADATA_COLUMNS = ["identification", "LiDAR_year", "blk", "cpmt"]
 
-# Top_Height99 is the primary modelling target (see the cleaning notebook's
-# section 11.2 and documentation/plans_md's Accuracy Review for the reasoning
-# and the known Top_Height99 < Top_Height95 caveat). Top_Height95 rides along
-# as a fallback/audit target in every table, but is never itself a feature.
-TARGET_COLUMN = "Top_Height99"
-FALLBACK_TARGET_COLUMNS = ["Top_Height95"]
+TARGET_COLUMN = "elev_percentile_95th"
 
-# One dictionary per model, mapping model name -> the predictor columns that
-# model actually uses. This is the single place that decides what each
-# model is allowed to see.
-MODEL_FEATURE_SETS = {
-    # Age-only Chapman-Richards growth curve -- no stand-management inputs.
-    "cr_age": [
-        "Age",
-    ],
-    # Interpretable linear baseline. thinning_status is a categorical
-    # summary of last_thinn (never_thinned / recent_0_5yr / mid_6_10yr /
-    # old_10plus_yr / not_yet_thinned_at_survey / unknown_timing) -- one
-    # categorical term is easier to interpret than several overlapping
-    # numeric thinning columns. Must be one-hot encoded before fitting.
-    "linear_baseline": [
-        "Age",
-        "CanopyCover",
-        "thinning_status",
-        "yldc",
-    ],
-    # Non-linear baseline. Numeric time_since_thinning is useful for a tree
-    # model, but time_since_thinning_missing is required alongside it,
-    # because never-thinned plots have no valid elapsed time to report.
-    "rf_baseline": [
-        "Age",
-        "CanopyCover",
-        "Thin",
-        "time_since_thinning",
-        "time_since_thinning_missing",
-        "recent_thinning_5yr",
-        "yldc",
-    ],
-}
+# Audit-only columns carried into the consolidated table but never selected as a feature by any
+# model -- same treatment as whcl already had. yldc moved here 2026-07-28 (see header comment).
+AUDIT_COLUMNS = ["yldc", "whcl", "Top_Height95", "Vol95", "GYCspec95"]
 
-# DNN and PINN (no-environment) tables share one feature set, so there is
-# only one predictor list to keep in sync between them.
-FULL_NOENV_FEATURES = [
+# The union of every feature column any current model uses (cr_age uses only Age; rf_baseline/
+# dnn_noenv/pinn_noenv use the full set; linear_baseline uses a subset). One shared list here,
+# not a separate per-model dict -- each model's own FEATURE_COLUMNS (rf_baseline.py,
+# linear_baseline.py, models/common/torch_data.py's NOENV_FEATURE_COLUMNS) is the actual source
+# of truth for which of these columns that specific model reads.
+ALL_FEATURE_COLUMNS = [
     "Age",
     "CanopyCover",
     "Thin",
@@ -112,53 +71,26 @@ FULL_NOENV_FEATURES = [
     "time_since_thinning_missing",
     "recent_thinning_5yr",
     "thinning_status",
-    "yldc",
 ]
-MODEL_FEATURE_SETS["dnn_noenv"] = FULL_NOENV_FEATURES
-MODEL_FEATURE_SETS["pinn_noenv"] = FULL_NOENV_FEATURES
 
-# Columns kept in the transition (growth-between-surveys) tables. This is a
-# different question to the current-state tables above: the target here is
-# annual_height99_increment, not Top_Height99 itself.
-#
-# previous_Thin / previous_time_since_thinning / previous_time_since_thinning_missing
-# / previous_recent_thinning_5yr / previous_thinning_status / previous_yldc give the
-# EARLIER survey's full no-environment feature values, alongside the plain (unprefixed)
-# versions which are the LATER survey's values -- both endpoints of a transition pair
-# now carry the full no-environment feature set. This is what the PINN's trajectory
-# loss needs (see documentation/model_instructions/age_only_dnn_pinn_instructions.md,
-# section 3): a forward pass on each endpoint of a pair, using that endpoint's own
-# real feature values, not just its Age and height.
+# Columns kept in the transition (growth-between-surveys) table. Different question to the
+# current-state table above: the target here is annual_height_increment, not the target column
+# itself. previous_* columns give the EARLIER survey's values, alongside the plain (unprefixed)
+# LATER survey's values -- both endpoints of a transition pair carry the full feature set, which
+# is what the PINN's trajectory loss needs (a forward pass on each endpoint using that
+# endpoint's own real feature values, not just its Age and height).
 TRANSITION_COLUMNS = [
-    "identification",
-    "LiDAR_year",
-    "blk",
-    "cpmt",
-    "previous_lidar_year",
-    "survey_interval_years",
-    "previous_age",
-    "Age",
-    "previous_top_height99",
-    "Top_Height99",
-    "height99_increment",
-    "annual_height99_increment",
-    "previous_top_height95",
-    "Top_Height95",
-    "previous_canopy_cover",
-    "CanopyCover",
-    "canopy_change",
-    "previous_Thin",
-    "Thin",
-    "previous_time_since_thinning",
-    "time_since_thinning",
-    "previous_time_since_thinning_missing",
-    "time_since_thinning_missing",
-    "previous_recent_thinning_5yr",
-    "recent_thinning_5yr",
-    "previous_thinning_status",
-    "thinning_status",
-    "previous_yldc",
-    "yldc",
+    "identification", "LiDAR_year", "blk", "cpmt",
+    "previous_lidar_year", "survey_interval_years",
+    "previous_age", "Age",
+    "previous_height", TARGET_COLUMN, "height_increment", "annual_height_increment",
+    "previous_canopy_cover", "CanopyCover", "canopy_change",
+    "previous_Thin", "Thin",
+    "previous_time_since_thinning", "time_since_thinning",
+    "previous_time_since_thinning_missing", "time_since_thinning_missing",
+    "previous_recent_thinning_5yr", "recent_thinning_5yr",
+    "previous_thinning_status", "thinning_status",
+    "previous_yldc", "yldc",
 ]
 
 
@@ -167,40 +99,24 @@ def load_master(cohort):
     return pd.read_parquet(path)
 
 
-def select_model_columns(master_df, feature_columns):
-    # Metadata + this model's predictors + the primary target + the
-    # fallback target, with duplicates removed while keeping the first
-    # occurrence (a feature list could in principle repeat a metadata
-    # column name, though none currently do).
-    selected_columns = METADATA_COLUMNS + feature_columns + [TARGET_COLUMN] + FALLBACK_TARGET_COLUMNS
+def build_current_state_table(master_df):
+    # Metadata + every feature any model needs + the target + audit-only columns, with
+    # duplicates removed while keeping the first occurrence.
+    selected_columns = METADATA_COLUMNS + ALL_FEATURE_COLUMNS + [TARGET_COLUMN] + AUDIT_COLUMNS
     selected_columns = list(dict.fromkeys(selected_columns))
     return master_df[selected_columns].copy()
 
 
-def build_current_state_tables(master_df):
-    # One table per entry in MODEL_FEATURE_SETS, e.g. {"cr_age": <table>, ...}
-    tables = {}
-    for model_name, feature_columns in MODEL_FEATURE_SETS.items():
-        tables[model_name] = select_model_columns(master_df, feature_columns)
-    return tables
-
-
 def build_transition_table(master_df):
-    # Growth between consecutive surveys for the same plot, not a
-    # current-height table. previous_* columns come from shifting each
-    # plot's own history forward by one survey (groupby + shift), so the
-    # first survey of every plot has no "previous" and is dropped at the end.
+    # Growth between consecutive surveys for the same plot, not a current-height table.
+    # previous_* columns come from shifting each plot's own history forward by one survey
+    # (groupby + shift), so the first survey of every plot has no "previous" and is dropped.
     data = master_df.sort_values(["identification", "LiDAR_year"]).copy()
     grouped = data.groupby("identification")
 
     data["previous_age"] = grouped["Age"].shift()
-    data["previous_top_height99"] = grouped["Top_Height99"].shift()
-    data["previous_top_height95"] = grouped["Top_Height95"].shift()
+    data["previous_height"] = grouped[TARGET_COLUMN].shift()
     data["previous_canopy_cover"] = grouped["CanopyCover"].shift()
-
-    # Earlier-survey values of every other no-environment feature, so a
-    # transition row carries full feature sets for BOTH endpoints of the
-    # pair, not just the later one.
     data["previous_Thin"] = grouped["Thin"].shift()
     data["previous_time_since_thinning"] = grouped["time_since_thinning"].shift()
     data["previous_time_since_thinning_missing"] = grouped["time_since_thinning_missing"].shift()
@@ -208,31 +124,25 @@ def build_transition_table(master_df):
     data["previous_thinning_status"] = grouped["thinning_status"].shift()
     data["previous_yldc"] = grouped["yldc"].shift()
 
-    data["height99_increment"] = data["Top_Height99"] - data["previous_top_height99"]
-    data["annual_height99_increment"] = data["height99_increment"] / data["survey_interval_years"]
+    data["height_increment"] = data[TARGET_COLUMN] - data["previous_height"]
+    data["annual_height_increment"] = data["height_increment"] / data["survey_interval_years"]
     data["canopy_change"] = data["CanopyCover"] - data["previous_canopy_cover"]
 
     # A row with no previous survey has nothing to compute growth from.
-    data = data.dropna(subset=["previous_top_height99"])
+    data = data.dropna(subset=["previous_height"])
 
     return data[TRANSITION_COLUMNS].copy()
 
 
 def build_export_plan():
-    # Maps every output Path to the table that should be written there.
-    # current_state/ keeps the cohort in the DIRECTORY (so the same model
-    # code reads either cohort by just changing a path); master/ and
-    # transitions/ keep the cohort in the FILENAME, matching how the
-    # cleaning notebook already names its own master exports.
     export_plan = {}
 
     for cohort in COHORTS:
         master_df = load_master(cohort)
 
-        current_state_tables = build_current_state_tables(master_df)
-        for model_name, table in current_state_tables.items():
-            output_path = PROCESSED_DIR / "current_state" / cohort / f"{model_name}.parquet"
-            export_plan[output_path] = table
+        current_state_table = build_current_state_table(master_df)
+        output_path = PROCESSED_DIR / "current_state" / cohort / "model_table.parquet"
+        export_plan[output_path] = current_state_table
 
         transition_table = build_transition_table(master_df)
         output_path = PROCESSED_DIR / "transitions" / f"transition_growth_{cohort}.parquet"

@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-def fit(train_df, age_col="Age", height_col="Top_Height99"):
+def fit(train_df, age_col="Age", height_col="elev_percentile_95th"):
     # Round age to the nearest whole year so ages line up into a simple table.
     rounded_ages = train_df[age_col].round().astype(int)
 

@@ -28,8 +28,8 @@ def plot_predicted_vs_observed(y_true, y_pred, ax=None):
         color="black", linewidth=1, linestyle="--",
     )
 
-    ax.set_xlabel("Observed Top_Height99")
-    ax.set_ylabel("Predicted Top_Height99")
+    ax.set_xlabel("Observed elev_percentile_95th (top height)")
+    ax.set_ylabel("Predicted elev_percentile_95th (top height)")
     return ax
 
 
@@ -39,7 +39,7 @@ def plot_residuals(y_true, y_pred, ax=None):
     resid = y_true - y_pred
     ax.scatter(y_pred, resid, s=8, alpha=0.4)
     ax.axhline(0, color="black", linewidth=1, linestyle="--")
-    ax.set_xlabel("Predicted Top_Height99")
+    ax.set_xlabel("Predicted elev_percentile_95th (top height)")
     ax.set_ylabel("Residual")
     return ax
 
@@ -78,7 +78,7 @@ def plot_growth_curve(age, y_true, y_pred, lidar_year, ax=None):
     ax.scatter(age, y_pred, s=6, alpha=0.6, color="black", label="Predicted")
 
     ax.set_xlabel("Age")
-    ax.set_ylabel("Top_Height99")
+    ax.set_ylabel("elev_percentile_95th (top height)")
     ax.legend(title="Survey year", markerscale=2, fontsize=8)
     return ax
 

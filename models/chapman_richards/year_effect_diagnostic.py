@@ -34,7 +34,7 @@ def make_model(other_years):
     return model
 
 
-def fit_year_effect(train_df, age_col="Age", year_col="LiDAR_year", height_col="Top_Height99"):
+def fit_year_effect(train_df, age_col="Age", year_col="LiDAR_year", height_col="elev_percentile_95th"):
     sorted_years = sorted(train_df[year_col].unique())
     reference_year = sorted_years[0]
     other_years = sorted_years[1:]

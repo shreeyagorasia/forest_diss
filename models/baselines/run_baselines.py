@@ -67,17 +67,14 @@ PRIOR_CR_PARAMS = {"y_max": 46.1126, "k": 0.01866979, "p": 1.0175}
 
 def build_split_for_cohort(cohort, split_type):
     # The split is computed ONCE per cohort, from the smallest shared table
-    # (identification, LiDAR_year, blk, cpmt, Age, yldc, Top_Height99 --
+    # (identification, LiDAR_year, blk, cpmt, Age, yldc, elev_percentile_95th --
     # everything Chapman-Richards and average-by-age need), then saved.
     # linear_baseline and rf_baseline reuse this exact split by merging onto
     # it (in load_train_rows), rather than recomputing the split separately
     # -- that guarantees all four baselines share identical train/val/test
-    # membership, even though they load different source files with
-    # possibly different row orders.
-    #
-    # Note: cr_age.csv.gz itself has no yldc column, so this filtered table
-    # (not a fresh read of cr_age.csv.gz) is what CR and average-by-age are
-    # actually fitted on below.
+    # membership, even though every model now reads from the same
+    # consolidated model_table.parquet (2026-07-28, see
+    # data_processing/export_model_tables.py).
     #
     # filter_data() now gates whole plots on their Age at the 2023 survey
     # (see models/common/data.py), so a plot's early rows here can still show
@@ -140,10 +137,10 @@ def build_split_for_cohort(cohort, split_type):
 
 
 def load_train_rows(cohort, table_name, split_assignment):
-    # Load one model's own full table, apply the same filters, then attach
-    # the shared split by merging on identification + LiDAR_year (not by
-    # recomputing the split).
-    table = load_model_table(cohort, table_name)
+    # Every model reads the same consolidated model_table.parquet now (2026-07-28) --
+    # table_name is kept as a parameter purely to label the assertion message below, not to pick
+    # a different source file.
+    table = load_model_table(cohort)
     filtered_table = filter_data(table)
 
     merged = filtered_table.merge(split_assignment, on=["identification", "LiDAR_year"], how="inner")
@@ -174,7 +171,7 @@ def fit_chapman_richards_logged(cohort, split_type, cr_train_df, n_rows_fit):
         if cr_params["y_max"] <= 0 or cr_params["k"] <= 0 or cr_params["p"] <= 0:
             print("  WARNING: a fitted Chapman-Richards parameter is zero or negative — check this cohort's fit.")
 
-        max_observed_height = cr_train_df["Top_Height99"].max()
+        max_observed_height = cr_train_df["elev_percentile_95th"].max()
         if cr_params["y_max"] < max_observed_height:
             print(
                 f"  WARNING: fitted y_max ({cr_params['y_max']:.2f} m) is below the "

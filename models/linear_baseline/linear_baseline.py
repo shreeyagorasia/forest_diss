@@ -5,7 +5,8 @@ from pathlib import Path
 import pandas as pd
 from sklearn.linear_model import LinearRegression
 
-FEATURE_COLUMNS = ["Age", "CanopyCover", "thinning_status", "yldc"]
+FEATURE_COLUMNS = ["Age", "CanopyCover", "thinning_status"]
+# yldc removed 2026-07-28 -- real ablation showed it hurts generalisation, see progress_notes.md.
 CATEGORICAL_COLUMNS = ["thinning_status"]
 
 
@@ -26,7 +27,7 @@ def encode_features(df, encoded_column_names=None):
     return encoded
 
 
-def fit(train_df, target_col="Top_Height99"):
+def fit(train_df, target_col="elev_percentile_95th"):
     encoded_train = encode_features(train_df)
 
     model = LinearRegression()

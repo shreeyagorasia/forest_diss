@@ -128,7 +128,7 @@ def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed
 
     try:
         # ----- Load and prepare the data -----
-        split_df = load_split_table(cohort, MODEL_NAME, split_type)
+        split_df = load_split_table(cohort, split_type)
         train_df = split_df[split_df["split"] == "train"]
         val_df = split_df[split_df["split"] == "val"]
         # Note: test_df is deliberately never loaded here at all.

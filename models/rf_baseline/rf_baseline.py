@@ -12,7 +12,8 @@ FEATURE_COLUMNS = [
     "time_since_thinning",
     "time_since_thinning_missing",
     "recent_thinning_5yr",
-    "yldc",
+    # yldc removed 2026-07-28 -- real ablation showed it hurts test R2 here (0.446->0.498
+    # without it), see progress_notes.md.
 ]
 
 
@@ -27,7 +28,7 @@ def prepare_features(df):
     return features
 
 
-def fit(train_df, target_col="Top_Height99", n_estimators=100, seed=42):
+def fit(train_df, target_col="elev_percentile_95th", n_estimators=100, seed=42):
     # sklearn defaults otherwise (no tuning yet) -- this is a baseline
     # reference point, not a tuned model.
     features_train = prepare_features(train_df)

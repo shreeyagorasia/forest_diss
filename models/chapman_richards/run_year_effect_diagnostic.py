@@ -42,7 +42,7 @@ def plain_cr_sum_squared_error(train_df, cohort):
         params = json.load(f)
 
     predicted = chapman_richards(train_df["Age"].values, params["y_max"], params["k"], params["p"])
-    return float(np.sum((train_df["Top_Height99"].values - predicted) ** 2))
+    return float(np.sum((train_df["elev_percentile_95th"].values - predicted) ** 2))
 
 
 def main():
