@@ -47,8 +47,10 @@ notebooks/    # restructured 22 July 2026 from three separate top-level notebook
 │   └── figures/   # aux_data_resolution_check_results.csv lives here now
 ├── spatial_analysis/
 │   ├── spatial_temporal_split_visualisation.ipynb # maps/visualises the three split types
-│   └── spatial_residual_autocorrelation.ipynb     # PLANNED, not built yet -- Moran's I / LISA
-│                                                   # step of the spatial-question plan below
+│   └── spatial_autocorrelation_terrain.ipynb      # built 22 July 2026 -- Moran's I + semivariogram
+│                                                   # done (section 1); SHAP/NLME/GWR terrain
+│                                                   # attribution (section 2) blocked on the
+│                                                   # per-plot feature extraction step, not built yet
 ├── model_results/
 │   ├── baseline_results.ipynb       # reads outputs/ only, never refits — sklearn/CR baselines
 │   │                                 # only, covers all three split types
@@ -453,6 +455,113 @@ into a shared `spatial_plot.py` utility so this decision only gets made once.
 
 ***
 
+## Spatial attribution: `models/spatial_attribution/` built, steps 1-2 done (22-23 July 2026)
+
+New branch: `spatial_attribution`. New folder `models/spatial_attribution/` holds the real,
+reusable code — the notebook (`notebooks/spatial_analysis/spatial_autocorrelation_terrain.ipynb`)
+only calls it and adds plots, per the user's explicit "keep plotting logic in the notebook, not
+the module" correction this session.
+
+**`data.py`** — generalised beyond Chapman-Richards on purpose, so any model/dataset can be
+plugged in:
+- `load_residuals(model_name, cohort, split_type)` / `load_residuals_by_year(...)` — `model_name`
+  is a real parameter now (any model's `predictions.csv` folder name), not hardcoded. Both
+  filter to `split == "test"` only — see the "why test-only" reasoning below, it's load-bearing,
+  not just convention.
+- `load_master(cohort)` — the full `data/processed/master/clean_master_{cohort}.parquet`.
+- `join_by_plot(base_df, other_df, on="identification")` — a merge wrapper that reports how many
+  rows from each side failed to match, so a bad join fails loudly instead of silently dropping
+  rows.
+- `LEAKAGE_RISK_COLUMNS` — the Dissertation Plan's "Height-derived predictors" list
+  (`Vol95`/`99`/`RM95`, `GYCspec95`/`99`, raw height percentiles, `Top_Height95`) as one named,
+  shared constant, so every future join excludes them the same way instead of each analysis
+  re-deciding from scratch.
+
+**`spatial_autocorrelation.py`** — `global_morans_i(x, y, values, distance, ...)` and
+`semivariogram_range(x, y, values, ...)`. Both fully generic (just take arrays), not tied to any
+one model's residual — confirmed useful immediately, since re-running them on DNN/PINN needed
+zero module changes, only different data passed in.
+
+**`lisa.py`** — `local_morans_i(x, y, values, k, ...)`. Uses k-nearest-neighbours (not a fixed
+distance) plus Benjamini-Hochberg correction — both real fixes, not defaults kept out of
+laziness: a fixed distance gave wildly uneven neighbour counts (681-7,141 depending on local
+density, checked directly), and ~11,000 simultaneous per-plot significance tests need FDR
+correction or ~5% would show "significant" by chance alone.
+
+### Why test-split only, and why this isn't just "the convention"
+
+Confirmed directly (not assumed): `predictions.csv` only ever contains `'test'` rows, for every
+model — train/val predictions are never saved anywhere. Worked through why this matters
+specifically for the spatial analysis, not just generally:
+1. Training residuals are artificially small (the model was directly optimised to minimise them).
+2. **Mixing splits would manufacture a fake result, not just a less-clean one** —
+   `spatial_block_split` assigns whole contiguous compartments to train/val/test, so the split
+   itself has real spatial structure. If train residuals are systematically smaller and
+   train/test assignment is spatially clustered by construction, Moran's I on a mixed sample
+   would detect that split-assignment artefact as "spatial autocorrelation" — indistinguishable
+   from a genuine finding without knowing this.
+3. **A separate, real gap this surfaced**: validation predictions are computed every epoch during
+   DNN/PINN training (`evaluate_on_validation_set()` genuinely runs the model forward on val
+   rows) but only the aggregate `val_loss` is kept (`training_history.csv`) — individual per-plot
+   val predictions are never saved, for any model, because nothing needed them before now.
+   Building that (straightforward for CR — just its 3 params; needs the saved checkpoint+scalers
+   for DNN/PINN) is required before Step 3 can run properly: **SHAP directly selects Env-PINN's
+   covariates, so running it on test residuals would leak test information into a design
+   decision, compromising Env-PINN's eventual test evaluation.** Steps 1-2 (Moran's I/LISA, "is
+   there a phenomenon at all") don't have this problem — they don't select anything about
+   Env-PINN's architecture, so test is fine there. **Not built yet** — next real task before
+   Step 3.
+
+### Results, Step 1 (Chapman-Richards) — real numbers, verified in the notebook
+
+Semivariogram range = 3,956m (status: resolved, genuinely flattened within the 5,000m window).
+Global Moran's I = 0.130 at that distance, 999 permutations: p_sim=0.001 (floor value — beat all
+999 shuffles), p_norm≈0.000000 (not floor-limited, confirms the same conclusion independently),
+z=270-285 depending on the random sample draw (huge z is a large-n artefact, not a huge effect —
+I itself, 0.13, is the real effect size). **Formal result: reject H0 of spatial randomness at
+α=0.05.** LISA (k=20 vs k=50 sensitivity check, not just one k): 81.2% exact label agreement,
+56.6% significant at both k, 100% cluster-type agreement among those — core clusters are robust
+to the choice of k, the boundary is what's k-sensitive.
+
+### Results, Step 2 (CR vs. DNN vs. PINN comparison) — real numbers, genuinely informative
+
+| Model | Semivariogram range | Moran's I |
+|---|---|---|
+| Chapman-Richards | 3,956m | 0.130 |
+| DNN (no-env) | 2,585m | 0.072 |
+| PINN (no-env, tuned) | 2,557m | 0.080 |
+
+Same 11,743 plots for all three (confirmed identical row/plot counts before assuming — DNN/PINN's
+extra predictor columns could plausibly have caused missing-value dropout CR wouldn't hit; they
+didn't). **Both DNN and PINN show a shorter range and weaker Moran's I than CR — roughly half —
+even with zero terrain/wind features given to either.** DNN and PINN land close to each other,
+not dramatically different despite PINN's extra physics/trajectory-loss terms. Spatial structure
+doesn't disappear in the more flexible models, it shrinks (still significant, p_norm≈0 for both).
+**Reading**: some of what looks like "environmental" structure in CR's residuals is apparently
+already capturable by model flexibility alone (`CanopyCover`/thinning/`yldc` as inputs) — the
+smaller, remaining structure in DNN/PINN is the more honest target for terrain/wind attribution
+to explain, not the larger CR-only signal. Worth measuring the eventual SHAP/NLME "variance
+explained" claim against this smaller baseline, not CR's.
+
+### Plan for next session
+
+1. Build val-residual generation (CR first — trivial; DNN/PINN need checkpoint+scaler reload).
+2. Extract terrain/wind covariates into a clean, reusable per-plot table (Tier 1 step 3 — still
+   the biggest remaining blocker, not done yet despite the exploratory work in
+   `aux_data_resolution_check.ipynb`).
+3. Run XGBoost + SHAP for real, on validation residuals + real covariates.
+4. Build `pinn_env_terrain` using whatever SHAP confirms is worth conditioning on.
+
+**Open question, not yet answered**: have we done *enough* testing to know which variables to
+include? No — not yet. Steps 1-2 above only establish THAT real spatial structure exists (the
+gate); no actual covariate has been tested against the residual with a proper multivariate method
+yet. `aux_data_resolution_check.ipynb`'s Spearman correlations are useful exploratory signal
+(HadUK-Grid strongest at 0.291, TOPEX's correlation with residual vanishing once elevation is
+controlled for, GWA keeping about half its signal) but are univariate, not the real screening
+step — that's what Step 3 (SHAP) is for, still to come.
+
+***
+
 ## Ideas worth revisiting
 
 ### Neighbouring-plot canopy cover as a shelter/exposure proxy
@@ -633,3 +742,128 @@ both split types, updated automatically as real runs land.
   over-reliance on one feature (e.g. mostly `Age`, ignoring the rest) — a permutation-importance or
   partial-dependence check would answer this, and the same check applies again once terrain/wind
   features exist.
+
+## Environmental attribution, Tier 2: XGBoost/SHAP, Elastic Net, grouped category analysis (28 July 2026)
+
+**Tier 1 additions to `aux_data_resolution_check.ipynb`** since the 21 July entry above: added
+CEH TWI/subsurface_drainage/textural_composition and CHELSA gdd5/bio12 (found while answering the
+notebook's own embedded "QUESTIONS I HAVE" cells — these map onto data already downloaded but
+unused). Corrected an earlier mistake: HadUK-Grid and ERA5-Land were nearly excluded TOGETHER as
+"single-year climate snapshots" — wrong, by category not by evidence. Their actual numbers differ
+(HadUK: 149 distinct values, rho=0.29 vs residual; ERA5: 8 distinct values, rho=0.11) — HadUK kept,
+ERA5 excluded, each on its own numbers. Also added `whcl` (raw GPKG windthrow hazard class, 0-6,
+confirmed constant per plot across survey years) and six stand-structure/silvicultural variables
+(`CanopyCover`, `Thin`, `time_since_thinning(+missing)`, `recent_thinning_5yr`, `yldc` — already
+used by `rf_baseline.py`, aggregated to one value per plot by MEAN across survey years, the same
+aggregation `mean_cr_residual` itself uses). `Age` was deliberately left OUT — see the circularity
+finding below.
+
+**New package `models/xgb_environmental/`** (plain Python, mirrors `rf_baseline.py`'s style):
+`data.py`, `xgb_environmental.py` (`FEATURE_PROVENANCE`, `FEATURE_SETS`, fit/predict/SHAP),
+`run_xgb_environmental.py` (CLI orchestrator), `grouped_analysis.py` (domain-category grouping +
+grouped permutation importance + Moran's I before/after, added this session, see below). One
+unified `all_environmental` feature set (35 variables) — no separate environmental-only vs
+environmental+silviculture split kept in parallel, per an explicit "no bloat" steer.
+
+**Bug found and fixed: SHAP computed on test rows.** `compute_shap_values()` was being called on
+the FULL plot set (train+val+test), including the held-out test split — this let the "final"
+test set be inspected ahead of its one honest evaluation, and (worse) the Tier-2 notebook's
+ablation-refit comparisons were repeatedly re-using TEST R² to decide which features to keep,
+turning it into a second validation set. Fixed: `run_xgb_environmental.py` now uses the full
+train/val/test split `spatial_block_split()` already returns (val was previously silently
+dropped — only train/test were read), SHAP is restricted to train+val only, and val is the only
+split used for any feature-selection decision — test is read once, at the end, as the final
+number.
+
+**Age is circular with `mean_cr_residual`'s own construction — real finding, not assumed.**
+Including `Age` alongside the stand-structure variables initially pushed XGBoost test R² from
+0.567 to 0.914, with `Age` as the 2nd-highest SHAP feature. Checked why: binning plots by age and
+averaging the residual per bin shows a real, non-monotonic bias in the single global
+Chapman-Richards curve (+0.99 at 25-32yrs, -0.62 at 40-48yrs, +0.79 at 56-64yrs, -4.5 at
+79-87yrs) — Age's raw correlation with the residual is ~0 (rho=0.02) because the pattern zigzags
+rather than trending, but XGBoost's splits can re-learn this exact zigzag. Since `Age` is the
+Chapman-Richards curve's own only input, handing it back as a feature lets the model patch the
+curve's own fit bias rather than learn anything new about environment/silviculture. **`Age`
+excluded from the feature set for this reason** (see the comment in `xgb_environmental.py`) —
+the other stand-structure variables (`CanopyCover`, `Thin`, etc.) are genuinely independent of
+how the residual was built and stay in.
+
+**Elastic Net (`models/elasticnet_environmental/`), the SHAP-alternative built this session** —
+chosen over GAM/Double ML/BART (all discussed and deferred as future work) because it directly
+answers "does this cause more or less growth, by how much" via a standardized linear
+coefficient, and its regularization handles correlated features differently to SHAP (spreads
+credit across a correlated group instead of SHAP's credit-splitting, which a fitted
+`ElasticNetCV` picks via CV on train only). The three CEH categorical raster layers are one-hot
+encoded (feeding a class ID into a linear model would assume a fake ordering); rows with any
+missing feature are dropped (XGBoost handles NaN natively, Elastic Net cannot, <1% of rows
+affected).
+
+**Grouped category analysis, new notebook: `notebooks/environmental_data/grouped_category_importance.ipynb`**
+— supersedes `env_variable_importance.ipynb` (retired, note added at its own top, left
+unmaintained not deleted). Domain categories (not the same as the earlier correlation-based
+clusters): terrain, wind, soil/site, climate, spatial position/edge effects
+(`dist_to_cpmt_boundary`/`dist_to_forest_perimeter` — edge-effect mechanism, kept separate from
+neighbour features which are a weaker, non-exogenous proxy), stand structure, neighbour/spatial-lag.
+Pipeline, in order: correlations (within + cross-category, flagging e.g. elevation's real
+rho=+0.31 with GWA wind speed but rho=-0.17 with topex — the same "wind" label covers two
+measures that disagree here) → Elastic Net → XGBoost → **grouped permutation importance**
+(shuffles a whole category's columns together through the already-fit model, safer than SHAP
+under correlation) → SHAP+ALE → **spatial cross-validation demonstrated directly**: the same
+XGBoost model/data scored 0.567 test R² under the spatial-block split vs 0.903 under a plain
+random plot-level split — +0.335 R² of pure inflation from skipping a spatial-aware split → **Moran's
+I before/after** (reusing `models/spatial_attribution/spatial_autocorrelation.py`'s
+`global_morans_i()`/`semivariogram_range()`): full-model residual Moran's I = 0.243 (p=0.005,
+real spatial structure remains even with everything in); removing `terrain` increases it the most
+(+0.297) — terrain is the category most responsible for explaining spatial pattern; removing
+`neighbour_spatial_lag` DECREASES it (-0.162), a genuinely counterintuitive result not forced
+into a tidy narrative. Closing section cross-tabulates Elastic Net/SHAP/permutation-importance
+ranks per category so agreement/disagreement is visible directly (the same cross-check logic that
+caught the `Age`/`elevation` circularity above).
+
+**Python files created this session**: `models/xgb_environmental/{__init__.py, data.py,
+xgb_environmental.py, run_xgb_environmental.py, grouped_analysis.py}`,
+`models/elasticnet_environmental/{__init__.py, elasticnet_environmental.py,
+run_elasticnet_environmental.py}`.
+
+**Still deferred**: causal SHAP, GAM, Double/Debiased ML, BART (documented future work, see the
+new notebook's closing section); multi-year HadUK-Grid (currently 2021 only — needs 5 more manual
+CEDA logins/downloads, a manual dependency, not scripted); `models/spatial_attribution/` rename
+(naming collision with "attribution" flagged, not yet actioned).
+
+## Four new spatial-position/edge-effect variables (28 July 2026)
+
+`spatial_position_edge_effects` only had two variables (`dist_to_cpmt_boundary`,
+`dist_to_forest_perimeter`) — asked what else could realistically go there, checked the raw
+GPKG and clean master rather than guessing, and found four real, previously-unused additions:
+
+- **`dist_to_scpt_boundary`** — distance to nearest sub-compartment boundary. `scpt` was already
+  a column in `clean_master_4survey.parquet`, just never used for a boundary-distance feature.
+  Confirmed `scpt` labels ("A", "B", "C"...) repeat across different compartments (all 26 values
+  appear in more than one), so boundaries are dissolved by `cpmt`+`scpt` together, not `scpt`
+  alone — otherwise unrelated sub-compartments would get wrongly merged.
+- **`dist_to_block_boundary`** — same idea, one level coarser, dissolved by `blk` (18 blocks in
+  the full raw GPKG).
+- **`cpmt_compactness_ratio`** — NOT a per-plot distance like the others: a per-compartment shape
+  property (perimeter ÷ area). A small or elongated compartment has proportionally more edge
+  than a large, compact one — answers "how edge-dominated is the whole stand", a different
+  question to "how far is this plot from an edge".
+- **`dist_to_road`** — distance to nearest road/track, via OS Open Roads (confirmed live, no
+  auth, same free-access pattern as OS Open Rivers already used for `dist_to_watercourse`; ~1GB
+  GB-wide file, cached at `data/raw/environmental/oproad_gb.gpkg`, gitignored). Includes
+  unclassified forest tracks, not just A/B roads — even an unclassified track creates a real
+  canopy opening.
+
+`models/common/export_compartment_boundaries.py` generalized to dissolve at all three scales
+(compartment/sub-compartment/block) in one script; `models/common/geo.py` gained
+`load_subcompartment_boundaries()`/`load_block_boundaries()` alongside the existing
+`load_compartment_boundaries()`. All four added to `aux_data_resolution_check.ipynb` (extraction
++ `screen_covariate()` + trust-score entries) and to `xgb_environmental.py`'s
+`FEATURE_PROVENANCE`/`spatial_position_edge_effects` category — the unified feature set is now
+39 variables (was 35).
+
+**Real result, not just added for completeness**: `spatial_position_edge_effects`'s grouped
+permutation importance went from negligible (-0.001 R² with just the original 2 variables) to a
+genuine ΔR²=0.040 (5th of 7 categories) with all 6 — the new variables carry real signal, not
+noise. 4survey `all_environmental` test R² rose from 0.567 to 0.612 (XGBoost) and Elastic Net's
+test R² rose to 0.703 — a modest, plausible improvement, unlike the earlier `Age` case (a huge,
+suspicious jump that turned out to be circular with the target).

@@ -98,6 +98,7 @@ just not equally central.
 | `pinn_noenv_spatialblock_weightsweep` | 2026-07-17 | `spatial_block_split` | same as above | cr_pooled: plot_level CR fit | pinn_noenv | both | primary (this is now the reference PINN result, replacing the row above) | `outputs/spatial_block/pinn_noenv_pw<W>_tw<W>/<cohort>/` for `W` in `{0.0, 0.05, 0.1, 0.2, 0.5, 5.0}` (`W=1.0` is the row above, at the plain `pinn_noenv` path) | Swept `physics_weight`=`trajectory_weight` jointly across 7 values. Best per-cohort: 4survey at `W=0.0` (RMSE=5.0822, R²=0.5991, physics fully off); 6survey at `W=0.05` (RMSE=3.6265, R²=0.7467, beats DNN's 3.6498). Chosen shared default going forward: **`W=0.05`** (4survey RMSE=5.1209, R²=0.5930 — only 0.7% worse than 4survey's own optimum, while being 6survey's actual best). See Findings log for the full table and the val_loss cross-check confirming this isn't test-set cherry-picking |
 | `reseed_check_2026-07-20` | 2026-07-20 | `spatial_block_split` + `temporal_split` (`temporal_wide_gap`) | same as above | cr_pooled: plot_level CR fit | pinn_noenv, dnn_noenv | both | primary (resolves whether the weight-sweep low-weight band and the DNN-vs-PINN margin are real or single-seed noise) | `outputs/<split_type>/pinn_noenv_pw<W>_tw<W>_seed<S>/<cohort>/` for `W` in `{0.0,0.05,0.1,0.2}`, `S` in `{43,44}` (32 jobs); `outputs/<split_type>/dnn_noenv_seed<S>/<cohort>/` for `S` in `{43,44}` (8 jobs); seed 42 already existed at each unsuffixed path | Reseeded the low-weight band and plain DNN at seeds 43/44 alongside the existing seed 42, both cohorts, both splits. **Confirmed, not noise**: 4survey's `W=0.0` preference (6/6 seed×split checks favour it over `W=0.05`) and DNN's 4survey win over PINN (0/3 and 1/3 seeds for PINN, i.e. DNN wins most/all). **Not confirmed, was noise**: 6survey's "optimal weight" (gaps between `0.05`/`0.1`/`0.2` smaller than each weight's own seed-to-seed spread, both splits) and the "PINN wins 6survey" claim (PINN beats DNN in only 2/3 seeds, <0.2% RMSE gap, both splits). See Findings log for the full reasoning and Decisions log for what this changes |
 | `temporal_narrow_gap_2026-07-20` | 2026-07-20 | `temporal_narrow_gap` | 4survey: train=[2012,2021], val=[2008], test=[2023]; 6survey: train=[2006,2008,2012,2021], val=[2002], test=[2023] | cr_pooled: plot_level CR fit | CR, average-by-age, linear, RF, dnn_noenv, pinn_noenv (`pw=tw=0.05`) | both | secondary (answers the specific `temporal_narrow_gap` robustness-check question, not a fourth fully-tuned split) | `outputs/temporal_narrow_gap/<model>/<cohort>/` | Baselines: fit locally (cheap, no cluster) — 7/8 model/cohort combos degrade less under the 2-year gap than `temporal_wide_gap`'s 11-year gap. DNN/PINN: one run each (tuned settings, shared `pw=tw=0.05`, deliberately not re-swept) — both improve 10-12% RMSE moving from `temporal_wide_gap` to `temporal_narrow_gap`, on both cohorts (DNN: 4survey 5.8600→5.2814, 6survey 4.9388→4.3445; PINN: 4survey 5.9348→5.2716, 6survey 4.8915→4.3795) — confirms gap length, not "temporal prediction is inherently hard," drives `temporal_wide_gap`'s degradation |
+| `xgb_elasticnet_environmental_2026-07-28` | 2026-07-28 | `spatial_block_split` (train/val/test all used; val for feature decisions, test read once) | n/a (all years pooled per plot, mean CR residual target) | cr_pooled: plot_level CR fit | xgb_environmental (XGBoost+SHAP), elasticnet_environmental (ElasticNetCV) | both (4survey primary) | primary | `outputs/spatial_block/xgb_environmental/<feature_set>/<cohort>/`, `outputs/spatial_block/elasticnet_environmental/<feature_set>/<cohort>/` | 35-variable unified environmental+silviculture feature set (`Age` excluded — circular with the CR residual's own construction, see Findings log). 4survey `all_environmental`: XGBoost test R²=0.567, Elastic Net val R²=0.778 (higher than XGBoost's own val R²=0.611). Grouped permutation importance: neighbour/spatial-lag dominates (ΔR²=0.927), then stand structure (0.156), climate/terrain/wind modest (0.03-0.04), soil/site and spatial-position-edge-effects negligible. Full-model residual Moran's I=0.243 (p=0.005) — real spatial structure remains even with everything in; removing `terrain` increases it most (+0.297) |
 
 ## Findings log (what I found → what's working / not → what it means for next steps)
 
@@ -542,6 +543,43 @@ harder, more discriminating primary temporal test, not an artefact of these spec
 has PINN marginally ahead (0.2%), 6survey has DNN marginally ahead (0.8%), both single-seed and
 both smaller than the noise floor the reseed check above just measured (~0.1-1.5% RMSE). Not
 claimed as a result; would need its own reseed to say anything about it.
+
+**2026-07-28 — Environmental attribution Tier 2: a circularity bug caught, spatial-CV inflation
+measured directly, and three independent methods agree/disagree in informative ways.**
+**What I found:** (1) Adding `Age` to the feature set pushed XGBoost test R² from 0.567 to 0.914
+and made `Age` the 2nd-highest SHAP feature — checked why, and found the single global
+Chapman-Richards curve has a real, non-monotonic residual bias by age bin (+0.99 at 25-32yrs,
+-0.62 at 40-48yrs, +0.79 at 56-64yrs, -4.5 at 79-87yrs), which XGBoost can re-learn given `Age`
+back as an input — `Age` was excluded for this reason, the other stand-structure variables
+weren't. (2) The same model/data scored test R²=0.567 under `spatial_block_split` vs 0.903 under
+a plain random plot-level split — +0.335 R² of pure inflation, measured directly rather than
+just asserted, confirming why every result in this repo uses a spatial-aware split. (3) A
+pre-existing SHAP-on-test-rows leakage bug (SHAP computed over the full plot set, including
+test, and the Tier-2 notebook's ablation work was repeatedly re-using test R² for feature
+decisions) was found and fixed — val is now the only split used for any feature-selection
+decision, test is read once. (4) Three independent importance/effect methods (Elastic Net
+coefficients, XGBoost SHAP, grouped permutation importance) mostly agree on category ranking
+(neighbour/spatial-lag and stand-structure dominate; soil/site and spatial-position/edge-effects
+are negligible by all three) but Moran's I before/after tells a genuinely different story:
+removing `terrain` increases residual spatial autocorrelation the most (+0.297), while removing
+`neighbour_spatial_lag` (the single biggest driver by every other method) DECREASES it (-0.162).
+**What's working:** the cross-method agreement pattern already established for individual
+variables (SHAP vs. ablation) generalises cleanly to category-level analysis — methods that
+agree give real confidence (e.g. soil/site's low importance), methods that disagree (Moran's I
+vs. everything else on neighbour features) are flagged as genuinely different questions, not
+forced into one story.
+**What's not working / open concern:** the neighbour/spatial-lag category's Moran's I result
+(removing the biggest predictive driver DECREASES spatial autocorrelation) isn't fully explained
+— plausibly because removing it leaves such a large, noisy residual that fine-scale spatial
+structure gets swamped, but this is a hypothesis, not confirmed. `Age`'s exclusion means the
+stand-structure category's real predictive contribution (permutation ΔR²=0.156) is understated
+relative to what a naive "just include everything" pass would have shown, by design.
+**What this means for next steps:** the same circularity check (does a candidate feature share
+construction with the target) is worth applying BEFORE adding any new variable to Env-PINN's own
+feature set, not just discovered after the fact. Causal SHAP, GAM, Double/Debiased ML, and BART
+remain the documented path to actually answering "does X cause more or less growth" — everything
+built this session (Elastic Net, grouped permutation importance, Moran's I) improves the honesty
+of an associational/predictive ranking, not a causal one.
 
 ## Decisions log (the "why", chronological)
 

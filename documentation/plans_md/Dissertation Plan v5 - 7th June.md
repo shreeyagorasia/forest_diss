@@ -16,6 +16,18 @@ $itemKey: A8S399ZC
 
 ***
 
+**This is a living plan, not a fixed contract.** Specific data sources, methods, deliverables,
+and even chapter structure below are the current best guess, made with the information
+available at the time -- not commitments to defend unchanged. Several have already been revised
+after real evidence contradicted them (e.g. HadUK-Grid's assumed "~2-3 cells" and James
+Hutton's assumed "~3-5 polygons," both disproven by actual extraction; see
+`documentation/experiment_log.md` and the environmental-data notebooks for the full record).
+Treat any specific claim here as a hypothesis to check against real data/analysis, not settled
+fact -- if evidence points to a different variable, method, or deliverable being more suitable,
+the plan should change to match the evidence, not the other way around.
+
+***
+
 ## One-Line Summary
 
 > This dissertation investigates why some Sitka spruce plots in Aberfoyle consistently grow faster or slower than a standard biological growth model predicts, using up to 21 years of repeated LiDAR-derived plot attributes, and builds a physics-informed neural network that learns plot-specific growth ceilings from terrain and wind exposure data.
