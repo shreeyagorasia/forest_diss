@@ -3,7 +3,7 @@
 # Run on the ICF cluster from the project root:
 #
 #   cd ~/forest_diss
-#   sbatch jobs/pinn_noenv/run_pinn_noenv.sh [cohort] [max_epochs] [patience] [split_type] [physics_weight] [trajectory_weight] [run_name] [seed]
+#   sbatch jobs/pinn_noenv/run_pinn_noenv.sh [cohort] [max_epochs] [patience] [split_type] [physics_weight] [trajectory_weight] [run_name] [seed] [batch_size]
 #
 # Examples:
 #   sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 5 3
@@ -11,6 +11,7 @@
 #   sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 20 spatial_block
 #   sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 spatial_block 5.0 5.0 pinn_noenv_pw5_tw5
 #   sbatch jobs/pinn_noenv/run_pinn_noenv.sh 6survey 500 40 temporal 0.1 0.1 pinn_noenv_pw0.1_tw0.1_seed43 43
+#   sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 150 40 spatial_block 0.0 0.0 pinn_noenv_epochcheck_w0_bs512 42 512
 #
 # Arguments:
 #   cohort             4survey or 6survey. Defaults to 4survey.
@@ -27,6 +28,11 @@
 #                       model's own default) -- pass a different value to test run-to-run
 #                       variance at a fixed weight, e.g. for a physics-weight sweep result
 #                       that's close between two nearby weights.
+#   batch_size         Main + pairs training batch size. Defaults to 128 (the model's own
+#                       default). dnn_noenv's default is 512 -- pass 512 here to test PINN
+#                       under a batch-size-matched comparison against the DNN (see
+#                       documentation/experiment_log.md's 2026-07-29 Findings entry for why
+#                       this was never controlled for before).
 #
 # Logs:
 #   stdout -> logs/pinn_noenv/pinn_noenv_<jobid>.out
@@ -67,6 +73,7 @@ PHYSICS_WEIGHT=${5:-1.0}
 TRAJECTORY_WEIGHT=${6:-1.0}
 RUN_NAME=${7:-}
 SEED=${8:-42}
+BATCH_SIZE=${9:-128}
 
 echo "--- PINN job start ---"
 echo "Node: $(hostname)"
@@ -78,6 +85,7 @@ echo "Physics weight: ${PHYSICS_WEIGHT}"
 echo "Trajectory weight: ${TRAJECTORY_WEIGHT}"
 echo "Run name: ${RUN_NAME:-(none, uses default pinn_noenv path)}"
 echo "Seed: ${SEED}"
+echo "Batch size: ${BATCH_SIZE}"
 
 RUN_NAME_ARGS=()
 if [ -n "${RUN_NAME}" ]; then
@@ -92,6 +100,8 @@ python -u -m models.pinn_noenv.run_pinn_noenv \
   --physics-weight "${PHYSICS_WEIGHT}" \
   --trajectory-weight "${TRAJECTORY_WEIGHT}" \
   --seed "${SEED}" \
+  --batch-size "${BATCH_SIZE}" \
+  --pairs-batch-size "${BATCH_SIZE}" \
   "${RUN_NAME_ARGS[@]}"
 
 echo "--- PINN job end ---"

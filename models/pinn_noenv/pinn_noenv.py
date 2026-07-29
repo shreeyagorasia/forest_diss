@@ -131,17 +131,18 @@ def train_one_epoch(
     age_train, other_train, target_train,
     pair_tensors, cr_params, scaler_age, scaler_height,
     device, physics_weight, trajectory_weight,
+    batch_size=BATCH_SIZE, pairs_batch_size=PAIRS_BATCH_SIZE,
 ):
     model.train()
 
     n_rows = age_train.shape[0]
     shuffled_row_order = torch.randperm(n_rows, device=device)
-    main_batch_starts = list(range(0, n_rows, BATCH_SIZE))
+    main_batch_starts = list(range(0, n_rows, batch_size))
 
     age_earlier_all, other_earlier_all, age_later_all, other_later_all, delta_age_all, age_mid_all, _ = pair_tensors
     n_pairs = age_earlier_all.shape[0]
     shuffled_pair_order = torch.randperm(n_pairs, device=device)
-    pair_batch_starts = list(range(0, n_pairs, PAIRS_BATCH_SIZE))
+    pair_batch_starts = list(range(0, n_pairs, pairs_batch_size))
 
     # There are usually fewer pairs than main rows (one pair per plot vs.
     # several survey-year rows per plot), so the pairs batches are cycled
@@ -154,13 +155,13 @@ def train_one_epoch(
     n_batches = 0
 
     for batch_start in main_batch_starts:
-        batch_row_indices = shuffled_row_order[batch_start:batch_start + BATCH_SIZE]
+        batch_row_indices = shuffled_row_order[batch_start:batch_start + batch_size]
         age_batch = age_train[batch_row_indices]
         other_batch = other_train[batch_row_indices]
         target_batch = target_train[batch_row_indices]
 
         pair_batch_start = next(pair_batch_cycle)
-        pair_batch_indices = shuffled_pair_order[pair_batch_start:pair_batch_start + PAIRS_BATCH_SIZE]
+        pair_batch_indices = shuffled_pair_order[pair_batch_start:pair_batch_start + pairs_batch_size]
 
         optimizer.zero_grad()
 
@@ -236,6 +237,7 @@ def fit(
     max_epochs, early_stopping_patience,
     optimizer_name="adam",
     physics_weight=PHYSICS_WEIGHT, trajectory_weight=TRAJECTORY_WEIGHT,
+    batch_size=BATCH_SIZE, pairs_batch_size=PAIRS_BATCH_SIZE,
 ):
     training_start_time = time.time()
     model = build_model(n_other_features, device, seed)
@@ -256,6 +258,7 @@ def fit(
             age_train, other_train, target_train,
             pair_tensors, cr_params, scaler_age, scaler_height,
             device, physics_weight, trajectory_weight,
+            batch_size=batch_size, pairs_batch_size=pairs_batch_size,
         )
         val_loss = evaluate_on_validation_set(model, age_val, other_val, target_val)
         scheduler.step(val_loss)

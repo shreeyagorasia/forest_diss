@@ -87,6 +87,7 @@ just not equally central.
 |---|---|---|---|---|---|---|---|---|---|
 | `xgb_elasticnet_environmental_2026-07-29` | 2026-07-29 | `spatial_block_split` (train/val/test all used; val for feature decisions, test read once) | n/a (all years pooled per plot, mean CR residual target) | cr_pooled: plot_level CR fit (re-derived on `elev_percentile_95th`) | xgb_environmental (XGBoost+SHAP), elasticnet_environmental (ElasticNetCV) | both (4survey primary) | primary (replaces the retired-pipeline row) | `outputs/spatial_block/xgb_environmental/<feature_set>/<cohort>/`, `outputs/spatial_block/elasticnet_environmental/<feature_set>/<cohort>/` | Re-run against the new target + `yldc` removed from the 34-variable unified environmental+silviculture feature set (`Age` still excluded — circular with the CR residual, see Findings log). 4survey `all_environmental`: XGBoost val R²=0.734/test R²=0.629, Elastic Net val R²=0.700/test R²=0.671. 6survey `all_environmental`: XGBoost val R²=0.107/test R²=0.398, Elastic Net val R²=0.147/test R²=0.521 — 6survey's val R² sits well below its own test R² across every feature set for both model types (opposite of the usual overfitting direction); likely which compartments `spatial_block_split` happened to assign to val vs test for the smaller cohort, not yet investigated further. 4survey grouped permutation importance (`grouped_category_importance.ipynb`): `neighbour_spatial_lag` dominates (mean R² drop=1.177, ~10x every other category), then climate/stand_structure/terrain clustered close together (0.11-0.12), wind least (0.023). Full-model residual Moran's I=0.197 (p=0.005) -- still significant spatial autocorrelation left unexplained; removing `terrain` increases it the most (Δ=0.066), even though terrain isn't top for raw accuracy -- a genuine cross-method disagreement (matters for spatial pattern, not for prediction). |
 | `baselines_rebuild_2026-07-28` | 2026-07-28 | `plot_level`, `spatial_block`, `temporal` (wide-gap), `temporal_narrow_gap` -- all four re-run | same year assignments as the retired-pipeline rows above | n/a | CR, average-by-age, linear, RF | both | primary (replaces every baseline number above) | `outputs/<split_type or nothing>/<model>/<cohort>/` | New target (`elev_percentile_95th`) + `yldc` removed from RF/linear. `plot_level`: RF best (R²=0.570) as before. `spatial_block`: RF loses its advantage to linear (R²=0.475 vs 0.512) as before -- same qualitative pattern as the retired pipeline, confirming the rebuild didn't change which baseline "wins" per split, just the absolute numbers. Chapman-Richards fit also fixed a pre-existing degeneracy (y_max was landing exactly on the observed max height under both old and new target) -- lower bound now `max_observed_height * 1.001`. Full reasoning: `progress_notes.md`'s 2026-07-28 entry |
+| `dnn_pinn_epochcheck_2026-07-29` | 2026-07-29 | `spatial_block` | 4survey only, short smoke tests (max 150 epochs, patience 40) | cr_pooled | dnn_noenv, pinn_noenv, 3 PINN weight variants | 4survey only | diagnostic, not a result -- see Findings log | `outputs/spatial_block/{dnn,pinn}_noenv_epochcheck*/4survey/` | Base-case (`W=1.0`) DNN/PINN cluster jobs came back suspiciously fast (~53s, later traced to a missing rsync of `data/processed/transitions/`, fixed). Once fixed: DNN converges normally (val_loss 0.342→0.331 over ~50 epochs, patience stops at 52). PINN never beats its own epoch-1 val_loss at `W=1.0`, `W=0.0`, OR `W=0.05` (best_val_loss ≈ epoch-1's value in all three) -- ruled out physics weight as the cause. Found the real confound: `pinn_noenv.py`'s `BATCH_SIZE=128` vs `dnn_noenv.py`'s `BATCH_SIZE=512`, undocumented, never controlled for. Exposed `--batch-size`/`--pairs-batch-size` as CLI args (previously hardcoded) to test batch-size-matched. Next: rerun `physics_weight=0.0` at `--batch-size 512` on the cluster (see below) to isolate batch size from the physics-weight question properly. |
 
 ## Findings log (what I found → what's working / not → what it means for next steps)
 
@@ -111,6 +112,41 @@ time, even in short form:
 ---
 
 **Consolidated 29 July 2026**: the detailed dated entries that used to sit here (2026-07-13 through 2026-07-20, covering the plot_level/spatial_block/temporal baseline results, the DNN/PINN tuning and physics-weight-sweep process, the 3-seed reseed check, and the temporal_narrow_gap comparison) were all built on the now-retired `Top_Height99`+`yldc` pipeline -- not comparable to current numbers. Key results preserved in `progress_notes.md`'s "Systematic rebuild" entry (28-29 July 2026); full original narrative still in git history if ever needed.
+
+---
+
+**2026-07-29 — PINN's `physics_weight=0.0` test doesn't behave like DNN, exposing an
+undocumented, uncontrolled batch-size difference between the two models.**
+**What I found:** the real base-case (`physics_weight=trajectory_weight=1.0`) DNN/PINN cluster
+jobs first came back in ~53s each -- impossible for real training, traced to
+`data/processed/transitions/` never having been rsynced to the cluster (fixed). Once actually
+running: DNN's `val_loss` genuinely improves (0.342→0.331 over ~50 epochs before patience=40
+stops it at epoch 52). PINN's `best_val_loss` never beats its own epoch-1 value, at `W=1.0`
+(0.394902), `W=0.0` (0.328968), or `W=0.05` (0.334239) -- all three runs plateau at essentially
+the same value they started at. If `W=0.0` truly zeroes out the physics/trajectory terms'
+gradient contribution, PINN's loss function is then identical to DNN's -- so it shouldn't stall
+where DNN doesn't, and it did anyway. Reading both training loops side by side found why:
+`dnn_noenv.py`'s `BATCH_SIZE=512` vs `pinn_noenv.py`'s `BATCH_SIZE=128`/`PAIRS_BATCH_SIZE=128` --
+undocumented (every other hyperparameter has an explicit "kept identical to the DNN" comment;
+this one doesn't), meaning ~254 optimizer steps/epoch for PINN vs. ~64 for DNN, a real, large,
+previously unnoticed confound.
+**What's working:** the diagnostic discipline itself -- watching per-epoch logs live (instead of
+trusting `sacct`'s exit code) is what caught the missing-file bug; comparing DNN and PINN's
+training curves side by side (not just their final numbers) is what caught the batch-size
+mismatch, which a results-only comparison would have missed entirely.
+**What's not working / open concern:** the `physics_weight` sweep's conclusions (this session's
+AND the retired pipeline's) were never run with batch size held constant between DNN and PINN --
+meaning "physics hurts 4survey" has an unexamined alternative explanation (batch size) that
+hasn't been ruled out yet. Not resolved: is 128 a deliberate choice (e.g. GPU memory for the
+extra physics/trajectory autograd graphs) or just an unexamined leftover -- no comment either way.
+**What this means for what's next:** exposed `--batch-size`/`--pairs-batch-size` as CLI args on
+`run_pinn_noenv.py` (previously hardcoded constants, no way to test this without permanently
+editing the file) -- confirmed working via a 5-epoch local smoke test at `--batch-size 512`,
+which already showed `best_val_loss` beating epoch 1 (0.344→0.337) within 5 epochs, unlike every
+128-batch run. Not conclusive on its own (5 epochs, no patience exhaustion) -- the real test is
+the matched-batch-size cluster run below. If that clears the epoch-1 plateau, batch size (not
+physics weight) was the actual cause, and the retired pipeline's weight-sweep conclusion needs
+re-examining under a fair, batch-matched comparison before being trusted further.
 
 ---
 

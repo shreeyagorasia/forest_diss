@@ -96,7 +96,7 @@ def load_cr_params(cohort):
 
 def run_for_cohort(
     cohort, split_type, max_epochs, early_stopping_patience, seed, optimizer_name,
-    physics_weight, trajectory_weight, run_name,
+    physics_weight, trajectory_weight, batch_size, pairs_batch_size, run_name,
 ):
     # run_name only changes where results are SAVED (output_dir below) and
     # how this run is labelled in outputs/run_logs/ -- it never changes
@@ -126,8 +126,8 @@ def run_for_cohort(
         "optimizer_name": optimizer_name,
         "physics_weight": physics_weight,
         "trajectory_weight": trajectory_weight,
-        "batch_size": BATCH_SIZE,
-        "pairs_batch_size": PAIRS_BATCH_SIZE,
+        "batch_size": batch_size,
+        "pairs_batch_size": pairs_batch_size,
         "max_epochs": max_epochs,
         "early_stopping_patience": early_stopping_patience,
         "seed": seed,
@@ -184,6 +184,7 @@ def run_for_cohort(
             max_epochs, early_stopping_patience,
             optimizer_name=optimizer_name,
             physics_weight=physics_weight, trajectory_weight=trajectory_weight,
+            batch_size=batch_size, pairs_batch_size=pairs_batch_size,
         )
         last_row = history_df.iloc[-1]
         # The smoothed column is what actually decided which epoch's
@@ -290,6 +291,18 @@ def main():
         help=f"Weight on the trajectory (finite-difference) physics loss term. Default {TRAJECTORY_WEIGHT}, never tuned before.",
     )
     parser.add_argument(
+        "--batch-size", type=int, default=BATCH_SIZE,
+        help=(
+            f"Main training batch size. Default {BATCH_SIZE} -- 4x smaller than dnn_noenv's 512, "
+            "never tuned/matched before; exposed here specifically to test whether that mismatch "
+            "(not the physics terms) explains a DNN-vs-PINN convergence difference."
+        ),
+    )
+    parser.add_argument(
+        "--pairs-batch-size", type=int, default=PAIRS_BATCH_SIZE,
+        help="Trajectory-pairs batch size. Default matches --batch-size's default.",
+    )
+    parser.add_argument(
         "--run-name", default=None,
         help=(
             "Only changes where results are saved and how this run is labelled in "
@@ -306,7 +319,8 @@ def main():
     for cohort in cohorts:
         results[cohort] = run_for_cohort(
             cohort, args.split_type, args.max_epochs, args.patience, args.seed, args.optimizer,
-            args.physics_weight, args.trajectory_weight, args.run_name,
+            args.physics_weight, args.trajectory_weight, args.batch_size, args.pairs_batch_size,
+            args.run_name,
         )
 
     print("===== Summary: best validation loss reached =====")
