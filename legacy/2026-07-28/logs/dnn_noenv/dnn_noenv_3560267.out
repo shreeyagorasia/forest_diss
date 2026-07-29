@@ -1,0 +1,40 @@
+--- DNN job start ---
+Node: damnii07.inf.ed.ac.uk
+Cohort: 4survey
+Max epochs: 500
+Patience: 40
+Split type: spatial_block
+Seed: 43
+Run name: dnn_noenv_seed43
+===== 4survey (dnn_noenv_seed43, spatial_block) — FIT ONLY, no test-set evaluation =====
+  Using device: cuda
+  Rows before filtering: 287,064
+  Removed by Age < 30 at the 2023 survey (whole plot dropped): 54,616 rows
+  Removed by yield class between 2 and 50: 0 rows
+  Rows after filtering: 232,448
+  Buffer: 2,179 train plots are within 60 m of a val/test plot and are excluded ('buffer'). val/test plots are never removed.
+  ----- Pre-training diagnostic: 4survey -----
+  Training plots (unique identification): 32,425
+  Test plots (unique identification): 11,743
+  Training plots with at least one usable trajectory pair: 32,425
+  annual_height99_increment across training pairs: mean=0.5214 m/yr, std=0.7591 m/yr
+  Training rows by survey year:
+    2008: 32,425 rows
+    2012: 32,425 rows
+    2021: 32,425 rows
+    2023: 32,425 rows
+
+  epoch 1/500  train_loss=0.5158  val_loss=0.3028  val_loss_smoothed=0.3028  learning_rate=0.000100 (new best)
+  epoch 10/500  train_loss=0.3038  val_loss=0.2846  val_loss_smoothed=0.2850  learning_rate=0.000100 (new best)
+  epoch 20/500  train_loss=0.2940  val_loss=0.2830  val_loss_smoothed=0.2893  learning_rate=0.000100
+  epoch 30/500  train_loss=0.2881  val_loss=0.2903  val_loss_smoothed=0.2888  learning_rate=0.000080
+  epoch 40/500  train_loss=0.2838  val_loss=0.3096  val_loss_smoothed=0.2994  learning_rate=0.000080
+  epoch 50/500  train_loss=0.2807  val_loss=0.2966  val_loss_smoothed=0.2973  learning_rate=0.000064
+  Early stopping at epoch 51 (no val_loss improvement for 40 epochs).
+  Trained for 51 epochs in 79.6s. best_val_loss=0.284275  final_val_loss=0.296702
+  Saved checkpoint + scalers + history -> /home/s2887183/forest_diss/outputs/spatial_block/dnn_noenv_seed43/4survey
+  Next step: python -m models.dnn_noenv.evaluate_dnn_noenv --cohort 4survey --split-type spatial_block --run-name dnn_noenv_seed43
+
+===== Summary: best validation loss reached =====
+  4survey: best_val_loss=0.284275
+--- DNN job end ---

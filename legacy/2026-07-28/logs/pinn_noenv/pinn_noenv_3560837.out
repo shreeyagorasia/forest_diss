@@ -1,0 +1,39 @@
+--- PINN job start ---
+Node: damnii10.inf.ed.ac.uk
+Cohort: 4survey
+Max epochs: 500
+Patience: 40
+Split type: temporal_narrow_gap
+Physics weight: 0.05
+Trajectory weight: 0.05
+Run name: pinn_noenv_pw0.05_tw0.05
+Seed: 42
+===== 4survey (pinn_noenv_pw0.05_tw0.05, temporal_narrow_gap) — FIT ONLY, no test-set evaluation =====
+  Using device: cpu
+  Frozen CR params: y_max=53.4909, k=0.010990, p=0.858848
+  Rows before filtering: 287,064
+  Removed by Age < 30 at the 2023 survey (whole plot dropped): 54,616 rows
+  Removed by yield class between 2 and 50: 0 rows
+  Rows after filtering: 232,448
+  ----- Pre-training diagnostic: 4survey -----
+  Training plots (unique identification): 58,112
+  Test plots (unique identification): 58,112
+  Training plots with at least one usable trajectory pair: 58,112
+  annual_height99_increment across training pairs: mean=0.5137 m/yr, std=0.2973 m/yr
+  Training rows by survey year:
+    2012: 58,112 rows
+    2021: 58,112 rows
+
+  epoch 1/500  data_loss=0.4180  physics_loss=0.0260  trajectory_loss=0.0570  val_loss=0.2716  val_loss_smoothed=0.2716  learning_rate=0.000100 (new best)
+  epoch 10/500  data_loss=0.3229  physics_loss=0.0357  trajectory_loss=0.0732  val_loss=0.2572  val_loss_smoothed=0.2600  learning_rate=0.000100
+  epoch 20/500  data_loss=0.3140  physics_loss=0.0459  trajectory_loss=0.0766  val_loss=0.2652  val_loss_smoothed=0.2663  learning_rate=0.000080
+  epoch 30/500  data_loss=0.3096  physics_loss=0.0533  trajectory_loss=0.0782  val_loss=0.2829  val_loss_smoothed=0.2689  learning_rate=0.000080
+  epoch 40/500  data_loss=0.3057  physics_loss=0.0620  trajectory_loss=0.0785  val_loss=0.2714  val_loss_smoothed=0.2719  learning_rate=0.000064
+  Early stopping at epoch 46 (no val_loss improvement for 40 epochs).
+  Trained for 46 epochs in 1353.7s. best_val_loss=0.258558  final: data_loss=0.304467  physics_loss=0.067220  trajectory_loss=0.078990
+  Saved checkpoint + scalers + history -> /home/s2887183/forest_diss/outputs/temporal_narrow_gap/pinn_noenv_pw0.05_tw0.05/4survey
+  Next step: python -m models.pinn_noenv.evaluate_pinn_noenv --cohort 4survey --split-type temporal_narrow_gap --run-name pinn_noenv_pw0.05_tw0.05
+
+===== Summary: best validation loss reached =====
+  4survey: best_val_loss=0.258558
+--- PINN job end ---

@@ -1,0 +1,42 @@
+--- DNN job start ---
+Node: damnii08.inf.ed.ac.uk
+Cohort: 6survey
+Max epochs: 500
+Patience: 40
+Split type: spatial_block
+Seed: 43
+Run name: dnn_noenv_seed43
+===== 6survey (dnn_noenv_seed43, spatial_block) — FIT ONLY, no test-set evaluation =====
+  Using device: cuda
+  Rows before filtering: 83,382
+  Removed by Age < 30 at the 2023 survey (whole plot dropped): 768 rows
+  Removed by yield class between 2 and 50: 0 rows
+  Rows after filtering: 82,614
+  Buffer: 565 train plots are within 60 m of a val/test plot and are excluded ('buffer'). val/test plots are never removed.
+  ----- Pre-training diagnostic: 6survey -----
+  Training plots (unique identification): 7,280
+  Test plots (unique identification): 2,781
+  Training plots with at least one usable trajectory pair: 7,280
+  annual_height99_increment across training pairs: mean=0.6070 m/yr, std=0.5635 m/yr
+  Training rows by survey year:
+    2002: 7,280 rows
+    2006: 7,280 rows
+    2008: 7,280 rows
+    2012: 7,280 rows
+    2021: 7,280 rows
+    2023: 7,280 rows
+
+  epoch 1/500  train_loss=0.8230  val_loss=0.4880  val_loss_smoothed=0.4880  learning_rate=0.000100 (new best)
+  epoch 10/500  train_loss=0.2465  val_loss=0.2039  val_loss_smoothed=0.2031  learning_rate=0.000100 (new best)
+  epoch 20/500  train_loss=0.2368  val_loss=0.2098  val_loss_smoothed=0.2063  learning_rate=0.000100
+  epoch 30/500  train_loss=0.2312  val_loss=0.2112  val_loss_smoothed=0.2104  learning_rate=0.000080
+  epoch 40/500  train_loss=0.2275  val_loss=0.2178  val_loss_smoothed=0.2149  learning_rate=0.000080
+  epoch 50/500  train_loss=0.2245  val_loss=0.2199  val_loss_smoothed=0.2181  learning_rate=0.000064
+  Early stopping at epoch 50 (no val_loss improvement for 40 epochs).
+  Trained for 50 epochs in 17.2s. best_val_loss=0.203131  final_val_loss=0.219933
+  Saved checkpoint + scalers + history -> /home/s2887183/forest_diss/outputs/spatial_block/dnn_noenv_seed43/6survey
+  Next step: python -m models.dnn_noenv.evaluate_dnn_noenv --cohort 6survey --split-type spatial_block --run-name dnn_noenv_seed43
+
+===== Summary: best validation loss reached =====
+  6survey: best_val_loss=0.203131
+--- DNN job end ---

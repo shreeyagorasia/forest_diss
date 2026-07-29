@@ -1,0 +1,34 @@
+--- DNN job start ---
+Node: damnii11.inf.ed.ac.uk
+Cohort: 4survey
+Max epochs: 500
+Patience: 40
+Split type: temporal
+===== 4survey (dnn_noenv, temporal) — FIT ONLY, no test-set evaluation =====
+  Using device: cpu
+  Rows before filtering: 287,064
+  Removed by Age < 30 at the 2023 survey (whole plot dropped): 54,616 rows
+  Removed by yield class between 2 and 50: 0 rows
+  Rows after filtering: 232,448
+  ----- Pre-training diagnostic: 4survey -----
+  Training plots (unique identification): 58,112
+  Test plots (unique identification): 58,112
+  Training plots with at least one usable trajectory pair: 58,112
+  annual_height99_increment across training pairs: mean=0.5872 m/yr, std=0.3998 m/yr
+  Training rows by survey year:
+    2008: 58,112 rows
+    2012: 58,112 rows
+
+  epoch 1/500  train_loss=0.5293  val_loss=0.5298  val_loss_smoothed=0.5298  learning_rate=0.000100 (new best)
+  epoch 10/500  train_loss=0.2788  val_loss=0.5405  val_loss_smoothed=0.5331  learning_rate=0.000100
+  epoch 20/500  train_loss=0.2700  val_loss=0.5653  val_loss_smoothed=0.5600  learning_rate=0.000080
+  epoch 30/500  train_loss=0.2656  val_loss=0.5756  val_loss_smoothed=0.5720  learning_rate=0.000080
+  epoch 40/500  train_loss=0.2626  val_loss=0.5962  val_loss_smoothed=0.5900  learning_rate=0.000064
+  Early stopping at epoch 43 (no val_loss improvement for 40 epochs).
+  Trained for 43 epochs in 225.6s. best_val_loss=0.517345  final_val_loss=0.591876
+  Saved checkpoint + scalers + history -> /home/s2887183/forest_diss/outputs/temporal/dnn_noenv/4survey
+  Next step: python -m models.dnn_noenv.evaluate_dnn_noenv --cohort 4survey --split-type temporal
+
+===== Summary: best validation loss reached =====
+  4survey: best_val_loss=0.517345
+--- DNN job end ---

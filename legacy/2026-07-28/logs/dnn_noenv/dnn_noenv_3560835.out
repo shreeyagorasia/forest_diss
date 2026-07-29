@@ -1,0 +1,36 @@
+--- DNN job start ---
+Node: damnii08.inf.ed.ac.uk
+Cohort: 4survey
+Max epochs: 500
+Patience: 40
+Split type: temporal_narrow_gap
+Seed: 42
+Run name: (none, uses default dnn_noenv path)
+===== 4survey (dnn_noenv, temporal_narrow_gap) — FIT ONLY, no test-set evaluation =====
+  Using device: cuda
+  Rows before filtering: 287,064
+  Removed by Age < 30 at the 2023 survey (whole plot dropped): 54,616 rows
+  Removed by yield class between 2 and 50: 0 rows
+  Rows after filtering: 232,448
+  ----- Pre-training diagnostic: 4survey -----
+  Training plots (unique identification): 58,112
+  Test plots (unique identification): 58,112
+  Training plots with at least one usable trajectory pair: 58,112
+  annual_height99_increment across training pairs: mean=0.5137 m/yr, std=0.2973 m/yr
+  Training rows by survey year:
+    2012: 58,112 rows
+    2021: 58,112 rows
+
+  epoch 1/500  train_loss=0.5637  val_loss=0.2763  val_loss_smoothed=0.2763  learning_rate=0.000100 (new best)
+  epoch 10/500  train_loss=0.3292  val_loss=0.2603  val_loss_smoothed=0.2572  learning_rate=0.000100
+  epoch 20/500  train_loss=0.3194  val_loss=0.2643  val_loss_smoothed=0.2621  learning_rate=0.000100
+  epoch 30/500  train_loss=0.3146  val_loss=0.2649  val_loss_smoothed=0.2663  learning_rate=0.000080
+  epoch 40/500  train_loss=0.3115  val_loss=0.2665  val_loss_smoothed=0.2693  learning_rate=0.000064
+  Early stopping at epoch 48 (no val_loss improvement for 40 epochs).
+  Trained for 48 epochs in 45.7s. best_val_loss=0.255841  final_val_loss=0.269539
+  Saved checkpoint + scalers + history -> /home/s2887183/forest_diss/outputs/temporal_narrow_gap/dnn_noenv/4survey
+  Next step: python -m models.dnn_noenv.evaluate_dnn_noenv --cohort 4survey --split-type temporal_narrow_gap
+
+===== Summary: best validation loss reached =====
+  4survey: best_val_loss=0.255841
+--- DNN job end ---

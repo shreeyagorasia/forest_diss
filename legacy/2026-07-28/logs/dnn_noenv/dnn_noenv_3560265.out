@@ -1,0 +1,41 @@
+--- DNN job start ---
+Node: damnii08.inf.ed.ac.uk
+Cohort: 6survey
+Max epochs: 500
+Patience: 40
+Split type: temporal
+Seed: 43
+Run name: dnn_noenv_seed43
+===== 6survey (dnn_noenv_seed43, temporal) — FIT ONLY, no test-set evaluation =====
+  Using device: cuda
+  Rows before filtering: 83,382
+  Removed by Age < 30 at the 2023 survey (whole plot dropped): 768 rows
+  Removed by yield class between 2 and 50: 0 rows
+  Rows after filtering: 82,614
+  ----- Pre-training diagnostic: 6survey -----
+  Training plots (unique identification): 13,769
+  Test plots (unique identification): 13,769
+  Training plots with at least one usable trajectory pair: 13,769
+  annual_height99_increment across training pairs: mean=0.5523 m/yr, std=0.3664 m/yr
+  Training rows by survey year:
+    2002: 13,769 rows
+    2006: 13,769 rows
+    2008: 13,769 rows
+    2012: 13,769 rows
+
+  epoch 1/500  train_loss=0.7592  val_loss=1.0589  val_loss_smoothed=1.0589  learning_rate=0.000100 (new best)
+  epoch 10/500  train_loss=0.3009  val_loss=0.5274  val_loss_smoothed=0.5416  learning_rate=0.000100 (new best)
+  epoch 20/500  train_loss=0.2937  val_loss=0.5255  val_loss_smoothed=0.5230  learning_rate=0.000100
+  epoch 30/500  train_loss=0.2888  val_loss=0.5138  val_loss_smoothed=0.5134  learning_rate=0.000100 (new best)
+  epoch 40/500  train_loss=0.2853  val_loss=0.5264  val_loss_smoothed=0.5185  learning_rate=0.000100
+  epoch 50/500  train_loss=0.2824  val_loss=0.5209  val_loss_smoothed=0.5213  learning_rate=0.000080
+  epoch 60/500  train_loss=0.2802  val_loss=0.5245  val_loss_smoothed=0.5235  learning_rate=0.000064
+  epoch 70/500  train_loss=0.2798  val_loss=0.5204  val_loss_smoothed=0.5256  learning_rate=0.000064
+  Early stopping at epoch 70 (no val_loss improvement for 40 epochs).
+  Trained for 70 epochs in 29.3s. best_val_loss=0.513444  final_val_loss=0.520389
+  Saved checkpoint + scalers + history -> /home/s2887183/forest_diss/outputs/temporal/dnn_noenv_seed43/6survey
+  Next step: python -m models.dnn_noenv.evaluate_dnn_noenv --cohort 6survey --split-type temporal --run-name dnn_noenv_seed43
+
+===== Summary: best validation loss reached =====
+  6survey: best_val_loss=0.513444
+--- DNN job end ---

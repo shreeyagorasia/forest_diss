@@ -1,0 +1,52 @@
+--- PINN job start ---
+Node: landonia11.inf.ed.ac.uk
+Cohort: 6survey
+Max epochs: 500
+Patience: 40
+Split type: temporal
+Physics weight: 0.2
+Trajectory weight: 0.2
+Run name: pinn_noenv_pw0.2_tw0.2
+===== 6survey (pinn_noenv_pw0.2_tw0.2, temporal) — FIT ONLY, no test-set evaluation =====
+  Using device: cuda
+  Frozen CR params: y_max=46.5132, k=0.023737, p=1.162634
+  Rows before filtering: 83,382
+  Removed by Age < 30 at the 2023 survey (whole plot dropped): 768 rows
+  Removed by yield class between 2 and 50: 0 rows
+  Rows after filtering: 82,614
+  ----- Pre-training diagnostic: 6survey -----
+  Training plots (unique identification): 13,769
+  Test plots (unique identification): 13,769
+  Training plots with at least one usable trajectory pair: 13,769
+  annual_height99_increment across training pairs: mean=0.5523 m/yr, std=0.3664 m/yr
+  Training rows by survey year:
+    2002: 13,769 rows
+    2006: 13,769 rows
+    2008: 13,769 rows
+    2012: 13,769 rows
+
+  epoch 1/500  data_loss=0.4419  physics_loss=0.0864  trajectory_loss=0.0884  val_loss=0.6423  val_loss_smoothed=0.6423  learning_rate=0.000100 (new best)
+  epoch 10/500  data_loss=0.2958  physics_loss=0.0149  trajectory_loss=0.0241  val_loss=0.5203  val_loss_smoothed=0.5284  learning_rate=0.000100 (new best)
+  epoch 20/500  data_loss=0.2887  physics_loss=0.0145  trajectory_loss=0.0261  val_loss=0.4998  val_loss_smoothed=0.5011  learning_rate=0.000100 (new best)
+  epoch 30/500  data_loss=0.2864  physics_loss=0.0141  trajectory_loss=0.0269  val_loss=0.4832  val_loss_smoothed=0.4927  learning_rate=0.000100 (new best)
+  epoch 40/500  data_loss=0.2845  physics_loss=0.0151  trajectory_loss=0.0273  val_loss=0.4829  val_loss_smoothed=0.4866  learning_rate=0.000100 (new best)
+  epoch 50/500  data_loss=0.2841  physics_loss=0.0142  trajectory_loss=0.0272  val_loss=0.4858  val_loss_smoothed=0.4836  learning_rate=0.000100 (new best)
+  epoch 60/500  data_loss=0.2833  physics_loss=0.0140  trajectory_loss=0.0269  val_loss=0.4911  val_loss_smoothed=0.4872  learning_rate=0.000100
+  epoch 70/500  data_loss=0.2829  physics_loss=0.0142  trajectory_loss=0.0270  val_loss=0.4801  val_loss_smoothed=0.4803  learning_rate=0.000080
+  epoch 80/500  data_loss=0.2824  physics_loss=0.0142  trajectory_loss=0.0271  val_loss=0.4877  val_loss_smoothed=0.4840  learning_rate=0.000080
+  epoch 90/500  data_loss=0.2822  physics_loss=0.0140  trajectory_loss=0.0273  val_loss=0.4756  val_loss_smoothed=0.4779  learning_rate=0.000080 (new best)
+  epoch 100/500  data_loss=0.2823  physics_loss=0.0139  trajectory_loss=0.0270  val_loss=0.4788  val_loss_smoothed=0.4774  learning_rate=0.000080
+  epoch 110/500  data_loss=0.2822  physics_loss=0.0140  trajectory_loss=0.0269  val_loss=0.4915  val_loss_smoothed=0.4837  learning_rate=0.000080
+  epoch 120/500  data_loss=0.2819  physics_loss=0.0141  trajectory_loss=0.0274  val_loss=0.4777  val_loss_smoothed=0.4774  learning_rate=0.000064
+  epoch 130/500  data_loss=0.2812  physics_loss=0.0145  trajectory_loss=0.0273  val_loss=0.4848  val_loss_smoothed=0.4838  learning_rate=0.000064
+  epoch 140/500  data_loss=0.2809  physics_loss=0.0146  trajectory_loss=0.0272  val_loss=0.4692  val_loss_smoothed=0.4779  learning_rate=0.000051
+  epoch 150/500  data_loss=0.2810  physics_loss=0.0144  trajectory_loss=0.0273  val_loss=0.4802  val_loss_smoothed=0.4782  learning_rate=0.000051
+  epoch 160/500  data_loss=0.2805  physics_loss=0.0143  trajectory_loss=0.0267  val_loss=0.4752  val_loss_smoothed=0.4759  learning_rate=0.000041
+  Early stopping at epoch 162 (no val_loss improvement for 40 epochs).
+  Trained for 162 epochs in 916.5s. best_val_loss=0.472704  final: data_loss=0.280317  physics_loss=0.014301  trajectory_loss=0.027157
+  Saved checkpoint + scalers + history -> /home/s2887183/forest_diss/outputs/temporal/pinn_noenv_pw0.2_tw0.2/6survey
+  Next step: python -m models.pinn_noenv.evaluate_pinn_noenv --cohort 6survey --split-type temporal --run-name pinn_noenv_pw0.2_tw0.2
+
+===== Summary: best validation loss reached =====
+  6survey: best_val_loss=0.472704
+--- PINN job end ---
