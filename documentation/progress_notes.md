@@ -1141,3 +1141,63 @@ and `results_notebooks/` directories that no longer exist (both were already reo
 Out of scope for this rebuild's Phase 6 (limited to files the rebuild itself touched) and Phase 7
 (limited to the specific docs the plan named) — left as-is rather than doing an unplanned,
 unscoped README rewrite; worth a dedicated pass whenever the user wants it.
+
+**`xgb_environmental.py`'s TODOs filled in (2026-07-29).** The user added `#TODO` markers to
+several `FEATURE_PROVENANCE` entries asking for the actual formula/source rather than the
+one-line summary, plus a syntax typo (stray `=` after the `soilgrids_ph` line, breaking the whole
+module on import — fixed, clearly accidental, not an intentional edit). Traced every "own
+calculation" feature back to where it's actually computed in
+`aux_data_resolution_check.ipynb` and wrote the real formula into each entry (not guessed):
+`slope_degrees`/aspect via `np.gradient` on the 50m DTM grid; `northness`/`eastness` = cos/sin of
+that aspect; `profile_curvature`/`plan_curvature` (Zevenbergen & Thorne 1987, sign-validated
+against a synthetic bowl/dome); `tpi` = elevation minus a 100m-window mean
+(`scipy.ndimage.uniform_filter`); `elevation_roughness` = windowed std via the
+Var=E[X^2]-E[X]^2 identity; `solar_radiation_index` = the standard slope/aspect solar-noon,
+summer-solstice formula (no horizon shading — a known simplification, not fixed); `frost_hollow_flag`
+= TPI below its own 15th percentile AND concave `plan_curvature` (an uncalibrated heuristic
+threshold, not validated against real frost data); `topex`/`windward_topex` (Wilson 1984
+horizon-angle sum, 1000m radius, 8 directions vs. a single 225°/SW bearing for the windward
+version); `dist_to_cpmt_boundary`/`dist_to_forest_perimeter` (compartment polygon geometry, the
+latter via +60m/-60m morphological closing, dropping <1ha closing artefacts);
+`dist_to_watercourse` (distance to nearest OS Open Rivers line, a real vector survey, not a
+flow-accumulation derivation); `neighbour_mean_height`/`neighbour_height_differential` (`cKDTree`,
+75m radius, 2023 heights only). `haduk_tas_2021_mean`'s TODO was a real, still-open limitation
+(every survey year reuses the single 2021 raster) — written up as a known limitation rather than
+silently marked resolved, since it hasn't actually been fixed (would need one HadUK-Grid raster
+per survey year, joined by year).
+
+**Full aspect_degrees-exclusion reasoning** (shortened to a pointer in the file itself, per the
+user's own TODO to move it here): aspect_degrees is a raw compass bearing (0-360) — 359 and 1 are
+almost the same direction but numerically far apart, a bad input for any model to split on
+directly. northness/eastness (cos/sin of the same aspect) are its fixed replacement and used
+instead everywhere. This is the only column excluded from `ALL_FEATURE_COLUMNS` for a
+data-validity reason — everything else, including `soil_depth_proxy` (an exact transform of
+`slope_degrees`), is deliberately left in raw and not pre-judged as redundant; that decision is
+left to the real SHAP/permutation-importance evidence the Tier-2 notebook produces, not assumed
+in advance.
+
+**Found, flagged for a decision, NOT changed**: the user's edit also removed
+`dist_to_scpt_boundary`, `dist_to_block_boundary`, `cpmt_compactness_ratio`, and `dist_to_road`
+from `FEATURE_PROVENANCE` entirely (not just from `TERRAIN_AND_WIND_COLUMNS`), and the whole
+`stand_structure` category (`CanopyCover`, `Thin`, `time_since_thinning`,
+`time_since_thinning_missing`, `recent_thinning_5yr`) is gone too — none of these had a missing
+formula (all were previously documented, real GPKG-geometry or raw-survey-field calculations), so
+this looks like a deliberate feature-set trim rather than something the TODOs were flagging.
+`grouped_analysis.py`'s `CATEGORY_GROUPS` still references all 9 of these columns (`stand_structure`
+category plus 4 `spatial_position_edge_effects` entries) — a real mismatch that will `KeyError` the
+next time grouped permutation importance or Moran's-I-by-category actually runs (the
+`check_category_groups_complete()` guard only checks one direction — a feature-set column missing
+its category — not the reverse, so it stayed silent).
+
+**Resolved**: user confirmed the trim was not intentional — restored all 9 columns to
+`FEATURE_PROVENANCE` (their original descriptions, plus real formulas for the 4 geometry columns
+traced the same way as the rest of this entry: `dist_to_scpt_boundary`/`dist_to_block_boundary`
+via GPKG sub-compartment/block polygon boundaries, `cpmt_compactness_ratio` = compartment
+perimeter/area, `dist_to_road` = distance to nearest OS Open Roads line, same method as
+`dist_to_watercourse`) and back into `TERRAIN_AND_WIND_COLUMNS`. `ALL_FEATURE_COLUMNS` is back to
+38 (from the trimmed 29), now matching `CATEGORY_GROUPS`'s union exactly in both directions
+(checked programmatically, not just by eye). Since Phase 5's `xgb_environmental`/
+`elasticnet_environmental` run happened before this trim occurred, the restored 38-feature set
+matches what those numbers were actually computed on — re-ran `run_xgb_environmental.py` to
+confirm: 4survey `all_environmental` val R²=0.734/test R²=0.629, exactly matching the row already
+in `experiment_log.md`, so no correction needed there.
