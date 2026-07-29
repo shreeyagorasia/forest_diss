@@ -734,6 +734,35 @@ notebook now exists
 (`notebooks/model_results/baseline_models_parameter_tuning.ipynb`) covering loss curves and metrics for
 both split types, updated automatically as real runs land.
 
+**Consolidated numeric record (retired `Top_Height99`+`yldc` pipeline, 13-20 July 2026)** —
+`experiment_log.md`'s detailed table/Findings entries for this period were trimmed 29 July 2026
+(not comparable to the rebuilt pipeline's numbers; full detail still in git history). Key
+numbers preserved here:
+- `plot_level` (13 Jul): RF best both cohorts (RMSE 4.65/3.86).
+- `spatial_block` (14 Jul): RF loses its `plot_level` edge (RMSE +28.7%/+19.4%).
+- `temporal_wide_gap` baselines (15 Jul): much larger degradation than spatial (up to +141.7%
+  RMSE); CR most temporally robust, not RF.
+- DNN/PINN tuned, `temporal_wide_gap` (17 Jul): DNN 4survey RMSE=5.8600/R²=0.4533 (overfitting
+  climb softened, not fixed), 6survey RMSE=4.9388/R²=0.2749 (healthy). PINN (`W=1.0`) 4survey
+  RMSE=6.0870/R²=0.4101, 6survey RMSE=4.8857/R²=0.2904.
+- DNN/PINN tuned, `spatial_block` (17 Jul): DNN 4survey RMSE=5.0185/R²=0.6091, 6survey
+  RMSE=3.6498/R²=0.7434. PINN (`W=1.0`) 4survey RMSE=5.4642/R²=0.5366, 6survey
+  RMSE=3.7039/R²=0.7358 — DNN beat PINN on both, traced to the untested `W=1.0` default.
+- Weight sweep, `spatial_block` (17 Jul): best per-cohort 4survey `W=0.0` (RMSE=5.0822,
+  R²=0.5991), 6survey `W=0.05` (RMSE=3.6265, R²=0.7467, beats DNN). Chosen shared default
+  `W=0.05` (4survey RMSE=5.1209, R²=0.5930).
+- Weight sweep, `temporal_wide_gap` (18 Jul): 4survey optimum again `W=0.0` (RMSE=5.9091,
+  R²=0.4441); 6survey optimum `W=0.2` (RMSE=4.8294, R²=0.3067), `W=0.05` itself a wash here
+  (RMSE=5.9348/R²=0.4393 and RMSE=4.8915/R²=0.2888 respectively at the chosen shared default).
+- Reseed check, 3 seeds (20 Jul): CONFIRMED not noise — 4survey's `W=0.0` preference (6/6
+  seed×split checks) and DNN's 4survey win over PINN. RETRACTED as noise — 6survey's "optimal
+  weight" and the "PINN wins 6survey" claim (PINN beat DNN in only 2/3 seeds, <0.2% RMSE gap).
+- `temporal_narrow_gap` (20 Jul): 7/8 baseline model/cohort combos degrade less than
+  `temporal_wide_gap`; DNN/PINN both improved 10-12% RMSE moving from wide to narrow gap on both
+  cohorts (DNN: 4survey 5.8600→5.2814, 6survey 4.9388→4.3445; PINN: 4survey 5.9348→5.2716,
+  6survey 4.8915→4.3795) — confirms gap length, not "temporal prediction is inherently hard,"
+  drives `temporal_wide_gap`'s degradation.
+
 **Deferred, 2026-07-21 (user's call — revisit later or fold into Env-PINN, not before)**:
 - No formal statistical test on the reseed results yet — current analysis is informal seed-counting
   and eyeballing spread vs. mean gap. A bootstrap CI or Cohen's d on the DNN-vs-PINN gap would be
@@ -867,3 +896,248 @@ genuine ΔR²=0.040 (5th of 7 categories) with all 6 — the new variables carry
 noise. 4survey `all_environmental` test R² rose from 0.567 to 0.612 (XGBoost) and Elastic Net's
 test R² rose to 0.703 — a modest, plausible improvement, unlike the earlier `Age` case (a huge,
 suspicious jump that turned out to be circular with the target).
+
+## Systematic rebuild: retire Top_Height99 and yldc, restructure the pipeline (28-29 July 2026)
+
+**Two decisions triggered a full, systematic rebuild rather than a quick patch.**
+
+**1. `yldc` removed as a feature everywhere.** While reviewing `grouped_category_importance.ipynb`,
+asked whether `yldc` (Forestry Commission Yield Class) might be circular with the height target,
+the way `Age` was found to be earlier this session. Researched how General Yield Class is
+actually calculated (Edwards & Christie 1981, Forest Research Booklet 48): a deterministic
+function of a stand's own measured top height and age via species-specific yield curves — the
+user then confirmed `yldc` specifically comes from an external FC inventory *polygon layer*, not
+computed from this survey's own rows (ruling out the most severe, direct form of circularity;
+the dataset's own `GYCspec95`/`GYCspec99` columns ARE that direct per-survey recomputation, and
+they are correctly never used as features). But the real, decision-relevant test — an actual
+held-out ablation refit, not a correlation check — showed `yldc` hurts generalisation regardless
+of mechanism, in every model checked:
+- `xgb_environmental` (predicts the CR residual): val R² 0.649→0.729, test R² 0.612→0.617 without it.
+- RF baseline (predicts height directly): test R² 0.446→0.498 without it (+0.052, ~12% relative).
+- DNN (`dnn_noenv`, local smoke test): test R² 0.606→0.647 without it (+0.041, ~7% relative) —
+  despite val LOSS looking marginally *better* with it during training, a classic sign it fits
+  patterns near the validation compartments that don't generalise to test compartments.
+
+Used as a real feature in `models/rf_baseline/rf_baseline.py`, `models/linear_baseline/
+linear_baseline.py`, `models/common/torch_data.py` (drives `dnn_noenv`/`pinn_noenv`, including
+both endpoints of PINN's trajectory-pair loss), and this session's `models/xgb_environmental/`/
+`models/elasticnet_environmental/`. NOT used by Chapman-Richards or average-by-age (Age-only).
+Its other use (`models/common/data.py::filter_data()`, a row-filter bound, not a feature) is
+unrelated and stays as-is. Still present in the consolidated `model_table.parquet` for audit —
+just not selected as a feature by any model now.
+
+**2. Target changed from `Top_Height99` to raw `elev_percentile_95th`.** Verified with real data:
+`Top_Height99 = elev_percentile_99th` exactly (already unadjusted — but retired entirely per
+explicit instruction, "we aren't using that one"). `Top_Height95 = elev_percentile_95th × 1.1`
+(confirmed exactly: e.g. 54.508148 × 1.1 = 59.958963) — the ×1.1 correction compensates for known
+underestimation of top height at P95 from dense Sitka foliage. The new target is the smaller,
+unadjusted `elev_percentile_95th` — not `Top_Height95`, not `Top_Height99`. This column exists in
+the raw GPKG but was previously dropped during cleaning specifically to avoid leaking
+`Top_Height95` as a predictor.
+
+**Vol95/GYCspec95 kept as forestry-facing evaluation tools, decoupled from the model target.**
+These are pre-computed FR-inventory fields (not derived by this project's own code) built from
+the OLD `Top_Height95`, useful to foresters when reporting results (volume, yield class) even
+though the modelling target has changed. Decision: keep `Vol95`/`GYCspec95` (and the
+`Top_Height95` they're computed from) as audit-only columns, explicitly documented as still
+referencing the retired height definition, not recomputed against the new target. Drop
+`Vol99`/`GYCspec99` (the `Top_Height99` family) entirely.
+
+**Rebuild done as a systematic, phased, checklisted process** (full plan retained in
+`/Users/shreeyagorasia/.claude/plans/eventual-churning-pumpkin.md` at the time of writing), not a
+quick patch, per explicit instruction — checked/verified after each phase before moving on:
+
+- **Cleaning notebook → script.** `notebooks/data_exploration/lidar_years_all_data_cleaning.ipynb`'s
+  actual cleaning/filtering/export logic (six-stage funnel: cohort years → complete survey
+  coverage → Sitka spruce → valid planting year → plausible age → plausible height) reproduced in
+  new `data_processing/clean_master_data.py`, now retaining `elev_percentile_95th` instead of
+  dropping it. Verified: identical row/plot counts to the old pipeline (287,064/71,766 for
+  4survey, 83,382/13,897 for 6survey) — this was a pure addition, not a filtering change. The
+  height-plausibility filter (Stage 6, 0-60m bounds) now applies directly to the new, ~9% smaller
+  raw column rather than being rescaled — checked empirically this changes zero rows either way
+  (stage-6 count identical to stage-5 count, before and after), so the decision was inconsequential
+  here, not a live risk.
+- **Consolidated model tables.** `data_processing/export_model_tables.py` rewritten: checked
+  directly that `dnn_noenv.parquet` and `pinn_noenv.parquet` were BYTE-FOR-BYTE IDENTICAL (same 14
+  columns, `.equals()` True), and the other three per-model files were each a subset of the same
+  core columns — genuine duplication, not just "many small files". Replaced with ONE
+  `model_table.parquet` per cohort (the union of every column any model needs), each model's own
+  `FEATURE_COLUMNS` selecting its own subset at load time. `models/common/data.py::load_model_table()`
+  simplified to no longer take a `table_name` parameter (there's only one file now).
+- **Chapman-Richards fit degeneracy found and fixed.** The rebuilt CR fit's `y_max` landed EXACTLY
+  on the single tallest training tree (51.91116000, to 8 decimal places) — a classic sign
+  `curve_fit` got pinned to a boundary rather than finding a real asymptote. Traced to
+  `chapman_richards.py`'s own `lower_bounds = [max_observed_height, ...]` — the floor was exactly
+  the observed max, not strictly above it. Confirmed empirically this ALSO happens under the OLD
+  target (refit `elev_percentile_99th` with the identical code on the identical rows: y_max also
+  landed exactly on ITS max, 53.490917, with a very similar shape parameter p≈0.859 vs the new
+  target's p≈0.865) — a pre-existing fragility, not something the target change caused. Fixed:
+  lower bound is now `max_observed_height * 1.001`. The fitted `y_max` still sits close to that
+  floor even after the fix (51.963 vs the 51.911 max) — this is a separate, genuine data
+  characteristic (weak asymptote identifiability given the observed age range), not something
+  further boundary-tweaking would resolve, documented as an open caveat rather than chased further.
+- **Baselines re-verified across all four split types** (`plot_level`, `spatial_block`,
+  `temporal`/wide-gap, `temporal_narrow_gap`) — same qualitative pattern as the retired pipeline in
+  every case (e.g. RF wins `plot_level`, loses to linear under `spatial_block`), confirming the
+  rebuild changed the numbers, not the underlying story. Real numbers in `experiment_log.md`'s
+  `baselines_rebuild_2026-07-28` row.
+- **DNN/PINN smoke tests** (80 epochs, both cohorts, `spatial_block` and `temporal`) all ran clean
+  after fixing one real bug caught along the way: a renamed transition-table column
+  (`annual_height99_increment`→`annual_height_increment`, part of retiring the old target name)
+  was missed in `print_pre_training_diagnostic()` on the first pass, causing a `KeyError` — fixed,
+  re-verified. Result pattern matched history: DNN clearly ahead of untuned PINN (`physics_weight=1.0`)
+  on 4survey, close on 6survey — same shape as before the rebuild.
+
+**A real mistake, caught and contained.** The smoke tests above were run without a distinct
+`--run-name`, so they silently overwrote the real, previously-reported full 500-epoch DNN/PINN
+checkpoints/predictions/metrics at the default output paths (`outputs/spatial_block/dnn_noenv/
+<cohort>/`, etc. — confirmed via file timestamps, all dated 2026-07-16 before, 2026-07-28/29
+after). This is exactly the failure mode `run_dnn_noenv.py`'s own module docstring warns about,
+and had already been correctly avoided once earlier this session (a `yldc`-ablation smoke test
+used a distinct `--run-name`) — missed here. Confirmed recoverable: the cluster's own copies of
+these exact files were untouched (dated 2026-07-16, verified directly by the user on the cluster)
+since this session has no cluster access. Given the retired pipeline's numbers are already fully
+documented in `experiment_log.md` regardless, and the user confirmed a "fresh log" is actually
+preferable (the run-log's real purpose is tracking current hyperparameters/results, not an
+immutable historical archive) — resolved by archiving the ENTIRE local `outputs/` directory
+(~4.0GB, everything pre-dating this rebuild, including the accidentally-overwritten smoke tests)
+wholesale to `legacy/2026-07-28/outputs/`, then regenerating baselines fresh locally. Going
+forward: every exploratory/smoke run must pass a distinct `--run-name`, no exceptions.
+
+**Local/cluster sync.** This repo uses git for code + rsync for large gitignored data/outputs
+(`data/raw/`, `data/interim/`, `data/processed/`, `outputs/` are all fully gitignored). Also
+discovered mid-session: the local working directory was on branch `spatial_attribution`, while
+the cluster was on `baseline_models` — checked `git merge-base --is-ancestor baseline_models
+spatial_attribution` (true, confirmed both locally and via `origin/baseline_models`) before
+fast-forwarding `origin/baseline_models` to match `spatial_attribution`'s tip
+(`git push origin spatial_attribution:baseline_models`), so the cluster's existing branch just
+needed a normal `git pull`, no branch switch. The 5 old superseded per-model parquet files were
+moved to `legacy/2026-07-28/data/processed/current_state/<cohort>/` (mirroring the local
+cleanup) before transferring the 6 new consolidated/master/transition parquet files up. Baselines
+were regenerated locally (not on the cluster's head node, which doesn't allow direct compute) and
+the whole local `outputs/` transferred up wholesale via rsync, since the fits are deterministic
+(fixed seeds) and cheap.
+
+**Real cluster jobs submitted (2026-07-29), sequenced deliberately.** DNN/PINN at the plain,
+untuned base case (`physics_weight`/`trajectory_weight` left at the model default of 1.0, single
+seed 42), `--max-epochs 500`, both cohorts, `spatial_block`/`temporal`/`temporal_narrow_gap`.
+**Deliberately NOT re-running the physics-weight sweep or the 40-job reseed check yet** — those
+were expensive, deliberate investments that concluded `physics_weight=0.05` beats the untuned
+default, built entirely on the retired pipeline. Re-running them now, before knowing whether the
+target/`yldc` change moved the base numbers enough to matter, risks a lot of cluster time on a
+question that might not even still be open in the same way. Plan: compare the base-case numbers
+against the retired pipeline's own base case first, then decide explicitly whether the
+sweep+reseed is still warranted.
+
+**Still pending**: the real cluster job results (not yet back); Phase 6 (opportunistic cleanup of
+now-dead code in touched files); the `models/spatial_attribution/` rename (naming collision with
+"attribution", still deferred); the pure-SS dataset switch (still a separate, deferred decision —
+see `legacy/pure_SS_dataset/pure_ss_vs_current_dataset_comparison.ipynb`'s own numbers: only
+24.1%/40.8% of rows retained, "should be treated as a new dataset version").
+
+**Cluster jobs came back bogus, root-caused and fixed (2026-07-29).** All 12 real DNN/PINN
+cluster jobs "completed" in ~53 seconds each (exit code 0:0) — impossible for 500-epoch training.
+The job logs showed why: `FileNotFoundError` on `data/processed/current_state/4survey/
+model_table.parquet` — the cluster's `git pull` brought the new code (which already expects this
+consolidated file, confirming the cluster branch was current), but the file itself is gitignored
+and had never actually been rsynced up, despite an earlier note in this log describing that
+transfer — that transfer either didn't happen or went to the wrong place. The SLURM wrapper
+script doesn't propagate the Python failure as a job failure (no `set -e`), so `sacct` reported
+`COMPLETED` on a job that never trained anything. Fixed by rsyncing `data/processed/
+current_state/` and `outputs/chapman_richards/` (the re-fit CR params PINN's physics anchor
+needs) up to the cluster directly; user re-submitting the 12 jobs from a clean state. **Lesson
+for next time**: `sacct`'s `COMPLETED`/exit-code-0 is not sufficient evidence a cluster job did
+real work when the wrapper script can't propagate a Python-level failure — check wall-clock time
+against a sane expectation (500 epochs is not a 53-second job) and confirm the actual output
+directory exists before trusting the SLURM record.
+
+**Phase 5 complete (2026-07-29): environmental attribution chain re-run against the new
+target/no-`yldc` pipeline.** Removed `yldc` from `xgb_environmental.py`'s `FEATURE_PROVENANCE`
+and `grouped_analysis.py`'s `CATEGORY_GROUPS` (`stand_structure`) — confirmed via grep, nothing
+else in either package or `elasticnet_environmental/` still referenced `yldc` or `Top_Height99`.
+
+Before re-running, had to recover `aux_data_resolution_check.ipynb`'s re-execution from a real
+hang: the earlier plain `jupyter nbconvert --execute --inplace` background run had been running
+13 hours with only 30 seconds of CPU time used — silently stuck, not slow (confirmed via `ps`
+elapsed-vs-CPU-time and zero file writes the whole time). Root cause not conclusively identified
+(the two cells that had been reset for re-execution were both plain, fast CPU-bound code — a
+`cKDTree` neighbour query and a JSON-based CR-residual calc — neither should hang), but rather
+than keep guessing, switched to a cell-by-cell driver (`nbclient.NotebookClient`, run manually
+instead of through plain `nbconvert`) that saves the notebook to disk after every single cell and
+bounds each cell to a 5-minute timeout — this makes a real hang visible within minutes instead of
+silently for half a day. Re-ran cleanly (98/98 cells, ~14 minutes total, longest single cell
+37s). This driver script is worth reusing for any future notebook re-execution in this repo,
+plain `nbconvert --execute` no longer trusted at face value for anything long-running.
+
+Also discovered mid-recovery: both `aux_data_resolution_check.ipynb` and
+`grouped_category_importance.ipynb` were open in **live Jupyter browser sessions** while being
+re-executed on disk — a real risk (an earlier session's note on the cleaning notebook already
+flagged this exact race: a live tab's autosave can silently overwrite a fresh execution with
+stale in-memory state). For `aux_data_resolution_check.ipynb` the risk was already taken (executed
+in place); flagged to the user to reload/close that tab rather than save over it. For
+`grouped_category_importance.ipynb`, used the safer pattern instead: copied to a temp file in the
+same directory, executed the temp copy, verified it, then moved it over the original only after
+confirming success — never executed the live file directly.
+
+**Results** (`xgb_elasticnet_environmental_2026-07-29` row in `experiment_log.md` has the full
+numbers): re-derived `plot_environmental_features.parquet` (residual now built on
+`elev_percentile_95th`), then `run_xgb_environmental.py` / `run_elasticnet_environmental.py` /
+`grouped_category_importance.ipynb` all re-run cleanly. 4survey `all_environmental`: XGBoost val
+R²=0.734/test R²=0.629, Elastic Net val R²=0.700/test R²=0.671 — broadly similar shape to the
+retired pipeline's numbers (val/test both around 0.6-0.7), same qualitative story (neighbour
+spatial-lag dominates grouped permutation importance, ~10x every other category; real spatial
+autocorrelation remains in the residuals, Moran's I=0.197 vs the retired pipeline's 0.243, still
+p=0.005). **New observation, not present before**: 6survey's val R² sits well below its own test
+R² across every feature set for BOTH XGBoost and Elastic Net (e.g. XGBoost all_environmental: val
+R²=0.107 vs test R²=0.398) — the opposite of the usual overfitting direction, and consistent
+across two independent model types, so probably a real property of which compartments
+`spatial_block_split` assigned to val vs test for the smaller cohort rather than noise in one
+model. Not yet investigated further — flagged for whenever 6survey's environmental story gets
+written up. Every markdown cell in `grouped_category_importance.ipynb` was already written
+number-agnostic ("how to read this chart", not "X equals Y") — checked and confirmed nothing
+stale needed fixing, satisfying the "check markdown too, not just numbers" standing practice
+without requiring any edits this time.
+
+**Phase 6 complete (2026-07-29): cleanup pass.** Ran `pyflakes` across every file this rebuild
+touched (`data_processing/`, all of `models/`) — one real finding: `elasticnet_environmental.py`
+imported `FEATURE_PROVENANCE` from `xgb_environmental.py` but never used it (only referenced in a
+comment) — removed. Whole tree clean after that. Checked several other candidates that turned out
+to be legitimate, not dead: `models/common/data.py`'s `yldc`-based row filter (`filter_data()`'s
+`yldc_min`/`yldc_max` bounds) is a genuinely different, deliberately-kept use of the raw column
+(filtering rows by yield class, not using it as a model feature); `run_baselines.py`/
+`evaluate_baselines.py`'s `table_name` parameter still does real work (distinguishing
+`load_cohort_data()`'s trimmed view from `load_model_table()`'s full view, both now backed by the
+same consolidated `model_table.parquet`) — already correctly commented, not vestigial. Re-ran
+`elasticnet_environmental` after the import removal to confirm nothing broke — same numbers as
+before.
+
+**Found and fixed, opportunistically**: `baseline_results.ipynb` sections 8-9 (the actual
+dissertation-argument section, not just a chart caption) were still stale despite Phase 4 being
+marked complete — section 9 said `target Top_Height99` and listed XGBoost+SHAP/
+`temporal_narrow_gap` as "not started yet" (both now done); section 8 cited specific old RMSE
+percentages with no acknowledgment they predate the rebuild, and its `yldc`-as-GYC-proxy argument
+sat oddly next to `yldc` having just been removed for hurting generalisation. Asked the user how
+to handle it rather than silently rewriting the dissertation's own argument text — chose "caveat
+now, rewrite later": section 9's facts were corrected directly (safe, they're just wrong
+otherwise); section 8 got a dated pending-re-verification note (the specific percentages need the
+real cluster DNN/PINN numbers once they're back) without touching the argument itself, since the
+qualitative reasoning is expected to still hold but isn't yet confirmed. Both edits done via
+surgical raw-text replacement (the file is too large for the Read/Edit/NotebookEdit token limit)
+following the same technique the cleaning-notebook lesson established earlier — verified valid
+JSON, execution counts intact, diff scoped to exactly the two touched cells each time.
+
+**Phase 7 (2026-07-29): archived the superseded cleaning notebooks.** Moved
+`lidar_years_all_data_cleaning.ipynb` and `lidar_years_all_data_understanding.ipynb` (git mv, not
+a delete) to `legacy/2026-07-28/` now that `data_processing/clean_master_data.py` fully replaces
+their export logic — neither was open in a live Jupyter session, confirmed via the API before
+moving. Updated the three direct references (`clean_master_data.py`'s own header comment,
+`lidar_years_cleaning_findings_summary.md`, and `README.md`'s "Active workflow" section, which
+described the retired notebook-driven pipeline as current) so nothing points at a moved file.
+
+**Found, NOT fixed — flagged for a separate decision**: `README.md`'s "Repository structure"
+section is stale in ways that predate this whole rebuild — it describes `data_exploration_gpkg/`
+and `results_notebooks/` directories that no longer exist (both were already reorganized to
+`notebooks/data_exploration/` and `notebooks/model_results/` before this session's work started).
+Out of scope for this rebuild's Phase 6 (limited to files the rebuild itself touched) and Phase 7
+(limited to the specific docs the plan named) — left as-is rather than doing an unplanned,
+unscoped README rewrite; worth a dedicated pass whenever the user wants it.

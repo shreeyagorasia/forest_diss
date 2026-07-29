@@ -1,9 +1,9 @@
 # Run as: python -m data_processing.clean_master_data
 #
-# Plain-Python replacement for notebooks/data_exploration/lidar_years_all_data_cleaning.ipynb's
-# actual cleaning/filtering/export logic (the notebook's many diagnostic/plotting cells are not
-# reproduced here -- they never changed the exported data, they only checked it). Reads the raw
-# GPKG, applies the same six-stage cleaning funnel, and writes
+# Plain-Python replacement for lidar_years_all_data_cleaning.ipynb's actual cleaning/filtering/
+# export logic (that notebook is archived at legacy/2026-07-28/, its many diagnostic/plotting
+# cells are not reproduced here -- they never changed the exported data, they only checked it).
+# Reads the raw GPKG, applies the same six-stage cleaning funnel, and writes
 # data/processed/master/clean_master_4survey.parquet / clean_master_6survey.parquet.
 #
 # Two changes from the retired notebook version, both explicit decisions (2026-07-28, see

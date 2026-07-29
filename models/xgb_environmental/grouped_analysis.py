@@ -37,7 +37,7 @@ CATEGORY_GROUPS = {
     ],
     "stand_structure": [
         "CanopyCover", "Thin", "time_since_thinning",
-        "time_since_thinning_missing", "recent_thinning_5yr", "yldc",
+        "time_since_thinning_missing", "recent_thinning_5yr",
     ],
     # Kept separate from spatial_position_edge_effects on purpose: these two describe a NEARBY
     # PLOT'S OWN HEIGHT, not a real environmental measurement -- most likely reflecting shared

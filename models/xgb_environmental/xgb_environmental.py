@@ -51,7 +51,9 @@ FEATURE_PROVENANCE = {
     "time_since_thinning": "external (raw survey field, NaN for never-thinned filled with 0 before averaging -- time_since_thinning_missing carries the real signal for those plots)",
     "time_since_thinning_missing": "external (raw survey field, fraction of surveys where this plot had never yet been thinned)",
     "recent_thinning_5yr": "external (raw survey field, fraction of surveys with a thinning in the preceding 5 years)",
-    "yldc": "external (raw survey field, yield class / site productivity rating -- constant per plot across survey years, confirmed by direct check)",
+    # yldc deliberately NOT included -- removed as a feature everywhere in this rebuild (29 July
+    # 2026): real held-out ablation showed it hurts generalisation in every model tested (RF,
+    # DNN, this xgb_environmental model included), not just theory. See progress_notes.md.
 }
 # era5_land_temp_k is deliberately NOT in this dict, and so not in any feature set below --
 # excluded on the numbers alone (only 8 distinct values across all 71,766 plots, confirmed

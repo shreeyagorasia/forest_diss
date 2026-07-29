@@ -1,6 +1,8 @@
 # LiDAR Years cleaning findings summary
 
-This summary is based on `data_exploration_gpkg/notebooks/lidar_years_all_data_cleaning.ipynb` and the supplied **LiDAR_Years layer field descriptions**.
+This summary is based on `lidar_years_all_data_cleaning.ipynb` (archived at `legacy/2026-07-28/`
+once its cleaning logic was converted to `data_processing/clean_master_data.py`, 29 July 2026) and
+the supplied **LiDAR_Years layer field descriptions**.
 
 ## What the new field documentation resolved
 

@@ -39,23 +39,17 @@ python -m pip install -r requirements.txt
 
 ## Active workflow
 
-The current dataset is explored and cleaned in:
+Producing the model-ready data is a two-step, plain-Python pipeline (no notebook dependency):
 
-```text
-data_exploration_gpkg/notebooks/lidar_years_all_data_understanding.ipynb
-data_exploration_gpkg/notebooks/lidar_years_all_data_cleaning.ipynb
-```
-
-Producing the model-ready data is a two-step, notebook-independent pipeline:
-
-1. The cleaning notebook (`EXPORT_FILES = True`) does the actual cleaning funnel — species
+1. `python -m data_processing.clean_master_data` does the actual cleaning funnel — species
    filtering, age/height validity checks, deduplication, cohort balancing — and writes the
-   cleaned **master exports** to `data/processed/master/`. This is the only step that needs
-   the notebook.
-2. `python -m data_processing.export_model_tables` reads those master exports and derives
-   every per-model table (`current_state/`) and the transition tables, with no dependency on
-   the notebook — if it's ever mid-edit or broken, this step still works as long as the master
-   exports exist on disk.
+   cleaned **master exports** to `data/processed/master/`.
+2. `python -m data_processing.export_model_tables` reads those master exports and derives the
+   consolidated per-cohort `model_table.parquet` (`current_state/`) and the transition tables.
+
+The original exploratory notebooks this pipeline was converted from (`lidar_years_all_data_understanding.ipynb`,
+`lidar_years_all_data_cleaning.ipynb`) are archived at `legacy/2026-07-28/` — their diagnostic/
+plotting cells have standalone value but no longer drive the exported data.
 
 See `data/processed/README.md` for the exact file layout, and
 `data_processing/export_model_tables.py`'s module docstring for exactly which columns are

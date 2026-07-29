@@ -8,7 +8,6 @@ from sklearn.preprocessing import StandardScaler
 # drifted copy of the list.
 from models.xgb_environmental.xgb_environmental import (
     ALL_FEATURE_COLUMNS,
-    FEATURE_PROVENANCE,
     NEIGHBOUR_COLUMNS,
     TERRAIN_AND_WIND_COLUMNS,
 )
