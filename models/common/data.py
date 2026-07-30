@@ -59,11 +59,26 @@ def filter_data(df, maturity_age_min=30, reference_year=2023, yldc_min=2, yldc_m
         f"(whole plot dropped): {removed_by_age:,} rows"
     )
 
-    after_yldc_filter = after_age_filter[
-        (after_age_filter["yldc"] >= yldc_min) & (after_age_filter["yldc"] <= yldc_max)
-    ]
+    # yldc (Yield Class) is a per-stand classification, assigned once, not re-measured each
+    # survey -- empirically confirmed constant within every plot across its survey years in
+    # both cohorts (2026-07-30, checked directly, zero exceptions). This filter is written to
+    # match, whole-plot like the Age filter just above: if this assumption were ever violated
+    # by a future data refresh, a ROW-level filter here could silently strip just the
+    # out-of-range survey years from an otherwise-complete plot, breaking the balanced-panel
+    # guarantee the rest of the pipeline depends on (e.g. models/common/torch_data.py's
+    # load_trajectory_pairs(), which needs adjacent-year pairs to survive intact). Using each
+    # plot's FIRST row's yldc (not "any row matching the filter") makes this whole-plot by
+    # construction, so that risk can't reoccur even if the assumption breaks later.
+    first_row_per_plot = after_age_filter.drop_duplicates(subset="identification", keep="first")
+    in_range_plot_ids = set(
+        first_row_per_plot.loc[
+            (first_row_per_plot["yldc"] >= yldc_min) & (first_row_per_plot["yldc"] <= yldc_max),
+            "identification",
+        ]
+    )
+    after_yldc_filter = after_age_filter[after_age_filter["identification"].isin(in_range_plot_ids)]
     removed_by_yldc = len(after_age_filter) - len(after_yldc_filter)
-    print(f"  Removed by yield class between {yldc_min} and {yldc_max}: {removed_by_yldc:,} rows")
+    print(f"  Removed by yield class between {yldc_min} and {yldc_max} (whole plot dropped): {removed_by_yldc:,} rows")
 
     rows_after = len(after_yldc_filter)
     print(f"  Rows after filtering: {rows_after:,}")

@@ -45,7 +45,7 @@ def load_residuals(model_name, cohort="4survey", split_type="spatial_block"):
     mean_residual = test_only.groupby("identification")["residual"].mean().reset_index()
 
     coordinates_df = load_plot_coordinates()
-    plots = coordinates_df.merge(mean_residual, on="identification")
+    plots = join_by_plot(coordinates_df, mean_residual)
 
     print(f"Loaded {len(plots):,} plots with a real {model_name} residual ({cohort}, {split_type}, test split only)")
     return plots
@@ -60,9 +60,7 @@ def load_residuals_by_year(model_name, cohort="4survey", split_type="spatial_blo
     test_only = _load_test_predictions(model_name, cohort, split_type)
 
     coordinates_df = load_plot_coordinates()
-    plots_by_year = coordinates_df.merge(
-        test_only[["identification", "LiDAR_year", "residual"]], on="identification",
-    )
+    plots_by_year = join_by_plot(coordinates_df, test_only[["identification", "LiDAR_year", "residual"]])
 
     n_plots = plots_by_year["identification"].nunique()
     print(f"Loaded {len(plots_by_year):,} plot-year rows across {n_plots:,} plots "

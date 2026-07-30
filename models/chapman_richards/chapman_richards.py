@@ -16,6 +16,20 @@ def chapman_richards(age, y_max, k, p):
 def fit(train_df, age_col="Age", height_col="elev_percentile_95th"):
     # Fit y_max, k and p so the curve matches the training data as closely
     # as possible.
+    #
+    # LIMITATION (2026-07-30, not fixed here -- see below): both cohorts are strict balanced
+    # panels (every plot has the same number of survey-year rows), so every row below is
+    # pooled and fit as if independent, ignoring that several rows come from the same plot
+    # across different years. Because the panel is balanced, this does NOT bias the point
+    # estimate the way it would with an unbalanced panel (every plot still gets equal total
+    # weight) -- but it does mean this is a single POPULATION-AVERAGE curve, not a
+    # plot-specific one, and it doesn't separate how much residual variance sits at the plot
+    # level vs. the year level (relevant context for the environmental-attribution stage
+    # downstream). The established fix is a nonlinear mixed-effects model with a plot-level
+    # random effect on y_max -- already planned in this project's own roadmap for the
+    # environmental-attribution stage (fitting y_max ~ terrain/wind with plot random
+    # effects), not implemented here. y_max/k/p below remain frozen point estimates used as
+    # the PINN's physics anchor and the residual baseline, same as before.
     age_values = train_df[age_col].values
     height_values = train_df[height_col].values
     max_observed_height = height_values.max()

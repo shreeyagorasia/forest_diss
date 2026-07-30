@@ -9,11 +9,56 @@ COMPARTMENT_BOUNDARIES_PATH = PROJECT_ROOT / "data" / "interim" / "compartment_b
 SUBCOMPARTMENT_BOUNDARIES_PATH = PROJECT_ROOT / "data" / "interim" / "subcompartment_boundaries.parquet"
 BLOCK_BOUNDARIES_PATH = PROJECT_ROOT / "data" / "interim" / "block_boundaries.parquet"
 
+# Every distance-based statistic in this project (Moran's I, semivariograms, the spatial-block
+# split buffer, TOPEX radius) silently depends on this being right -- it used to only be a
+# comment claim, never checked (2026-07-30 fix). EPSG:27700 = British National Grid, metres.
+EXPECTED_CRS_EPSG = 27700
+
+# plot_coordinates.csv.gz is a plain CSV -- once export_coordinates.py converts a GeoDataFrame's
+# geometry into bare x/y float columns, the real CRS metadata is gone, so there's nothing to
+# assert against here except plausibility. This is a generous bounding box around Aberfoyle
+# forest in EPSG:27700 (actual data sits within roughly x=233,000-262,000 / y=692,000-710,000,
+# see progress_notes.md) -- wide enough to never false-positive on real data, tight enough to
+# catch an obviously wrong CRS (e.g. lat/lon degrees, or a different UK grid).
+PLAUSIBLE_X_RANGE = (150_000, 350_000)
+PLAUSIBLE_Y_RANGE = (600_000, 800_000)
+
 
 def load_plot_coordinates():
     # One row per plot: identification, x, y (metres, EPSG:27700).
     # Built once by models/common/export_coordinates.py.
-    return pd.read_csv(COORDINATES_PATH)
+    coordinates = pd.read_csv(COORDINATES_PATH)
+
+    x_min, x_max = coordinates["x"].min(), coordinates["x"].max()
+    y_min, y_max = coordinates["y"].min(), coordinates["y"].max()
+    if not (PLAUSIBLE_X_RANGE[0] <= x_min and x_max <= PLAUSIBLE_X_RANGE[1]
+            and PLAUSIBLE_Y_RANGE[0] <= y_min and y_max <= PLAUSIBLE_Y_RANGE[1]):
+        raise ValueError(
+            f"plot_coordinates.csv.gz's x/y range (x={x_min:.0f}-{x_max:.0f}, "
+            f"y={y_min:.0f}-{y_max:.0f}) falls outside the plausible EPSG:27700 envelope for "
+            f"Aberfoyle (x={PLAUSIBLE_X_RANGE}, y={PLAUSIBLE_Y_RANGE}) -- this file has no real "
+            "CRS metadata (it's a plain CSV), so this range check is the only thing that would "
+            "catch export_coordinates.py ever being regenerated from a differently-projected "
+            "source. Every distance-based statistic in this project assumes EPSG:27700."
+        )
+
+    return coordinates
+
+
+def _load_geoparquet_with_crs_check(path, label):
+    # Shared by the three boundary loaders below -- unlike load_plot_coordinates() above, these
+    # ARE geopandas GeoDataFrames read from GeoParquet, so they carry real CRS metadata that can
+    # be checked directly, not just guessed at via a coordinate range.
+    import geopandas as gpd
+
+    gdf = gpd.read_parquet(path)
+    if gdf.crs is None or gdf.crs.to_epsg() != EXPECTED_CRS_EPSG:
+        raise ValueError(
+            f"{label} has CRS={gdf.crs!r}, expected EPSG:{EXPECTED_CRS_EPSG} -- every "
+            "distance-based statistic in this project assumes this file is in British National "
+            "Grid metres."
+        )
+    return gdf
 
 
 def load_compartment_boundaries():
@@ -24,9 +69,7 @@ def load_compartment_boundaries():
     # here, not at module level, so scripts that only need
     # load_plot_coordinates()/find_train_plots_near_holdout() still don't
     # need geopandas installed.
-    import geopandas as gpd
-
-    return gpd.read_parquet(COMPARTMENT_BOUNDARIES_PATH)
+    return _load_geoparquet_with_crs_check(COMPARTMENT_BOUNDARIES_PATH, "compartment_boundaries.parquet")
 
 
 def load_subcompartment_boundaries():
@@ -34,17 +77,13 @@ def load_subcompartment_boundaries():
     # together (scpt labels like "A"/"B"/"C" repeat across different compartments, so scpt alone
     # would wrongly merge unrelated sub-compartments). Built by the same
     # export_compartment_boundaries.py script.
-    import geopandas as gpd
-
-    return gpd.read_parquet(SUBCOMPARTMENT_BOUNDARIES_PATH)
+    return _load_geoparquet_with_crs_check(SUBCOMPARTMENT_BOUNDARIES_PATH, "subcompartment_boundaries.parquet")
 
 
 def load_block_boundaries():
     # Same idea, one level coarser -- dissolved by `blk` (only 8 distinct blocks across the
     # whole forest). Built by the same export_compartment_boundaries.py script.
-    import geopandas as gpd
-
-    return gpd.read_parquet(BLOCK_BOUNDARIES_PATH)
+    return _load_geoparquet_with_crs_check(BLOCK_BOUNDARIES_PATH, "block_boundaries.parquet")
 
 
 def find_train_plots_near_holdout(coordinates_df, plot_to_split, buffer_distance, holdout_splits=("val", "test")):

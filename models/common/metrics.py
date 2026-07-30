@@ -3,8 +3,29 @@ import numpy as np
 # Default age bands for the age-banded breakdown. If the data does not reach
 # into the top band (for example, no plots older than 80), that band is just
 # left out of the results rather than shown with zero rows.
-AGE_BAND_EDGES = [20, 40, 60, 80, np.inf]
-AGE_BAND_LABELS = ["20-40", "40-60", "60-80", "80+"]
+#
+# The lowest band splits at 30, not 20 -- 20 was a leftover from the pre-forester-consultation
+# Age >= 20 filter, superseded 15 July 2026 by a forester-informed Age >= 30 rule (see
+# progress_notes.md, "Age filter -- resolved 15 July 2026"). That rule is a PLOT-level gate
+# (a plot is kept if it's >= 30 by the 2023 reference survey, not if every one of its own rows
+# is >= 30), deliberately kept to preserve full trajectories for the PINN -- so rows below 30
+# are real, included data, not excluded from any model. But the forester was explicit that an
+# individual LiDAR top-height measurement below ~30 is unreliable AS GROUND TRUTH ITSELF ("top
+# height is unrelated to age and competition" at that age) -- not just harder for a model to
+# predict. So a bad MAE/RMSE/MRE in the "<30" band below isn't necessarily model error; it may
+# be that the ground truth itself isn't a meaningful signal at that age. Read this band as
+# "here's what the data looks like," not "here's how well the model failed," and see
+# progress_notes.md for the full trade-off reasoning (this was a documented decision, not an
+# oversight). The lowest band is open-ended (-inf) for the same reason the top band is
+# open-ended at the other end: without it, this real, non-trivial population (4-15% of rows
+# depending on cohort, see run_baselines.py) used to vanish from this table with no count
+# anywhere.
+AGE_BAND_EDGES = [-np.inf, 30, 40, 60, 80, np.inf]
+AGE_BAND_LABELS = ["<30", "30-40", "40-60", "60-80", "80+"]
+
+# Floor on MRE's denominator (see compute_metrics_for_rows below) -- well under the smallest
+# observed height in either cohort (~2.15m), so this is currently a no-op, purely defensive.
+MRE_DENOMINATOR_FLOOR_METRES = 1.0
 
 
 def compute_metrics(observed, predicted, age=None):
@@ -43,7 +64,15 @@ def compute_metrics_for_rows(observed, predicted):
     # Mean Relative Error: average of |error| divided by the observed height,
     # so it is a fraction of the true height rather than metres. Accuracy is
     # just the flip side of this, shown as a percentage.
-    relative_errors = np.abs(errors) / observed
+    #
+    # The denominator is floored at MRE_DENOMINATOR_FLOOR_METRES so a handful of short/young
+    # rows with a small observed height can't blow up the mean via a huge individual ratio
+    # (e.g. a 1m error on a 2m-tall row is a 50% relative error, dwarfing everything else, even
+    # though 1m is an unremarkable absolute error elsewhere in the data). Currently a no-op on
+    # this data -- the smallest observed height in either cohort is ~2.15m, well above the 1.0m
+    # floor -- so this changes nothing about today's numbers, only guards against a future data
+    # change (e.g. a lower height-plausibility bound) reintroducing this silently.
+    relative_errors = np.abs(errors) / np.maximum(observed, MRE_DENOMINATOR_FLOOR_METRES)
     mre = float(np.mean(relative_errors))
     accuracy_pct = float((1 - mre) * 100)
 

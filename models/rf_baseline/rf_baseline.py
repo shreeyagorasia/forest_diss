@@ -3,7 +3,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import joblib
+import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
+
+from models.linear_baseline.linear_baseline import THINNING_STATUS_CATEGORIES
 
 FEATURE_COLUMNS = [
     "Age",
@@ -12,12 +15,17 @@ FEATURE_COLUMNS = [
     "time_since_thinning",
     "time_since_thinning_missing",
     "recent_thinning_5yr",
+    "thinning_status",
     # yldc removed 2026-07-28 -- real ablation showed it hurts test R2 here (0.446->0.498
-    # without it), see progress_notes.md.
+    # without it), see progress_notes.md. thinning_status added 2026-07-30 -- it was previously
+    # given only to linear_baseline and DNN/PINN, not this baseline, with no reason on record; see
+    # linear_baseline.py for why the category order (THINNING_STATUS_CATEGORIES, imported from
+    # there so both baselines encode it identically) matters for drop_first.
 ]
+CATEGORICAL_COLUMNS = ["thinning_status"]
 
 
-def prepare_features(df):
+def prepare_features(df, encoded_column_names=None):
     # time_since_thinning is NaN for plots that have never been thinned
     # (time_since_thinning_missing is True for those rows). A random forest
     # cannot handle NaN directly, so fill it with 0 here — the missing flag
@@ -25,6 +33,19 @@ def prepare_features(df):
     # the filled 0 is just a placeholder value the tree splits can ignore.
     features = df[FEATURE_COLUMNS].copy()
     features["time_since_thinning"] = features["time_since_thinning"].fillna(0)
+
+    # thinning_status is a category (like "never_thinned"), not a number -- one-hot encode it
+    # the same way linear_baseline does, so both baselines see thinning information encoded
+    # identically. A random forest doesn't have linear_baseline's identifiability problem (see
+    # that module's encode_features() for why drop_first matters there), but dropping one
+    # category here too keeps the feature columns consistent across every baseline that uses
+    # thinning_status.
+    features["thinning_status"] = pd.Categorical(features["thinning_status"], categories=THINNING_STATUS_CATEGORIES)
+    features = pd.get_dummies(features, columns=CATEGORICAL_COLUMNS, drop_first=True)
+
+    if encoded_column_names is not None:
+        features = features.reindex(columns=encoded_column_names, fill_value=0)
+
     return features
 
 
@@ -36,15 +57,15 @@ def fit(train_df, target_col="elev_percentile_95th", n_estimators=100, seed=42):
     model = RandomForestRegressor(n_estimators=n_estimators, random_state=seed)
     model.fit(features_train, train_df[target_col])
 
-    return model
+    return model, list(features_train.columns)
 
 
-def predict(df, model):
-    features = prepare_features(df)
+def predict(df, model, encoded_column_names):
+    features = prepare_features(df, encoded_column_names=encoded_column_names)
     return model.predict(features)
 
 
-def save_model(model, cohort, n_rows_fit, output_dir):
+def save_model(model, encoded_column_names, cohort, n_rows_fit, output_dir):
     # Unlike Chapman-Richards, average-by-age, and linear regression, a
     # fitted forest is hundreds of decision trees -- there is no small set
     # of numbers that can rebuild it, so the actual fitted model is saved
@@ -69,6 +90,10 @@ def save_model(model, cohort, n_rows_fit, output_dir):
         "n_estimators": model.n_estimators,
         "joblib_compress": 3,
         "feature_columns": FEATURE_COLUMNS,
+        # The one-hot encoded column names actually seen at fit time (thinning_status expands
+        # into several columns, one dropped) -- predict() needs this exact list to align a new
+        # dataset's columns, the same reason linear_baseline saves encoded_column_names.
+        "encoded_column_names": encoded_column_names,
         "cohort": cohort,
         "n_rows_fit": n_rows_fit,
         "fit_date": datetime.now(timezone.utc).isoformat(),

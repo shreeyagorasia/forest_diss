@@ -1,0 +1,81 @@
+EXPERIMENTS TO RUN ON THE CLUSTER
+==================================
+Running checklist, appended to as each code-review fix lands. Everything here is queued
+because the underlying code changed (new target/features, new batch-size handling, etc.) --
+outputs already on disk before a given date are from the OLD code and need regenerating.
+
+Check items off as you run them. Each command is copy-pasteable from the project root
+(cd ~/forest_diss first).
+
+
+=====================================================================
+2026-07-30 -- added while fixing B.1 (DNN batch_size=512 vs PINN batch_size=128)
+=====================================================================
+
+CONTEXT: The 2026-07-29 epoch-check found PINN's batch_size=128 isn't just an unfair
+comparison vs DNN's 512 -- PINN's best_val_loss never beats its own epoch-1 value at ANY
+physics weight tested (1.0, 0.0, 0.05), while DNN converges normally. A 5-epoch local smoke
+test at --batch-size 512 already showed PINN improving for the first time. The 512/128 split
+itself was never a deliberate "smaller batch helps PINN" finding -- it came from a single
+bundled 2026-07-17 tuning pass that changed 4 hyperparameters at once and just happened to
+scale both models' batch size by the same 4x factor from different starting points (DNN
+128->512, PINN 32->128). So: don't assume 512 is PINN's best size either -- sweep it.
+
+Both run_dnn_noenv.py and run_pinn_noenv.py now take --batch-size (DNN's added 2026-07-30
+for symmetry, previously hardcoded). Job scripts updated to match
+(jobs/dnn_noenv/run_dnn_noenv.sh, jobs/pinn_noenv/run_pinn_noenv.sh).
+
+--- STAGE 1: PINN batch-size sweep (physics_weight=trajectory_weight=0.0 to isolate the
+    architecture/batch-size question cleanly from the physics loss question -- matches the
+    "next" step already planned in experiment_log.md's 2026-07-29 entry) ---
+Split: spatial_block (dissertation's primary split). Cohorts: both. Sizes: 128 (confirm
+still broken, a clean before/after reference), 256, 512 (already smoke-tested positively),
+1024 (check if even bigger helps or starts hurting).
+
+[ ] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 spatial_block 0.0 0.0 pinn_noenv_epochcheck_w0_bs128_full 42 128
+[ ] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 spatial_block 0.0 0.0 pinn_noenv_epochcheck_w0_bs256 42 256
+[ ] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 spatial_block 0.0 0.0 pinn_noenv_epochcheck_w0_bs512 42 512
+[ ] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 spatial_block 0.0 0.0 pinn_noenv_epochcheck_w0_bs1024 42 1024
+[ ] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 6survey 500 40 spatial_block 0.0 0.0 pinn_noenv_epochcheck_w0_bs128_full 42 128
+[ ] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 6survey 500 40 spatial_block 0.0 0.0 pinn_noenv_epochcheck_w0_bs256 42 256
+[ ] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 6survey 500 40 spatial_block 0.0 0.0 pinn_noenv_epochcheck_w0_bs512 42 512
+[ ] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 6survey 500 40 spatial_block 0.0 0.0 pinn_noenv_epochcheck_w0_bs1024 42 1024
+
+After these land: for each cohort, look at training_history.csv / the run logs and pick
+whichever batch size gets the lowest best_val_loss_smoothed WITHOUT stalling at epoch 1.
+That becomes the batch size used in Stage 2 below (may differ by cohort -- that's fine,
+note it in experiment_log.md either way).
+
+--- STAGE 2: real DNN/PINN base-case rebuild against the CURRENT pipeline (elev_percentile_95th
+    target, no yldc, full thinning feature set) -- this has been "in progress on the cluster,
+    not back yet" per baseline_results.ipynb section 9 since before today; only diagnostic
+    epoch-check runs exist so far, no real dnn_noenv/pinn_noenv-named output. Do this AFTER
+    Stage 1 tells you PINN's real batch size, so you don't have to redo it once more. ---
+Split: spatial_block first (primary), then temporal. Cohorts: both. Physics weight: the
+untested 1.0 default first (that's literally what "base case" means), matching DNN's plain
+run with no physics-weight flag needed.
+
+[ ] sbatch jobs/dnn_noenv/run_dnn_noenv.sh 4survey 500 40 spatial_block
+[ ] sbatch jobs/dnn_noenv/run_dnn_noenv.sh 6survey 500 40 spatial_block
+[ ] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 spatial_block 1.0 1.0 "" 42 <WINNING_BATCH_SIZE_4SURVEY>
+[ ] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 6survey 500 40 spatial_block 1.0 1.0 "" 42 <WINNING_BATCH_SIZE_6SURVEY>
+[ ] sbatch jobs/dnn_noenv/run_dnn_noenv.sh 4survey 500 40 temporal
+[ ] sbatch jobs/dnn_noenv/run_dnn_noenv.sh 6survey 500 40 temporal
+[ ] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 temporal 1.0 1.0 "" 42 <WINNING_BATCH_SIZE_4SURVEY>
+[ ] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 6survey 500 40 temporal 1.0 1.0 "" 42 <WINNING_BATCH_SIZE_6SURVEY>
+
+Then evaluate each (cheap, local, CPU -- no need for cluster time):
+[ ] python -m models.dnn_noenv.evaluate_dnn_noenv --split-type spatial_block
+[ ] python -m models.pinn_noenv.evaluate_pinn_noenv --split-type spatial_block
+[ ] python -m models.dnn_noenv.evaluate_dnn_noenv --split-type temporal
+[ ] python -m models.pinn_noenv.evaluate_pinn_noenv --split-type temporal
+
+--- STAGE 3: OPEN DECISION, not yet queued -- do the physics-weight sweep (pw/tw in
+    {0.0, 0.05, 0.1, 0.2, ...}) and the 3-seed reseed check need re-running under the new
+    pipeline + the new batch size? The old pw=tw=0.05 shared default and the whole reseed
+    narrative are from the retired Top_Height99+yldc pipeline AND the old (broken) batch
+    size -- see baseline_models_parameter_tuning.ipynb's 2026-07-30 currency caveat. Once
+    Stage 2's base-case numbers are back, decide whether the gap between DNN and PINN (or
+    between the untested 1.0 weight and DNN) is big enough to justify re-running the full
+    sweep+reseed, or whether it's now moot given the batch-size fix. Don't run these yet --
+    revisit once Stage 2 lands.

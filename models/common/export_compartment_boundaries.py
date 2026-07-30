@@ -36,6 +36,11 @@ COMPARTMENT_BOUNDARIES_PATH = PROJECT_ROOT / "data" / "interim" / "compartment_b
 SUBCOMPARTMENT_BOUNDARIES_PATH = PROJECT_ROOT / "data" / "interim" / "subcompartment_boundaries.parquet"
 BLOCK_BOUNDARIES_PATH = PROJECT_ROOT / "data" / "interim" / "block_boundaries.parquet"
 
+# See export_coordinates.py's own EXPECTED_CRS_EPSG comment -- same reasoning, this is the one
+# place a real CRS object exists before it's baked into the output GeoParquet files (which DO
+# keep real CRS metadata, unlike plot_coordinates.csv.gz -- see models/common/geo.py's loaders).
+EXPECTED_CRS_EPSG = 27700
+
 
 def dissolve_boundaries(one_row_per_plot, group_columns, output_path, label):
     boundaries = one_row_per_plot.dissolve(by=group_columns).reset_index()[group_columns + ["geometry"]]
@@ -50,6 +55,11 @@ def export_compartment_boundaries():
     print(f"Reading {GPKG_PATH} ...")
     gdf = gpd.read_file(GPKG_PATH, layer=LAYER_NAME, columns=["identification", "cpmt", "scpt", "blk"])
     print(f"  Read {len(gdf):,} rows, CRS = {gdf.crs}")
+    if gdf.crs is None or gdf.crs.to_epsg() != EXPECTED_CRS_EPSG:
+        raise ValueError(
+            f"{GPKG_PATH} has CRS={gdf.crs!r}, expected EPSG:{EXPECTED_CRS_EPSG} -- refusing to "
+            "export boundaries in the wrong projection."
+        )
 
     one_row_per_plot = gdf.drop_duplicates(subset="identification").copy()
     print(f"  {len(one_row_per_plot):,} unique plots")

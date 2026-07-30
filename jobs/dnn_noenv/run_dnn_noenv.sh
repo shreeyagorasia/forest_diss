@@ -3,13 +3,14 @@
 # Run on the ICF cluster from the project root:
 #
 #   cd ~/forest_diss
-#   sbatch jobs/dnn_noenv/run_dnn_noenv.sh [cohort] [max_epochs] [patience] [split_type] [seed] [run_name]
+#   sbatch jobs/dnn_noenv/run_dnn_noenv.sh [cohort] [max_epochs] [patience] [split_type] [seed] [run_name] [batch_size]
 #
 # Examples:
 #   sbatch jobs/dnn_noenv/run_dnn_noenv.sh 4survey 5 3
 #   sbatch jobs/dnn_noenv/run_dnn_noenv.sh 6survey 500 20
 #   sbatch jobs/dnn_noenv/run_dnn_noenv.sh 4survey 500 20 spatial_block
 #   sbatch jobs/dnn_noenv/run_dnn_noenv.sh 6survey 500 40 temporal 43 dnn_noenv_seed43
+#   sbatch jobs/dnn_noenv/run_dnn_noenv.sh 4survey 500 40 spatial_block 42 dnn_noenv_bs256 256
 #
 # Arguments:
 #   cohort      4survey or 6survey. Defaults to 4survey.
@@ -22,6 +23,10 @@
 #   run_name    Only changes where results are saved -- set this whenever seed
 #               isn't the default, so the run doesn't overwrite the primary
 #               dnn_noenv checkpoint. Blank by default.
+#   batch_size  Training batch size. Defaults to 512 (the model's own default) --
+#               pass a different value as part of a batch-size sweep (see
+#               documentation/experiment_log.md's 2026-07-29 entry for why this
+#               is now being swept rather than assumed).
 #
 # Logs:
 #   stdout -> logs/dnn_noenv/dnn_noenv_<jobid>.out
@@ -53,6 +58,7 @@ PATIENCE=${3:-3}
 SPLIT_TYPE=${4:-temporal}
 SEED=${5:-42}
 RUN_NAME=${6:-}
+BATCH_SIZE=${7:-512}
 
 echo "--- DNN job start ---"
 echo "Node: $(hostname)"
@@ -62,6 +68,7 @@ echo "Patience: ${PATIENCE}"
 echo "Split type: ${SPLIT_TYPE}"
 echo "Seed: ${SEED}"
 echo "Run name: ${RUN_NAME:-(none, uses default dnn_noenv path)}"
+echo "Batch size: ${BATCH_SIZE}"
 
 RUN_NAME_ARGS=()
 if [ -n "${RUN_NAME}" ]; then
@@ -74,6 +81,7 @@ python -u -m models.dnn_noenv.run_dnn_noenv \
   --patience "${PATIENCE}" \
   --split-type "${SPLIT_TYPE}" \
   --seed "${SEED}" \
+  --batch-size "${BATCH_SIZE}" \
   "${RUN_NAME_ARGS[@]}"
 
 echo "--- DNN job end ---"

@@ -117,8 +117,10 @@ def evaluate_rf_baseline(cohort, split_type):
 
     model_dir = output_dir("rf_baseline", cohort, split_type=split_type)
     model = load_rf_model(model_dir)
+    with open(model_dir / "model_metadata.json") as f:
+        metadata = json.load(f)
 
-    predicted_heights = predict_rf_baseline(test_df, model)
+    predicted_heights = predict_rf_baseline(test_df, model, metadata["encoded_column_names"])
     return build_results("rf_baseline", cohort, test_df, predicted_heights, split_type)
 
 

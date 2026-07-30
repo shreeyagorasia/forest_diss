@@ -5,21 +5,59 @@ from pathlib import Path
 import pandas as pd
 from sklearn.linear_model import LinearRegression
 
-FEATURE_COLUMNS = ["Age", "CanopyCover", "thinning_status"]
+FEATURE_COLUMNS = [
+    "Age",
+    "CanopyCover",
+    "Thin",
+    "time_since_thinning",
+    "time_since_thinning_missing",
+    "recent_thinning_5yr",
+    "thinning_status",
+]
 # yldc removed 2026-07-28 -- real ablation showed it hurts generalisation, see progress_notes.md.
+# Thin/time_since_thinning/time_since_thinning_missing/recent_thinning_5yr added 2026-07-30 --
+# this baseline previously got only the categorical thinning_status while rf_baseline got only
+# these continuous/binary ones and DNN/PINN got both, with no reason on record; now all three
+# baseline families see the same thinning information (see rf_baseline.py for the matching change).
 CATEGORICAL_COLUMNS = ["thinning_status"]
+
+# Fixed category order so drop_first (below) always drops "never_thinned" specifically,
+# not whatever happens to sort first alphabetically -- see encode_features().
+THINNING_STATUS_CATEGORIES = [
+    "never_thinned", "recent_0_5yr", "mid_6_10yr", "old_10plus_yr",
+    "not_yet_thinned_at_survey", "unknown_timing",
+]
 
 
 def encode_features(df, encoded_column_names=None):
     # Turn thinning_status (a category like "never_thinned") into separate
     # 0/1 columns a linear model can use.
     #
+    # drop_first=True matters here: without it, every category gets its own
+    # column, and since every row's dummy columns always sum to exactly 1,
+    # that set of columns is an exact linear combination of LinearRegression's
+    # implicit intercept column. The design matrix is then rank-deficient --
+    # sklearn's solver doesn't error, it silently returns a minimum-norm
+    # solution, and the resulting per-category coefficients aren't uniquely
+    # identified (a real problem when the coefficients themselves are meant
+    # to be interpreted, not just used for prediction). Dropping one category
+    # removes the redundancy; fixing it to "never_thinned" via the categorical
+    # ordering above (rather than letting pandas pick whichever sorts first
+    # alphabetically) makes every remaining coefficient a well-defined
+    # "vs. never thinned" effect.
+    #
     # If encoded_column_names is given, match this data to the exact columns
     # seen during training: a category seen only during training gets a
     # column of 0s here (fill_value=0), and a category not seen during
     # training is simply dropped, so the model never sees an unexpected
     # column at prediction time.
-    encoded = pd.get_dummies(df[FEATURE_COLUMNS], columns=CATEGORICAL_COLUMNS)
+    encoded = df[FEATURE_COLUMNS].copy()
+    encoded["thinning_status"] = pd.Categorical(encoded["thinning_status"], categories=THINNING_STATUS_CATEGORIES)
+    # time_since_thinning is NaN for plots that have never been thinned (time_since_thinning_missing
+    # is True for those rows) -- LinearRegression can't handle NaN directly, so fill it with 0 here,
+    # same as rf_baseline does; the missing flag is what actually tells the model "never thinned".
+    encoded["time_since_thinning"] = encoded["time_since_thinning"].fillna(0)
+    encoded = pd.get_dummies(encoded, columns=CATEGORICAL_COLUMNS, drop_first=True)
 
     if encoded_column_names is not None:
         encoded = encoded.reindex(columns=encoded_column_names, fill_value=0)

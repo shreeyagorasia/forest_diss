@@ -159,6 +159,7 @@ def fit(
     n_other_features, device, seed,
     max_epochs, early_stopping_patience,
     optimizer_name="adam",
+    batch_size=BATCH_SIZE,
 ):
     # Trains the DNN, one epoch at a time, stopping early if the
     # validation loss stops improving. Returns:
@@ -193,7 +194,7 @@ def fit(
 
     for epoch in range(1, max_epochs + 1):
         train_loss, grad_norm = train_one_epoch(
-            model, optimizer, age_train, other_train, target_train, BATCH_SIZE, device
+            model, optimizer, age_train, other_train, target_train, batch_size, device
         )
         val_loss = evaluate_on_validation_set(model, age_val, other_val, target_val)
         scheduler.step(val_loss)

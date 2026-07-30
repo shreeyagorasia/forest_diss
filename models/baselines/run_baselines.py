@@ -274,9 +274,9 @@ def fit_rf_baseline_logged(cohort, split_type, split_assignment):
     )
     try:
         rf_train_df = load_train_rows(cohort, "rf_baseline", split_assignment)
-        rf_model = fit_rf_baseline(rf_train_df)
+        rf_model, rf_encoded_column_names = fit_rf_baseline(rf_train_df)
         rf_output_dir = output_dir("rf_baseline", cohort, split_type=split_type)
-        rf_model_path = save_rf_model(rf_model, cohort, len(rf_train_df), rf_output_dir)
+        rf_model_path = save_rf_model(rf_model, rf_encoded_column_names, cohort, len(rf_train_df), rf_output_dir)
         print(f"  RF baseline model saved -> {rf_model_path}")
 
         write_run_log(

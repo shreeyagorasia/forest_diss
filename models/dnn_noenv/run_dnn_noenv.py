@@ -71,7 +71,10 @@ DEFAULT_EARLY_STOPPING_PATIENCE = 40
 DEFAULT_OPTIMIZER = "adam"
 
 
-def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed, optimizer_name, run_name=None):
+def run_for_cohort(
+    cohort, split_type, max_epochs, early_stopping_patience, seed, optimizer_name,
+    run_name=None, batch_size=BATCH_SIZE,
+):
     # run_name only changes where results are SAVED (output_dir below) and
     # how this run is labelled in outputs/run_logs/ -- it never changes
     # which underlying data table gets loaded (that always uses the plain
@@ -101,7 +104,7 @@ def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed
         "grad_clip_max_norm": GRAD_CLIP_MAX_NORM,
         "val_loss_smoothing_window": VAL_LOSS_SMOOTHING_WINDOW,
         "optimizer_name": optimizer_name,
-        "batch_size": BATCH_SIZE,
+        "batch_size": batch_size,
         "max_epochs": max_epochs,
         "early_stopping_patience": early_stopping_patience,
         "seed": seed,
@@ -154,6 +157,7 @@ def run_for_cohort(cohort, split_type, max_epochs, early_stopping_patience, seed
             n_other_features, device, seed,
             max_epochs, early_stopping_patience,
             optimizer_name=optimizer_name,
+            batch_size=batch_size,
         )
         # The smoothed column is what actually decided which epoch's
         # weights got saved as "best" (see dnn_noenv.py::fit()) -- reporting
@@ -243,6 +247,17 @@ def main():
         help="Set this whenever --seed isn't the default, so the run doesn't overwrite the "
              "primary dnn_noenv checkpoint (e.g. for a reseed variance check).",
     )
+    parser.add_argument(
+        "--batch-size", type=int, default=BATCH_SIZE,
+        help=(
+            f"Training batch size. Default {BATCH_SIZE}, matching pinn_noenv's default before "
+            "2026-07-29 -- exposed here (previously hardcoded) for symmetry with "
+            "run_pinn_noenv.py's --batch-size, so a batch-size sweep can vary either model's "
+            "batch size independently. See documentation/experiment_log.md's 2026-07-29 entry "
+            "for why this matters: pinn_noenv's smaller batch size (128 vs this model's 512) "
+            "was found to stall its training entirely, not just a minor confound."
+        ),
+    )
     args = parser.parse_args()
 
     cohorts = [args.cohort] if args.cohort else ["4survey", "6survey"]
@@ -250,7 +265,8 @@ def main():
     results = {}
     for cohort in cohorts:
         results[cohort] = run_for_cohort(
-            cohort, args.split_type, args.max_epochs, args.patience, args.seed, args.optimizer, args.run_name
+            cohort, args.split_type, args.max_epochs, args.patience, args.seed, args.optimizer, args.run_name,
+            batch_size=args.batch_size,
         )
 
     print("===== Summary: best validation loss reached =====")
