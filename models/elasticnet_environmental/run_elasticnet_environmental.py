@@ -9,7 +9,7 @@
 #
 # Why build this alongside XGBoost+SHAP at all: SHAP values are known to be unreliable when
 # input features are correlated (confirmed for this exact dataset -- see
-# notebooks/environmental_data/env_variable_importance.ipynb section 6, where elevation's SHAP
+# notebooks/environmental_data/env_variable_importance_RETIRED_2026-07-28.ipynb section 6, where elevation's SHAP
 # rank turned out to be misleading once tested by ablation). Elastic Net's penalty behaves
 # differently under correlation -- it tends to SPREAD credit across a correlated group rather
 # than letting one member's SHAP value arbitrarily win -- so comparing the two methods' answers

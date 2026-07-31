@@ -36,7 +36,14 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 COHORTS = ["4survey", "6survey"]
 MODEL_NAMES = ["chapman_richards", "average_by_age", "linear_baseline", "rf_baseline"]
 
-# Thresholds used to flag results worth a closer look at the end.
+# Thresholds used to flag results worth a closer look at the end. Both are round-number
+# judgment calls (2026-07-30 note), not derived from a specific statistical rule or citation --
+# 30 rows matches the conventional rough rule-of-thumb minimum sample size for a mean to start
+# behaving normally (central limit theorem heuristic, not calculated for this data
+# specifically); 2.0m is roughly the same order of magnitude as this project's own RMSE numbers
+# (see baseline_results.ipynb), so a bias at that scale is "as large as the model's typical
+# error" rather than a precise threshold. Worth treating as adjustable defaults, not fixed
+# constants, if either ever needs defending.
 MIN_ROWS_TO_TRUST_A_BAND = 30
 LARGE_BIAS_METRES = 2.0
 

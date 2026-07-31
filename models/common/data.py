@@ -25,6 +25,14 @@ def load_model_table(cohort):
 
 
 def filter_data(df, maturity_age_min=30, reference_year=2023, yldc_min=2, yldc_max=50):
+    # maturity_age_min=30 is NOT an arbitrary round number -- it's the forester-consulted
+    # cutoff (UK forestry practice switches from measuring top height to estimating Yield
+    # Class at this age; see progress_notes.md, "Age filter -- resolved 15 July 2026" for the
+    # full reasoning and the plot-level-vs-row-level trade-off this function implements).
+    # yldc_min/yldc_max=2/50 is a plausible-range sanity bound for UK General Yield Class
+    # (2026-07-30 note: not independently re-derived here, kept as the existing convention --
+    # worth confirming against a real GYC reference table if this ever needs defending).
+    #
     # Age is now a per-PLOT gate, not a per-row threshold. Both the 4survey
     # and 6survey cohorts give every plot the exact same fixed set of survey
     # years (e.g. 2008/2012/2021/2023), so every plot has one real, measured

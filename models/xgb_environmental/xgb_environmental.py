@@ -37,7 +37,16 @@ FEATURE_PROVENANCE = {
         "azimuth), evaluated at solar noon on the summer solstice (declination 23.44 deg, site "
         "latitude 56.15 deg) -- no horizon shading by surrounding terrain, a known simplification"
     ),
-    "soil_depth_proxy": "own calculation, derived directly from slope_degrees (= -slope_degrees, a heuristic, not new information)",
+    "inverse_slope_proxy": (
+        "own calculation, derived directly from slope_degrees (= -slope_degrees, a heuristic, "
+        "not new information) -- an EXACT linear duplicate, not just correlated. For XGBoost "
+        "this is mostly a SHAP-attribution question (which of the two gets credited). For "
+        "Elastic Net it's more consequential: with two perfectly collinear columns, the "
+        "regularisation path can split the same underlying signal's coefficient between them "
+        "in a way that depends on solver internals, not on anything about the data -- treat "
+        "inverse_slope_proxy's and slope_degrees's individual Elastic Net coefficients as not "
+        "separately meaningful, only their sum is (2026-07-30 clarification)."
+    ),
     "frost_hollow_flag": (
         "own calculation: binary flag = (tpi below its own 15th percentile) AND (plan_curvature "
         "< 0, i.e. concave) -- a documented heuristic threshold, not calibrated against any real "
@@ -84,21 +93,69 @@ FEATURE_PROVENANCE = {
         "watercourse line (real vector survey data, not a flow-accumulation derivation), "
         "watercourses read within a 5km-buffered bounding box around the study area"
     ),
-    "gwa_wind_speed_10m": "external (Global Wind Atlas API)",
-    "soilgrids_ph": "external (SoilGrids COG, ISRIC)",
-    "ceh_pedotope": "external (CEH natural-capital pedotope raster -- a categorical class ID, not an ordinal scale)",
-    "ceh_twi": "external (CEH Topographic Wetness Index raster, from the same CEH zip as ceh_pedotope)",
-    "ceh_subsurface_drainage": "external (CEH subsurface drainage raster -- a categorical class ID, from the same CEH zip)",
-    "ceh_textural_composition": "external (CEH soil textural composition raster -- a categorical class ID, from the same CEH zip)",
-    "chelsa_bio1_celsius": "external (CHELSA bioclimatic layer)",
-    "chelsa_gdd5_degc": "external (CHELSA growing degree days above 5C, BIOCLIM+ layer)",
-    "chelsa_bio12_precip_mm": "external (CHELSA annual precipitation, bio12)",
-    "haduk_tas_2021_mean": (
-        "external (HadUK-Grid, CEDA, manually downloaded -- 2021 only, not every survey year). "
-        "KNOWN LIMITATION, not yet fixed: every survey year currently reuses this same single "
-        "2021 raster rather than its own year's climate -- downloading one HadUK-Grid tas raster "
-        "per survey year (2002/2006/2008/2012/2021/2023) and joining each plot-year to its own "
-        "year's value would remove this approximation"
+    "gwa_wind_speed_10m": (
+        "external (Global Wind Atlas public REST API, GBR/wind-speed/10 -- 10m height, no auth). "
+        "Nominal 250m grid, but that's a longitude/latitude spacing, not a real ground distance "
+        "at this latitude -- confirmed real resolution over Aberfoyle is ~140-155m (E-W) x 250m "
+        "(N-S), anisotropic. Modelled climatology (long-term average, not tied to any survey "
+        "year), same nearest-cell extraction as every other raster here. See "
+        "notebooks/environmental_data/environmental_data_sources_survey_SUPERSEDED_2026-07-30.ipynb's resolution check."
+    ),
+    "soilgrids_ph": (
+        "external (SoilGrids v2.0, ISRIC, public Cloud-Optimised GeoTIFF via rasterio's "
+        "/vsicurl/, no auth). 250m resolution. Topsoil pH specifically -- SoilGrids' pH product "
+        "is depth-stratified (0-5/5-15/15-30/30-60/60-100/100-200cm); this uses the shallowest "
+        "layer, phh2o_0-5cm_mean. See notebooks/environmental_data/aux_data_resolution_check.ipynb."
+    ),
+    "ceh_pedotope": (
+        "external (CEH natural capital dataset, natural_capital_pedotopes.tif, one of 9 layers "
+        "in the same downloaded zip -- 50m resolution, 7 classes over Aberfoyle) -- a categorical "
+        "class ID, not an ordinal scale."
+    ),
+    "ceh_twi": (
+        "external (CEH Topographic Wetness Index, twi.tif, 50m resolution, from the same CEH "
+        "zip/product as ceh_pedotope)."
+    ),
+    "ceh_subsurface_drainage": (
+        "external (CEH subsurface drainage raster, 50m resolution, from the same CEH zip/product "
+        "as ceh_pedotope) -- a categorical class ID."
+    ),
+    "ceh_textural_composition": (
+        "external (CEH soil textural composition raster, 50m resolution, from the same CEH "
+        "zip/product as ceh_pedotope) -- a categorical class ID."
+    ),
+    "chelsa_bio1_celsius": (
+        "external (CHELSA v2.1, direct public download, no auth). 1km nominal resolution (same "
+        "grid as HadUK-Grid), but terrain-conditioned downscaling, not a plain interpolation. "
+        "1981-2010 climatology (static, not tied to any survey year) -- bio1 = mean annual air "
+        "temperature."
+    ),
+    "chelsa_gdd5_degc": (
+        "external (CHELSA v2.1 BIOCLIM+ extension, same access/resolution/period as "
+        "chelsa_bio1_celsius: 1km, 1981-2010 climatology) -- growing degree days above 5C."
+    ),
+    "chelsa_bio12_precip_mm": (
+        "external (CHELSA v2.1, same access/resolution/period as chelsa_bio1_celsius: 1km, "
+        "1981-2010 climatology) -- bio12 = annual precipitation."
+    ),
+    "tas_mean": (
+        "external (HadUK-Grid, CEDA, mean annual temperature, 1km). Genuinely multi-year "
+        "(2026-07-30 fix, models/common/download_haduk_multi_year.py): averaged across each "
+        "cohort's own survey years (2008/2012/2021/2023 for 4survey, all 6 "
+        "2002/2006/2008/2012/2021/2023 for 6survey) via load_plots_for_cohort()'s cohort-suffixed "
+        "columns (tas_mean_4survey/_6survey), not a single reused snapshot year applied "
+        "uniformly. See notebooks/environmental_data/aux_data_resolution_check.ipynb for the "
+        "screening (rho=0.273 vs 4survey CR residual) and why rainfall/tasmax/tasmin/sfcWind "
+        "were also extracted but not kept (redundant with existing CHELSA/GWA variables, or -- "
+        "for sfcWind -- misleadingly labelled: rho=-0.96 with tas itself, only rho=0.25 with the "
+        "existing gwa_wind_speed_10m)."
+    ),
+    "groundfrost_mean": (
+        "external (HadUK-Grid, CEDA, days of ground frost per month, 1km, added 2026-07-30). "
+        "Same multi-year, cohort-averaged extraction as tas_mean above. Checked as a potential "
+        "complement/validation for the existing frost_hollow_flag terrain heuristic -- real "
+        "signal (rho=0.172 vs 4survey CR residual), fairly distinct from the other climate "
+        "variables already in the model."
     ),
     "neighbour_mean_height": (
         "own calculation: mean of every OTHER plot's 2023 elev_percentile_95th within a 75m "
@@ -122,10 +179,10 @@ FEATURE_PROVENANCE = {
 }
 # era5_land_temp_k is deliberately NOT in this dict, and so not in any feature set below --
 # excluded on the numbers alone (only 8 distinct values across all 71,766 plots, confirmed
-# ~11.1km native resolution), not grouped with haduk_tas_2021_mean by category. haduk_tas_2021_mean
-# has 149 distinct values and one of the strongest raw correlations with the CR residual of
-# anything tested (rho=0.29) -- kept, on its own numbers, despite sharing the same "single-year
-# climate snapshot" shape as the excluded ERA5-Land variable. See
+# ~11.1km native resolution), not grouped with tas_mean by category. tas_mean has 149 distinct
+# values and one of the strongest raw correlations with the CR residual of anything tested
+# (rho=0.27) -- kept, on its own numbers, despite sharing the same "climate snapshot" shape as
+# the excluded ERA5-Land variable. See
 # notebooks/environmental_data/aux_data_resolution_check.ipynb's climate correlation section for
 # the full comparison.
 
@@ -138,21 +195,30 @@ ALL_FEATURE_COLUMNS = list(FEATURE_PROVENANCE.keys())
 NEIGHBOUR_COLUMNS = ["neighbour_mean_height", "neighbour_height_differential"]
 
 TERRAIN_AND_WIND_COLUMNS = [
+    # Genuinely terrain + wind only (2026-07-30 fix) -- this used to also include 6
+    # spatial-position/edge-effect columns (dist_to_cpmt_boundary, dist_to_forest_perimeter,
+    # dist_to_scpt_boundary, dist_to_block_boundary, cpmt_compactness_ratio, dist_to_road) plus
+    # dist_to_watercourse (a soil/site variable), which meant any "terrain and wind explain X%"
+    # claim built on this constant overstated what was actually isolated. The claim that the old
+    # list "matches the dissertation plan's original XGB-A/B framing" didn't hold up either --
+    # the plan's own XGB-A/B/C table (`Dissertation Plan v5 - 7th June.md`) defines those as
+    # "terrain only" / "terrain + WASP/GWA wind speed", nothing about edge-effects or hydrology.
+    # This list is now exactly grouped_analysis.py's CATEGORY_GROUPS["terrain"] +
+    # CATEGORY_GROUPS["wind"] -- the categorization already used (and already correct) for the
+    # grouped permutation importance / Moran's-I-before-after checks, so there's now one
+    # consistent definition of "terrain" and "wind" across every analysis in this project, not two.
     "elevation", "slope_degrees", "northness", "eastness",
     "profile_curvature", "plan_curvature", "tpi", "elevation_roughness", "ceh_twi",
-    "solar_radiation_index", "soil_depth_proxy", "frost_hollow_flag",
-    "topex", "windward_topex", "whcl",
-    "dist_to_cpmt_boundary", "dist_to_forest_perimeter", "dist_to_watercourse",
-    "dist_to_scpt_boundary", "dist_to_block_boundary", "cpmt_compactness_ratio", "dist_to_road",
-    "gwa_wind_speed_10m",
+    "solar_radiation_index", "inverse_slope_proxy", "frost_hollow_flag",
+    "topex", "windward_topex", "whcl", "gwa_wind_speed_10m",
 ]
 
 # Three named feature sets to fit and compare:
 #   - all_environmental: every candidate variable, the main deliverable.
 #   - all_environmental_no_neighbour: same, minus the two spatial-lag features -- answers the
 #     standing caveat ("test the terrain+wind model with and without this feature") directly.
-#   - terrain_and_wind_only: matches this repo's dissertation plan's original XGB-A/B framing,
-#     kept as a continuity check against that earlier design.
+#   - terrain_and_wind_only: genuinely terrain+wind (see TERRAIN_AND_WIND_COLUMNS above), the
+#     closest equivalent to the dissertation plan's original XGB-A/B/C staging.
 FEATURE_SETS = {
     "all_environmental": ALL_FEATURE_COLUMNS,
     "all_environmental_no_neighbour": [c for c in ALL_FEATURE_COLUMNS if c not in NEIGHBOUR_COLUMNS],

@@ -32,50 +32,161 @@ Split: spatial_block (dissertation's primary split). Cohorts: both. Sizes: 128 (
 still broken, a clean before/after reference), 256, 512 (already smoke-tested positively),
 1024 (check if even bigger helps or starts hurting).
 
-[ ] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 spatial_block 0.0 0.0 pinn_noenv_epochcheck_w0_bs128_full 42 128
-[ ] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 spatial_block 0.0 0.0 pinn_noenv_epochcheck_w0_bs256 42 256
-[ ] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 spatial_block 0.0 0.0 pinn_noenv_epochcheck_w0_bs512 42 512
-[ ] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 spatial_block 0.0 0.0 pinn_noenv_epochcheck_w0_bs1024 42 1024
-[ ] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 6survey 500 40 spatial_block 0.0 0.0 pinn_noenv_epochcheck_w0_bs128_full 42 128
-[ ] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 6survey 500 40 spatial_block 0.0 0.0 pinn_noenv_epochcheck_w0_bs256 42 256
-[ ] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 6survey 500 40 spatial_block 0.0 0.0 pinn_noenv_epochcheck_w0_bs512 42 512
-[ ] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 6survey 500 40 spatial_block 0.0 0.0 pinn_noenv_epochcheck_w0_bs1024 42 1024
+[x] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 spatial_block 0.0 0.0 tune_pinn_w0_4s_bs128 42 128
+[x] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 spatial_block 0.0 0.0 tune_pinn_w0_4s_bs256 42 256
+[x] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 spatial_block 0.0 0.0 tune_pinn_w0_4s_bs512 42 512
+[x] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 spatial_block 0.0 0.0 tune_pinn_w0_4s_bs1024 42 1024
+[x] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 6survey 500 40 spatial_block 0.0 0.0 tune_pinn_w0_6s_bs128 42 128
+[x] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 6survey 500 40 spatial_block 0.0 0.0 tune_pinn_w0_6s_bs256 42 256
+[x] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 6survey 500 40 spatial_block 0.0 0.0 tune_pinn_w0_6s_bs512 42 512
+[x] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 6survey 500 40 spatial_block 0.0 0.0 tune_pinn_w0_6s_bs1024 42 1024
+[x] (also ran a matching DNN sweep, tune_dnn_{4s,6s}_bs{128,256,512,1024} -- not strictly
+    necessary since DNN never showed the stuck-at-epoch-1 pathology, but confirms DNN is
+    equally insensitive to batch size here)
 
-After these land: for each cohort, look at training_history.csv / the run logs and pick
-whichever batch size gets the lowest best_val_loss_smoothed WITHOUT stalling at epoch 1.
-That becomes the batch size used in Stage 2 below (may differ by cohort -- that's fine,
-note it in experiment_log.md either way).
+RESULT (2026-07-30): all 8 PINN configs now converge correctly -- every one improved past
+epoch 1, every one stopped via genuine patience exhaustion (total_epochs - best_epoch = 40,
+exactly the patience setting, no exceptions). The original bug is resolved (most likely by
+the target/pipeline rebuild, batch size, or both -- not disentangled, and not worth the
+extra cluster time to isolate now that it's fixed). Differences between batch sizes are
+small/noise-level: 4survey best val_loss 0.3286-0.3305 across all four sizes; 6survey
+0.2064-0.2081. DECISION: use batch size 256 going forward for both cohorts -- essentially
+tied for best on both, sits mid-range rather than at either extreme.
 
 --- STAGE 2: real DNN/PINN base-case rebuild against the CURRENT pipeline (elev_percentile_95th
     target, no yldc, full thinning feature set) -- this has been "in progress on the cluster,
     not back yet" per baseline_results.ipynb section 9 since before today; only diagnostic
-    epoch-check runs exist so far, no real dnn_noenv/pinn_noenv-named output. Do this AFTER
-    Stage 1 tells you PINN's real batch size, so you don't have to redo it once more. ---
+    epoch-check runs exist so far, no real dnn_noenv/pinn_noenv-named output. Batch size is
+    now resolved (256, both cohorts) -- run this next. ---
 Split: spatial_block first (primary), then temporal. Cohorts: both. Physics weight: the
 untested 1.0 default first (that's literally what "base case" means), matching DNN's plain
 run with no physics-weight flag needed.
 
-[ ] sbatch jobs/dnn_noenv/run_dnn_noenv.sh 4survey 500 40 spatial_block
-[ ] sbatch jobs/dnn_noenv/run_dnn_noenv.sh 6survey 500 40 spatial_block
-[ ] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 spatial_block 1.0 1.0 "" 42 <WINNING_BATCH_SIZE_4SURVEY>
-[ ] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 6survey 500 40 spatial_block 1.0 1.0 "" 42 <WINNING_BATCH_SIZE_6SURVEY>
-[ ] sbatch jobs/dnn_noenv/run_dnn_noenv.sh 4survey 500 40 temporal
-[ ] sbatch jobs/dnn_noenv/run_dnn_noenv.sh 6survey 500 40 temporal
-[ ] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 temporal 1.0 1.0 "" 42 <WINNING_BATCH_SIZE_4SURVEY>
-[ ] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 6survey 500 40 temporal 1.0 1.0 "" 42 <WINNING_BATCH_SIZE_6SURVEY>
+[x] sbatch jobs/dnn_noenv/run_dnn_noenv.sh 4survey 500 40 spatial_block
+[x] sbatch jobs/dnn_noenv/run_dnn_noenv.sh 6survey 500 40 spatial_block
+[x] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 spatial_block 1.0 1.0 "" 42 256
+[x] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 6survey 500 40 spatial_block 1.0 1.0 "" 42 256
+[x] sbatch jobs/dnn_noenv/run_dnn_noenv.sh 4survey 500 40 temporal
+[x] sbatch jobs/dnn_noenv/run_dnn_noenv.sh 6survey 500 40 temporal
+[x] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 temporal 1.0 1.0 "" 42 256
+[x] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 6survey 500 40 temporal 1.0 1.0 "" 42 256
+
+RESULT (2026-07-30): all 8 fit+evaluate runs done (output tagged `dnn_noenv` /
+`pinn_noenv_basecase_w1` under each split/cohort). DNN beats PINN(w=1.0) on test R2 in all 4
+cohort x split combos (4survey spatial_block 0.633 vs 0.580; 6survey spatial_block 0.750 vs 0.734;
+4survey temporal 0.354 vs 0.284; 6survey temporal 0.284 vs 0.209) -- confirms the "physics
+constraint hurts at full weight" finding survives the full rebuild. See experiment_log.md's
+2026-07-30 Stage 2/3 entry for full numbers.
 
 Then evaluate each (cheap, local, CPU -- no need for cluster time):
-[ ] python -m models.dnn_noenv.evaluate_dnn_noenv --split-type spatial_block
-[ ] python -m models.pinn_noenv.evaluate_pinn_noenv --split-type spatial_block
-[ ] python -m models.dnn_noenv.evaluate_dnn_noenv --split-type temporal
-[ ] python -m models.pinn_noenv.evaluate_pinn_noenv --split-type temporal
+[x] python -m models.dnn_noenv.evaluate_dnn_noenv --split-type spatial_block
+[x] python -m models.pinn_noenv.evaluate_pinn_noenv --split-type spatial_block --run-name pinn_noenv_basecase_w1
+[x] python -m models.dnn_noenv.evaluate_dnn_noenv --split-type temporal
+[x] python -m models.pinn_noenv.evaluate_pinn_noenv --split-type temporal --run-name pinn_noenv_basecase_w1
 
---- STAGE 3: OPEN DECISION, not yet queued -- do the physics-weight sweep (pw/tw in
-    {0.0, 0.05, 0.1, 0.2, ...}) and the 3-seed reseed check need re-running under the new
-    pipeline + the new batch size? The old pw=tw=0.05 shared default and the whole reseed
-    narrative are from the retired Top_Height99+yldc pipeline AND the old (broken) batch
-    size -- see baseline_models_parameter_tuning.ipynb's 2026-07-30 currency caveat. Once
-    Stage 2's base-case numbers are back, decide whether the gap between DNN and PINN (or
-    between the untested 1.0 weight and DNN) is big enough to justify re-running the full
-    sweep+reseed, or whether it's now moot given the batch-size fix. Don't run these yet --
-    revisit once Stage 2 lands.
+--- STAGE 3: PINN physics-weight sweep, batch size 256, 4survey only first -- 9-point grid
+    (physics_weight x trajectory_weight), same idea as the retired-pipeline sweep but now a
+    real 2D grid instead of always setting both weights equal, and on the corrected pipeline
+    + batch size. Loss-scale check (2026-07-30): physics_loss and trajectory_loss are NOT on
+    wildly different scales (~0.078 vs ~0.367 in a bs=256 sample run, roughly 4.7x apart, not
+    1000x) -- real but modest, worth remembering that "equal weights" isn't quite "equal
+    influence." Grid extended one point past the original 9 (0.2/0.2) since the retired
+    pipeline's sweep suggested 6survey's optimum might sit above 0.1, right at this grid's
+    original edge. ---
+
+[x] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 spatial_block 0.0 0.0 tune_pinn_4s_w0_0 42 256
+[x] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 spatial_block 0.01 0.0 tune_pinn_4s_w001_0 42 256
+[x] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 spatial_block 0.1 0.0 tune_pinn_4s_w01_0 42 256
+[x] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 spatial_block 0.0 0.01 tune_pinn_4s_w0_001 42 256
+[x] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 spatial_block 0.0 0.1 tune_pinn_4s_w0_01 42 256
+[x] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 spatial_block 0.01 0.01 tune_pinn_4s_w001_001 42 256
+[x] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 spatial_block 0.1 0.1 tune_pinn_4s_w01_01 42 256
+[x] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 spatial_block 0.1 0.01 tune_pinn_4s_w01_001 42 256
+[x] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 spatial_block 0.01 0.1 tune_pinn_4s_w001_01 42 256
+[x] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 500 40 spatial_block 0.2 0.2 tune_pinn_4s_w02_02 42 256
+
+RESULT (2026-07-30): all 10 configs fit successfully. Lowest best_val_loss_smoothed:
+pw=0.1,tw=0.0 (0.3292) -- but pw=0.01,tw=0.0 (0.3294), pw=0.0,tw=0.01 (0.3300),
+pw=0.1,tw=0.01 (0.3299), and the 0/0 control (0.3308) are all within the same noise band Stage
+1 already established (0.3286-0.3305). Evaluated the "winner" (w01_0) and the 0/0 control on
+4survey test set: control is SLIGHTLY BETTER on test R2 (0.6337 vs 0.6319) -- the val-loss
+"winner" doesn't hold up on held-out data. Only clear real signal: trajectory_weight>=0.1
+reliably hurts (0.338-0.350). See experiment_log.md's 2026-07-30 Stage 2/3 Findings entry --
+this needs a decision before Stage 4 (see note there), not just picking pw=0.1,tw=0.0 on autopilot.
+
+Repeated the (nominal) winner (w01_0) + 0/0 control on 6survey, per the original plan:
+[x] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 6survey 500 40 spatial_block 0.1 0.0 tune_pinn_6s_w01_0 42 256
+[x] sbatch jobs/pinn_noenv/run_pinn_noenv.sh 6survey 500 40 spatial_block 0.0 0.0 tune_pinn_6s_w0_0 42 256
+[x] python -m models.pinn_noenv.evaluate_pinn_noenv --cohort 6survey --split-type spatial_block --run-name tune_pinn_6s_w01_0
+[x] python -m models.pinn_noenv.evaluate_pinn_noenv --cohort 6survey --split-type spatial_block --run-name tune_pinn_6s_w0_0
+
+RESULT: same pattern as 4survey -- control slightly better on test R2 (0.7483 vs 0.7468).
+
+--- STAGE 4: final fair comparison -- 5 seeds (42/43/44/45/46; 3 minimum if cluster time is
+    short) x DNN / PINN (winning weights) / PINN (w=0, the physics ablation) x both cohorts
+    x all 3 splits. Batch size 256 throughout (DNN too, for consistency, unless Stage 2 shows
+    DNN prefers 512 -- Stage 2's DNN numbers were fine at 256, no need to revisit). Report
+    mean +/- SD across seeds, never a single "best seed".
+
+    WINNING_PW/WINNING_TW DECISION (2026-07-30): the grid's literal lowest-val-loss config
+    (pw=0.1,tw=0.0) is statistically tied with the 0/0 control and actually loses to it on
+    test R2 on both cohorts -- not a real tuned optimum, see experiment_log.md's Stage 2/3
+    Findings entry. Decided (user call): run BOTH configs through Stage 4 as separate PINN
+    arms rather than picking one on faith -- this was already the original plan's structure
+    (the "winning weights" line below + the separate "w=0 ablation" line ARE those two
+    configs), so no extra arm was added, just both placeholders filled in:
+      WINNING_PW=0.1, WINNING_TW=0.0 (nominal grid winner)
+      (the second sbatch line per seed below is the pre-existing 0.0/0.0 ablation arm) ---
+
+[x] for cohort in 4survey 6survey; do
+      for split in spatial_block temporal temporal_narrow_gap; do
+        for seed in 42 43 44 45 46; do
+          sbatch jobs/dnn_noenv/run_dnn_noenv.sh "$cohort" 500 40 "$split" "$seed" "final_dnn_seed${seed}" 256
+        done
+      done
+    done
+
+[x] for cohort in 4survey 6survey; do
+      for split in spatial_block temporal temporal_narrow_gap; do
+        for seed in 42 43 44 45 46; do
+          sbatch jobs/pinn_noenv/run_pinn_noenv.sh "$cohort" 500 40 "$split" 0.1 0.0 "final_pinn_seed${seed}" "$seed" 256
+          sbatch jobs/pinn_noenv/run_pinn_noenv.sh "$cohort" 500 40 "$split" 0.0 0.0 "final_pinn_w0_seed${seed}" "$seed" 256
+        done
+      done
+    done
+
+RESULT (2026-07-31): all 90 fits completed (2 cohorts x 3 splits x 5 seeds x 3 arms). All
+pass the early-stopping sanity check (n_epochs_trained - best_epoch == patience=40 exactly,
+no NaNs, none hit max_epochs=500). BUT a second check (% val-loss reduction from epoch 1 to
+best epoch) found all 15 `temporal`/4survey runs (every seed, every arm) show 0.0% reduction,
+best_epoch=1 -- train_loss declines normally while val_loss rises every epoch from the start.
+Traced to `TEMPORAL_YEARS` (models/common/splits.py): 4survey's `temporal` split trains on
+only 2008+2012 (one 4-year transition) then validates 9 years forward on 2021, vs 6survey's
+temporal split training on 4 years spanning a full decade (2002-2012) -- 6survey's `temporal`
+split shows normal 27-35% val-loss reduction under the identical 9-year val gap, so this is
+training-window diversity, not gap length or row count (4survey/temporal actually has MORE
+rows, 116224 vs 55076). CORRECTED once evaluated (see below): `temporal`/4survey's test R2
+(~0.35) is real, not near-random, and beats both RF (-0.041) and linear (0.287) on the same
+split -- best_epoch=1 means "least-overfit checkpoint", not "untrained". Cite with a
+mechanistic caveat, don't silently average alongside converged-fit cells. Doesn't affect
+spatial_block (primary) or temporal_narrow_gap (only mildly affected, 0.2-1.9% reduction).
+Full writeup: experiment_log.md's 2026-07-31 Findings entry + same-day correction.
+
+Then evaluate each (cheap, local, CPU -- no need for cluster time), once all fits land.
+NOTE: still run the full loop below including temporal/4survey (evaluate scripts don't know
+about the collapse) -- include the results but with a mechanistic caveat, don't average them
+in as if they were an ordinary converged fit (see experiment_log.md's 2026-07-31 entry +
+same-day correction: test R2 is real/non-trivial, ~0.35, and beats RF/linear on this split --
+the caveat is HOW it got there, best_epoch=1, not that the number is meaningless):
+[ ] for cohort in 4survey 6survey; do
+      for split in spatial_block temporal temporal_narrow_gap; do
+        for seed in 42 43 44 45 46; do
+          python -m models.dnn_noenv.evaluate_dnn_noenv --cohort "$cohort" --split-type "$split" --run-name "final_dnn_seed${seed}"
+          python -m models.pinn_noenv.evaluate_pinn_noenv --cohort "$cohort" --split-type "$split" --run-name "final_pinn_seed${seed}"
+          python -m models.pinn_noenv.evaluate_pinn_noenv --cohort "$cohort" --split-type "$split" --run-name "final_pinn_w0_seed${seed}"
+        done
+      done
+    done
+
+Primary reporting split: 4survey + spatial_block. Everything else is a sensitivity/
+generalisation check, not the headline comparison.

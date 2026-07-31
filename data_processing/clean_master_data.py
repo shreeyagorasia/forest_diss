@@ -34,6 +34,12 @@ COHORTS = {
     "six_year": [2002, 2006, 2008, 2012, 2021, 2023],
 }
 TARGET_SPECIES = "SS"
+# AGE_MIN/AGE_MAX, HEIGHT_MAX, MIN_PLYR: generous sanity bounds (catch a corrupt/impossible
+# record, e.g. a negative age or a 300-year-old planting year), not domain-derived limits --
+# no citation grounds these specific numbers, they're wide enough to never bind on real Sitka
+# spruce data at this site (2026-07-30 note, not yet changed: worth confirming this stage
+# actually removes 0 rows on the current data, the same way other filter stages already print
+# their own counts).
 AGE_MIN, AGE_MAX = 0, 200
 HEIGHT_MIN_EXCL = 0.0
 HEIGHT_MAX = 60.0
@@ -146,6 +152,19 @@ def add_export_metrics(exported):
         ["never_thinned", "recent_0_5yr", "mid_6_10yr", "old_10plus_yr", "not_yet_thinned_at_survey"],
         default="unknown_timing",
     )
+
+    # unknown_timing is the catch-all for a corrupt/unexpected last_thinn value (e.g. negative) --
+    # every other filter/bucketing stage in this file prints how many rows it affects; this one
+    # didn't (2026-07-30 fix). Currently 0 rows in both cohorts, but a real, silent population
+    # could hide here undetected if the raw data ever changes -- printed loudly (not just at high
+    # count) so it's never missed by scrolling past a quiet log line.
+    n_unknown_timing = int((exported["thinning_status"] == "unknown_timing").sum())
+    print(f"  thinning_status = 'unknown_timing' (corrupt/unexpected last_thinn): {n_unknown_timing:,} rows")
+    if n_unknown_timing > 0:
+        print(
+            f"  WARNING: {n_unknown_timing:,} rows have a corrupt/unexpected last_thinn value -- "
+            "check the raw data before trusting thinning_status as a feature."
+        )
 
     exported["previous_lidar_year"] = exported.groupby("identification")["LiDAR_year"].shift()
     exported["survey_interval_years"] = exported["LiDAR_year"] - exported["previous_lidar_year"]

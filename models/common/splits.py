@@ -47,12 +47,45 @@ TEMPORAL_YEARS_NARROW_GAP = {
 # below for why, not 'blk'). buffer_distance=60m is 3x the ~20m grid cell
 # width -- validated in
 # data_exploration_gpkg/notebooks/spatial_temporal_split_visualisation.ipynb.
+# Worth noting (2026-07-30, not changed): this justification is about plot spacing, not actual
+# measured spatial autocorrelation -- the CR residual's own semivariogram range (computed
+# later, in notebooks/spatial_analysis/spatial_autocorrelation_terrain.ipynb) is ~3,956m, nearly
+# two orders of magnitude larger than this 60m buffer. That doesn't necessarily mean 60m is
+# wrong (a full 3,956m buffer would likely remove most of the forest from every split), but the
+# buffer's real purpose (stopping a near-duplicate neighbouring plot leaking across train/test)
+# and the semivariogram's finding (real spatial structure reaches much further than 60m) are two
+# different questions -- section 5's spatial-block split still relies on whole COMPARTMENTS
+# being held out, not the buffer alone, for its actual leakage protection at that larger scale.
 # SPLIT_SEED controls which compartments land in train/val/test -- it is
 # fixed and shared so every model gets the identical split, independent of
 # whatever --seed a particular training run uses for its own weight init.
 SPATIAL_BLOCK_COL = "cpmt"
 SPATIAL_BUFFER_METRES = 60
 SPLIT_SEED = 42
+
+# The invariant that makes spatial_block_split meaningful -- the split column must never leak
+# into a model's own features -- used to be enforced only by comment discipline across
+# rf_baseline.py, linear_baseline.py, and torch_data.py, with nothing to actually catch a future
+# accidental inclusion (2026-07-30 fix). cpmt is the one actually used to split; blk/scpt are the
+# coarser/finer compartment-identifier columns sitting right next to it in the master table --
+# just as easy to accidentally add to a feature list, just as fatal to the split's meaning if one
+# ever were.
+FORBIDDEN_FEATURE_COLUMNS = {"cpmt", "blk", "scpt"}
+
+
+def assert_no_split_columns_in_features(feature_columns, model_name):
+    # Call this once, right after defining a model's FEATURE_COLUMNS list -- raises immediately
+    # at import time if a split-identifier column ever sneaks in, rather than silently letting a
+    # model memorise "which compartment am I" instead of learning anything about the compartment
+    # itself.
+    leaked = FORBIDDEN_FEATURE_COLUMNS & set(feature_columns)
+    if leaked:
+        raise ValueError(
+            f"{model_name}'s FEATURE_COLUMNS includes {sorted(leaked)} -- these are split-"
+            "identifier columns (spatial_block_split groups by cpmt), not real features. "
+            "Training on them would let the model learn 'which compartment is this plot in' "
+            "directly, making spatial_block_split's train/test separation meaningless."
+        )
 
 
 def plot_level_split(df, plot_col="identification", test_size=0.2, val_size=0.2, seed=42):

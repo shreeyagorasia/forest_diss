@@ -20,6 +20,7 @@ from models.common.splits import (
     SPLIT_SEED,
     TEMPORAL_YEARS,
     TEMPORAL_YEARS_NARROW_GAP,
+    assert_no_split_columns_in_features,
     spatial_block_split,
     temporal_split,
 )
@@ -30,6 +31,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 # yldc removed 2026-07-28 -- real ablation showed it hurts test R2 here (0.606->0.647 without
 # it), see progress_notes.md. Still present in model_table.parquet for audit, just not selected
 # as a feature.
+# DEAD CODE, not currently read anywhere: build_tensors() below builds its actual feature set
+# from NUMERIC_SCALED_COLUMNS + BINARY_PASSTHROUGH_COLUMNS + Age + thinning_status's one-hot
+# encoding, not from this list. Kept as a single "what DNN/PINN use, in one place" summary for a
+# reader, but nothing enforces it staying in sync with the lists actually used below -- verify
+# against those three if this list is ever suspected of drifting.
 NOENV_FEATURE_COLUMNS = [
     "Age",
     "CanopyCover",
@@ -49,6 +55,11 @@ NUMERIC_SCALED_COLUMNS = ["CanopyCover", "time_since_thinning"]
 # Already 0/1 binary flags -- passed through unscaled, same as the one-hot
 # thinning_status columns below.
 BINARY_PASSTHROUGH_COLUMNS = ["Thin", "time_since_thinning_missing", "recent_thinning_5yr"]
+
+# These two lists (plus Age, scaled separately above, and thinning_status's one-hot encoding)
+# are the REAL feature-selection logic build_tensors() reads -- NOENV_FEATURE_COLUMNS above is
+# dead code (see its own comment), so guarding it wouldn't actually protect anything.
+assert_no_split_columns_in_features(NUMERIC_SCALED_COLUMNS + BINARY_PASSTHROUGH_COLUMNS, "torch_data (DNN/PINN)")
 
 # Raw, unadjusted 95th-percentile LiDAR height (2026-07-28, was Top_Height99 -- see
 # progress_notes.md for the full reasoning: Top_Height99 is retired entirely, no fallback

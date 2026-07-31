@@ -88,6 +88,9 @@ just not equally central.
 | `xgb_elasticnet_environmental_2026-07-29` | 2026-07-29 | `spatial_block_split` (train/val/test all used; val for feature decisions, test read once) | n/a (all years pooled per plot, mean CR residual target) | cr_pooled: plot_level CR fit (re-derived on `elev_percentile_95th`) | xgb_environmental (XGBoost+SHAP), elasticnet_environmental (ElasticNetCV) | both (4survey primary) | primary (replaces the retired-pipeline row) | `outputs/spatial_block/xgb_environmental/<feature_set>/<cohort>/`, `outputs/spatial_block/elasticnet_environmental/<feature_set>/<cohort>/` | Re-run against the new target + `yldc` removed from the 34-variable unified environmental+silviculture feature set (`Age` still excluded — circular with the CR residual, see Findings log). 4survey `all_environmental`: XGBoost val R²=0.734/test R²=0.629, Elastic Net val R²=0.700/test R²=0.671. 6survey `all_environmental`: XGBoost val R²=0.107/test R²=0.398, Elastic Net val R²=0.147/test R²=0.521 — 6survey's val R² sits well below its own test R² across every feature set for both model types (opposite of the usual overfitting direction); likely which compartments `spatial_block_split` happened to assign to val vs test for the smaller cohort, not yet investigated further. 4survey grouped permutation importance (`grouped_category_importance.ipynb`): `neighbour_spatial_lag` dominates (mean R² drop=1.177, ~10x every other category), then climate/stand_structure/terrain clustered close together (0.11-0.12), wind least (0.023). Full-model residual Moran's I=0.197 (p=0.005) -- still significant spatial autocorrelation left unexplained; removing `terrain` increases it the most (Δ=0.066), even though terrain isn't top for raw accuracy -- a genuine cross-method disagreement (matters for spatial pattern, not for prediction). |
 | `baselines_rebuild_2026-07-28` | 2026-07-28 | `plot_level`, `spatial_block`, `temporal` (wide-gap), `temporal_narrow_gap` -- all four re-run | same year assignments as the retired-pipeline rows above | n/a | CR, average-by-age, linear, RF | both | primary (replaces every baseline number above) | `outputs/<split_type or nothing>/<model>/<cohort>/` | New target (`elev_percentile_95th`) + `yldc` removed from RF/linear. `plot_level`: RF best (R²=0.570) as before. `spatial_block`: RF loses its advantage to linear (R²=0.475 vs 0.512) as before -- same qualitative pattern as the retired pipeline, confirming the rebuild didn't change which baseline "wins" per split, just the absolute numbers. Chapman-Richards fit also fixed a pre-existing degeneracy (y_max was landing exactly on the observed max height under both old and new target) -- lower bound now `max_observed_height * 1.001`. Full reasoning: `progress_notes.md`'s 2026-07-28 entry |
 | `dnn_pinn_epochcheck_2026-07-29` | 2026-07-29 | `spatial_block` | 4survey only, short smoke tests (max 150 epochs, patience 40) | cr_pooled | dnn_noenv, pinn_noenv, 3 PINN weight variants | 4survey only | diagnostic, not a result -- see Findings log | `outputs/spatial_block/{dnn,pinn}_noenv_epochcheck*/4survey/` | Base-case (`W=1.0`) DNN/PINN cluster jobs came back suspiciously fast (~53s, later traced to a missing rsync of `data/processed/transitions/`, fixed). Once fixed: DNN converges normally (val_loss 0.342→0.331 over ~50 epochs, patience stops at 52). PINN never beats its own epoch-1 val_loss at `W=1.0`, `W=0.0`, OR `W=0.05` (best_val_loss ≈ epoch-1's value in all three) -- ruled out physics weight as the cause. Found the real confound: `pinn_noenv.py`'s `BATCH_SIZE=128` vs `dnn_noenv.py`'s `BATCH_SIZE=512`, undocumented, never controlled for. Exposed `--batch-size`/`--pairs-batch-size` as CLI args (previously hardcoded) to test batch-size-matched. Next: rerun `physics_weight=0.0` at `--batch-size 512` on the cluster (see below) to isolate batch size from the physics-weight question properly. |
+| `dnn_pinn_basecase_2026-07-30` (Stage 2) | 2026-07-30 | `spatial_block`, `temporal` | full pipeline, `batch_size=256` both models | cr_pooled | dnn_noenv, pinn_noenv (`physics_weight=trajectory_weight=1.0`, the untested default) | both | primary | `outputs/{spatial_block,temporal}/{dnn_noenv,pinn_noenv_basecase_w1}/<cohort>/` | Real base-case rebuild against the current pipeline (finally superseding the epochcheck smoke tests). Test R²: 4survey spatial_block DNN=0.633 vs PINN(w=1)=0.580; 6survey spatial_block DNN=0.750 vs PINN(w=1)=0.734; 4survey temporal DNN=0.354 vs PINN(w=1)=0.284; 6survey temporal DNN=0.284 vs PINN(w=1)=0.209. DNN beats PINN(w=1) by a real, consistent margin in all 4 cohort×split combinations -- confirms the long-believed "physics constraint hurts at full weight" finding (point 3 in `handover_2026-07-18.md`) survives the full target/yldc/batch-size rebuild, not just true under the retired pipeline. |
+| `pinn_physics_weight_grid_2026-07-30` (Stage 3) | 2026-07-30 | `spatial_block` | 4survey: full 10-point `physics_weight`x`trajectory_weight` grid; 6survey: winning config + `0/0` control only | cr_pooled | pinn_noenv | 4survey (full grid), 6survey (2 configs) | primary | `outputs/spatial_block/tune_pinn_{4s,6s}_w*/<cohort>/` | Lowest `best_val_loss_smoothed` on 4survey: `pw=0.1,tw=0.0` (0.3292), essentially tied with `pw=0.01,tw=0.0` (0.3294), `pw=0.0,tw=0.01` (0.3300), `pw=0.1,tw=0.01` (0.3299), and the `0/0` control (0.3308) -- all five within the same ~0.002 noise band Stage 1's batch-size sweep already established. Any `trajectory_weight>=0.1` clearly hurts (0.338-0.350). Picked `pw=0.1,tw=0.0` as "the winner" per the pre-agreed protocol (lowest val loss) and confirmed on 6survey (0.3292-equivalent tie holds there too). **But held-out test R² does not confirm this pick is real signal**: 4survey test R² is 0.6319 (winner) vs 0.6337 (`0/0` control) -- control is *slightly better*; 6survey test R² is 0.7468 (winner) vs 0.7483 (control) -- same direction, control slightly better again. See Findings log entry for what this means before spending Stage 4 cluster time on this weight pair. |
+| `dnn_pinn_final_seeded_2026-07-31` (Stage 4) | 2026-07-31 | `spatial_block`, `temporal`, `temporal_narrow_gap` | full pipeline, `batch_size=256` throughout | cr_pooled | dnn_noenv, pinn_noenv (`pw=0.1,tw=0.0` and `pw=0.0,tw=0.0`, both arms from the Stage 3 decision) | both | primary (`spatial_block`) / secondary (`temporal`, `temporal_narrow_gap`) | `outputs/{spatial_block,temporal,temporal_narrow_gap}/final_{dnn,pinn,pinn_w0}_seed{42-46}/<cohort>/` | 90/90 fits completed (5 seeds x 3 arms x 3 splits x 2 cohorts). All pass the early-stopping sanity check. `temporal`/4survey (15 runs, every seed and arm) shows 0% val-loss improvement from epoch 1 -- a genuine train/val collapse driven by that cell's narrow 2-year training window, not a bug -- see 2026-07-31 Findings entry; excluded from the seed-averaged comparison table. Evaluate loop (`evaluate_dnn_noenv.py`/`evaluate_pinn_noenv.py`) not yet run to get test-set metrics -- see `experiments_to_run.txt`. |
 
 ## Findings log (what I found → what's working / not → what it means for next steps)
 
@@ -108,6 +111,236 @@ time, even in short form:
 > unanswered question.
 > **What this means for what's next:** the concrete decision or next step this
 > directly caused — this is the line that turns a result into a research narrative.
+
+---
+
+**2026-07-31 — Stage 4 fitting complete (90/90 runs); `temporal`/`4survey` shows a genuine
+train/val collapse, not a training failure — all 15 runs in that cell excluded from the
+seed-averaged comparison.**
+**What I found:** checked every Stage 4 fit (2 cohorts x 3 splits x 5 seeds x 3 arms [DNN,
+PINN pw=0.1/tw=0.0, PINN pw=0.0/tw=0.0] = 90 runs) via `run_metadata.json`/
+`training_history.csv`. All 90 pass the early-stopping sanity check already used for Stage
+1-3 (`n_epochs_trained - best_epoch == patience=40` exactly, no NaNs, none hit
+`max_epochs=500`) -- the short wall-clock times are genuine early stopping. A second,
+different check (percent reduction in smoothed val loss from epoch 1 to the best epoch)
+caught something the first check alone missed: all 15 `temporal`/4survey runs (every seed,
+every arm) show exactly 0.0% reduction, `best_epoch=1`. Full per-epoch history for one of
+these (`final_dnn_seed42`) shows `train_loss` declining completely normally (0.446->0.305)
+while `val_loss` rises every single epoch from the start (0.610->0.732) -- the network trains
+fine, it just never generalises past its random-init starting point on this split. Traced to
+`TEMPORAL_YEARS` (`models/common/splits.py`): both cohorts' `temporal` split validate on
+2021, 9 years after their last training year, but 4survey trains on only 2008+2012 (a single
+4-year transition) vs 6survey's 2002/2006/2008/2012 (four points spanning a full decade).
+Confirmed via `n_rows_fit` that this isn't a data-volume issue: `temporal`/4survey actually
+has MORE rows (116,224) than `temporal`/6survey (55,076), just fewer distinct time points (2
+vs 4) -- and 6survey's `temporal` split shows a completely normal 27-35% val-loss reduction
+under the identical 9-year-forward val gap. The mechanism is training-window temporal
+diversity, not gap length or row count.
+**What's working:** the two-stage check -- early-stopping-gap check, then a separate "did val
+loss actually improve from its epoch-1 starting point" check -- caught something the first
+check alone would have missed. `total_epochs - best_epoch == patience` passing is necessary
+but not sufficient evidence a run trained meaningfully; best_epoch could legitimately be 1.
+**What's not working / open concern:** all 15 `temporal`/4survey Stage 4 runs are effectively
+reporting an untrained (near-random-init) checkpoint, not a fitted model -- their test-set
+metrics would be meaningless if silently averaged into the seed-averaged comparison table
+alongside the other 5 cells (spatial_block and temporal_narrow_gap, both cohorts; temporal,
+6survey).
+**What this means for what's next:** `temporal`/4survey excluded from Stage 4's seed-averaged
+comparison table (flagged here, not silently dropped) -- report it as its own separate
+finding ("temporal extrapolation degrades further when the training years themselves span
+little time, independent of gap length") rather than a normal result cell. This refines,
+not contradicts, the existing 2026-07-20 finding that gap length drives `temporal_wide_gap`
+degradation (11/12 combos improved under the narrow gap) -- gap length matters, but for
+4survey specifically it's compounded by the training set spanning only one transition,
+tipping this cell from "degraded" to "collapsed". `temporal_narrow_gap`/4survey is NOT
+excluded -- it's only mildly affected (0.2-1.9% reduction vs 0% for wide-gap), consistent
+with it training on 2012+2021 (still only 2 points, but a less extreme jump). Doesn't affect
+the primary `spatial_block` result. Worth a footnote in the write-up if `temporal` (wide-gap)
+results for 4survey are cited at all.
+**Addendum, checked the same day:** cross-checked against the already-run baselines
+(`baselines_rebuild_2026-07-28`) to see if this is DNN/PINN-specific -- it isn't. RF baseline
+on `temporal`/4survey's test set scores R²=-0.041 (worse than predicting the mean), vs
+R²=0.475 on `spatial_block`/4survey; linear regression drops to R²=0.287 on the same
+`temporal`/4survey test set. Neither RF nor linear regression use gradient descent, early
+stopping, or batch size -- so this rules out any DNN/PINN training-mechanics explanation and
+confirms the collapse is a genuine, model-agnostic property of the split: 4survey's 4 total
+survey years (2008/2012/2021/2023) can't structurally support a "train on early years,
+extrapolate 9-11 years forward" test the way 6survey's 6 years can. This is a dataset
+limitation worth stating directly in the write-up's limitations section, not something a
+different architecture or more features (e.g. Env-PINN's terrain/wind) could fix.
+**Correction, once evaluate scripts ran (same day):** "essentially reporting an untrained
+(near-random-init) checkpoint" above overstates it -- test R² for `temporal`/4survey is
+DNN=0.3535, PINN(pw=0.1)=0.3523, PINN(pw=0.0)=0.3515 (mean across 5 seeds), which is a real,
+non-trivial fit, not noise. It's a 1-epoch-trained checkpoint (best_epoch=1 means the
+end-of-epoch-1 weights, not literal random init), and it actually BEATS both classical
+baselines on this exact split: RF scores R²=-0.041 (worse than the mean) and linear
+regression R²=0.287 on `temporal`/4survey's test set. Revised interpretation: early stopping
+correctly identified that further gradient steps overfit to 2008/2012-specific patterns and
+hurt 2021/2023 generalisation, and preserved the least-overfit (most implicitly-regularised)
+checkpoint -- which still captures a genuine coarse signal (plausibly age-driven) that
+transfers better than RF's full-depth fit or linear regression's limited capacity manages to.
+So: DO cite `temporal`/4survey's numbers, but they need this specific mechanistic caveat
+(best result = least additional training, not full convergence) rather than being treated as
+an ordinary converged fit or silently averaged alongside cells where more training did help.
+
+---
+
+**2026-07-30 — Stage 2 base-case rebuild confirms physics-weight=1.0 still hurts PINN; Stage 3's
+"winning" physics-weight pair is a noise-level pick, not a real improvement.**
+**What I found:** Stage 2 (real DNN/PINN base-case rebuild, current pipeline, `batch_size=256`,
+both cohorts, `spatial_block`+`temporal`) reran clean: DNN beats `PINN(w=1.0)` on test R² in all 4
+cohort×split combinations (e.g. 4survey spatial_block 0.633 vs 0.580) -- the long-standing
+"physics constraint hurts at full weight" finding survives the full rebuild, not just the retired
+pipeline. Stage 3 (4survey 10-point `physics_weight`x`trajectory_weight` grid) found the lowest
+`best_val_loss_smoothed` at `pw=0.1,tw=0.0` (0.3292) -- but four other configs sit within 0.0016 of
+it (`pw=0.01,tw=0.0`=0.3294, `pw=0.0,tw=0.01`=0.3300, `pw=0.1,tw=0.01`=0.3299, and the `0/0`
+control=0.3308), all inside the same ~0.002 noise band Stage 1's pure batch-size sweep already
+established (0.3286-0.3305 with zero physics weight). Checking test-set R² (not just val loss) for
+the "winner" vs the `0/0` control makes this sharper: the control is *slightly better* on held-out
+data on both cohorts (4survey 0.6337 vs 0.6319; 6survey 0.7483 vs 0.7468). The one clear, real
+signal from the grid: `trajectory_weight>=0.1` reliably hurts (val loss 0.338-0.350 vs ~0.329-0.331
+for everything at `tw<=0.01`) -- that part is not noise.
+**What's working:** the selection protocol (lowest val loss) was followed correctly and is
+reproducible; the diagnostic habit of also checking test-set metrics (not just the metric used to
+pick the winner) is what caught this, same discipline as the 2026-07-29 epoch-check entry below.
+**What's not working / open concern:** picking `pw=0.1,tw=0.0` as "the winning weight pair" for
+Stage 4 would be reporting a coin-flip as if it were a tuned result -- five configs are
+statistically indistinguishable on val loss, and the one with the *lowest* val loss is not the one
+with the best test R². This doesn't contradict the dissertation's actual physics-weight story
+(low/zero weight beats `w=1.0`, clearly and repeatably) -- it just means there's no real evidence
+that fine-tuning `pw` within the `[0, 0.1]`/`tw=0` region matters at all, only that staying in that
+region (vs `w=1.0` or `tw>=0.1`) does.
+**What this means for what's next:** Stage 4 can honestly report either "`pw=0.1,tw=0.0`" (the
+literal grid winner, matching the pre-agreed protocol) or "`pw=0.0,tw=0.0`" (the simpler, equally-
+supported choice, and marginally better on test R² both cohorts) -- both are defensible, and the
+dissertation's actual claim should be "physics weight in `[0,0.1]` with `tw<=0.01`", not a single
+precise value. Flagged to the user before committing Stage 4 cluster time to either pick.
+
+---
+
+**2026-07-30 — Fixed the year-effect diagnostic's degenerate y_max bound and its missing
+`--split-type` option; the survey-year confound checked under spatial_block for the first time.**
+**What I found:** `year_effect_diagnostic.py` had reintroduced the exact degenerate `y_max` lower
+bound already found and fixed in `chapman_richards.py`'s main fit (28-29 July 2026) -- bounded at
+exactly `max_observed_height` instead of `× 1.001`, letting the optimizer land precisely on that
+boundary. `run_year_effect_diagnostic.py` also had no `--split-type` argument at all -- hardwired
+to `plot_level`, meaning this confound had never been checked under `spatial_block_split`, the
+dissertation's stated primary split.
+**What's working:** both fixed -- the bound now matches the main fit, and a first starting guess
+that would otherwise sit below the new bound (`× 1.0`, now infeasible) was corrected to `× 1.01`
+to match. `--split-type` now supports `plot_level`/`spatial_block`/`temporal`/
+`temporal_narrow_gap`, writing to the correctly split-type-prefixed output directory; the
+plain-CR comparison still always reads the plot_level CR fit regardless, matching this project's
+standing convention.
+**What I found, numerically:** re-ran under both splits. `plot_level` (matches the previously-
+cached, now-refreshed numbers in `baseline_results.ipynb` section 4.7): 1.80% of squared error
+explained by year for 4survey, 3.95% for 6survey (was cached at a stale 2.06%/4.74% from before
+this fix). `spatial_block`, checked for the first time: 1.15% (4survey) / 5.83% (6survey) --
+comparable magnitude to plot_level, suggesting this confound isn't sensitive to which split is
+used.
+**What this means for what's next:** `baseline_results.ipynb` section 4.7 no longer needs its
+"not currently reproducible" caveat -- refreshed with live numbers and the new spatial_block
+comparison point.
+
+---
+
+**2026-07-30 — HadUK-Grid extended from a single 2021 snapshot to a genuine, cohort-aware
+multi-year climate feature; screened 6 candidate variables, kept 2.**
+**What I found:** `haduk_tas_2021_mean` was a known, flagged limitation -- every survey year
+reused the same 2021 raster rather than its own year's climate. 5 more years (2002/2006/2008/
+2012/2023) are now downloaded, closing the gap for both cohorts.
+**What's working:** `models/common/download_haduk_multi_year.py` downloads each year's raster,
+extracts this forest's ~72,000 plots, then deletes the ~41MB raw file before the next one --
+peak disk usage stayed near one file's size instead of the ~1.5GB all 42 files (7 variables x 6
+years) would cost kept permanently (this machine had 14GB free). Two real bugs found and fixed
+along the way: (1) the download initially used `data.ceda.ac.uk`, which silently returns an
+empty 200 response for an authenticated file GET instead of erroring -- `dap.ceda.ac.uk` is the
+host CEDA's own token documentation actually uses; (2) a stale "blocked" placeholder row for
+HadUK-Grid in `aux_data_resolution_check.ipynb` (from before CEDA access was unblocked) was
+never removed, silently colliding with the real entry's name and only surfacing as a `NaN`
+crash on a genuinely fresh, full top-to-bottom run -- this notebook apparently hadn't had one in
+a while.
+**What I found, on the numbers**: screened `tas` (corrected) plus 6 new variables (rainfall,
+tasmax, tasmin, groundfrost, sun, sfcWind) via the standard 5-check battery, all real signal
+(p<0.001 vs the CR residual, none degenerate). Kept only `tas` (rho=0.273) and `groundfrost`
+(rho=0.172) -- genuinely new information, low redundancy with what's already in the model.
+Dropped `rainfall` (rho=-0.362, real, but rho=0.86 with the existing `chelsa_bio12_precip_mm` --
+largely restating it) and `tasmax` (rho=0.325, but rho=0.91 with `chelsa_bio1_celsius`, rho=0.95
+with `tas` itself). `sfcWind` is the one worth remembering: it looked like a promising real
+observational wind source (potentially filling the gap WASP was meant to fill), but rho=-0.96
+with `tas` against only rho=0.25 with the existing `gwa_wind_speed_10m` says it's behaving like
+a smooth regional temperature proxy at 1km, not a locally-resolved wind-exposure signal.
+`tasmin` was too weak/inconsistent to justify (rho=-0.051 4survey, -0.214 6survey, opposite
+signs). Sentinel-2 (10m, EPSG:27700, same CEDA token) was also considered for NDMI/NDWI as a
+site-moisture proxy, but only covers 2015-2025 -- can't reach 2002/2006/2008/2012, so scoped as
+a future 2021/2023-only supplementary check, not a full feature (same reasoning that excluded
+AlphaEarth).
+**What changed, numerically**: re-ran `run_xgb_environmental.py`/`run_elasticnet_environmental.py`
+for `all_environmental`/`all_environmental_no_neighbour` (unaffected: `terrain_and_wind_only`,
+confirmed identical before/after). 4survey `all_environmental`: XGBoost test R² 0.629->0.598,
+Elastic Net test R² 0.671->0.666. 6survey `all_environmental`:
+XGBoost test R²=0.327 (was 0.398), Elastic Net test R²=0.483 (was 0.521). Real, modest changes
+from correcting an approximation, not a regression to chase -- correctness was the goal, not a
+higher number.
+**What this means for what's next:** `FEATURE_PROVENANCE`/`CATEGORY_GROUPS` updated
+(`haduk_tas_2021_mean` -> `tas_mean` + new `groundfrost_mean`), `load_plots_for_cohort()`
+generalized to handle any number of cohort-suffixed columns, not just the residual target.
+`grouped_category_importance.ipynb` re-run end to end against the corrected feature set.
+
+---
+
+**2026-07-30 — Restored the predecessor notebook's decisive refit-based ablation for
+`neighbour_spatial_lag`, missing from `grouped_category_importance.ipynb` since it replaced
+`env_variable_importance_RETIRED_2026-07-28.ipynb`.**
+**What I found:** the retired notebook's single most decisive number was a real refit-based R2
+comparison for the neighbour-features category (test R2 0.596 with them in, 0.187 without,
+`FEATURE_SETS["all_environmental_no_neighbour"]`). The current notebook replaced this with
+permutation importance (section 4) and Moran's I before/after (section 7) alone -- neither is as
+decisive on its own, and this project's own elevation/SHAP contradiction already proved a
+proxy-importance method can disagree with a real refit ablation on exactly this kind of question.
+**What's working:** `category_morans_i_before_after()`/`residual_morans_i()` already refit a fresh
+model per category for the Moran's I check -- the R2 from that same refit was being computed and
+then discarded. Added it back to `residual_morans_i()`'s return value (`models/xgb_environmental/
+grouped_analysis.py`) rather than adding a second, separate ablation fit -- one refit now answers
+both questions.
+**What I found, numerically** (4survey, val, spatial_block): full model R2=0.734.
+`neighbour_spatial_lag` removed: R2=0.400 (drop=+0.334) -- by far the largest drop of any
+category, more than 4x the next-largest (`stand_structure`, +0.069). Directly confirms the
+predecessor notebook's conclusion, now via the actively-maintained notebook's own methodology
+rather than a retired one.
+**What this means for what's next:** `grouped_category_importance.ipynb` section 7.1 now carries
+this check going forward -- no need to reference the retired notebook for it anymore.
+
+---
+
+**2026-07-30 — `TERRAIN_AND_WIND_COLUMNS` was mislabeled: it included 6 spatial-position/edge-effect
+columns plus `dist_to_watercourse` (soil/site), not just terrain+wind.**
+**What I found:** the `terrain_and_wind_only` feature set was built from a column list that also
+contained `dist_to_cpmt_boundary`, `dist_to_forest_perimeter`, `dist_to_scpt_boundary`,
+`dist_to_block_boundary`, `cpmt_compactness_ratio`, `dist_to_road` (all
+`spatial_position_edge_effects` per `grouped_analysis.py`'s own `CATEGORY_GROUPS`), plus
+`dist_to_watercourse` (`soil_site`). The in-code comment claimed this matched "the dissertation
+plan's original XGB-A/B framing" -- checked directly against `Dissertation Plan v5 - 7th June.md`'s
+own XGB-A/B/C table, and that framing is genuinely terrain+wind only ("terrain only" / "terrain +
+WASP/GWA wind speed"), no edge-effects or hydrology at all -- so the claim didn't hold up either.
+**What's working:** `grouped_analysis.py`'s `CATEGORY_GROUPS` already had the correct, carefully-
+reasoned split (terrain/wind/soil_site/spatial_position_edge_effects as four distinct categories)
+-- `TERRAIN_AND_WIND_COLUMNS` just wasn't built from it. Fixed to be exactly
+`CATEGORY_GROUPS["terrain"] | CATEGORY_GROUPS["wind"]` (16 columns, checked programmatically to
+match), so there's one consistent definition of "terrain" and "wind" across every analysis now,
+not two.
+**What changed, numerically:** re-ran `run_xgb_environmental.py`/`run_elasticnet_environmental.py`
+for `terrain_and_wind_only` under the corrected column list (`all_environmental`/
+`all_environmental_no_neighbour` are unaffected, unchanged). New numbers, `spatial_block`, test
+split: 4survey XGBoost R²=0.162 (RMSE=5.123), Elastic Net R²=0.188 (RMSE=5.043); 6survey XGBoost
+R²=-0.351 (RMSE=3.856), Elastic Net R²=0.096 (RMSE=3.155) -- markedly weaker than the old
+(mislabeled) numbers, since the removed columns were carrying real signal, just not terrain/wind
+signal. Any prior "terrain and wind explain X%" claim referencing the old `terrain_and_wind_only`
+numbers needs re-reading against these.
+**What this means for what's next:** the write-up's XGB-A/B/C-equivalent comparison should cite
+these corrected numbers, not the ones from before 2026-07-30. `grouped_category_importance.ipynb`
+(the actively-maintained category-level analysis) was never affected by this bug -- it always read
+`CATEGORY_GROUPS` directly, not `TERRAIN_AND_WIND_COLUMNS`.
 
 ---
 

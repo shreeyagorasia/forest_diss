@@ -5,6 +5,8 @@ from pathlib import Path
 import pandas as pd
 from sklearn.linear_model import LinearRegression
 
+from models.common.splits import assert_no_split_columns_in_features
+
 FEATURE_COLUMNS = [
     "Age",
     "CanopyCover",
@@ -20,6 +22,8 @@ FEATURE_COLUMNS = [
 # these continuous/binary ones and DNN/PINN got both, with no reason on record; now all three
 # baseline families see the same thinning information (see rf_baseline.py for the matching change).
 CATEGORICAL_COLUMNS = ["thinning_status"]
+
+assert_no_split_columns_in_features(FEATURE_COLUMNS, "linear_baseline")
 
 # Fixed category order so drop_first (below) always drops "never_thinned" specifically,
 # not whatever happens to sort first alphabetically -- see encode_features().

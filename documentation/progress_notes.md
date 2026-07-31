@@ -41,7 +41,7 @@ notebooks/    # restructured 22 July 2026 from three separate top-level notebook
 │   ├── lidar_years_all_data_cleaning.ipynb        # the cleaning funnel, still notebook-only
 │   └── lidar_years_all_data_understanding.ipynb
 ├── environmental_data/
-│   ├── environmental_data_sources_survey.ipynb   # Tier 1 data-source survey, see section below
+│   ├── environmental_data_sources_survey_SUPERSEDED_2026-07-30.ipynb   # Tier 1 data-source survey, see section below
 │   ├── aux_data_resolution_check.ipynb           # empirical re-check of every source (real
 │   │                                              # extraction + statistical screen), see below
 │   └── figures/   # aux_data_resolution_check_results.csv lives here now
@@ -274,7 +274,7 @@ max_epochs`) before trusting an evaluate result as real.
 
 ## Environmental data sources (Tier 1, started 21 July 2026)
 
-`notebooks/environmental_data/environmental_data_sources_survey.ipynb` — the dissertation
+`notebooks/environmental_data/environmental_data_sources_survey_SUPERSEDED_2026-07-30.ipynb` — the dissertation
 plan's Tier 1, step 2 ("research and get access to terrain/wind data sources"). Live
 access/resolution tests, not per-plot extraction yet (that's step 3, next).
 
@@ -325,7 +325,14 @@ groups in a 150-plot sample, more than the plan's assumed "~3-5 polygons total."
 **GEE is fixed** (a real Google Cloud project ID was supplied mid-session) — this unblocked both
 ERA5-Land and AlphaEarth. Neither is excluded for access reasons anymore:
 - **HadUK-Grid**: real and strongest signal found, but only one year (2021) downloaded so far —
-  needs multi-year averaging before it's trustworthy, not an access issue.
+  needs multi-year averaging before it's trustworthy, not an access issue. **Correction,
+  2026-07-30: this caveat is fixed, not still open** — `tas`/`groundfrost` are now genuinely
+  averaged across all 6 survey years, cohort-aware (`models/common/download_haduk_multi_year.py`),
+  and `tas`'s correlation held up under the real multi-year check (Spearman 0.273, 4survey).
+  HadUK-Grid has moved from "held back" to "in the main feature set" — see
+  `aux_data_resolution_check.ipynb`'s HadUK-Grid section and `handover_2026-07-18.md` for the
+  full numbers. Left the original line above unedited so the correction is visible, not silently
+  dropped, per this doc's own convention just above.
 - **ERA5-Land**: real (~11.1km resolution via GEE, `ECMWF/ERA5_LAND/MONTHLY_AGGR`), but weak
   (Spearman 0.106) and coarse (8 distinct values over the whole forest) — not worth it next to
   CHELSA/HadUK-Grid on information-content grounds.
@@ -346,9 +353,12 @@ neighbouring plots), likely to dominate a naive SHAP run without being a genuine
 driver. Needs a with/without SHAP check before use, not optional.
 
 **TOPEX finding worth flagging directly**: TOPEX's raw correlation with the CR residual
-(Spearman +0.098) is **entirely explained by elevation** — controlling for elevation drops it to
-0.001 (p=0.836, not significant). Global Wind Atlas wind speed keeps about half its signal after
-the same control (-0.213 raw -> -0.095 elevation-controlled, still p<0.001). A windward-only
+(Spearman +0.093) is **entirely explained by elevation** — controlling for elevation drops it to
+-0.001 (p=0.804, not significant). (2026-07-30: corrected to match the notebook's actual printed
+output -- this entry previously said 0.098/0.001/0.836, copied from a markdown cell in
+`aux_data_resolution_check.ipynb` that itself didn't match its own cell's real output, now also
+fixed.) Global Wind Atlas wind speed keeps about half its signal after
+the same control (-0.206 raw -> -0.091 elevation-controlled, still p<0.001). A windward-only
 (south-west-facing, Scotland's prevailing wind) variant of TOPEX was also built and tested — no
 better than the omnidirectional version (Spearman 0.077 vs. GWA, 0.077 vs. residual, both
 slightly *weaker* than omnidirectional) — a real null result, not just unexplored. Sign
@@ -828,7 +838,7 @@ missing feature are dropped (XGBoost handles NaN natively, Elastic Net cannot, <
 affected).
 
 **Grouped category analysis, new notebook: `notebooks/environmental_data/grouped_category_importance.ipynb`**
-— supersedes `env_variable_importance.ipynb` (retired, note added at its own top, left
+— supersedes `env_variable_importance_RETIRED_2026-07-28.ipynb` (retired, note added at its own top, left
 unmaintained not deleted). Domain categories (not the same as the earlier correlation-based
 clusters): terrain, wind, soil/site, climate, spatial position/edge effects
 (`dist_to_cpmt_boundary`/`dist_to_forest_perimeter` — edge-effect mechanism, kept separate from
@@ -1171,8 +1181,10 @@ user's own TODO to move it here): aspect_degrees is a raw compass bearing (0-360
 almost the same direction but numerically far apart, a bad input for any model to split on
 directly. northness/eastness (cos/sin of the same aspect) are its fixed replacement and used
 instead everywhere. This is the only column excluded from `ALL_FEATURE_COLUMNS` for a
-data-validity reason — everything else, including `soil_depth_proxy` (an exact transform of
-`slope_degrees`), is deliberately left in raw and not pre-judged as redundant; that decision is
+data-validity reason — everything else, including `inverse_slope_proxy` (renamed 2026-07-30 from
+`soil_depth_proxy`, which named it for what it's used as a stand-in for rather than what it
+actually is — an exact transform of `slope_degrees`), is deliberately left in raw and not
+pre-judged as redundant; that decision is
 left to the real SHAP/permutation-importance evidence the Tier-2 notebook produces, not assumed
 in advance.
 

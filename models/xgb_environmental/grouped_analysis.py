@@ -16,14 +16,14 @@ CATEGORY_GROUPS = {
     "terrain": [
         "elevation", "slope_degrees", "northness", "eastness", "profile_curvature",
         "plan_curvature", "tpi", "elevation_roughness", "solar_radiation_index",
-        "soil_depth_proxy", "frost_hollow_flag", "ceh_twi",
+        "inverse_slope_proxy", "frost_hollow_flag", "ceh_twi",
     ],
     "wind": ["gwa_wind_speed_10m", "topex", "windward_topex", "whcl"],
     "soil_site": [
         "soilgrids_ph", "ceh_pedotope", "ceh_subsurface_drainage",
         "ceh_textural_composition", "dist_to_watercourse",
     ],
-    "climate": ["haduk_tas_2021_mean", "chelsa_bio1_celsius", "chelsa_gdd5_degc", "chelsa_bio12_precip_mm"],
+    "climate": ["tas_mean", "groundfrost_mean", "chelsa_bio1_celsius", "chelsa_gdd5_degc", "chelsa_bio12_precip_mm"],
     # A real, distinct forestry mechanism -- edge trees get more wind exposure and more light
     # than interior trees. Kept separate from "wind" (a different, GPKG-geometry-derived signal,
     # not a wind measurement) and separate from "neighbour_spatial_lag" below (a much less
@@ -141,17 +141,26 @@ def residual_morans_i(train_df, eval_df, feature_columns, fit_fn, predict_fn, ta
     # first -- picking an arbitrary distance (or a fixed neighbour-count) risks testing "is this
     # plot like the plot right next to it" instead of real regional clustering (see
     # models/spatial_attribution/spatial_autocorrelation.py's own header comment for why).
+    from models.common.metrics import compute_metrics
     from models.spatial_attribution.spatial_autocorrelation import global_morans_i, semivariogram_range
 
     model = fit_fn(train_df, feature_columns, target_col=target_col)
     predictions = predict_fn(eval_df, model, feature_columns)
     residuals = eval_df[target_col].values - predictions
 
+    # R2 from this same refit, alongside the spatial-pattern check below -- this is the real,
+    # refit-based ablation the predecessor notebook (env_variable_importance_RETIRED_2026-07-28.ipynb) used to
+    # report for the neighbour-features category (test R2 0.596 -> 0.187 with/without) and
+    # this notebook had dropped in favour of permutation importance + Moran's I alone (2026-07-30
+    # fix -- neither of those is as decisive as an actual refit, and this notebook already does
+    # the refit for the Moran's I check below, so returning its R2 too is free, not a new fit).
+    r2 = compute_metrics(eval_df[target_col].values, predictions)["r2"]
+
     range_estimate, status = semivariogram_range(
         eval_df["x"].values, eval_df["y"].values, residuals, max_distance=max_distance,
     )
     if status not in ("resolved", "exceeds_window"):
-        return {"morans_i": np.nan, "morans_i_p": np.nan, "variogram_status": status, "variogram_range_m": range_estimate}
+        return {"r2": r2, "morans_i": np.nan, "morans_i_p": np.nan, "variogram_status": status, "variogram_range_m": range_estimate}
 
     # Aberfoyle is genuinely several separate forest blocks (see
     # spatial_autocorrelation.py's own header comment) -- libpysal prints one "island (no
@@ -162,7 +171,7 @@ def residual_morans_i(train_df, eval_df, feature_columns, fit_fn, predict_fn, ta
         morans_i, morans_p = global_morans_i(
             eval_df["x"].values, eval_df["y"].values, residuals, distance=range_estimate,
         )
-    return {"morans_i": morans_i, "morans_i_p": morans_p, "variogram_status": status, "variogram_range_m": range_estimate}
+    return {"r2": r2, "morans_i": morans_i, "morans_i_p": morans_p, "variogram_status": status, "variogram_range_m": range_estimate}
 
 
 def category_morans_i_before_after(train_df, eval_df, fit_fn, predict_fn, all_columns=None, category_groups=None, target_col="mean_cr_residual"):

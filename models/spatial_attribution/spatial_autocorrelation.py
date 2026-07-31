@@ -15,7 +15,7 @@ from scipy.optimize import curve_fit
 from scipy.spatial import cKDTree
 
 
-def global_morans_i(x, y, values, distance, sample_size=5000, seed=42):
+def global_morans_i(x, y, values, distance, sample_size=5000, seed=42, permutations=999):
     # Moran's I answers one question: are plots within `distance` of each other more similar
     # to each other than far-apart plots are, more than random chance alone would explain? A
     # value near 0 means no real pattern (random noise). A value clearly above 0 (with a small
@@ -23,6 +23,15 @@ def global_morans_i(x, y, values, distance, sample_size=5000, seed=42):
     #
     # `distance` should come from semivariogram_range()'s result, run on the same data first --
     # not guessed. See the note at the top of this file for why.
+    #
+    # permutations default is 999, not the smaller/faster value this used to be hardcoded to
+    # (2026-07-30 fix): with n permutations, the smallest p-value the test can ever report is
+    # 1/(n+1) -- the old default of 199 landed EXACTLY on that floor (p=0.005) on real data here,
+    # meaning the true p-value could have been far smaller and there was no way to tell. This
+    # function used to be silently bypassed whenever that mattered (notebooks hand-rolled their
+    # own inline copy of this same computation with permutations=999 instead of calling this
+    # function with an override) -- parameterizing it here means every caller gets the same fix,
+    # not just whichever notebook cell remembered to work around it.
     import esda
     import libpysal
 
@@ -50,7 +59,7 @@ def global_morans_i(x, y, values, distance, sample_size=5000, seed=42):
         weights = libpysal.weights.DistanceBand.from_array(coordinates, threshold=distance, binary=True)
     weights.transform = "r"
 
-    moran_result = esda.moran.Moran(values, weights, permutations=199)
+    moran_result = esda.moran.Moran(values, weights, permutations=permutations)
     return moran_result.I, moran_result.p_sim
 
 

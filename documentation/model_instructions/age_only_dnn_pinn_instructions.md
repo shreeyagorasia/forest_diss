@@ -1,5 +1,27 @@
 # Instructions: No-environment DNN and PINN (Version 1)
 
+> **Stale on specifics, 2026-07-30 — verify against the code before trusting a number here.**
+> This document's *design rationale* (why derivative-consistency physics loss, why L1
+> regularisation, why the DNN is a fair architectural control, why scale Age separately) is still
+> the real reasoning behind `models/dnn_noenv/`/`models/pinn_noenv/` and hasn't been rewritten
+> here, since it's still accurate. But the concrete values throughout are outdated, in three ways:
+> - **Target column**: this document says `Top_Height99` throughout. The real target since the
+>   28-29 July 2026 rebuild is `elev_percentile_95th` (raw, unadjusted) --
+>   `models/common/torch_data.py::TARGET_COLUMN` is the current source of truth.
+> - **Feature list**: this document includes `yldc` in every feature list shown. `yldc` was
+>   removed as a feature everywhere on 2026-07-28 (real ablation showed it hurts every model's
+>   generalisation) -- `models/common/torch_data.py`'s `NUMERIC_SCALED_COLUMNS`/
+>   `BINARY_PASSTHROUGH_COLUMNS` (plus Age and thinning_status, see that file's own comments) are
+>   the current source of truth, not the lists below.
+> - **Batch sizes**: this document says "DNN = 128, PINN = 32" (from Lynch, 2025). Neither matches
+>   the current code -- `dnn_noenv.py`'s `BATCH_SIZE` is 512, `pinn_noenv.py`'s is 128, and
+>   whether either is actually correct for the current pipeline is an open question being
+>   resolved by a batch-size sweep (see `documentation/experiment_log.md`'s 2026-07-29/30
+>   entries) -- this document's specific numbers should not be treated as the current answer.
+>
+> If you're implementing or debugging DNN/PINN, read the *reasoning* here, but get every column
+> name, feature list, and hyperparameter value from the actual code, not from this document.
+
 **Status: DRAFT — not yet approved, do not execute.** This builds the fifth and sixth baselines in
 `models/`: a plain DNN and a CR-PINN, both using the already-exported **no-environment feature
 set** (`Age, CanopyCover, Thin, time_since_thinning, time_since_thinning_missing,

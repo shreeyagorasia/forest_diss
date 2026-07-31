@@ -6,6 +6,7 @@ import joblib
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 
+from models.common.splits import assert_no_split_columns_in_features
 from models.linear_baseline.linear_baseline import THINNING_STATUS_CATEGORIES
 
 FEATURE_COLUMNS = [
@@ -23,6 +24,8 @@ FEATURE_COLUMNS = [
     # there so both baselines encode it identically) matters for drop_first.
 ]
 CATEGORICAL_COLUMNS = ["thinning_status"]
+
+assert_no_split_columns_in_features(FEATURE_COLUMNS, "rf_baseline")
 
 
 def prepare_features(df, encoded_column_names=None):

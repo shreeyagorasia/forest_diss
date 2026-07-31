@@ -50,15 +50,28 @@ def fit_year_effect(train_df, age_col="Age", year_col="LiDAR_year", height_col="
     # delta per non-reference year. A delta can be positive or negative (a
     # year can sit above or below the reference year), so its bounds are
     # symmetric and generous rather than one-sided.
+    #
+    # y_max's lower bound is max_observed_height * 1.001, not exactly max_observed_height
+    # (2026-07-30 fix) -- this file reintroduced the exact degenerate bound already found and
+    # fixed in chapman_richards.py's own fit() on 28-29 July 2026: a real asymptote is
+    # approached but never reached, even by the tallest observed tree, so a bound of exactly
+    # max_observed_height let curve_fit land precisely on that boundary instead of finding a
+    # genuine asymptote. See chapman_richards.py's own comment for the fuller explanation.
     n_deltas = len(other_years)
-    lower_bounds = [max_observed_height, 0.0001, 0.01] + [-max_observed_height] * n_deltas
+    lower_bounds = [max_observed_height * 1.001, 0.0001, 0.01] + [-max_observed_height] * n_deltas
     upper_bounds = [max_observed_height * 5, 2.0, 15.0] + [max_observed_height] * n_deltas
 
     # Same multi-start idea as the plain fit: several starting guesses for
     # (y_max, k, p), always starting every delta at 0 (i.e. "no year effect"
     # until the data pulls it away from that).
+    #
+    # First guess is max_observed_height * 1.01, not * 1.0 (2026-07-30 fix, same reasoning as
+    # the lower_bounds fix above) -- with the bound now strictly above max_observed_height, a
+    # starting guess of exactly max_observed_height would sit BELOW the lower bound, and
+    # curve_fit rejects an out-of-bounds p0 outright rather than just converging poorly. Matches
+    # chapman_richards.py's own first starting guess.
     starting_guesses = [
-        [max_observed_height * 1.0, 0.01, 1.0] + [0.0] * n_deltas,
+        [max_observed_height * 1.01, 0.01, 1.0] + [0.0] * n_deltas,
         [max_observed_height * 1.2, 0.02, 1.0] + [0.0] * n_deltas,
         [max_observed_height * 1.5, 0.03, 1.5] + [0.0] * n_deltas,
         [max_observed_height * 2.0, 0.05, 2.0] + [0.0] * n_deltas,

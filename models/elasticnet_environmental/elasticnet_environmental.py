@@ -6,17 +6,14 @@ from sklearn.preprocessing import StandardScaler
 # (xgb_environmental.py) decides what "all_environmental" etc actually contains, so the two
 # methods are always being compared on the exact same candidate variables, never a silently
 # drifted copy of the list.
-from models.xgb_environmental.xgb_environmental import (
-    ALL_FEATURE_COLUMNS,
-    NEIGHBOUR_COLUMNS,
-    TERRAIN_AND_WIND_COLUMNS,
-)
-
-FEATURE_SETS = {
-    "all_environmental": ALL_FEATURE_COLUMNS,
-    "all_environmental_no_neighbour": [c for c in ALL_FEATURE_COLUMNS if c not in NEIGHBOUR_COLUMNS],
-    "terrain_and_wind_only": TERRAIN_AND_WIND_COLUMNS,
-}
+#
+# FEATURE_SETS imported directly (2026-07-30 fix), not reconstructed from ALL_FEATURE_COLUMNS/
+# NEIGHBOUR_COLUMNS/TERRAIN_AND_WIND_COLUMNS -- the reconstruction used to be byte-for-byte
+# identical to xgb_environmental.py's own FEATURE_SETS, but a future feature set added there
+# wouldn't have automatically appeared here, since this file built its own dict rather than
+# reading xgb_environmental's. Importing the dict directly closes that drift risk instead of
+# just keeping it accidentally in sync.
+from models.xgb_environmental.xgb_environmental import FEATURE_SETS
 
 # Elastic Net is a LINEAR model: it assumes each input column is a number on a meaningful,
 # ordered scale, where "twice the value" means "twice the effect". That assumption is true for

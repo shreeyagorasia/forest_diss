@@ -96,4 +96,17 @@ def join_by_plot(base_df, other_df, on="identification"):
     if unmatched_in_other > 0:
         print(f"  WARNING: {unmatched_in_other:,} rows from the second table had no match and were dropped")
 
+    # LEAKAGE_RISK_COLUMNS was a well-reasoned constant that no join actually checked against
+    # (2026-07-30 fix) -- a future join could reintroduce an Age-like circularity (a height-
+    # derived column ending up as a model predictor) with nothing to catch it. A warning, not a
+    # hard error: these columns are legitimate to carry through for audit/display (load_master()
+    # returns them on purpose), the actual danger is only if one gets used as a FEATURE later.
+    leaked = set(merged.columns) & set(LEAKAGE_RISK_COLUMNS)
+    if leaked:
+        print(
+            f"  WARNING: this join carried through {sorted(leaked)} -- these are known height-"
+            "leakage-risk columns (see LEAKAGE_RISK_COLUMNS above). Fine for audit/display, but "
+            "never use them as a model feature/predictor."
+        )
+
     return merged
