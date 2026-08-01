@@ -190,3 +190,74 @@ the caveat is HOW it got there, best_epoch=1, not that the number is meaningless
 
 Primary reporting split: 4survey + spatial_block. Everything else is a sensitivity/
 generalisation check, not the headline comparison.
+
+
+=====================================================================
+2026-08-01 -- dnn_env_terrain / pinn_env_terrain: first real (non-smoke) cluster runs
+=====================================================================
+
+CONTEXT: dnn_env_terrain and pinn_env_terrain (the terrain/wind-conditioned y_max models --
+see models/pinn_env_terrain/pinn_env_terrain.py's top-of-file note for the architecture) are
+now built and smoke-tested locally (3-epoch runs, both fit and evaluate, both models,
+2026-08-01), but no real cluster run exists for either yet. Job scripts just created:
+jobs/dnn_env_terrain/{run,evaluate}_dnn_env_terrain.sh, jobs/pinn_env_terrain/{run,evaluate}_
+pinn_env_terrain.sh -- mirror the no-env job scripts exactly, plus --feature-set/--dropout-rate.
+
+Two fixes landed alongside this that change what these runs will see vs. an earlier smoke
+test:
+  1. ceh_twi (part of the default terrain_wind_solid feature set) is missing for 39 of 71,766
+     plots -- confirmed directly against plot_environmental_features.parquet. Was a hard
+     ValueError in load_split_table_with_terrain(); now drops the whole affected plot (matching
+     filter_data()'s "whole plot dropped" convention) with a loud warning instead of crashing.
+     Only affects 4survey (156 rows/39 plots); 6survey has zero affected rows.
+  2. Both PINN models now read the split-MATCHED ("cr_matched") CR anchor unconditionally (no
+     flag -- the old pooled "cr_pooled" anchor was a confirmed leak, not a legitimate option to
+     keep choosable). This does NOT change dnn_env_terrain (it has no CR anchor at all).
+
+Feature set default: terrain_wind_solid (the 5-variable set cross-checked against both the
+category-level and per-variable XGBoost refit ablations, see torch_data.py's own comment).
+Batch size 256 throughout, matching the no-env pipeline's Stage 1 decision (dropout_rate=0.0,
+untested default). PINN physics/trajectory weight: 1.0/1.0 (untested base case) first -- same
+"base case before any sweep" precedent as Stage 2 above; pinn_env_terrain's own module note
+explains why the no-env pipeline's tuned weight is NOT assumed to carry over here.
+
+--- STAGE E1: base-case fit+evaluate, spatial_block (primary split) first, both cohorts, both
+    models. Single seed (42) -- this is a first real look, not the seeded comparison yet. ---
+
+[ ] sbatch jobs/dnn_env_terrain/run_dnn_env_terrain.sh 4survey 500 40 spatial_block 42 "" 256
+[ ] sbatch jobs/dnn_env_terrain/run_dnn_env_terrain.sh 6survey 500 40 spatial_block 42 "" 256
+[ ] sbatch jobs/pinn_env_terrain/run_pinn_env_terrain.sh 4survey 500 40 spatial_block 1.0 1.0 "" 42 256
+[ ] sbatch jobs/pinn_env_terrain/run_pinn_env_terrain.sh 6survey 500 40 spatial_block 1.0 1.0 "" 42 256
+
+Then evaluate each (cheap, local, CPU -- no need for cluster time):
+[ ] python -m models.dnn_env_terrain.evaluate_dnn_env_terrain --cohort 4survey --split-type spatial_block
+[ ] python -m models.dnn_env_terrain.evaluate_dnn_env_terrain --cohort 6survey --split-type spatial_block
+[ ] python -m models.pinn_env_terrain.evaluate_pinn_env_terrain --cohort 4survey --split-type spatial_block
+[ ] python -m models.pinn_env_terrain.evaluate_pinn_env_terrain --cohort 6survey --split-type spatial_block
+
+--- STAGE E2 (only after E1 lands and looks sane): temporal + temporal_narrow_gap, same 4
+    configs, so env_terrain has the same 3-split coverage dnn_noenv/pinn_noenv already do. ---
+
+[ ] sbatch jobs/dnn_env_terrain/run_dnn_env_terrain.sh 4survey 500 40 temporal 42 "" 256
+[ ] sbatch jobs/dnn_env_terrain/run_dnn_env_terrain.sh 6survey 500 40 temporal 42 "" 256
+[ ] sbatch jobs/dnn_env_terrain/run_dnn_env_terrain.sh 4survey 500 40 temporal_narrow_gap 42 "" 256
+[ ] sbatch jobs/dnn_env_terrain/run_dnn_env_terrain.sh 6survey 500 40 temporal_narrow_gap 42 "" 256
+[ ] sbatch jobs/pinn_env_terrain/run_pinn_env_terrain.sh 4survey 500 40 temporal 1.0 1.0 "" 42 256
+[ ] sbatch jobs/pinn_env_terrain/run_pinn_env_terrain.sh 6survey 500 40 temporal 1.0 1.0 "" 42 256
+[ ] sbatch jobs/pinn_env_terrain/run_pinn_env_terrain.sh 4survey 500 40 temporal_narrow_gap 1.0 1.0 "" 42 256
+[ ] sbatch jobs/pinn_env_terrain/run_pinn_env_terrain.sh 6survey 500 40 temporal_narrow_gap 1.0 1.0 "" 42 256
+
+NOT yet scheduled (deliberately deferred, per 2026-08-01 discussion -- small incremental steps
+while the code is still being corrected, not a full sweep yet):
+  - feature_set comparison (terrain_wind_extended, broad) against the terrain_wind_solid default
+  - dropout_rate sweep
+  - PINN physics/trajectory-weight sweep for env_terrain specifically (Stage E1's 1.0/1.0 is a
+    base case, not assumed to be near-optimal -- pinn_noenv's own sweep found its "winner"
+    wasn't statistically distinguishable from noise, so this needs its own real check, not a
+    copy of pinn_noenv's answer)
+  - y_max sub-network hidden_size sweep
+  - seeded (multi-seed) final comparison, once E1/E2 look sane and a physics-weight decision
+    is made
+  - re-running the no-env Stage 4 fresh against the corrected split-matched CR anchor (2026-08-01
+    fix) -- Stage 4's numbers above still reflect the OLD pooled anchor; not yet re-run, flagged
+    but not actioned

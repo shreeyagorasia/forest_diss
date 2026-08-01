@@ -39,13 +39,19 @@ CATEGORY_GROUPS = {
         "CanopyCover", "Thin", "time_since_thinning",
         "time_since_thinning_missing", "recent_thinning_5yr",
     ],
-    # Kept separate from spatial_position_edge_effects on purpose: these two describe a NEARBY
-    # PLOT'S OWN HEIGHT, not a real environmental measurement -- most likely reflecting shared
-    # planting-year/management history between nearby plots, not a real wind-shielding or
-    # competition effect (see progress_notes.md). A genuinely different trust level to the
-    # edge-effect variables above, so grouping them together would hide that distinction.
-    "neighbour_spatial_lag": ["neighbour_mean_height", "neighbour_height_differential"],
 }
+# There used to be an eighth category here, "neighbour_spatial_lag" (neighbour_mean_height,
+# neighbour_height_differential) -- removed 2026-07-31, not just re-labelled with a stronger
+# caveat. Confirmed a real leak, not just a trust concern: both columns are built from every
+# OTHER plot's own real height within a 75m radius, computed on the full plot set BEFORE any
+# train/val/test split exists. Because spatial_block_split() holds out whole compartments,
+# 95.9% of a TEST-set plot's within-75m neighbours are ALSO test-set plots (82.3% of test plots
+# have ZERO train-set neighbours in range) -- so this "feature" was built almost entirely from
+# other test-set plots' real ground truth, not learned from training data. Removing it drops
+# XGBoost's spatial_block test R2 from 0.598 to 0.321 (4survey) and from 0.327 to -0.337
+# (6survey). See xgb_environmental.py's FEATURE_PROVENANCE comment and experiment_log.md's
+# 2026-07-31 entry for the full check -- this is why the two columns are gone from
+# ALL_FEATURE_COLUMNS entirely now, not just excluded from this one dict.
 
 
 def check_category_groups_complete():
@@ -196,3 +202,34 @@ def category_morans_i_before_after(train_df, eval_df, fit_fn, predict_fn, all_co
         rows.append({"category_removed": category_name, **result})
 
     return pd.DataFrame(rows)
+
+
+def per_variable_refit_ablation(train_df, eval_df, all_columns, fit_fn, predict_fn, target_col="mean_cr_residual"):
+    # The variable-level version of category_morans_i_before_after() above, minus the Moran's I/
+    # semivariogram step (not needed for this question, and would make 37 refits much slower for
+    # no reason) -- just a genuine refit-without-this-ONE-column test, one column at a time.
+    #
+    # Why this exists (2026-07-31): the category-level refit ablation already showed terrain/
+    # wind/spatial_position_edge_effects carry real signal (positive R2 drop) while climate/
+    # soil_site/stand_structure don't -- but that doesn't say whether every individual variable
+    # INSIDE a "real" category is itself pulling independent weight, or riding on a correlated
+    # partner's coattails (e.g. inverse_slope_proxy/slope_degrees, rho=-1.0 -- dropping either
+    # ALONE should barely move R2, since the other still carries the exact same information,
+    # even though the pair together clearly matters). This is the direct, checkable answer,
+    # not an inference from a correlation table.
+    from models.common.metrics import compute_metrics
+
+    full_model = fit_fn(train_df, all_columns, target_col=target_col)
+    full_predictions = predict_fn(eval_df, full_model, all_columns)
+    full_r2 = compute_metrics(eval_df[target_col].values, full_predictions)["r2"]
+
+    rows = [{"variable_removed": "(none -- full model)", "r2": full_r2, "r2_drop": 0.0}]
+    for column in all_columns:
+        columns_without_variable = [c for c in all_columns if c != column]
+        model_without = fit_fn(train_df, columns_without_variable, target_col=target_col)
+        predictions_without = predict_fn(eval_df, model_without, columns_without_variable)
+        r2_without = compute_metrics(eval_df[target_col].values, predictions_without)["r2"]
+        rows.append({"variable_removed": column, "r2": r2_without, "r2_drop": full_r2 - r2_without})
+
+    results_df = pd.DataFrame(rows)
+    return results_df.reindex(results_df["r2_drop"].sort_values(ascending=False).index).reset_index(drop=True)

@@ -66,6 +66,63 @@ assert_no_split_columns_in_features(NUMERIC_SCALED_COLUMNS + BINARY_PASSTHROUGH_
 # target kept).
 TARGET_COLUMN = "elev_percentile_95th"
 
+# Named, swappable terrain/wind feature sets for dnn_env_terrain/pinn_env_terrain's
+# y_max(terrain, wind) sub-network -- same "named FEATURE_SETS dict, picked by name at the CLI"
+# convention models/xgb_environmental/xgb_environmental.py already uses, extended here rather
+# than hardcoding one single list (2026-08-01 fix -- the first version of this file only offered
+# "terrain_wind_solid", with no way to compare against a different scope without editing code).
+#
+#   - terrain_wind_solid (the default, and the only one actually cross-checked so far): the five
+#     variables that were positive on BOTH the category-level XGBoost refit ablation (terrain/
+#     wind carry real signal, climate/soil/stand_structure don't) AND the per-variable refit
+#     ablation (most of terrain's other members are redundant or near-zero once these five are
+#     accounted for) -- decided 2026-07-31, see experiment_log.md's entries that date.
+#     `slope_degrees`/`inverse_slope_proxy` deliberately excluded (confirmed exact duplicates,
+#     rho=-1.0). Circularity-checked against `Age`'s own known issue (chapman_richards.py::fit()
+#     only ever reads Age and elev_percentile_95th -- none of these five touch the CR curve's own
+#     construction).
+#   - terrain_wind_extended: adds the two BORDERLINE variables (real but modest individual
+#     refit-ablation signal) on top of the solid five.
+#   - broad: adds the individually-strong variables from OTHER categories (climate/soil/
+#     edge-effects) that scored positively in the per-variable refit ablation despite their whole
+#     CATEGORY testing badly as a bundle -- this is the wider-scope option flagged, not yet
+#     decided on, in experiment_log.md's 2026-07-31 entry. Included as a real option to run and
+#     compare, not a silent default -- see --feature-set on run_dnn_env_terrain.py/
+#     run_pinn_env_terrain.py. `CanopyCover` deliberately NOT included here even though it scored
+#     individually-positive in that same ablation -- it's already one of the no-env features
+#     feeding the main network (NUMERIC_SCALED_COLUMNS below), so adding it here too would feed
+#     it in twice (once to the main network, once to the y_max sub-network), not add new
+#     information -- assert_env_terrain_features_disjoint_from_noenv() below guards against this
+#     exact mistake happening again for a different column.
+ENV_TERRAIN_FEATURE_SETS = {
+    "terrain_wind_solid": ["ceh_twi", "eastness", "elevation", "northness", "topex"],
+    "terrain_wind_extended": ["ceh_twi", "eastness", "elevation", "northness", "topex", "whcl", "plan_curvature"],
+    "broad": [
+        "ceh_twi", "eastness", "elevation", "northness", "topex", "whcl", "plan_curvature",
+        "chelsa_bio1_celsius", "soilgrids_ph", "dist_to_watercourse",
+    ],
+}
+DEFAULT_ENV_TERRAIN_FEATURE_SET = "terrain_wind_solid"
+
+
+def assert_env_terrain_features_disjoint_from_noenv(feature_columns):
+    # Guards against the exact mistake almost made while writing ENV_TERRAIN_FEATURE_SETS above:
+    # a column already in the no-env main-network input (NUMERIC_SCALED_COLUMNS/
+    # BINARY_PASSTHROUGH_COLUMNS/"Age") accidentally also listed as a terrain/wind feature would
+    # feed the same information into the model twice, through two different pathways, rather
+    # than adding anything new. Same "catch a silent feature-overlap mistake at import/call
+    # time" spirit as assert_no_split_columns_in_features() in models/common/splits.py.
+    noenv_columns = set(NUMERIC_SCALED_COLUMNS) | set(BINARY_PASSTHROUGH_COLUMNS) | {"Age", "thinning_status"}
+    overlap = noenv_columns & set(feature_columns)
+    if overlap:
+        raise ValueError(
+            f"These columns are in BOTH the no-env feature set and this terrain/wind feature "
+            f"set: {sorted(overlap)} -- would feed the same information to the model twice, "
+            "through two different pathways. Remove them from one side or the other."
+        )
+
+ENVIRONMENTAL_FEATURES_PATH = PROJECT_ROOT / "data" / "processed" / "environmental" / "plot_environmental_features.parquet"
+
 
 def select_device():
     # Prefer a real GPU if one is available -- CUDA on the SLURM cluster
@@ -122,6 +179,58 @@ def load_split_table(cohort, split_type):
         raise ValueError(f"Unknown split_type: {split_type!r}")
 
     return filtered_table
+
+
+def load_split_table_with_terrain(cohort, split_type, feature_columns):
+    # Same as load_split_table() above, plus the chosen terrain/wind feature_columns merged in
+    # from the environmental feature export (built by aux_data_resolution_check.ipynb, the same
+    # file models/xgb_environmental/data.py reads). feature_columns is a real list, not looked up
+    # by name here -- callers pass ENV_TERRAIN_FEATURE_SETS[name] themselves (see
+    # run_dnn_env_terrain.py/run_pinn_env_terrain.py's --feature-set), same "take a raw column
+    # list, not a name" convention xgb_environmental.py's fit_with_columns() already uses. Kept
+    # as a SEPARATE function rather than changing load_split_table() itself, so dnn_noenv/
+    # pinn_noenv keep working exactly as before -- they never call this one.
+    assert_env_terrain_features_disjoint_from_noenv(feature_columns)
+
+    split_df = load_split_table(cohort, split_type)
+    environmental_features = pd.read_parquet(ENVIRONMENTAL_FEATURES_PATH)
+
+    before_rows = len(split_df)
+    split_df = split_df.merge(
+        environmental_features[["identification"] + feature_columns],
+        on="identification", how="left",
+    )
+
+    # ceh_twi is genuinely missing for 39 of 71,766 plots (confirmed directly against
+    # plot_environmental_features.parquet, 2026-08-01) -- not a merge bug, so this is a real
+    # gap to filter out, not something to hard-error on. Whole-plot dropped (every survey year
+    # of an affected plot, not just the row missing the value), same convention as
+    # models/common/data.py::filter_data()'s age/yldc filters, so a plot never contributes a
+    # partial trajectory to load_trajectory_pairs() downstream.
+    rows_with_missing_terrain = split_df[feature_columns].isna().any(axis=1)
+    missing_plot_ids = set(split_df.loc[rows_with_missing_terrain, "identification"])
+    if missing_plot_ids:
+        removed_rows = split_df["identification"].isin(missing_plot_ids).sum()
+        print(
+            f"  WARNING: {len(missing_plot_ids)} plot(s) have no value for one of {feature_columns} "
+            f"(whole plot dropped): {removed_rows} of {before_rows} rows"
+        )
+        split_df = split_df[~split_df["identification"].isin(missing_plot_ids)].copy()
+
+    return split_df
+
+
+def fit_terrain_scaler(train_df, feature_columns):
+    # Its own StandardScaler, separate from scaler_other_features -- the y_max sub-network reads
+    # ONLY these columns, never mixed into the main network's "other features" tensor (see
+    # models/pinn_env_terrain/pinn_env_terrain.py's own top-of-file note for why terrain/wind
+    # stays out of the main network entirely, feeding the y_max sub-network only).
+    return StandardScaler().fit(train_df[feature_columns])
+
+
+def build_terrain_tensor(df, scaler_terrain, feature_columns, device):
+    terrain_scaled = scaler_terrain.transform(df[feature_columns])
+    return torch.tensor(terrain_scaled, dtype=torch.float32, device=device)
 
 
 def fill_missing_time_since_thinning(df):
@@ -281,6 +390,26 @@ def build_pair_tensors(pairs_df, scaler_age, scaler_other_features, scaler_heigh
     )
 
     return age_earlier, other_earlier, age_later, other_later, delta_age_tensor, age_mid_tensor, observed_growth_rate_tensor
+
+
+def build_pair_terrain_tensor(pairs_df, scaler_terrain, feature_columns, device):
+    # Terrain/wind is a STATIC, per-plot property (doesn't vary by survey year), so a trajectory
+    # pair's earlier and later endpoint always share the exact same terrain values -- one tensor
+    # per pair is enough, not a separate "earlier"/"later" pair the way age/no-env features need
+    # (those genuinely differ between the two endpoints).
+    environmental_features = pd.read_parquet(ENVIRONMENTAL_FEATURES_PATH)
+    pairs_with_terrain = pairs_df[["identification"]].merge(
+        environmental_features[["identification"] + feature_columns],
+        on="identification", how="left",
+    )
+    missing_terrain = pairs_with_terrain[feature_columns].isna().any(axis=1).sum()
+    if missing_terrain > 0:
+        raise ValueError(
+            f"{missing_terrain} of {len(pairs_df)} trajectory pairs have no matching terrain/wind "
+            "row -- same identification-based merge as load_split_table_with_terrain(), should "
+            "never happen for a real plot in this dataset."
+        )
+    return build_terrain_tensor(pairs_with_terrain, scaler_terrain, feature_columns, device)
 
 
 MIN_TRAJECTORY_PAIR_COVERAGE_FRACTION = 0.30

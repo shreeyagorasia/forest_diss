@@ -43,10 +43,9 @@
 #
 # Prerequisite:
 #   PINN reads frozen Chapman-Richards parameters from
-#   outputs/chapman_richards/<cohort>/params.json (the plot_level fit,
-#   always -- regardless of which split_type the PINN itself trains under,
-#   see run_pinn_noenv.py's module docstring for why).
-#   Run/transfer the baseline outputs before submitting this job.
+#   outputs/<split_type>/chapman_richards/<cohort>/params.json -- the split-MATCHED fit (2026-08-01,
+#   see run_pinn_noenv.py's load_cr_params() for why), so the baseline outputs for THIS split_type
+#   specifically must exist first. Run/transfer the baseline outputs before submitting this job.
 
 #SBATCH --job-name=pinn_noenv
 #SBATCH --output=logs/pinn_noenv/%x_%j.out

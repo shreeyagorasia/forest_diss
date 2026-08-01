@@ -3,11 +3,11 @@
 #     or: python -m models.xgb_environmental.run_xgb_environmental (both cohorts, one after another)
 #
 # Fits XGBoost to predict each plot's mean Chapman-Richards residual from its environmental
-# variables (terrain, wind, soil, climate, plus the GPKG-derived geometry and neighbour
-# features) -- three different feature sets are tried, see FEATURE_SETS in
-# xgb_environmental.py. Unlike the DNN/PINN models in this repo, XGBoost fits in seconds on this
-# data size, so there is no separate cluster fit-then-local-evaluate split -- this one script
-# fits, evaluates, and computes SHAP values all in one pass.
+# variables (terrain, wind, soil, climate, plus GPKG-derived geometry) -- two different feature
+# sets are tried, see FEATURE_SETS in xgb_environmental.py. Unlike the DNN/PINN models in this
+# repo, XGBoost fits in seconds on this data size, so there is no separate cluster
+# fit-then-local-evaluate split -- this one script fits, evaluates, and computes SHAP values all
+# in one pass.
 #
 # Uses spatial_block_split() (whole forestry compartments held out), the same split every other
 # terrain/wind-aware model in this repo uses, for the same reason: a random plot-level split
@@ -29,11 +29,14 @@ COHORTS = ["4survey", "6survey"]
 SEED = 42
 DEVICE = "cpu"  # XGBoost here runs on plain CPU, no GPU needed for this data size
 
-# SHAP values are only computed for these two feature sets -- "all_environmental" is the main
-# deliverable, and "all_environmental_no_neighbour" directly answers the standing spatial-lag
-# caveat. "terrain_and_wind_only" is a metrics-only comparison, kept for continuity with the
+# SHAP values are only computed for "all_environmental" -- the main deliverable.
+# "terrain_and_wind_only" is a metrics-only comparison, kept for continuity with the
 # dissertation plan's original XGB-A/B framing -- no SHAP needed for that one.
-FEATURE_SETS_NEEDING_SHAP = ["all_environmental", "all_environmental_no_neighbour"]
+# (There used to be a second SHAP target here, "all_environmental_no_neighbour" -- removed
+# 2026-07-31 along with the feature set itself, once neighbour_mean_height/
+# neighbour_height_differential were confirmed to leak test-set information and dropped from
+# ALL_FEATURE_COLUMNS entirely. See xgb_environmental.py's FEATURE_PROVENANCE comment.)
+FEATURE_SETS_NEEDING_SHAP = ["all_environmental"]
 
 
 def run_one_feature_set(cohort, feature_set_name, plots_df):

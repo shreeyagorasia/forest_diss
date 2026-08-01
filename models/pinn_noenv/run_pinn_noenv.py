@@ -7,15 +7,13 @@
 # see --split-type below. Meant to run on the SLURM cluster where the GPU
 # is -- see jobs/pinn_noenv/run_pinn_noenv.sh.
 #
-# The frozen CR physics anchor (load_cr_params below) always reads the
-# plot_level Chapman-Richards fit, regardless of which split_type the PINN
-# itself uses -- this is "cr_pooled" (see documentation/experiment_log.md's
-# naming glossary and Decisions log): y_max/k/p are treated as
-# population-level biological constants, not something requiring the PINN's
-# own train/test discipline, so the same reasoning applies whether the PINN
-# is being tested temporally or spatially. The alternative ("cr_matched" --
-# fitting CR only on the PINN's own training years) is a planned, not yet
-# run, stricter robustness check.
+# The frozen CR physics anchor (load_cr_params below) reads the split-MATCHED
+# Chapman-Richards fit -- fit using only THIS split_type's own train-assigned plots, not the
+# pooled/"cr_pooled" plot_level fit this file used before 2026-08-01. See load_cr_params()'s own
+# comment for why: cr_pooled was confirmed to leak (its random 60% training plots inevitably
+# overlapped with whichever plots a given split_type later assigned to test). There is no
+# --cr-variant flag to opt back into cr_pooled -- it wasn't a legitimate alternative to keep
+# choosable, just a bug, so both PINN models now always use cr_matched, unconditionally.
 #
 # This script deliberately does NOT touch the test split (2023) or compute
 # any accuracy metrics. That is a separate, cheap step
@@ -85,10 +83,18 @@ DEFAULT_EARLY_STOPPING_PATIENCE = 40
 DEFAULT_OPTIMIZER = "adam"
 
 
-def load_cr_params(cohort):
-    # CR's y_max/k/p, already fitted by models/chapman_richards -- read as
-    # plain floats and treated as FROZEN constants. Never refit here.
-    params_path = PROJECT_ROOT / "outputs" / "chapman_richards" / cohort / "params.json"
+def load_cr_params(cohort, split_type):
+    # Split-MATCHED CR anchor (2026-08-01 fix, switched from the pooled/"cr_pooled" version
+    # this file used before) -- fit using ONLY this split_type's own train-assigned plots
+    # (models/baselines/run_baselines.py's cr_train_df), not a random 60% plot_level split
+    # unrelated to spatial_block/temporal. The old pooled version was confirmed to leak: its
+    # random 60% training plots inevitably overlap with whichever plots a given split_type later
+    # assigns to test, since the two splits were never coordinated (verified directly: the saved
+    # n_rows_fit was exactly 60% of filtered rows -- plot_level_split's train share, not this
+    # split's own). Read as plain floats and treated as FROZEN constants either way -- never
+    # refit here, this file already exists on disk for every split_type PINN uses, built as a
+    # side effect of the CR baseline's own per-split fit.
+    params_path = PROJECT_ROOT / "outputs" / split_type / "chapman_richards" / cohort / "params.json"
     with open(params_path) as f:
         params = json.load(f)
     return {"y_max": params["y_max"], "k": params["k"], "p": params["p"]}
@@ -149,8 +155,8 @@ def run_for_cohort(
     )
 
     try:
-        cr_params = load_cr_params(cohort)
-        print(f"  Frozen CR params: y_max={cr_params['y_max']:.4f}, k={cr_params['k']:.6f}, p={cr_params['p']:.6f}")
+        cr_params = load_cr_params(cohort, split_type)
+        print(f"  Frozen CR params (split-matched, {split_type}): y_max={cr_params['y_max']:.4f}, k={cr_params['k']:.6f}, p={cr_params['p']:.6f}")
 
         # ----- Load and prepare the data -----
         split_df = load_split_table(cohort, split_type)

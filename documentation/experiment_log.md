@@ -114,6 +114,161 @@ time, even in short form:
 
 ---
 
+**2026-08-01 — Switched both PINN models from `cr_pooled` to a split-matched CR anchor --
+confirmed a real, quantifiable leak, not just a theoretical risk.**
+**What I found:** `cr_pooled` (`outputs/chapman_richards/<cohort>/params.json`, read by both
+`pinn_noenv` and `pinn_env_terrain` regardless of split_type) is fit on a RANDOM 60% of plots --
+verified directly: its saved `n_rows_fit` (139,472) is exactly 60.0% of the 232,448 filtered
+4survey rows, matching `plot_level_split()`'s train share, not `spatial_block_split()`'s. Since
+that random split was never coordinated with `spatial_block`/`temporal`, the frozen physics
+anchor both PINNs used was inevitably fit on some of `spatial_block`'s own test plots. The fix
+already existed on disk as a side effect of the CR baseline's own per-split fit
+(`outputs/<split_type>/chapman_richards/<cohort>/params.json`, fit using ONLY that split's train
+plots) -- no new fitting code needed, just pointing `load_cr_params()` at the right file.
+**What's working:** both `run_pinn_noenv.py`/`run_pinn_env_terrain.py`'s `load_cr_params()` now
+take `split_type` and read the matched file; confirmed via a real smoke test that values
+genuinely change (6survey/spatial_block: k 0.0233->0.0201, p 1.193->1.039 -- a bigger shift than
+4survey's ~1-2%, worth watching).
+**What's not working / open concern:** does NOT require rerunning Stage 1 (the no-env batch-size
+sweep) -- it used `physics_weight=trajectory_weight=0.0`, so the anchor's value is multiplied by
+zero and never entered the loss at all, mathematically unaffected regardless of which anchor
+file was read. Stage 2 (base case, w=1.0), Stage 3 (the physics-weight grid, every config except
+the 0/0 control), and Stage 4 (final seeded comparison, the nonzero-weight arm) ARE affected in
+principle, though given the anchor's values only shifted ~1-2% for 4survey specifically (6survey
+shifted more), the qualitative conclusions already reached (DNN beats PINN(w=1); the Stage 3
+"winner" is noise-level indistinguishable from the 0/0 control) are unlikely to flip -- but the
+exact reported numbers would. Stage 4 was never evaluated for test-set metrics to begin with, so
+re-running it fresh costs nothing extra either way.
+**What this means for what's next:** Stage 1 does not need re-running. Stage 2/3 are optional
+precision re-runs, not urgent. Stage 4 should simply be (re-)run fresh with the corrected anchor
+rather than resumed, since its evaluate step was never completed. `pinn_env_terrain` has no real
+(non-smoke) runs yet at all, so nothing there needs redoing -- the corrected anchor just applies
+from its first real run onward.
+
+---
+
+**2026-08-01 — Code review of `models/spatial_attribution/nlme.py` found a real REML/ML bug and
+a reproducibility gap; both fixed, and the 2026-07-31 NLME entry's headline number changed.**
+**What I found:** `variance_explained_by_fixed_effects()` compared compartment random-effect
+variance between a null (intercept-only) and full (6-fixed-effects) model, both fitted with
+`reml=True` -- textbook-invalid per Pinheiro & Bates (the reference behind R's own `nlme`
+package): REML variance estimates aren't comparable across models with different fixed-effects
+structures, since REML profiles out the fixed effects via a transform that depends on the
+fixed-effects design matrix itself. Separately: `nlme.py` was untracked by git, and NO script or
+notebook anywhere in the repo actually called its functions -- the numbers in the 2026-07-31 log
+entry weren't reproducible from the saved repo state. Two other suspected issues (whether
+`result.resid` is conditional on the random effect as claimed, and whether `fixed_effects_table()`
+misaligns `bse_fe` against `fe_params`) were checked directly against statsmodels' source and a
+toy model with known coefficients -- both confirmed correct, not bugs.
+**What's working:** fixed `fit_nlme()` to take a `reml` parameter (default `True`, right for its
+own coefficient/p-value reporting use) and `variance_explained_by_fixed_effects()` to force
+`reml=False` on both models it compares -- the correct, textbook fix, not a workaround. Built the
+actual calling code as a real notebook section (`spatial_autocorrelation_terrain.ipynb`'s
+Section 3, previously a "not built yet" placeholder), fit on the same train-only spatial-block
+split `grouped_category_importance.ipynb` uses, so this is now reproducible end to end.
+**What's not working / open concern:** the fix changed the headline number materially, not just
+cosmetically -- proportion of compartment variance explained went from 2.04% (buggy REML
+comparison, apparently fit on the full pooled cohort) to 5.02% (correct ML comparison, train-only,
+comparable sample discipline to XGBoost's own refit ablation). The 6 fixed-effect coefficients and
+the raw/fitted skew-kurtosis numbers also shifted slightly for the same train-only-vs-pooled
+reason -- direction and significance unchanged, magnitudes not identical to the retracted numbers.
+**What this means for what's next:** cite 5.02% (not 2.04%) if this NLME result comes up again --
+the qualitative conclusion is unchanged and if anything reinforced (still tiny next to XGBoost's
++19.7% terrain category refit R2 drop; the pre-registered kurtosis-gets-worse trigger still fires,
+1.36→3.19). Any other historical number in this log that was computed by uncommitted, unsaved code
+should be treated with the same suspicion until it's rebuilt as a real, re-runnable cell -- this
+one specific case is now closed, but the pattern (a real result exists only as prose, not code)
+is worth watching for elsewhere.
+
+---
+
+**2026-07-31 — NLME confirms the terrain/wind relationship is real but genuinely nonlinear;
+per-variable refit ablation + ALE built to give the right attribution metric given that.**
+**What I found:** built `models/spatial_attribution/nlme.py`, a two-stage mixed-effects model
+(fixed effects = `ceh_twi`/`eastness`/`elevation`/`northness`/`topex`/`plan_curvature` on
+`mean_cr_residual`, random effect = per-compartment intercept), per the two-stage template
+already scoped in `progress_notes.md`. Checked the actual distribution first, not assumed:
+`mean_cr_residual_4survey` has moderate non-normality (skew=-0.48, excess kurtosis=0.74) --
+decided this didn't justify GAMLSS's much heavier Python tooling cost, confirmed by this
+project's own prior assessment of that tradeoff. All 6 fixed effects came back
+individually significant (p≈0) with sensible directions (elevation -3.54, topex +0.66,
+ceh_twi -0.55, eastness +0.38, plan_curvature -0.21, northness -0.16, all standardised).
+**But the model explains almost none of the actual compartment-level structure**: only 2.04%
+of the compartment random-effect variance (**correction, 2026-08-01: this 2.04% figure was a
+REML/ML bug, see the entry above — the correct number is 5.02%; the qualitative conclusion below
+is unchanged**), and the model's OWN post-fit residuals got WORSE,
+not better (kurtosis 0.74 -> 3.24) -- the trigger condition for reconsidering GAMLSS that was
+set in advance, not moved after the fact. Read together with XGBoost's much larger category-
+level refit R2 drop for `terrain` (+0.197) using the same variables, the coherent explanation
+is a genuinely nonlinear/interaction-driven relationship a linear mixed model cannot capture.
+**What's working:** the decision to check real distributional numbers before choosing NLME vs
+GAMLSS, rather than debating in the abstract; the pre-registered trigger condition (check
+post-fit residuals, not just raw pre-fit ones) actually got used honestly when it fired badly,
+not quietly dropped.
+**What's not working / open concern:** confirmed a categorical-variable bug in the LISA
+per-variable test built alongside this (`ceh_pedotope`/`ceh_subsurface_drainage`/
+`ceh_textural_composition` are unordered class IDs, run through Kruskal-Wallis as if
+continuous -- invalid, mirrors the exact issue `elasticnet_environmental.py` already
+one-hot-encodes these three columns to avoid). Doesn't affect the final terrain/wind feature
+list (none of the three were in it), but the `spatial_autocorrelation_terrain.ipynb` Section 3
+table itself still has this error in it, not yet fixed.
+**What this means for what's next:** confirmed nonlinearity demotes Elastic Net and NLME from
+"attribution evidence" to "how much of this is simple/linear structure" cross-checks only --
+the per-category and per-variable REFIT ablation (assumption-free, works on the nonlinear
+XGBoost fit) is the metric to trust. Built `per_variable_refit_ablation()`
+(`models/xgb_environmental/grouped_analysis.py`) and added it as Section 7.2/7.3 in
+`grouped_category_importance.ipynb`, redirecting the ALE plot from SHAP's top-4 (which
+included `chelsa_bio12_precip_mm`, individually r2_drop=-0.077 -- SHAP ranked as important a
+variable that actively hurts) to the refit-confirmed list instead. This directly justifies
+`pinn_env_terrain`'s `y_max` needing to be a genuinely flexible sub-network, not a linear
+function of terrain/wind -- the linear NLME's failure to explain compartment variance despite
+significant coefficients is concrete evidence for why, not just a design preference.
+
+---
+
+**2026-07-31 — `neighbour_mean_height`/`neighbour_height_differential` confirmed to leak
+test-set ground truth into themselves; removed from `ALL_FEATURE_COLUMNS` entirely, not just
+re-flagged.**
+**What I found:** both features are built from every OTHER plot's own real 2023 height within a
+75m radius (`aux_data_resolution_check.ipynb`, `cKDTree.query_ball_point`), computed ONCE on the
+full 71,766-plot set BEFORE any train/val/test split exists. Checked directly whether this
+matters given `spatial_block_split()` holds out whole compartments: for a random sample of
+plots, 93.7% of a plot's own 75m-neighbours share its OWN split; for test-set plots
+specifically, 95.9% of their neighbours are ALSO test-set plots, and 82.3% of test plots have
+**zero** train-set neighbours within 75m at all. So for the large majority of test rows, this
+"feature" is built almost entirely from other test-set plots' real ground-truth heights, not
+learned from training data — the model doesn't need to find any generalisable environmental
+relationship, it can just echo back a local average of the answer key. Real, already-on-disk
+consequence: `models/xgb_environmental/`'s existing `all_environmental_no_neighbour` ablation
+already showed this — removing the two features drops XGBoost's spatial_block test R² from
+0.598→0.321 (4survey) and from 0.327→**−0.337** (6survey, worse than predicting the mean).
+Checked every other one of the 37 remaining `ALL_FEATURE_COLUMNS` entries for the same
+construction pattern (an aggregate of OTHER plots' own height/growth, computed pre-split) —
+none share it; every other feature is either a fixed physical/geometric property of the plot's
+own location, an external dataset value at that location, or the plot's own raw survey history.
+**What's working:** the project's own existing `all_environmental_no_neighbour` ablation had
+already surfaced the size of this effect (2026-07-29) — the fix here is upgrading it from "a
+documented caveat, kept as an optional comparison" to "confirmed as a real leak, removed from
+the main feature set entirely," using a direct, checkable same-split-neighbour-fraction test
+rather than inference from the R² gap alone.
+**What's not working / open concern:** every environmental-attribution number reported before
+2026-07-31 that used `all_environmental` (XGBoost/SHAP, Elastic Net, grouped permutation
+importance, the Section 7.1 refit ablation, the Moran's I before/after check, the closing
+cross-check table in `grouped_category_importance.ipynb`) was computed WITH this leak present,
+and needs re-reading against the fixed numbers below, not cited from before this date.
+**What this means for what's next:** `neighbour_mean_height`/`neighbour_height_differential`
+removed from `FEATURE_PROVENANCE`/`ALL_FEATURE_COLUMNS` (`xgb_environmental.py`) and from
+`CATEGORY_GROUPS` (`grouped_analysis.py`); the now-redundant `all_environmental_no_neighbour`
+feature set and `FEATURE_SETS_NEEDING_SHAP` entry removed (`all_environmental` itself is the
+fixed, leak-free set now). `run_xgb_environmental.py`/`run_elasticnet_environmental.py` need
+re-running for `all_environmental` (both cohorts) to regenerate the on-disk outputs under the
+corrected feature set, and `grouped_category_importance.ipynb` needs re-executing so every graph
+in it reflects the fix. If a genuine spatial-lag feature is wanted again for `pinn_env_terrain`,
+it needs a split-aware construction (only ever averaging TRAINING-set neighbours' heights, even
+for val/test rows) — not the global pre-split version used here.
+
+---
+
 **2026-07-31 — Stage 4 fitting complete (90/90 runs); `temporal`/`4survey` shows a genuine
 train/val collapse, not a training failure — all 15 runs in that cell excluded from the
 seed-averaged comparison.**
@@ -547,12 +702,16 @@ for exactly this reason, once `spatial_block_split` was wired in as a second opt
   temporal_narrow_gap`): `outputs/temporal_narrow_gap/<model>/<cohort>/` — a distinct
   split-type-style prefix, never overwriting `outputs/temporal/...` (temporal_wide_gap). Wired into
   `model_output_dir()` (`models/common/saving.py`) the same way `spatial_block`/`temporal` are.
-- **PINN cr_matched** (temporal-restricted CR anchor), if run: a distinct model name,
-  `outputs/pinn_noenv_crmatched/<cohort>/` — since this isn't a different split, it's a different
-  PINN configuration, so it gets a model-name suffix rather than a split-type prefix. The
-  `run_metadata.json`'s `frozen_cr_params` field already records exactly which values were used
-  either way, but a distinct output path is required so cr_pooled and cr_matched results can coexist on
-  disk rather than one overwriting the other.
+- **PINN cr_matched** — superseded (2026-08-01): the plan above (a distinct model-name suffix,
+  `outputs/pinn_noenv_crmatched/<cohort>/`, coexisting with a `cr_pooled` path) assumed
+  `cr_pooled` was a legitimate alternative worth keeping choosable. It wasn't — investigation
+  confirmed `cr_pooled` was a real train/test leak (its random 60% `plot_level_split` training
+  plots were never coordinated with `spatial_block`/`temporal`'s own split, so they inevitably
+  overlapped with a given split's test plots). Both `pinn_noenv` and `pinn_env_terrain` now read
+  the split-matched anchor unconditionally, at the plain `outputs/<split_type>/pinn_noenv/<cohort>/`
+  path — no separate model name or `--cr-variant` flag, since there's no longer a second option
+  worth preserving on disk. `run_metadata.json`'s `frozen_cr_params` field still records exactly
+  which `y_max`/`k`/`p` values were used, for audit.
 - **PINN `physics_weight`/`trajectory_weight` sweep**, same reasoning as `cr_matched` above:
   `--run-name pinn_noenv_pw<W>_tw<W>` on `run_pinn_noenv.py`/`evaluate_pinn_noenv.py` writes to
   `outputs/<split_type>/pinn_noenv_pw<W>_tw<W>/<cohort>/`, never touching the plain `pinn_noenv`

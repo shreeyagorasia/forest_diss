@@ -16,7 +16,11 @@ YEAR_COLORS = {
 def plot_predicted_vs_observed(y_true, y_pred, ax=None):
     if ax is None:
         _, ax = plt.subplots()
-    ax.scatter(y_true, y_pred, s=8, alpha=0.4)
+    # rasterized=True: with 7 models x 2 cohorts now calling this in a single figure
+    # (baseline_results.ipynb section 5.4), tens of thousands of vector points per panel
+    # made that cell slow to render/save -- rasterizing just the point layer (axes/text
+    # stay vector) fixes that with no visual difference at normal zoom.
+    ax.scatter(y_true, y_pred, s=8, alpha=0.4, rasterized=True)
 
     # draw a diagonal "perfect prediction" line, from the smallest value
     # in the data up to the largest value in the data
@@ -37,7 +41,7 @@ def plot_residuals(y_true, y_pred, ax=None):
     if ax is None:
         _, ax = plt.subplots()
     resid = y_true - y_pred
-    ax.scatter(y_pred, resid, s=8, alpha=0.4)
+    ax.scatter(y_pred, resid, s=8, alpha=0.4, rasterized=True)
     ax.axhline(0, color="black", linewidth=1, linestyle="--")
     ax.set_xlabel("Predicted elev_percentile_95th (top height)")
     ax.set_ylabel("Residual")
@@ -48,7 +52,7 @@ def plot_error_by_age(age, y_true, y_pred, ax=None):
     if ax is None:
         _, ax = plt.subplots()
     resid = y_true - y_pred
-    ax.scatter(age, resid, s=8, alpha=0.4)
+    ax.scatter(age, resid, s=8, alpha=0.4, rasterized=True)
     ax.axhline(0, color="black", linewidth=1, linestyle="--")
     ax.set_xlabel("Age")
     ax.set_ylabel("Residual")
@@ -70,12 +74,12 @@ def plot_growth_curve(age, y_true, y_pred, lidar_year, ax=None):
         year_mask = lidar_year == year
         if year_mask.sum() == 0:
             continue
-        ax.scatter(age[year_mask], y_true[year_mask], s=8, alpha=0.4, color=colour, label=str(year))
+        ax.scatter(age[year_mask], y_true[year_mask], s=8, alpha=0.4, color=colour, label=str(year), rasterized=True)
 
     # Predicted points are drawn last, in black, on top of the observed
     # points, so the fitted curve is always visible even where colours
     # overlap heavily.
-    ax.scatter(age, y_pred, s=6, alpha=0.6, color="black", label="Predicted")
+    ax.scatter(age, y_pred, s=6, alpha=0.6, color="black", label="Predicted", rasterized=True)
 
     ax.set_xlabel("Age")
     ax.set_ylabel("elev_percentile_95th (top height)")

@@ -864,6 +864,24 @@ xgb_environmental.py, run_xgb_environmental.py, grouped_analysis.py}`,
 `models/elasticnet_environmental/{__init__.py, elasticnet_environmental.py,
 run_elasticnet_environmental.py}`.
 
+**Correction, 2026-07-31: `neighbour_spatial_lag` (`neighbour_mean_height`/
+`neighbour_height_differential`) is a confirmed leak, not just "a weaker, non-exogenous proxy"
+as described above — removed from `ALL_FEATURE_COLUMNS`/`CATEGORY_GROUPS` entirely, not kept as
+a flagged-but-included category.** Both columns are built from every OTHER plot's own real 2023
+height within a 75m radius, computed once on the full plot set BEFORE any train/val/test split
+exists. Because `spatial_block_split()` holds out whole compartments, 95.9% of a TEST-set
+plot's within-75m neighbours are ALSO test-set plots (82.3% of test plots have zero train-set
+neighbours in range) — so this "feature" was built almost entirely from other test-set plots'
+real ground truth, not learned from training data. This is why it dominated every ranking above
+(`mean R2 drop=1.177`, ~10x every other category) and why removing it collapsed the model's
+apparent skill (test R² 0.598→0.321 4survey, 0.327→−0.337 6survey, per the pre-existing
+`all_environmental_no_neighbour` ablation) — not because it was a genuinely powerful
+environmental driver. Every number in this section computed before 2026-07-31 needs re-reading
+against the fixed numbers (`experiment_log.md`'s 2026-07-31 entry, and the re-run
+`grouped_category_importance.ipynb`), not cited as-is. Checked every other feature in
+`ALL_FEATURE_COLUMNS` for the same construction pattern (an aggregate of other plots' own
+height/growth, computed pre-split) — none share it.
+
 **Still deferred**: causal SHAP, GAM, Double/Debiased ML, BART (documented future work, see the
 new notebook's closing section); multi-year HadUK-Grid (currently 2021 only — needs 5 more manual
 CEDA logins/downloads, a manual dependency, not scripted); `models/spatial_attribution/` rename

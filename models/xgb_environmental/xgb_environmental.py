@@ -81,7 +81,15 @@ FEATURE_PROVENANCE = {
     ),
     "cpmt_compactness_ratio": (
         "own calculation: compartment polygon perimeter / area -- a per-compartment shape "
-        "property, not a per-plot distance (every plot in the same compartment shares one value)"
+        "property, not a per-plot distance (every plot in the same compartment shares one value). "
+        "NOT a leak (2026-07-31 clarification, to distinguish this from the real "
+        "neighbour_mean_height leak above) -- but a real interpretive caveat: spatial_block_split() "
+        "holds out whole compartments, so a held-out compartment's own value here may never have "
+        "appeared in training at all. That makes generalisation for this specific variable a "
+        "stricter test than for a smoothly-varying continuous one, not a data problem to fix -- "
+        "the split is doing exactly what it's supposed to. Read this variable's importance/effect "
+        "numbers with that in mind, don't average it against continuous variables as if the test "
+        "were equally hard for both."
     ),
     "dist_to_road": (
         "own calculation: distance from the plot point to the nearest OS Open Roads line, same "
@@ -157,15 +165,14 @@ FEATURE_PROVENANCE = {
         "signal (rho=0.172 vs 4survey CR residual), fairly distinct from the other climate "
         "variables already in the model."
     ),
-    "neighbour_mean_height": (
-        "own calculation: mean of every OTHER plot's 2023 elev_percentile_95th within a 75m "
-        "radius (scipy.spatial.cKDTree query_ball_point) -- SPATIAL-LAG, not exogenous"
+    "whcl": (
+        "external (raw GPKG windthrow hazard class field, integer 0-6, ordinal severity -- "
+        "constant per plot across survey years, confirmed by direct check, not assumed). Same "
+        "compartment-constant caveat as cpmt_compactness_ratio above (2026-07-31) -- assigned per "
+        "forestry compartment, so a held-out compartment under spatial_block_split() may carry a "
+        "class value never seen in training. Not a leak, a stricter generalisation test; read its "
+        "importance/effect numbers with that in mind."
     ),
-    "neighbour_height_differential": (
-        "own calculation: own 2023 elev_percentile_95th minus neighbour_mean_height -- "
-        "SPATIAL-LAG, not exogenous"
-    ),
-    "whcl": "external (raw GPKG windthrow hazard class field, integer 0-6, ordinal severity -- constant per plot across survey years, confirmed by direct check, not assumed)",
     # Silvicultural (stand-structure), not environmental -- kept in this same dict/set, not split
     # out separately (see progress_notes.md for why). Mean-aggregated per plot across survey years.
     # Age itself is deliberately NOT included here -- it's circular with mean_cr_residual's own
@@ -186,13 +193,28 @@ FEATURE_PROVENANCE = {
 # notebooks/environmental_data/aux_data_resolution_check.ipynb's climate correlation section for
 # the full comparison.
 
+# neighbour_mean_height/neighbour_height_differential are deliberately NOT in this dict either
+# (2026-07-31 fix -- previously included, tagged "SPATIAL-LAG, not exogenous" as a caveat, not
+# excluded). Removed after confirming a real leak, not just a trust concern: both are built from
+# every OTHER plot's own real 2023 height within a 75m radius, computed ONCE on the full
+# 71,766-plot set BEFORE any train/val/test split exists
+# (notebooks/environmental_data/aux_data_resolution_check.ipynb). Checked directly: because
+# spatial_block_split() holds out whole compartments, 95.9% of a TEST-set plot's within-75m
+# neighbours are ALSO test-set plots (82.3% of test plots have ZERO train-set neighbours in
+# range) -- so for the large majority of test rows, this "feature" is built almost entirely from
+# other test-set plots' real ground-truth heights, not learned from training data at all. Real
+# consequence, already on disk: removing it drops XGBoost's spatial_block test R2 from 0.598 to
+# 0.321 (4survey), and from 0.327 to -0.337 (6survey -- worse than predicting the mean). See
+# experiment_log.md's 2026-07-31 entry for the full check and progress_notes.md for where this
+# sits in the wider Tier-2 attribution story. If a genuine spatial-lag feature is wanted again in
+# future, it needs to be computed split-aware (e.g. only ever averaging TRAINING-set neighbours'
+# heights, even for val/test rows), not the global pre-split construction used here.
+
 # aspect_degrees is deliberately excluded (a raw 0-360 bearing is a bad model input -- see
 # progress_notes.md for the full reasoning); northness/eastness are its fixed replacement.
 # Redundant-looking pairs otherwise stay in raw -- SHAP evidence decides what's redundant, not a
 # pre-judgement here.
 ALL_FEATURE_COLUMNS = list(FEATURE_PROVENANCE.keys())
-
-NEIGHBOUR_COLUMNS = ["neighbour_mean_height", "neighbour_height_differential"]
 
 TERRAIN_AND_WIND_COLUMNS = [
     # Genuinely terrain + wind only (2026-07-30 fix) -- this used to also include 6
@@ -213,40 +235,99 @@ TERRAIN_AND_WIND_COLUMNS = [
     "topex", "windward_topex", "whcl", "gwa_wind_speed_10m",
 ]
 
-# Three named feature sets to fit and compare:
-#   - all_environmental: every candidate variable, the main deliverable.
-#   - all_environmental_no_neighbour: same, minus the two spatial-lag features -- answers the
-#     standing caveat ("test the terrain+wind model with and without this feature") directly.
+# Two named feature sets to fit and compare:
+#   - all_environmental: every candidate variable, the main deliverable. Used to include
+#     neighbour_mean_height/neighbour_height_differential (spatial-lag features) -- removed
+#     2026-07-31 after confirming they leak test-set ground truth into themselves (see the
+#     FEATURE_PROVENANCE comment above and experiment_log.md's 2026-07-31 entry). There used to
+#     be a separate "all_environmental_no_neighbour" entry here specifically to answer that
+#     caveat -- redundant now that the leaky columns are gone from ALL_FEATURE_COLUMNS entirely,
+#     so it's been removed rather than kept as a duplicate of this one.
 #   - terrain_and_wind_only: genuinely terrain+wind (see TERRAIN_AND_WIND_COLUMNS above), the
 #     closest equivalent to the dissertation plan's original XGB-A/B/C staging.
 FEATURE_SETS = {
     "all_environmental": ALL_FEATURE_COLUMNS,
-    "all_environmental_no_neighbour": [c for c in ALL_FEATURE_COLUMNS if c not in NEIGHBOUR_COLUMNS],
     "terrain_and_wind_only": TERRAIN_AND_WIND_COLUMNS,
 }
 
 
-def fit_with_columns(train_df, feature_columns, target_col="mean_cr_residual", seed=42):
+def fit_with_columns(train_df, feature_columns, val_df=None, target_col="mean_cr_residual", seed=42, **xgb_params):
     # The actual fitting logic, taking a raw column list directly rather than a name looked up
     # in FEATURE_SETS -- lets ad-hoc analysis (e.g. the Tier-2 notebook's ablation tests, which
     # need many one-off column combinations for cluster testing) fit a model without adding a
-    # new named entry to FEATURE_SETS for every combination tried. Plain XGBoost regressor,
-    # sklearn defaults otherwise (no tuning yet) -- this is a baseline reference point for
-    # feature importance, not a tuned model, same "not tuned yet" honesty as
-    # models/rf_baseline/rf_baseline.py.
+    # new named entry to FEATURE_SETS for every combination tried.
+    #
+    # Two optional additions (2026-07-31, see TUNED_HYPERPARAMETERS below for why):
+    #   - **xgb_params: any XGBRegressor keyword can be overridden (max_depth, reg_lambda, etc).
+    #     Left empty, every call keeps behaving exactly as before (sklearn defaults) -- this is
+    #     what the Tier-2 notebook's calls still do, since they never pass xgb_params.
+    #   - val_df: if given, XGBoost stops adding trees once val performance stops improving
+    #     (early stopping), instead of always building the full n_estimators regardless of
+    #     whether the extra trees are still helping. Left as None, behaviour is unchanged
+    #     (fits a plain, fixed number of trees, no validation set touched at fit time).
     features_train = train_df[feature_columns]
 
-    model = xgb.XGBRegressor(random_state=seed)
-    model.fit(features_train, train_df[target_col])
+    if val_df is not None:
+        # early_stopping_rounds is a CONSTRUCTOR argument in this XGBoost version (3.x), not a
+        # fit()-time argument -- older XGBoost releases used to accept it in .fit() instead.
+        model = xgb.XGBRegressor(random_state=seed, early_stopping_rounds=20, **xgb_params)
+        features_val = val_df[feature_columns]
+        model.fit(
+            features_train, train_df[target_col],
+            eval_set=[(features_val, val_df[target_col])], verbose=False,
+        )
+    else:
+        model = xgb.XGBRegressor(random_state=seed, **xgb_params)
+        model.fit(features_train, train_df[target_col])
 
     return model
 
 
-def fit(train_df, feature_set_name, target_col="mean_cr_residual", seed=42):
-    # Thin wrapper for the three named, permanent feature sets above -- everything else
-    # (run_xgb_environmental.py) keeps calling this exactly as before.
+# Small, deliberately simple hyperparameter grid (2026-07-31) -- not an exhaustive search. Only
+# two knobs swept, both aimed squarely at the specific failure this was built to fix: XGBoost's
+# default settings overfitting 6survey's small train set (7,467 rows), landing at a NEGATIVE
+# test R2 (worse than predicting the mean). Random Forest doesn't have this failure mode the
+# same way (it bags/averages independently-grown trees rather than sequentially correcting
+# residuals -- see experiment_log.md's 2026-07-31 entry for the full reasoning), so this grid is
+# specifically about taming XGBoost's boosting, not a generic "try lots of things" sweep.
+#   - max_depth: shallower trees (2/3/4) vs. the default 6 -- less capacity to memorise noise.
+#   - reg_lambda: L2 regularisation strength (1 is XGBoost's own default, 5/20 are stronger).
+# n_estimators is deliberately NOT swept here -- it's set high (500) and early stopping (see
+# fit_with_columns above) picks the right number automatically for whichever (max_depth,
+# reg_lambda) pair is being tried, so there's no need for a third loop over it.
+HYPERPARAMETER_GRID = [
+    {"max_depth": max_depth, "reg_lambda": reg_lambda, "n_estimators": 500, "learning_rate": 0.1}
+    for max_depth in [2, 3, 4, 6]
+    for reg_lambda in [1, 5, 20]
+]
+
+
+def tune_hyperparameters(train_df, val_df, feature_columns, target_col="mean_cr_residual", seed=42):
+    # Tries every combination in HYPERPARAMETER_GRID, fits on train with early stopping against
+    # val, and picks whichever config gets the best VAL R2 -- test is never touched here, same
+    # val-decides/test-reads-once discipline used everywhere else in this project (see this
+    # notebook's own "how val and test are used" note, and the PINN physics-weight sweep in
+    # experiment_log.md for the same pattern applied to a different model).
+    from models.common.metrics import compute_metrics
+
+    results = []
+    for params in HYPERPARAMETER_GRID:
+        model = fit_with_columns(train_df, feature_columns, val_df=val_df, target_col=target_col, seed=seed, **params)
+        val_predictions = predict_with_columns(val_df, model, feature_columns)
+        val_r2 = compute_metrics(val_df[target_col].values, val_predictions)["r2"]
+        results.append({**params, "val_r2": val_r2, "best_iteration": model.best_iteration})
+
+    results_sorted = sorted(results, key=lambda row: row["val_r2"], reverse=True)
+    best_params = {k: v for k, v in results_sorted[0].items() if k not in ("val_r2", "best_iteration")}
+    return best_params, results_sorted
+
+
+def fit(train_df, feature_set_name, val_df=None, target_col="mean_cr_residual", seed=42, **xgb_params):
+    # Thin wrapper for the two named, permanent feature sets above -- everything else
+    # (run_xgb_environmental.py) keeps calling this exactly as before, just with val_df/
+    # xgb_params now optionally passed through for the tuned fit.
     feature_columns = FEATURE_SETS[feature_set_name]
-    return fit_with_columns(train_df, feature_columns, target_col=target_col, seed=seed)
+    return fit_with_columns(train_df, feature_columns, val_df=val_df, target_col=target_col, seed=seed, **xgb_params)
 
 
 def predict_with_columns(df, model, feature_columns):
