@@ -57,9 +57,11 @@ VAL_LOSS_SMOOTHING_WINDOW = 5
 PRINT_EVERY_N_EPOCHS = 10
 
 
-def build_model(n_other_features, device, seed, dropout_rate=0.0):
+def build_model(n_other_features, device, seed, dropout_rate=0.0, hidden_layer_sizes=None):
+    # hidden_layer_sizes=None keeps the original 3x128 network -- see
+    # models/common/torch_model.py::NoEnvNetwork's own note (2026-08-02).
     torch.manual_seed(seed)
-    model = NoEnvNetwork(n_other_features=n_other_features, dropout_rate=dropout_rate)
+    model = NoEnvNetwork(n_other_features=n_other_features, dropout_rate=dropout_rate, hidden_layer_sizes=hidden_layer_sizes)
     return model.to(device)
 
 
@@ -108,12 +110,12 @@ def evaluate_on_validation_set(model, age_val, other_val, target_val):
     return val_loss.item()
 
 
-def build_optimizer(model, optimizer_name):
+def build_optimizer(model, optimizer_name, learning_rate=LEARNING_RATE):
     if optimizer_name == "adam":
-        return torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
+        return torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=WEIGHT_DECAY)
     elif optimizer_name == "sgd_momentum":
         return torch.optim.SGD(
-            model.parameters(), lr=LEARNING_RATE, momentum=0.9, nesterov=True, weight_decay=WEIGHT_DECAY
+            model.parameters(), lr=learning_rate, momentum=0.9, nesterov=True, weight_decay=WEIGHT_DECAY
         )
     else:
         raise ValueError(f"Unknown optimizer_name: {optimizer_name!r}")
@@ -127,10 +129,12 @@ def fit(
     optimizer_name="adam",
     batch_size=BATCH_SIZE,
     dropout_rate=0.0,
+    learning_rate=LEARNING_RATE,
+    hidden_layer_sizes=None,
 ):
     training_start_time = time.time()
-    model = build_model(n_other_features, device, seed, dropout_rate=dropout_rate)
-    optimizer = build_optimizer(model, optimizer_name)
+    model = build_model(n_other_features, device, seed, dropout_rate=dropout_rate, hidden_layer_sizes=hidden_layer_sizes)
+    optimizer = build_optimizer(model, optimizer_name, learning_rate=learning_rate)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, factor=LR_SCHEDULER_FACTOR, patience=LR_SCHEDULER_PATIENCE
     )
@@ -185,7 +189,7 @@ def fit(
 
     final_model_state = {key: value.clone() for key, value in model.state_dict().items()}
 
-    best_model = build_model(n_other_features, device, seed, dropout_rate=dropout_rate)
+    best_model = build_model(n_other_features, device, seed, dropout_rate=dropout_rate, hidden_layer_sizes=hidden_layer_sizes)
     best_model.load_state_dict(best_model_state)
 
     history_df = pd.DataFrame(history_rows)
@@ -199,16 +203,16 @@ def predict(model, age, other_features):
     return predicted_height_scaled
 
 
-def save_checkpoints(best_model, final_model_state, n_other_features, output_dir):
+def save_checkpoints(best_model, final_model_state, n_other_features, output_dir, hidden_layer_sizes=None):
     output_dir.mkdir(parents=True, exist_ok=True)
     torch.save(best_model.state_dict(), output_dir / "best_model.pt")
     torch.save(final_model_state, output_dir / "final_model.pt")
     with open(output_dir / "architecture.json", "w") as f:
-        json.dump({"n_other_features": n_other_features}, f, indent=2)
+        json.dump({"n_other_features": n_other_features, "hidden_layer_sizes": hidden_layer_sizes}, f, indent=2)
 
 
-def load_best_model(n_other_features, device, checkpoint_dir):
-    model = NoEnvNetwork(n_other_features=n_other_features)
+def load_best_model(n_other_features, device, checkpoint_dir, hidden_layer_sizes=None):
+    model = NoEnvNetwork(n_other_features=n_other_features, hidden_layer_sizes=hidden_layer_sizes)
     model.load_state_dict(torch.load(checkpoint_dir / "best_model.pt", map_location=device))
     model.to(device)
     return model

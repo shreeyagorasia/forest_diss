@@ -42,6 +42,9 @@ def run_for_cohort(cohort, split_type, run_name=None):
             architecture = json.load(f)
         n_other_features = architecture["n_other_features"]
         n_terrain_features = architecture["n_terrain_features"]
+        # .get(...): a checkpoint saved before 2026-08-02 has no "hidden_layer_sizes" key at
+        # all -- treated the same as an explicit None (the original 3x128 main network).
+        hidden_layer_sizes = architecture.get("hidden_layer_sizes")
 
         scaler_age = joblib.load(preprocessing_dir / "scaler_age.joblib")
         scaler_other_features = joblib.load(preprocessing_dir / "scaler_other_features.joblib")
@@ -52,15 +55,24 @@ def run_for_cohort(cohort, split_type, run_name=None):
         with open(preprocessing_dir / "terrain_feature_columns.json") as f:
             feature_columns = json.load(f)
 
-        # The frozen CR anchor's y_max is the same ANCHOR run_pinn_env_terrain.py used --
-        # re-read directly rather than trusting a copy, so evaluation always matches whatever
-        # outputs/chapman_richards/<cohort>/params.json currently says (same file the fit step
-        # read, not expected to change between fit and evaluate, but re-reading costs nothing and
-        # avoids a silent mismatch if it ever does).
-        with open(PROJECT_ROOT / "outputs" / "chapman_richards" / cohort / "params.json") as f:
+        # The frozen CR anchor's y_max is the same split-MATCHED anchor run_pinn_env_terrain.py's
+        # load_cr_params() used to train this checkpoint -- re-read directly from the same
+        # outputs/<split_type>/chapman_richards/<cohort>/params.json path rather than trusting a
+        # copy. BUG FIX (2026-08-01): this used to read the unprefixed, pooled
+        # outputs/chapman_richards/<cohort>/params.json path -- harmless for spatial_block (its
+        # split-matched y_max happens to be nearly identical to the pooled value, checked
+        # directly), but WRONG for temporal/temporal_narrow_gap, where the two differ by
+        # 3-11% (e.g. 4survey temporal: pooled 51.96m vs split-matched 46.48m). Did not affect
+        # any height prediction or metric (predict() never uses global_y_max at all) -- only
+        # the reported "learned_y_max" column/anchor print, which a future check comparing the
+        # learned y_max map against known terrain effects would rely on being correct.
+        with open(PROJECT_ROOT / "outputs" / split_type / "chapman_richards" / cohort / "params.json") as f:
             global_y_max = json.load(f)["y_max"]
 
-        model = load_best_model(n_other_features, n_terrain_features, device, checkpoints_dir)
+        model = load_best_model(
+            n_other_features, n_terrain_features, device, checkpoints_dir,
+            hidden_layer_sizes=hidden_layer_sizes,
+        )
 
         split_df = load_split_table_with_terrain(cohort, split_type, feature_columns)
         test_df = split_df[split_df["split"] == "test"]

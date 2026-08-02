@@ -30,6 +30,7 @@ from models.common.run_logging import (
 )
 from models.common.saving import get_git_commit, model_output_dir
 from models.common.splits import TEMPORAL_YEARS
+from models.common.torch_model import parse_hidden_layer_sizes
 from models.common.torch_data import (
     DEFAULT_ENV_TERRAIN_FEATURE_SET,
     ENV_TERRAIN_FEATURE_SETS,
@@ -91,7 +92,8 @@ def load_cr_params(cohort, split_type):
 def run_for_cohort(
     cohort, split_type, max_epochs, early_stopping_patience, seed, optimizer_name,
     physics_weight, trajectory_weight, batch_size, pairs_batch_size, run_name,
-    feature_set_name=DEFAULT_ENV_TERRAIN_FEATURE_SET, dropout_rate=0.0,
+    feature_set_name=DEFAULT_ENV_TERRAIN_FEATURE_SET, dropout_rate=0.0, learning_rate=LEARNING_RATE,
+    hidden_layer_sizes=None,
 ):
     output_model_name = run_name if run_name else MODEL_NAME
     print(f"===== {cohort} ({output_model_name}, {split_type}) — FIT ONLY, no test-set evaluation =====")
@@ -104,7 +106,7 @@ def run_for_cohort(
     print(f"  Terrain/wind feature set: {feature_set_name} = {feature_columns}")
 
     hyperparameters = {
-        "learning_rate": LEARNING_RATE,
+        "learning_rate": learning_rate,
         "lr_scheduler_factor": LR_SCHEDULER_FACTOR,
         "lr_scheduler_patience": LR_SCHEDULER_PATIENCE,
         "l1_coefficient": L1_COEFFICIENT,
@@ -121,6 +123,7 @@ def run_for_cohort(
         "seed": seed,
         "feature_set_name": feature_set_name,
         "dropout_rate": dropout_rate,
+        "hidden_layer_sizes": hidden_layer_sizes,
     }
     if split_type == "temporal":
         hyperparameters["temporal_split_years"] = TEMPORAL_YEARS[cohort]
@@ -175,7 +178,7 @@ def run_for_cohort(
             optimizer_name=optimizer_name,
             physics_weight=physics_weight, trajectory_weight=trajectory_weight,
             batch_size=batch_size, pairs_batch_size=pairs_batch_size,
-            dropout_rate=dropout_rate,
+            dropout_rate=dropout_rate, learning_rate=learning_rate, hidden_layer_sizes=hidden_layer_sizes,
         )
         last_row = history_df.iloc[-1]
         best_val_loss = float(history_df["val_loss_smoothed"].min())
@@ -190,7 +193,10 @@ def run_for_cohort(
         output_dir.mkdir(parents=True, exist_ok=True)
 
         history_df.to_csv(output_dir / "training_history.csv", index=False)
-        save_checkpoints(best_model, final_model_state, n_other_features, n_terrain_features, output_dir / "checkpoints")
+        save_checkpoints(
+            best_model, final_model_state, n_other_features, n_terrain_features, output_dir / "checkpoints",
+            hidden_layer_sizes=hidden_layer_sizes,
+        )
 
         preprocessing_dir = output_dir / "preprocessing"
         preprocessing_dir.mkdir(parents=True, exist_ok=True)
@@ -296,6 +302,17 @@ def main():
              "layers. Default 0.0 (no dropout, matching pinn_noenv's architecture) -- a real "
              "hyperparameter to sweep, not a guessed value.",
     )
+    parser.add_argument(
+        "--learning-rate", type=float, default=LEARNING_RATE,
+        help=f"Adam/SGD starting learning rate. Default {LEARNING_RATE}, never swept before "
+             "2026-08-01. See documentation/experiment_log.md's 2026-08-01 entry.",
+    )
+    parser.add_argument(
+        "--hidden-layer-sizes", type=str, default=None,
+        help="Comma-separated hidden layer sizes for the MAIN network only, e.g. '64,32' -- "
+             "does not resize the y_max sub-network. Default: the original 3x128 main network "
+             "(unchanged). See documentation/experiment_log.md's 2026-08-02 entry.",
+    )
     args = parser.parse_args()
 
     cohorts = [args.cohort] if args.cohort else ["4survey", "6survey"]
@@ -306,6 +323,7 @@ def main():
             cohort, args.split_type, args.max_epochs, args.patience, args.seed, args.optimizer,
             args.physics_weight, args.trajectory_weight, args.batch_size, args.pairs_batch_size,
             args.run_name, feature_set_name=args.feature_set, dropout_rate=args.dropout_rate,
+            learning_rate=args.learning_rate, hidden_layer_sizes=parse_hidden_layer_sizes(args.hidden_layer_sizes),
         )
 
     print("===== Summary: best validation loss reached =====")

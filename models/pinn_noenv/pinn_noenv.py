@@ -67,9 +67,19 @@ VAL_LOSS_SMOOTHING_WINDOW = 5
 PRINT_EVERY_N_EPOCHS = 10
 
 
-def build_model(n_other_features, device, seed):
+def build_model(n_other_features, device, seed, dropout_rate=0.0, hidden_layer_sizes=None):
+    # dropout_rate=0.0 (no dropout) is still the default, matching every
+    # pinn_noenv result reported so far -- see
+    # models/dnn_noenv/dnn_noenv.py::build_model()'s own note (2026-08-01)
+    # for why dropout, not a bigger learning rate, is the better-motivated
+    # fix for the overfitting-shaped training curves seen across this whole
+    # model family, this one included.
+    #
+    # hidden_layer_sizes=None (2026-08-02) keeps the original 3x128 network -- see
+    # models/common/torch_model.py::NoEnvNetwork's own note and
+    # models/dnn_noenv/dnn_noenv.py::build_model()'s matching note.
     torch.manual_seed(seed)
-    model = NoEnvNetwork(n_other_features=n_other_features)
+    model = NoEnvNetwork(n_other_features=n_other_features, dropout_rate=dropout_rate, hidden_layer_sizes=hidden_layer_sizes)
     return model.to(device)
 
 
@@ -215,15 +225,15 @@ def evaluate_on_validation_set(model, age_val, other_val, target_val):
     return val_loss.item()
 
 
-def build_optimizer(model, optimizer_name):
+def build_optimizer(model, optimizer_name, learning_rate=LEARNING_RATE):
     # See models/dnn_noenv/dnn_noenv.py::build_optimizer() -- identical
     # reasoning, kept in sync so a DNN-vs-PINN comparison never differs
     # because of a mismatched optimizer choice.
     if optimizer_name == "adam":
-        return torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
+        return torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=WEIGHT_DECAY)
     elif optimizer_name == "sgd_momentum":
         return torch.optim.SGD(
-            model.parameters(), lr=LEARNING_RATE, momentum=0.9, nesterov=True, weight_decay=WEIGHT_DECAY
+            model.parameters(), lr=learning_rate, momentum=0.9, nesterov=True, weight_decay=WEIGHT_DECAY
         )
     else:
         raise ValueError(f"Unknown optimizer_name: {optimizer_name!r}")
@@ -238,10 +248,13 @@ def fit(
     optimizer_name="adam",
     physics_weight=PHYSICS_WEIGHT, trajectory_weight=TRAJECTORY_WEIGHT,
     batch_size=BATCH_SIZE, pairs_batch_size=PAIRS_BATCH_SIZE,
+    learning_rate=LEARNING_RATE,
+    dropout_rate=0.0,
+    hidden_layer_sizes=None,
 ):
     training_start_time = time.time()
-    model = build_model(n_other_features, device, seed)
-    optimizer = build_optimizer(model, optimizer_name)
+    model = build_model(n_other_features, device, seed, dropout_rate=dropout_rate, hidden_layer_sizes=hidden_layer_sizes)
+    optimizer = build_optimizer(model, optimizer_name, learning_rate=learning_rate)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, factor=LR_SCHEDULER_FACTOR, patience=LR_SCHEDULER_PATIENCE
     )
@@ -331,7 +344,7 @@ def fit(
 
     final_model_state = {key: value.clone() for key, value in model.state_dict().items()}
 
-    best_model = build_model(n_other_features, device, seed)
+    best_model = build_model(n_other_features, device, seed, dropout_rate=dropout_rate, hidden_layer_sizes=hidden_layer_sizes)
     best_model.load_state_dict(best_model_state)
 
     history_df = pd.DataFrame(history_rows)
@@ -345,27 +358,28 @@ def predict(model, age, other_features):
     return predicted_height_scaled
 
 
-def save_checkpoints(best_model, final_model_state, n_other_features, output_dir):
+def save_checkpoints(best_model, final_model_state, n_other_features, output_dir, hidden_layer_sizes=None):
     # n_other_features is saved alongside the weights so a fresh script --
     # possibly on a different machine, evaluating a checkpoint trained on
     # the SLURM cluster -- can rebuild the exact same
     # NoEnvNetwork(n_other_features=...) architecture before calling
-    # load_state_dict().
+    # load_state_dict(). hidden_layer_sizes saved too, same reasoning as
+    # models/dnn_noenv/dnn_noenv.py::save_checkpoints() (2026-08-02).
     output_dir.mkdir(parents=True, exist_ok=True)
     torch.save(best_model.state_dict(), output_dir / "best_model.pt")
     torch.save(final_model_state, output_dir / "final_model.pt")
     with open(output_dir / "architecture.json", "w") as f:
-        json.dump({"n_other_features": n_other_features}, f, indent=2)
+        json.dump({"n_other_features": n_other_features, "hidden_layer_sizes": hidden_layer_sizes}, f, indent=2)
 
 
-def load_best_model(n_other_features, device, checkpoint_dir):
+def load_best_model(n_other_features, device, checkpoint_dir, hidden_layer_sizes=None):
     # The other half of save_checkpoints(): rebuilds the network
     # architecture, then loads the saved best-epoch weights into it. Used
     # by evaluate_pinn_noenv.py, which never calls fit() at all -- it only
     # needs a trained model to make predictions with. Note this loads the
     # PLAIN network only -- the physics/trajectory loss terms are a
     # TRAINING-time concept, nothing to load or reuse at evaluation time.
-    model = NoEnvNetwork(n_other_features=n_other_features)
+    model = NoEnvNetwork(n_other_features=n_other_features, hidden_layer_sizes=hidden_layer_sizes)
     model.load_state_dict(torch.load(checkpoint_dir / "best_model.pt", map_location=device))
     model.to(device)
     return model

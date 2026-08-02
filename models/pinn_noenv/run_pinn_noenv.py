@@ -48,6 +48,7 @@ from models.common.run_logging import (
 )
 from models.common.saving import get_git_commit, model_output_dir
 from models.common.splits import TEMPORAL_YEARS
+from models.common.torch_model import parse_hidden_layer_sizes
 from models.common.torch_data import (
     build_pair_tensors,
     build_tensors,
@@ -103,6 +104,7 @@ def load_cr_params(cohort, split_type):
 def run_for_cohort(
     cohort, split_type, max_epochs, early_stopping_patience, seed, optimizer_name,
     physics_weight, trajectory_weight, batch_size, pairs_batch_size, run_name,
+    learning_rate=LEARNING_RATE, dropout_rate=0.0, hidden_layer_sizes=None,
 ):
     # run_name only changes where results are SAVED (output_dir below) and
     # how this run is labelled in outputs/run_logs/ -- it never changes
@@ -122,13 +124,15 @@ def run_for_cohort(
     print(f"  Using device: {device}")
 
     hyperparameters = {
-        "learning_rate": LEARNING_RATE,
+        "learning_rate": learning_rate,
         "lr_scheduler_factor": LR_SCHEDULER_FACTOR,
         "lr_scheduler_patience": LR_SCHEDULER_PATIENCE,
         "l1_coefficient": L1_COEFFICIENT,
         "weight_decay": WEIGHT_DECAY,
         "grad_clip_max_norm": GRAD_CLIP_MAX_NORM,
         "val_loss_smoothing_window": VAL_LOSS_SMOOTHING_WINDOW,
+        "dropout_rate": dropout_rate,
+        "hidden_layer_sizes": hidden_layer_sizes,
         "optimizer_name": optimizer_name,
         "physics_weight": physics_weight,
         "trajectory_weight": trajectory_weight,
@@ -191,6 +195,7 @@ def run_for_cohort(
             optimizer_name=optimizer_name,
             physics_weight=physics_weight, trajectory_weight=trajectory_weight,
             batch_size=batch_size, pairs_batch_size=pairs_batch_size,
+            learning_rate=learning_rate, dropout_rate=dropout_rate, hidden_layer_sizes=hidden_layer_sizes,
         )
         last_row = history_df.iloc[-1]
         # The smoothed column is what actually decided which epoch's
@@ -210,7 +215,10 @@ def run_for_cohort(
         output_dir.mkdir(parents=True, exist_ok=True)
 
         history_df.to_csv(output_dir / "training_history.csv", index=False)
-        save_checkpoints(best_model, final_model_state, n_other_features, output_dir / "checkpoints")
+        save_checkpoints(
+            best_model, final_model_state, n_other_features, output_dir / "checkpoints",
+            hidden_layer_sizes=hidden_layer_sizes,
+        )
 
         preprocessing_dir = output_dir / "preprocessing"
         preprocessing_dir.mkdir(parents=True, exist_ok=True)
@@ -317,6 +325,23 @@ def main():
             "pinn_noenv result at the same output_dir. E.g. pinn_noenv_pw2_tw2."
         ),
     )
+    parser.add_argument(
+        "--learning-rate", type=float, default=LEARNING_RATE,
+        help=f"Adam/SGD starting learning rate. Default {LEARNING_RATE}, never swept before "
+             "2026-08-01. See documentation/experiment_log.md's 2026-08-01 entry.",
+    )
+    parser.add_argument(
+        "--dropout-rate", type=float, default=0.0,
+        help="Dropout probability in the network's hidden layers. Default 0.0 (no dropout, "
+             "matching every pinn_noenv result reported so far) -- see "
+             "documentation/experiment_log.md's 2026-08-01 entry for why this is the "
+             "better-motivated fix for the overfitting-shaped training curves already on record.",
+    )
+    parser.add_argument(
+        "--hidden-layer-sizes", type=str, default=None,
+        help="Comma-separated hidden layer sizes, e.g. '64,32'. Default: the original 3x128 "
+             "network (unchanged). See documentation/experiment_log.md's 2026-08-02 entry.",
+    )
     args = parser.parse_args()
 
     cohorts = [args.cohort] if args.cohort else ["4survey", "6survey"]
@@ -326,7 +351,8 @@ def main():
         results[cohort] = run_for_cohort(
             cohort, args.split_type, args.max_epochs, args.patience, args.seed, args.optimizer,
             args.physics_weight, args.trajectory_weight, args.batch_size, args.pairs_batch_size,
-            args.run_name,
+            args.run_name, learning_rate=args.learning_rate, dropout_rate=args.dropout_rate,
+            hidden_layer_sizes=parse_hidden_layer_sizes(args.hidden_layer_sizes),
         )
 
     print("===== Summary: best validation loss reached =====")

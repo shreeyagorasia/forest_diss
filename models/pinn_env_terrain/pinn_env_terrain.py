@@ -63,9 +63,15 @@ class EnvTerrainPINN(nn.Module):
     # Bundles the two sub-networks into one module so a single state_dict/save/load covers both
     # -- PyTorch already tracks a sub-module's parameters automatically once it's an attribute,
     # so this needs no special handling beyond normal nn.Module composition.
-    def __init__(self, n_other_features, n_terrain_features, dropout_rate=0.0):
+    # hidden_layer_sizes (2026-08-02) only ever resizes the MAIN network (age + no-env features
+    # -> height) -- the y_max sub-network's own capacity (Y_MAX_SUBNETWORK_HIDDEN_SIZE) is a
+    # separate, not-yet-exposed hyperparameter (see experiments_to_run.txt's still-open
+    # "y_max sub-network hidden_size sweep" item), deliberately not conflated with this one.
+    def __init__(self, n_other_features, n_terrain_features, dropout_rate=0.0, hidden_layer_sizes=None):
         super().__init__()
-        self.main_network = NoEnvNetwork(n_other_features=n_other_features, dropout_rate=dropout_rate)
+        self.main_network = NoEnvNetwork(
+            n_other_features=n_other_features, dropout_rate=dropout_rate, hidden_layer_sizes=hidden_layer_sizes,
+        )
         self.y_max_subnetwork = YMaxSubNetwork(
             n_terrain_features=n_terrain_features, hidden_size=Y_MAX_SUBNETWORK_HIDDEN_SIZE,
             dropout_rate=dropout_rate,
@@ -79,10 +85,11 @@ class EnvTerrainPINN(nn.Module):
         return self.main_network(other_features, age)
 
 
-def build_model(n_other_features, n_terrain_features, device, seed, dropout_rate=0.0):
+def build_model(n_other_features, n_terrain_features, device, seed, dropout_rate=0.0, hidden_layer_sizes=None):
     torch.manual_seed(seed)
     model = EnvTerrainPINN(
         n_other_features=n_other_features, n_terrain_features=n_terrain_features, dropout_rate=dropout_rate,
+        hidden_layer_sizes=hidden_layer_sizes,
     )
     return model.to(device)
 
@@ -225,12 +232,12 @@ def evaluate_on_validation_set(model, age_val, other_val, target_val):
     return val_loss.item()
 
 
-def build_optimizer(model, optimizer_name):
+def build_optimizer(model, optimizer_name, learning_rate=LEARNING_RATE):
     if optimizer_name == "adam":
-        return torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
+        return torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=WEIGHT_DECAY)
     elif optimizer_name == "sgd_momentum":
         return torch.optim.SGD(
-            model.parameters(), lr=LEARNING_RATE, momentum=0.9, nesterov=True, weight_decay=WEIGHT_DECAY
+            model.parameters(), lr=learning_rate, momentum=0.9, nesterov=True, weight_decay=WEIGHT_DECAY
         )
     else:
         raise ValueError(f"Unknown optimizer_name: {optimizer_name!r}")
@@ -246,10 +253,15 @@ def fit(
     physics_weight=PHYSICS_WEIGHT, trajectory_weight=TRAJECTORY_WEIGHT,
     batch_size=BATCH_SIZE, pairs_batch_size=PAIRS_BATCH_SIZE,
     dropout_rate=0.0,
+    learning_rate=LEARNING_RATE,
+    hidden_layer_sizes=None,
 ):
     training_start_time = time.time()
-    model = build_model(n_other_features, n_terrain_features, device, seed, dropout_rate=dropout_rate)
-    optimizer = build_optimizer(model, optimizer_name)
+    model = build_model(
+        n_other_features, n_terrain_features, device, seed,
+        dropout_rate=dropout_rate, hidden_layer_sizes=hidden_layer_sizes,
+    )
+    optimizer = build_optimizer(model, optimizer_name, learning_rate=learning_rate)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, factor=LR_SCHEDULER_FACTOR, patience=LR_SCHEDULER_PATIENCE
     )
@@ -318,7 +330,10 @@ def fit(
 
     final_model_state = {key: value.clone() for key, value in model.state_dict().items()}
 
-    best_model = build_model(n_other_features, n_terrain_features, device, seed, dropout_rate=dropout_rate)
+    best_model = build_model(
+        n_other_features, n_terrain_features, device, seed,
+        dropout_rate=dropout_rate, hidden_layer_sizes=hidden_layer_sizes,
+    )
     best_model.load_state_dict(best_model_state)
 
     history_df = pd.DataFrame(history_rows)
@@ -343,16 +358,25 @@ def predict_y_max(model, terrain_features, global_y_max):
     return y_max_per_row
 
 
-def save_checkpoints(best_model, final_model_state, n_other_features, n_terrain_features, output_dir):
+def save_checkpoints(
+    best_model, final_model_state, n_other_features, n_terrain_features, output_dir,
+    hidden_layer_sizes=None,
+):
     output_dir.mkdir(parents=True, exist_ok=True)
     torch.save(best_model.state_dict(), output_dir / "best_model.pt")
     torch.save(final_model_state, output_dir / "final_model.pt")
     with open(output_dir / "architecture.json", "w") as f:
-        json.dump({"n_other_features": n_other_features, "n_terrain_features": n_terrain_features}, f, indent=2)
+        json.dump({
+            "n_other_features": n_other_features, "n_terrain_features": n_terrain_features,
+            "hidden_layer_sizes": hidden_layer_sizes,
+        }, f, indent=2)
 
 
-def load_best_model(n_other_features, n_terrain_features, device, checkpoint_dir):
-    model = EnvTerrainPINN(n_other_features=n_other_features, n_terrain_features=n_terrain_features)
+def load_best_model(n_other_features, n_terrain_features, device, checkpoint_dir, hidden_layer_sizes=None):
+    model = EnvTerrainPINN(
+        n_other_features=n_other_features, n_terrain_features=n_terrain_features,
+        hidden_layer_sizes=hidden_layer_sizes,
+    )
     model.load_state_dict(torch.load(checkpoint_dir / "best_model.pt", map_location=device))
     model.to(device)
     return model

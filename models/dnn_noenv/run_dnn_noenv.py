@@ -41,6 +41,7 @@ from models.common.run_logging import (
 )
 from models.common.saving import get_git_commit, model_output_dir
 from models.common.splits import TEMPORAL_YEARS
+from models.common.torch_model import parse_hidden_layer_sizes
 from models.common.torch_data import (
     build_tensors,
     encode_thinning_status,
@@ -73,7 +74,8 @@ DEFAULT_OPTIMIZER = "adam"
 
 def run_for_cohort(
     cohort, split_type, max_epochs, early_stopping_patience, seed, optimizer_name,
-    run_name=None, batch_size=BATCH_SIZE,
+    run_name=None, batch_size=BATCH_SIZE, learning_rate=LEARNING_RATE, dropout_rate=0.0,
+    hidden_layer_sizes=None,
 ):
     # run_name only changes where results are SAVED (output_dir below) and
     # how this run is labelled in outputs/run_logs/ -- it never changes
@@ -96,7 +98,7 @@ def run_for_cohort(
     print(f"  Using device: {device}")
 
     hyperparameters = {
-        "learning_rate": LEARNING_RATE,
+        "learning_rate": learning_rate,
         "lr_scheduler_factor": LR_SCHEDULER_FACTOR,
         "lr_scheduler_patience": LR_SCHEDULER_PATIENCE,
         "l1_coefficient": L1_COEFFICIENT,
@@ -108,6 +110,8 @@ def run_for_cohort(
         "max_epochs": max_epochs,
         "early_stopping_patience": early_stopping_patience,
         "seed": seed,
+        "dropout_rate": dropout_rate,
+        "hidden_layer_sizes": hidden_layer_sizes,
     }
     # temporal_split's train/val/test years are a fixed, known-ahead-of-time
     # config worth recording; spatial_block_split has no equivalent (which
@@ -158,6 +162,9 @@ def run_for_cohort(
             max_epochs, early_stopping_patience,
             optimizer_name=optimizer_name,
             batch_size=batch_size,
+            learning_rate=learning_rate,
+            dropout_rate=dropout_rate,
+            hidden_layer_sizes=hidden_layer_sizes,
         )
         # The smoothed column is what actually decided which epoch's
         # weights got saved as "best" (see dnn_noenv.py::fit()) -- reporting
@@ -176,7 +183,10 @@ def run_for_cohort(
         output_dir.mkdir(parents=True, exist_ok=True)
 
         history_df.to_csv(output_dir / "training_history.csv", index=False)
-        save_checkpoints(best_model, final_model_state, n_other_features, output_dir / "checkpoints")
+        save_checkpoints(
+            best_model, final_model_state, n_other_features, output_dir / "checkpoints",
+            hidden_layer_sizes=hidden_layer_sizes,
+        )
 
         preprocessing_dir = output_dir / "preprocessing"
         preprocessing_dir.mkdir(parents=True, exist_ok=True)
@@ -258,6 +268,29 @@ def main():
             "was found to stall its training entirely, not just a minor confound."
         ),
     )
+    parser.add_argument(
+        "--learning-rate", type=float, default=LEARNING_RATE,
+        help=f"Adam/SGD starting learning rate. Default {LEARNING_RATE}, never swept before "
+             "2026-08-01. See documentation/experiment_log.md's 2026-08-01 entry -- exposed to "
+             "test whether a bigger starting rate changes best_val_loss, not just where in "
+             "training the best epoch lands.",
+    )
+    parser.add_argument(
+        "--dropout-rate", type=float, default=0.0,
+        help="Dropout probability in the network's hidden layers. Default 0.0 (no dropout, "
+             "matching every dnn_noenv/pinn_noenv result reported so far) -- exposed 2026-08-01 "
+             "as the better-motivated fix for the overfitting-shaped training curves already on "
+             "record (train_loss keeps falling while val_loss stalls early), see "
+             "documentation/experiment_log.md's 2026-08-01 entry.",
+    )
+    parser.add_argument(
+        "--hidden-layer-sizes", type=str, default=None,
+        help="Comma-separated hidden layer sizes, e.g. '64,32'. Default: the original 3x128 "
+             "network (unchanged). Exposed 2026-08-02 for the architecture-sensitivity sweep -- "
+             "the dropout/learning-rate diagnostic found neither moved best_val_loss, raising "
+             "the question of whether fixed capacity is the actual limiting factor. See "
+             "documentation/experiment_log.md's 2026-08-02 entry.",
+    )
     args = parser.parse_args()
 
     cohorts = [args.cohort] if args.cohort else ["4survey", "6survey"]
@@ -266,7 +299,8 @@ def main():
     for cohort in cohorts:
         results[cohort] = run_for_cohort(
             cohort, args.split_type, args.max_epochs, args.patience, args.seed, args.optimizer, args.run_name,
-            batch_size=args.batch_size,
+            batch_size=args.batch_size, learning_rate=args.learning_rate, dropout_rate=args.dropout_rate,
+            hidden_layer_sizes=parse_hidden_layer_sizes(args.hidden_layer_sizes),
         )
 
     print("===== Summary: best validation loss reached =====")

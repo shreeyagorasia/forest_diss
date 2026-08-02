@@ -114,6 +114,212 @@ time, even in short form:
 
 ---
 
+**2026-08-02 — `dnn_env_terrain`/`pinn_env_terrain` E1+E2 base-case results in (all 3 splits, both
+cohorts); two real bugs found and fixed along the way.**
+**What I found:** All 12 base-case fits (2 models x 3 splits x 2 cohorts, `terrain_wind_solid`,
+batch_size=256, dropout=0, seed=42) were already on disk. Ran the remaining evaluates
+(`temporal`/`temporal_narrow_gap`, both cohorts) myself. Full test R2 table:
+
+| Split | Cohort | dnn_env_terrain | pinn_env_terrain (w=1.0) |
+|---|---|---|---|
+| spatial_block | 4survey | 0.6247 | 0.5823 |
+| spatial_block | 6survey | 0.7415 | 0.7329 |
+| temporal | 4survey | 0.5021 | 0.2934 |
+| temporal | 6survey | 0.2944 | 0.1666 |
+| temporal_narrow_gap | 4survey | 0.6728 | 0.4533 |
+| temporal_narrow_gap | 6survey | 0.5208 | 0.3204 |
+
+DNN beats PINN in all 6 -- same "physics hurts at w=1.0" pattern the no-env pipeline already
+found, now reproduced with terrain conditioning added.
+
+Two real bugs surfaced and fixed:
+1. `load_split_table_with_terrain()` (`models/common/torch_data.py`) hard-errored whenever
+   `whcl` was requested (`terrain_wind_extended`/`broad` feature sets) -- `model_table.parquet`
+   already has its OWN `whcl` column (different from the environmental-features one), so merging
+   silently renamed both to `whcl_x`/`whcl_y` instead of erroring at the merge itself; the
+   `KeyError` only surfaced later, far from the real cause. Fixed by dropping any pre-existing
+   colliding column from `split_df` before merging -- a general fix, not whcl-specific. Also
+   fixed in the same function: `ceh_twi` is genuinely missing for 39/71,766 plots (not a merge
+   bug) -- was a hard `ValueError`, now drops the whole affected plot with a warning, matching
+   `filter_data()`'s existing whole-plot-dropped convention.
+2. `evaluate_pinn_env_terrain.py` read the global y_max anchor from the OLD unprefixed, pooled
+   `outputs/chapman_richards/<cohort>/params.json` path instead of the split-matched
+   `outputs/<split_type>/chapman_richards/<cohort>/params.json` path `run_pinn_env_terrain.py`
+   actually trained against. Did NOT affect any height prediction or R2/MAE/RMSE/Bias metric
+   (`predict()` never uses `global_y_max`) -- only the `learned_y_max` column and the printed
+   anchor. Harmless for `spatial_block` (pooled and matched y_max happen to be nearly identical,
+   checked directly) but wrong for `temporal`/`temporal_narrow_gap`, where they differ by 3-11%
+   (e.g. 4survey temporal: pooled 51.96m vs matched 46.48m).
+**What's working:** Both fixes verified directly (re-ran the loader/evaluate before and after,
+confirmed the exact failure mode and the fix). All three `ENV_TERRAIN_FEATURE_SETS` now load
+successfully end to end (`broad` drops far more plots than the other two -- 430 plots/1,720 rows
+-- from its climate/soil columns' own missingness, not a bug).
+**What's not working / open concern:** `pinn_env_terrain`/`temporal_narrow_gap`/6survey's fit ran
+on CPU, not GPU (11 of 12 real fits used `cuda`, confirmed via `outputs/run_logs/`) -- a cluster
+job-scheduling anomaly, not a code bug. Not yet re-submitted.
+**What this means for what's next:** any `learned_y_max` analysis (e.g. comparing the PINN's
+learned map against NLME/XGBoost's terrain findings) must use checkpoints fit/evaluated AFTER
+this fix, especially for `temporal`/`temporal_narrow_gap`. Re-submit the one CPU-fallback job for
+timing/resource consistency, not correctness (the R2 result itself isn't expected to change).
+
+---
+
+**2026-08-02 — Dropout/learning-rate diagnostic on `dnn_noenv` (spatial_block/4survey): null
+result on both, motivating an architecture-capacity check next.**
+**What I found:** Training curves for `dnn_noenv`/`pinn_noenv`/`dnn_env_terrain` all show the
+same shape -- train_loss keeps decreasing smoothly through the whole run while val_loss plateaus
+within the first ~10-25% of epochs, then drifts slightly worse (classic overfitting signature,
+not a stuck-optimizer signature -- ruled out via direct inspection of `training_history.csv`,
+e.g. `dnn_noenv`/spatial_block/6survey: val_loss drops for ~8 epochs then oscillates 0.206-0.220
+for the remaining 44). Added `--dropout-rate`/`--learning-rate` CLI flags to `dnn_noenv.py` (not
+previously exposed -- `learning_rate`/`dropout_rate` were hardcoded) and swept both on the
+primary reporting config:
+
+| Config | best_val_loss |
+|---|---|
+| baseline (dropout=0, lr=0.0001) | 0.329386 |
+| dropout=0.1 | 0.330622 |
+| dropout=0.2 | 0.334303 |
+| dropout=0.3 | 0.338473 |
+| lr=0.0003 | 0.329747 |
+| lr=0.001 | 0.329485 |
+
+**What's working:** Dropout makes best_val_loss monotonically WORSE (not better -- the
+regularization hypothesis was wrong). Neither learning-rate variant moved best_val_loss beyond
+noise (differences ~0.0001-0.0009, similar magnitude to the curves' own epoch-to-epoch swings).
+**What's not working / open concern:** Neither of the two cheapest, most likely levers
+(regularization strength, optimizer step size) explains the fast-plateau pattern. This was
+checked BEFORE assuming architecture capacity was the answer, not instead of checking it.
+**What this means for what's next:** ruling out dropout/LR motivated the architecture-size sweep
+below, rather than jumping straight to "make the network bigger" on the training-time
+observation alone.
+
+---
+
+**2026-08-02 — Architecture-size sweep (`--hidden-layer-sizes`, newly wired into all 4
+DNN/PINN models): also a null result -- capacity is not the bottleneck on spatial_block.**
+**What I found:** Added a `hidden_layer_sizes` parameter to `models/common/torch_model.py`'s
+`NoEnvNetwork` (backward-compatible: `None` default preserves the exact original 3x128
+structure and parameter names, so every existing checkpoint still loads with zero change --
+verified directly against a real checkpoint before proceeding). Wired `--hidden-layer-sizes`
+through all four models' fit/evaluate scripts. Ran 4 architecture variants (small [64,32],
+medium [128,64], large [256,128,64], deeper [256,128,64,32]) on spatial_block/4survey:
+
+| Model | Architecture | best_val_loss |
+|---|---|---|
+| dnn_noenv | 128x128x128 (baseline) | 0.32939 |
+| dnn_noenv | small | 0.33124 |
+| dnn_noenv | medium | 0.33062 |
+| dnn_noenv | large | 0.33183 |
+| dnn_noenv | deeper | 0.33122 |
+| pinn_noenv (w=1.0) | 128x128x128 (baseline) | 0.39712 |
+| pinn_noenv (w=1.0) | small | 0.39638 |
+| pinn_noenv (w=1.0) | medium | 0.39549 |
+| pinn_noenv (w=1.0) | large | 0.39702 |
+
+Stopped here (user call) before the pinn_noenv/deeper run and before repeating on 6survey --
+the pattern across 7/8 runs was already clear.
+**What's working:** All 4 architectures are within noise of the current 128x128x128 baseline,
+for both models. Confirms (doesn't just assume) that DNN-beats-PINN and terrain-not-helping on
+spatial_block is a real pattern, not an artefact of an underpowered network shape.
+**What's not working / open concern:** Sweep incomplete (7/8 planned runs; no 6survey; no
+env_terrain models) -- not resumed, superseded in priority by the loss-weight finding below.
+**What this means for what's next:** architecture size is not the lever to pursue for
+`pinn_env_terrain`'s underperformance vs. its DNN control. Loss-weight tuning (already flagged
+as untested for env_terrain specifically) is the more promising remaining lever -- see next
+entry.
+
+---
+
+**2026-08-02 — `pinn_env_terrain` physics-weight sweep (spatial_block/4survey) finds a genuine
+trade-off: the weight needed for the y_max sub-network to learn anything also costs accuracy.**
+**What I found:** Swept `physics_weight` in {0.0, 0.01, 0.1, 1.0} with `trajectory_weight` fixed
+at 0.0 (informed by the no-env pipeline's own Stage 3 finding that `trajectory_weight>=0.1`
+reliably hurts), plus the existing 1.0/1.0 checkpoint from E1:
+
+| physics_weight | trajectory_weight | best_val_loss | test R2 | learned y_max range |
+|---|---|---|---|---|
+| 0.0 | 0.0 | 0.3302 | 0.6333 | 51.96-51.96 (flat) |
+| 0.01 | 0.0 | 0.3303 | 0.6335 | 51.96-51.96 (flat) |
+| 0.1 | 0.0 | 0.3304 | 0.6323 | 51.92-51.92 (nearly flat) |
+| 1.0 | 0.0 | 0.3352 | 0.6195 | 45.11-51.71 (real spread) |
+| 1.0 | 1.0 | 0.3955 | 0.5823 | 52.43-61.39 (real spread) |
+
+**What's working:** The y_max sub-network genuinely gets zero gradient at low physics_weight
+(learned_y_max stays exactly at the global anchor, not just "close" -- confirms
+`pinn_env_terrain.py`'s own module-docstring prediction). At physics_weight=1.0 it produces a
+real ~6.6m spread, confirming the mechanism works when given enough weight.
+**What's not working / open concern:** The SAME weight that makes the sub-network responsive
+also costs accuracy (R2 0.633 -> 0.620 -> 0.582 as weight/trajectory_weight increase) -- this
+is a real trade-off, not simply "physics doesn't help." Discussed with the user whether this is
+because the physics loss forces the network's derivative to match a RIGID single-global-`k`/`p`
+Chapman-Richards curve (only `y_max` varies per plot; the deviation is a static per-plot shift,
+never a function of age) -- a plausible model-misspecification explanation, distinct from a
+pure loss-scaling issue. Verified via web search that this maps to a real, named framework:
+Universal Differential Equations (UDEs) / Universal PINNs (UPINNs), where a learned residual is
+added to a known physics term and can vary continuously with the independent variable (age) and
+covariates (terrain) -- not yet implemented, no code changed for this.
+**What this means for what's next:** the user is taking a detailed research prompt (covering
+UDEs/UPINNs, self-adaptive PINN loss weighting as a competing explanation, and relevant
+forestry/plant-growth PINN literature) to a separate research session before any architecture
+change is attempted. Do not implement a residual/deviation-based y_max mechanism without that
+follow-up -- this entry is the state to resume from.
+
+---
+
+**2026-08-02 — Feature-set-parity check (`terrain_wind_extended` vs. default `terrain_wind_solid`)
+on `dnn_env_terrain`/`pinn_env_terrain`: another null result -- rules out "wrong columns" as the
+explanation for the DNN's own regression.**
+**What I found:** `terrain_wind_solid` (the default feature set both env_terrain models use) is
+only 5 of the 16 columns `grouped_category_importance.ipynb`'s terrain+wind category analysis
+used to establish "terrain/wind correlates with the CR residual" -- raised as an open question
+(is the DNN/PINN simply missing signal the stats notebook already found?). Checked against the
+notebook's own per-variable refit ablation (Section 7.2, `per_variable_refit_ablation`, leak-free
+per the 2026-07-31 fix) before assuming more columns = better: of the 16 terrain+wind columns,
+only 8 have a genuinely positive refit r2_drop (removing them hurts the full 37-variable model);
+the other 8 -- including `gwa_wind_speed_10m`, the actual wind-speed variable -- are net HARMFUL
+(negative r2_drop, removing them *helps*). `terrain_wind_solid`'s 5 columns
+(`ceh_twi, eastness, elevation, northness, topex`) already ARE 5 of the top-6 refit-confirmed
+positive columns. `terrain_wind_extended` adds the other 2 refit-confirmed-positive columns
+(`plan_curvature` r2_drop=0.065, `whcl` r2_drop=0.023) -- so this is the correctly-scoped test,
+not "throw in all 16 columns" (which would add 8 confirmed-harmful ones). Reran `dnn_env_terrain`
+and `pinn_env_terrain` (pw=0/tw=0, pw=1/tw=0) on `spatial_block`/4survey with
+`--feature-set terrain_wind_extended`, locally (fast enough not to need the cluster: DNN 60s,
+each PINN leg ~7min):
+
+| Model | Feature set | Test R2 |
+|---|---|---|
+| dnn_noenv (no terrain at all) | n/a | 0.6330 |
+| dnn_env_terrain | terrain_wind_solid (5 col, default) | 0.6247 |
+| dnn_env_terrain | terrain_wind_extended (7 col) | 0.6225 |
+| pinn_env_terrain, pw=0/tw=0 | terrain_wind_solid | 0.6333 |
+| pinn_env_terrain, pw=0/tw=0 | terrain_wind_extended | 0.6333 |
+| pinn_env_terrain, pw=1/tw=0 | terrain_wind_solid | 0.6195 |
+| pinn_env_terrain, pw=1/tw=0 | terrain_wind_extended | 0.6190 |
+
+Adding the 2 extra refit-confirmed-positive columns did not close the DNN's gap vs. `dnn_noenv`
+-- if anything, R2 moved slightly further in the wrong direction (0.6247->0.6225), and the two
+PINN legs are unchanged within noise.
+**What's working:** the refit-ablation-informed column choice itself was sound (didn't blindly
+add all 16, which would likely have hurt more given 8 of them are confirmed net-negative) --
+this was a real, correctly-scoped test of the "missing columns" hypothesis, not a strawman.
+**What's not working / open concern:** this rules out "the env_terrain models just have the
+wrong/incomplete column list" as the explanation. Combined with today's earlier dropout/LR sweep
+(null) and architecture-size sweep (null), every cheap, mechanism-preserving lever has now been
+tried and nulled: not regularization, not optimizer step size, not network capacity, not feature
+selection. What's left is either a genuine inductive-bias mismatch (a small MLP trained by
+gradient descent may just not extract this signal as well as XGBoost's tree splits do, regardless
+of which exact columns it's given), or the deviation-mechanism question already flagged in the
+entry above (rigid single-global-k/p CR curve fighting a plot-specific y_max shift).
+**What this means for what's next:** don't reach for another feature-set variant (e.g. `broad`)
+as the next experiment -- `broad` mixes in climate/soil columns outside the terrain/wind category
+the dissertation's y_max sub-network is scoped to, and this result gives no reason to expect it
+would behave differently. The next real test is on the mechanism side, not the feature side --
+resume from the state noted in the entry above (external research on UDE-style residuals vs.
+SA-PINN self-adaptive weighting) before writing any new model code.
+
+---
+
 **2026-08-01 — Switched both PINN models from `cr_pooled` to a split-matched CR anchor --
 confirmed a real, quantifiable leak, not just a theoretical risk.**
 **What I found:** `cr_pooled` (`outputs/chapman_richards/<cohort>/params.json`, read by both

@@ -49,7 +49,12 @@ def run_for_cohort(cohort, split_type, run_name=None):
 
         # ----- Load everything run_dnn_noenv.py already saved -----
         with open(checkpoints_dir / "architecture.json") as f:
-            n_other_features = json.load(f)["n_other_features"]
+            architecture = json.load(f)
+        n_other_features = architecture["n_other_features"]
+        # .get(...) not [...]: a checkpoint saved before 2026-08-02 has no "hidden_layer_sizes"
+        # key at all -- treated the same as an explicit None, both mean "the original 3x128
+        # network", so an old checkpoint still evaluates correctly with no migration needed.
+        hidden_layer_sizes = architecture.get("hidden_layer_sizes")
 
         scaler_age = joblib.load(preprocessing_dir / "scaler_age.joblib")
         scaler_other_features = joblib.load(preprocessing_dir / "scaler_other_features.joblib")
@@ -57,7 +62,7 @@ def run_for_cohort(cohort, split_type, run_name=None):
         with open(preprocessing_dir / "encoded_column_names.json") as f:
             encoded_column_names = json.load(f)
 
-        model = load_best_model(n_other_features, device, checkpoints_dir)
+        model = load_best_model(n_other_features, device, checkpoints_dir, hidden_layer_sizes=hidden_layer_sizes)
 
         # ----- Load ONLY the test rows -- this is the one place in the
         # whole DNN/PINN pipeline where the test split is touched -----

@@ -195,6 +195,20 @@ def load_split_table_with_terrain(cohort, split_type, feature_columns):
     split_df = load_split_table(cohort, split_type)
     environmental_features = pd.read_parquet(ENVIRONMENTAL_FEATURES_PATH)
 
+    # BUG FIX (2026-08-01): model_table.parquet already carries its own "whcl" column (used
+    # elsewhere in the pipeline, not by build_tensors() below), which is a DIFFERENT column from
+    # environmental_features' "whcl" -- merging without handling this collision doesn't error at
+    # the merge itself, it silently renames both to whcl_x/whcl_y, so the failure only surfaced
+    # later (a confusing KeyError at split_df[feature_columns], or in run_*_env_terrain.py's own
+    # crash, far from the real cause) whenever "whcl" was requested (terrain_wind_extended/broad
+    # -- terrain_wind_solid never hit this, none of its 5 columns collide). Dropping any
+    # requested column that already exists in split_df BEFORE merging guarantees every name in
+    # feature_columns ends up clean and unsuffixed afterward, regardless of which specific column
+    # happens to collide -- not just a one-off fix for "whcl".
+    columns_already_present = [c for c in feature_columns if c in split_df.columns]
+    if columns_already_present:
+        split_df = split_df.drop(columns=columns_already_present)
+
     before_rows = len(split_df)
     split_df = split_df.merge(
         environmental_features[["identification"] + feature_columns],
