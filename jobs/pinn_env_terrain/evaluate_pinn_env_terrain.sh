@@ -51,12 +51,14 @@ export PYTHONPATH="$(pwd)"
 COHORT=${1:-}
 SPLIT_TYPE=${2:-temporal}
 RUN_NAME=${3:-}
+SPLIT_SEED=${4:-42}
 
 echo "--- PINN env_terrain evaluate job start ---"
 echo "Node: $(hostname)"
 echo "Cohort: ${COHORT:-both}"
 echo "Split type: ${SPLIT_TYPE}"
 echo "Run name: ${RUN_NAME:-(none, uses default pinn_env_terrain path)}"
+echo "Split seed: ${SPLIT_SEED}"
 
 RUN_NAME_ARGS=()
 if [ -n "${RUN_NAME}" ]; then
@@ -70,6 +72,7 @@ fi
 
 python -u -m models.pinn_env_terrain.evaluate_pinn_env_terrain \
   --split-type "${SPLIT_TYPE}" \
+  --split-seed "${SPLIT_SEED}" \
   "${COHORT_ARGS[@]}" \
   "${RUN_NAME_ARGS[@]}"
 

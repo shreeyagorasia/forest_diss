@@ -48,11 +48,13 @@ mkdir -p logs/baselines outputs
 export PYTHONPATH="$(pwd)"
 
 SPLIT_TYPE=${1:-plot_level}
+SPLIT_SEED=${2:-42}
 
 echo "--- Baseline fit job start ---"
 echo "Node: $(hostname)"
 echo "Split type: ${SPLIT_TYPE}"
+echo "Split seed: ${SPLIT_SEED}"
 
-python -u -m models.baselines.run_baselines --split-type "${SPLIT_TYPE}"
+python -u -m models.baselines.run_baselines --split-type "${SPLIT_TYPE}" --split-seed "${SPLIT_SEED}"
 
 echo "--- Baseline fit job end ---"

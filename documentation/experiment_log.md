@@ -114,6 +114,263 @@ time, even in short form:
 
 ---
 
+**2026-08-02 — Split-seed robustness check: the "terrain regresses `dnn_env_terrain`" finding
+that motivated most of today's investigation does NOT hold up across `spatial_block_split`
+seeds -- it was true for seed 42 specifically, not true on average.**
+**What I found:** Every result today (scope-matched XGBoost check, feature-set-parity check,
+`env_deviation`, the leak-safe spatial-lag test, the mechanism critique of the PINN's physics
+loss) used the single fixed `SPLIT_SEED=42` partition of `spatial_block_split` -- never varied,
+across the whole project, until now. Exposed `--split-seed` on `load_split_table()`/
+`load_split_table_with_terrain()` (`models/common/torch_data.py`, default unchanged so every
+existing call/result is unaffected) and threaded it through `run_dnn_noenv.py`/
+`evaluate_dnn_noenv.py`/`run_dnn_env_terrain.py`/`evaluate_dnn_env_terrain.py`,
+`run_pinn_noenv.py`/`evaluate_pinn_noenv.py`/`run_pinn_env_terrain.py`/
+`evaluate_pinn_env_terrain.py`, and `run_baselines.py` (all four baselines, output paths
+`_splitseed<N>`-suffixed so nothing overwrites the primary seed-42 results).
+`models/common/saving.py::load_cr_params()` also takes `split_seed` now, reading the matching
+suffixed CR anchor -- necessary so a PINN run under a non-default split seed doesn't silently
+read the seed-42 CR anchor (the exact mismatch bug the 2026-08-01 pooled-anchor leak fix was
+about, in a new form). Refit `dnn_noenv`/`dnn_env_terrain` under seeds 43, 44, 45, and 46,
+`spatial_block`/4survey (fast, no cluster needed -- ~50-75s per fit locally):
+
+| Seed | dnn_noenv R2 | dnn_env_terrain R2 | Delta (terrain - noenv) |
+|---|---|---|---|
+| 42 | 0.6330 | 0.6247 | -0.0083 (the only seed where terrain hurts) |
+| 43 | 0.6415 | 0.7193 | +0.0778 |
+| 44 | 0.6427 | 0.6732 | +0.0305 |
+| 45 | 0.6457 | 0.6997 | +0.0540 |
+| 46 | 0.6418 | 0.6543 | +0.0125 |
+| **Mean +/- SD** | **0.6409 +/- 0.0047** | **0.6742 +/- 0.0372** | **+0.0333 +/- 0.0338** |
+
+**What's working:** `dnn_noenv`'s own numbers are tight across all 5 seeds (SD=0.0047) -- the
+no-env model is NOT sensitive to which compartments land in test. This confirms the split-seed
+exposure itself works correctly (a genuinely stable result stays stable) and isolates where the
+instability actually lives: `dnn_env_terrain`'s SD (0.0372) is ~8x wider -- the moment terrain
+enters, results swing with which compartments got held out.
+**What's not working / open concern:** the central claim that motivated the scope-matched
+XGBoost check, the feature-engineering instructions doc, the `env_deviation` decoupled model,
+and the mechanism critique of the PINN's rigid-`k`/`p` physics loss -- "terrain regresses
+`dnn_env_terrain`" -- was true for seed 42 SPECIFICALLY and is the opposite of what happens on
+average: terrain helps in 4 of 5 seeds, mean delta +0.033 R2. Seed 42, the one seed used for
+every other check this session, was the outlier. Consistent with everything else found today
+about heterogeneous, compartment-clustered environmental structure (compartment bias, the
+leaked/removed neighbour-lag signal) -- if terrain's real effect varies by which part of the
+forest is held out, a single train/test partition can land on an unusually easy or unusually
+hard test set for a terrain-conditioned model specifically, while a model that mostly uses Age
+stays insulated from that.
+**What this means for what's next:** this does not invalidate today's mechanistic findings on
+their own narrow terms (the physics-loss rigidity argument, the tree-vs-MLP scope-matched
+result, both verified facts under seed 42 specifically) -- but the MOTIVATING PREMISE (the DNN
+control itself is broken) is now better described as "true under one atypical seed, false on
+average" than as a general finding. Today's proposed fixes (feature engineering, decoupled
+residual modeling) were designed to fix a problem that mostly isn't there on average -- worth
+revisiting their priority once PINN's own seed-sensitivity is known. The user is running
+`pinn_noenv`/`pinn_env_terrain` under the same seeds 43-46 on the cluster (code now supports
+this end-to-end, including the CR-anchor prerequisite via `run_baselines.py --split-seed`) to
+check whether the PINN's own numbers -- and its comparison against the DNN -- are similarly
+seed-sensitive. Worth flagging beyond today's scope too: every OTHER spatial_block_split-based
+headline result in this dissertation (the base-case DNN-vs-PINN comparison, the physics-weight
+sweep, `xgb_environmental`'s attribution numbers, NLME) also used this same single seed,
+untested for robustness -- not re-examined here, but the same question applies.
+
+---
+
+**2026-08-02 — Regression/residual kriging proposed as a further alternative (real, checkable
+precedent found: residual kriging is already used specifically for canopy height mapping); a
+leak-safe version of the spatial-lag feature was then quick-tested and found structurally
+incompatible with `spatial_block_split`, not just weak.**
+**What I found:** Proposed regression kriging (tree-based mean function + kriged spatial
+residual correction) as a candidate model addressing causes 2 and 4 from the same-day synthesis
+entry together -- grounded in real literature, not speculation: "Random Forest Regression
+Kriging" is a named, cited method, and residual kriging has been applied specifically to canopy
+height mapping (Hengl et al.; GEDI canopy-height residual-kriging literature). Before building
+it, quick-tested the cheaper, more direct fix for cause 4 first: a LEAK-SAFE version of
+`neighbour_mean_height` (train-split-only candidate pool, per `progress_notes.md`'s own
+already-written fix path, 75m radius, 2023 heights, same construction as the original leaky
+feature minus the leak). Spliced into a scope-matched XGBoost check
+(`spatial_block`/4survey, age+no-env+terrain baseline=0.6444 known from the 2026-08-02
+scope-matched entry): adding the leak-safe feature dropped test R2 to **0.4486** -- a large
+regression, not a small one, which prompted a coverage diagnosis before trusting the number.
+**What I found, diagnosing the drop:** train rows have 0.0% missing (avg 30.3 legitimate
+train-neighbours within 75m each); val/test rows have **96.3-96.4% missing** (avg 0.1
+neighbours). Root cause, structural not a bug: `spatial_block_split` holds out WHOLE
+compartments, and compartments are large, spatially contiguous units (per `splits.py`'s own
+note, 1 to 1,300+ plots) -- almost always bigger than a 75m radius. A held-out plot's true
+75m-neighbours are therefore overwhelmingly OTHER plots in the SAME held-out compartment, never
+train plots, except right at a compartment's edge. XGBoost, fit on train rows where the feature
+is dense and locally accurate, learned to lean on it -- then found it almost entirely
+missing/filled-with-a-constant at test time, degrading the model's other learned structure too
+(not just "one ignored weak feature" -- the size of the drop reflects a real train/test
+distribution mismatch, confirmed directly via the coverage numbers, not assumed from the R2 drop
+alone).
+**What's working:** the original `neighbour_mean_height` finding (2026-07-31, +0.334 R2 drop,
+the strongest category ever measured) is now understood MORE precisely, not just confirmed
+leaky: its predictive power was always structurally tied to spatial autocorrelation WITHIN a
+compartment, which is exactly the thing `spatial_block_split` exists to remove from evaluation.
+A genuinely leak-free version of that specific feature shape (fixed-radius neighbour average)
+cannot recover that signal under the primary split, because the split's whole methodological
+purpose is to make "borrow a nearby plot's real answer" impossible for held-out compartments --
+this isn't a gap that was simply never gotten around to fixing, it's the split working as
+designed.
+**What's not working / open concern:** this closes off "quickly rebuild the leaked feature
+safely" as a viable route to cause 4 specifically. It does NOT rule out regression/residual
+kriging as still worth trying -- kriging uses a fitted variogram (spatial-correlation-decay
+function) rather than a hard 75m cutoff, so it can in principle borrow weaker signal from
+train points farther away than 75m, where a plain radius-based feature goes straight to
+missing. Whether that weaker, longer-range signal is still worth anything under
+`spatial_block_split`'s whole-compartment holdout is untested, not assumed either way.
+**What this means for what's next:** cause 4 (missing spatial-lag signal) is harder to
+legitimately recover than it looked -- not abandoned, but the honest expectation should be
+"much less than the original leaky feature's +0.334, possibly not much at all," given the same
+structural mismatch would degrade any short-range spatial method the same way. If terrain/wind's
+real predictive ceiling really is ~R2=0.16-0.19 (cause 1, established independently multiple
+times), regression kriging's realistic upside is recovering whatever LONG-range spatial
+structure survives whole-compartment holdout, on top of that ceiling -- worth trying, but not
+expected to be a dramatic fix on its own.
+
+---
+
+**2026-08-02 — `models/env_deviation/` built and run: decoupling from the physics loss gives a
+real, clean win against its own base (CR), but composing onto the STRONGEST base (`dnn_noenv`)
+makes things worse -- a sample-size artefact of the leakage-avoidance fix, not evidence the idea
+is wrong.**
+**What I found:** Built `models/env_deviation/` per `documentation/model_instructions/
+env_deviation_decoupled_instructions.md`: row-level residual (not `mean_cr_residual`'s
+plot-averaged version), split-matched CR anchor (not the still-leaky pooled one
+`mean_cr_residual` reads), terrain-only inputs (`terrain_wind_solid`), XGBoost
+(`fit_with_columns`/`predict_with_columns`, reused from `xgb_environmental.py`, `n_jobs=1` --
+required, torch+xgboost segfault together in one process on this Mac otherwise). Two base-model
+variants, `spatial_block`/4survey:
+
+| Model | Base R2 (alone) | Composed R2 (base + predicted residual) |
+|---|---|---|
+| CR curve | 0.4046 | **0.5291** (+0.1245) |
+| `dnn_noenv` | 0.6335 | **0.5789** (-0.0546) |
+
+The CR-variant is a real, clean win -- decoupling recovers real signal the physics loss was
+suppressing (see the 2026-08-02 physics-weight-sweep entry's mechanism discussion: `k`/`p` are
+frozen globals, `y_max` is the only per-plot degree of freedom the physics loss allows, so any
+deviation that isn't a pure ceiling shift is actively penalised in proportion to
+`physics_weight` -- decoupling removes that constraint entirely from the residual-fitting step).
+The `dnn_noenv`-variant instead makes the best available model WORSE. Diagnosed directly (not
+assumed): `predicted_residual`'s std (2.95m) is much narrower than the true leftover residual's
+std (4.65m) -- classic shrinkage-to-the-training-mean under data starvation, not a genuine
+"deviations are near zero" finding (if it were genuine, composing near-zero residuals onto
+`dnn_noenv` would roughly reproduce 0.6330, not fall to 0.5789). Root cause: avoiding the
+in-sample-residual leakage risk (train-set residuals are artificially small since `dnn_noenv`
+overfits -- train_loss << val_loss on every training curve this session) required fitting the
+residual model on VAL-derived rows only -- 37,645 rows, a 3.4x reduction from the CR-variant's
+full 129,564-row train set. Terrain is already a small, low-SNR signal (standalone R2~0.16-0.19
+throughout this project) -- exactly the kind that needs MORE data to extract reliably, not less.
+**What's working:** the leakage-avoidance discipline itself did its job -- caught what would
+otherwise have been an inflated, untrustworthy composed number; the CR-variant proves the
+underlying "decouple from the physics loss" idea recovers real signal when not data-starved.
+**What's not working / open concern:** the `dnn_noenv`-variant, the one that would actually
+matter for beating the current best model, currently doesn't -- fixable in principle via k-fold
+(train `dnn_noenv` k times, predict each fold out-of-sample, giving the residual model ~130k
+held-out-but-representative rows instead of 37k) but not yet built -- a real additional
+engineering cost, not a small tweak.
+**What this means for what's next:** k-fold is the natural next step for this specific model, but
+see the same-day synthesis entry below for how this result fits into the bigger picture -- a small
+genuine terrain effect size and a demonstrated MLP/tree inductive-bias gap are the two most
+solid explanations for the broader pattern of underwhelming results this session, and neither is
+fully addressed by env_deviation alone.
+
+---
+
+**2026-08-02 — Same-day synthesis: ranking the actual causes behind this session's run of
+underwhelming results, from firmest evidence to weakest.**
+**What I found:** Pulling together every check run today (dropout/LR/architecture-size sweeps,
+feature-set-parity check, scope-matched XGBoost check, `env_deviation`'s two variants, plus the
+mechanism reading of `pinn_env_terrain.py`'s actual physics-loss code) into one ranked list,
+firmest evidence first:
+1. **Terrain's own effect size is genuinely small** -- terrain+wind alone tops out around
+   R2=0.16-0.19 in every method that's measured it this project (XGBoost, Elastic Net, this
+   session). Not a bug -- a ceiling every fix is bounded by.
+2. **A plain MLP can't reliably extract even that small signal** -- confirmed independently
+   twice: the scope-matched XGBoost check (+0.0111 trees vs -0.0083 MLP, identical inputs) and
+   (from a diagnostic report the user ran separately) residual-predictability numbers showing
+   `dnn_env_terrain`'s residuals MORE predictable from environment than `dnn_noenv`'s own,
+   despite already having terrain as a direct input.
+3. **The PINN's physics loss actively suppresses any deviation that isn't a pure ceiling shift**
+   -- confirmed by reading `compute_physics_loss()` directly, not inferred: `k`/`p` frozen
+   globals, `y_max` the only per-plot degree of freedom, penalised in proportion to
+   `physics_weight`. PINN-specific, doesn't touch the DNN's own underperformance.
+4. **Real, large predictive signal (`neighbour_spatial_lag`) was correctly removed as a leak and
+   nothing has replaced it** -- was the single strongest category ever measured in this project
+   (+0.334 R2 drop, ~10x every other category) before removal (2026-07-31). Compartment-level
+   bias persisting after the DNN (~2.9m mean absolute, per the user's separate diagnostic) is
+   consistent with this still being an open gap -- speculative as THE explanation, but the
+   largest known missing piece nobody has tried to rebuild in a leak-safe way yet.
+5. **Today's `env_deviation`/`dnn_noenv`-variant sample-size problem** -- real, but narrow;
+   explains one specific number, not the broader pattern.
+6. **A handful of real small bugs**, found and fixed along the way this session (`whcl` merge
+   collision, y_max anchor path, degenerate CR bound) -- present, minor next to 1-4.
+**What's working:** ranking by evidence strength rather than treating every candidate cause as
+equally likely -- 1 and 2 together are the best-supported explanation for the broad pattern
+(small real signal, wrong model family extracting it); 3 is solid but PINN-specific; 4 is the
+single biggest untried lever, independent of every model-architecture question above it.
+**What's not working / open concern:** `mean_cr_residual` (and everything downstream of it --
+SHAP, permutation importance, the refit ablation, Moran's I, `grouped_category_importance.ipynb`)
+still reads the pooled/leaky CR anchor, never revisited since the PINN's own 2026-08-01 fix --
+independent, small, still open.
+**What this means for what's next:** of everything tried or proposed this session, nothing yet
+directly addresses cause 4 (the missing spatial-lag signal) -- see the same-day note in this log
+about `env_deviation` and the instructions docs for how causes 1-3 map onto the two draft models;
+a leak-safe spatial-lag rebuild plus a spatially-aware residual model (e.g. regression/residual
+kriging on top of a tree-based mean function -- real precedent exists for exactly this on canopy
+height specifically, see Hengl et al. and the GEDI residual-kriging literature) is the most
+evidence-backed untried direction, addressing causes 2 and 4 together in one model rather than
+separately.
+
+---
+
+**2026-08-02 — Scope-matched XGBoost check: a tree ensemble DOES get a real uplift from the exact
+terrain columns that make `dnn_env_terrain` worse -- settles the "is the signal usable at this
+scope" question the feature-set-parity entry above left open.**
+**What I found:** Built a fresh, minimal comparison (not read from `xgb_environmental.py`'s
+existing outputs, which fit a different target/feature scope) -- reused
+`load_split_table_with_terrain()` (the same row-level loader `dnn_env_terrain` itself calls) and
+`xgb_environmental.py`'s own `fit_with_columns()`/`predict_with_columns()`, so this is the exact
+same rows, same `terrain_wind_solid` columns, same raw `elev_percentile_95th` target, same
+`spatial_block`/4survey split `dnn_env_terrain` sees -- just a tree model instead of an MLP.
+`n_jobs=1` was required (default multi-threaded XGBoost segfaults in the same process as PyTorch
+on this Mac -- a known torch/xgboost OpenMP conflict, `KMP_DUPLICATE_LIB_OK=TRUE` alone wasn't
+enough, single-threaded XGBoost was). Result:
+
+| Model | Features | Test R2 |
+|---|---|---|
+| dnn_noenv | age + no-env | 0.6330 |
+| XGBoost (scope-matched) | age + no-env | 0.6333 |
+| dnn_env_terrain | age + no-env + terrain_wind_solid | 0.6247 (-0.0083) |
+| XGBoost (scope-matched) | age + no-env + terrain_wind_solid | **0.6444 (+0.0111)** |
+
+The no-env baseline confirms the two pipelines are genuinely comparable (0.6330 vs 0.6333, well
+within noise) -- so the divergence once terrain is added is real, not an artefact of the two data
+paths differing.
+**What's working:** this directly answers the fork left open by the feature-set-parity null
+result: XGBoost, given the IDENTICAL narrow feature scope `dnn_env_terrain` has (not the richer
+37-variable model the original SHAP/permutation/refit-ablation numbers came from), still finds a
+real, positive uplift from terrain. The signal is genuinely usable at this scope by *some* model
+family -- this rules out "the terrain signal just isn't extractable from age+no-env+terrain alone,
+regardless of model" as an explanation.
+**What's not working / open concern:** this reframes, rather than closes, the investigation --
+it's now a genuine MLP/gradient-descent inductive-bias gap (+0.011 for a tree ensemble vs. -0.008
+for the MLP on the identical scope), not a data-scope or feature-choice limitation. Doesn't
+distinguish which specific MLP shortcoming is responsible (e.g. trees natively split on exact
+thresholds/interactions that a plain ReLU MLP can represent in principle but not easily discover
+via gradient descent when the terrain signal is small relative to Age's dominant one) -- that's
+still open.
+**What this means for what's next:** reverses the caution in the entry above about holding off on
+mechanism-level work. This is now real evidence that a different mechanism/architecture COULD
+recover something current `dnn_env_terrain`/`pinn_env_terrain` are leaving on the table -- the
+SA-PINN/UDE research is worth actually acting on, not shelving. Per the user's direction: any new
+mechanism variant gets built as its own new model folder (not an in-place rewrite of
+`pinn_env_terrain.py`/`dnn_env_terrain.py`, which stay as the reported, reproducible baseline/
+control this finding is measured against).
+
+---
+
 **2026-08-02 — `dnn_env_terrain`/`pinn_env_terrain` E1+E2 base-case results in (all 3 splits, both
 cohorts); two real bugs found and fixed along the way.**
 **What I found:** All 12 base-case fits (2 models x 3 splits x 2 cohorts, `terrain_wind_solid`,

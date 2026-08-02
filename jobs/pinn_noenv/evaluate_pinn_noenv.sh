@@ -48,16 +48,30 @@ export PYTHONPATH="$(pwd)"
 
 COHORT=${1:-}
 SPLIT_TYPE=${2:-temporal}
+RUN_NAME=${3:-}
+SPLIT_SEED=${4:-42}
 
 echo "--- PINN evaluate job start ---"
 echo "Node: $(hostname)"
 echo "Cohort: ${COHORT:-both}"
 echo "Split type: ${SPLIT_TYPE}"
+echo "Run name: ${RUN_NAME:-(none, uses default pinn_noenv path)}"
+echo "Split seed: ${SPLIT_SEED}"
 
-if [ -n "$COHORT" ]; then
-  python -u -m models.pinn_noenv.evaluate_pinn_noenv --cohort "${COHORT}" --split-type "${SPLIT_TYPE}"
-else
-  python -u -m models.pinn_noenv.evaluate_pinn_noenv --split-type "${SPLIT_TYPE}"
+RUN_NAME_ARGS=()
+if [ -n "${RUN_NAME}" ]; then
+  RUN_NAME_ARGS=(--run-name "${RUN_NAME}")
 fi
+
+COHORT_ARGS=()
+if [ -n "$COHORT" ]; then
+  COHORT_ARGS=(--cohort "${COHORT}")
+fi
+
+python -u -m models.pinn_noenv.evaluate_pinn_noenv \
+  --split-type "${SPLIT_TYPE}" \
+  --split-seed "${SPLIT_SEED}" \
+  "${COHORT_ARGS[@]}" \
+  "${RUN_NAME_ARGS[@]}"
 
 echo "--- PINN evaluate job end ---"

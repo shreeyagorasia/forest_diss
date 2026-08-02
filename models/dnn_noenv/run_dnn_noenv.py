@@ -42,6 +42,7 @@ from models.common.run_logging import (
 from models.common.saving import get_git_commit, model_output_dir
 from models.common.splits import TEMPORAL_YEARS
 from models.common.torch_model import parse_hidden_layer_sizes
+from models.common.splits import SPLIT_SEED
 from models.common.torch_data import (
     build_tensors,
     encode_thinning_status,
@@ -75,7 +76,7 @@ DEFAULT_OPTIMIZER = "adam"
 def run_for_cohort(
     cohort, split_type, max_epochs, early_stopping_patience, seed, optimizer_name,
     run_name=None, batch_size=BATCH_SIZE, learning_rate=LEARNING_RATE, dropout_rate=0.0,
-    hidden_layer_sizes=None,
+    hidden_layer_sizes=None, split_seed=SPLIT_SEED,
 ):
     # run_name only changes where results are SAVED (output_dir below) and
     # how this run is labelled in outputs/run_logs/ -- it never changes
@@ -135,7 +136,7 @@ def run_for_cohort(
 
     try:
         # ----- Load and prepare the data -----
-        split_df = load_split_table(cohort, split_type)
+        split_df = load_split_table(cohort, split_type, split_seed=split_seed)
         train_df = split_df[split_df["split"] == "train"]
         val_df = split_df[split_df["split"] == "val"]
         # Note: test_df is deliberately never loaded here at all.
@@ -291,6 +292,13 @@ def main():
              "the question of whether fixed capacity is the actual limiting factor. See "
              "documentation/experiment_log.md's 2026-08-02 entry.",
     )
+    parser.add_argument(
+        "--split-seed", type=int, default=SPLIT_SEED,
+        help=f"Seed for spatial_block_split's own block-shuffle (default {SPLIT_SEED}, every "
+             "prior result in this repo). Only affects split_type=spatial_block -- exposed "
+             "2026-08-02 for the split-seed robustness check flagged in experiment_log.md: every "
+             "result up to now used the SAME fixed compartment partition, never varied.",
+    )
     args = parser.parse_args()
 
     cohorts = [args.cohort] if args.cohort else ["4survey", "6survey"]
@@ -300,7 +308,7 @@ def main():
         results[cohort] = run_for_cohort(
             cohort, args.split_type, args.max_epochs, args.patience, args.seed, args.optimizer, args.run_name,
             batch_size=args.batch_size, learning_rate=args.learning_rate, dropout_rate=args.dropout_rate,
-            hidden_layer_sizes=parse_hidden_layer_sizes(args.hidden_layer_sizes),
+            hidden_layer_sizes=parse_hidden_layer_sizes(args.hidden_layer_sizes), split_seed=args.split_seed,
         )
 
     print("===== Summary: best validation loss reached =====")

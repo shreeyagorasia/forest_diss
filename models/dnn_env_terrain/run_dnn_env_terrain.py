@@ -22,7 +22,7 @@ from models.common.run_logging import (
     write_started_marker,
 )
 from models.common.saving import get_git_commit, model_output_dir
-from models.common.splits import TEMPORAL_YEARS
+from models.common.splits import SPLIT_SEED, TEMPORAL_YEARS
 from models.common.torch_model import parse_hidden_layer_sizes
 from models.common.torch_data import (
     DEFAULT_ENV_TERRAIN_FEATURE_SET,
@@ -61,7 +61,7 @@ DEFAULT_OPTIMIZER = "adam"
 def run_for_cohort(
     cohort, split_type, max_epochs, early_stopping_patience, seed, optimizer_name,
     run_name=None, batch_size=BATCH_SIZE, feature_set_name=DEFAULT_ENV_TERRAIN_FEATURE_SET,
-    dropout_rate=0.0, learning_rate=LEARNING_RATE, hidden_layer_sizes=None,
+    dropout_rate=0.0, learning_rate=LEARNING_RATE, hidden_layer_sizes=None, split_seed=SPLIT_SEED,
 ):
     output_model_name = run_name if run_name else MODEL_NAME
     print(f"===== {cohort} ({output_model_name}, {split_type}) — FIT ONLY, no test-set evaluation =====")
@@ -102,7 +102,7 @@ def run_for_cohort(
     try:
         # ----- Load and prepare the data -- load_split_table_with_terrain() merges the chosen
         # terrain/wind columns in, on top of load_dnn_noenv's usual no-env table. -----
-        split_df = load_split_table_with_terrain(cohort, split_type, feature_columns)
+        split_df = load_split_table_with_terrain(cohort, split_type, feature_columns, split_seed=split_seed)
         train_df = split_df[split_df["split"] == "train"]
         val_df = split_df[split_df["split"] == "val"]
 
@@ -245,6 +245,12 @@ def main():
         help="Comma-separated hidden layer sizes, e.g. '64,32'. Default: the original 3x128 "
              "network (unchanged). See documentation/experiment_log.md's 2026-08-02 entry.",
     )
+    parser.add_argument(
+        "--split-seed", type=int, default=SPLIT_SEED,
+        help=f"Seed for spatial_block_split's own block-shuffle (default {SPLIT_SEED}). Only "
+             "affects split_type=spatial_block -- see documentation/experiment_log.md's "
+             "2026-08-02 split-seed robustness entries.",
+    )
     args = parser.parse_args()
 
     cohorts = [args.cohort] if args.cohort else ["4survey", "6survey"]
@@ -255,6 +261,7 @@ def main():
             cohort, args.split_type, args.max_epochs, args.patience, args.seed, args.optimizer, args.run_name,
             batch_size=args.batch_size, feature_set_name=args.feature_set, dropout_rate=args.dropout_rate,
             learning_rate=args.learning_rate, hidden_layer_sizes=parse_hidden_layer_sizes(args.hidden_layer_sizes),
+            split_seed=args.split_seed,
         )
 
     print("===== Summary: best validation loss reached =====")

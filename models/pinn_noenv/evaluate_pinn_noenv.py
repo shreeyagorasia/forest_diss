@@ -23,13 +23,14 @@ import pandas as pd
 from models.common.metrics import compute_metrics
 from models.common.run_logging import RunTimer, format_error, write_run_log, write_started_marker
 from models.common.saving import model_output_dir
+from models.common.splits import SPLIT_SEED
 from models.common.torch_data import TARGET_COLUMN, build_tensors, load_split_table, select_device
 from models.pinn_noenv.pinn_noenv import load_best_model, predict
 
 MODEL_NAME = "pinn_noenv"
 
 
-def run_for_cohort(cohort, split_type, run_name=None):
+def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED):
     # run_name only changes where the checkpoint is READ from -- see the
     # matching note in run_pinn_noenv.py. The underlying data table to
     # evaluate on always uses the plain MODEL_NAME.
@@ -66,7 +67,7 @@ def run_for_cohort(cohort, split_type, run_name=None):
         model = load_best_model(n_other_features, device, checkpoints_dir, hidden_layer_sizes=hidden_layer_sizes)
 
         # ----- Load ONLY the test rows -----
-        split_df = load_split_table(cohort, split_type)
+        split_df = load_split_table(cohort, split_type, split_seed=split_seed)
         test_df = split_df[split_df["split"] == "test"]
 
         age_test, other_test, target_test = build_tensors(
@@ -140,13 +141,17 @@ def main():
         "--run-name", default=None,
         help="Must match the --run-name used when fitting, if one was used (e.g. for a physics_weight/trajectory_weight sweep).",
     )
+    parser.add_argument(
+        "--split-seed", type=int, default=SPLIT_SEED,
+        help=f"Must match the --split-seed used when fitting (default {SPLIT_SEED}).",
+    )
     args = parser.parse_args()
 
     cohorts = [args.cohort] if args.cohort else ["4survey", "6survey"]
 
     all_metrics = {}
     for cohort in cohorts:
-        all_metrics[cohort] = run_for_cohort(cohort, args.split_type, args.run_name)
+        all_metrics[cohort] = run_for_cohort(cohort, args.split_type, args.run_name, split_seed=args.split_seed)
 
     print("===== Summary: test-split metrics =====")
     for cohort, metrics in all_metrics.items():

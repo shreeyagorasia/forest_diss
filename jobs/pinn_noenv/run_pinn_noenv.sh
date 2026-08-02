@@ -73,6 +73,7 @@ TRAJECTORY_WEIGHT=${6:-1.0}
 RUN_NAME=${7:-}
 SEED=${8:-42}
 BATCH_SIZE=${9:-128}
+SPLIT_SEED=${10:-42}
 
 echo "--- PINN job start ---"
 echo "Node: $(hostname)"
@@ -85,6 +86,7 @@ echo "Trajectory weight: ${TRAJECTORY_WEIGHT}"
 echo "Run name: ${RUN_NAME:-(none, uses default pinn_noenv path)}"
 echo "Seed: ${SEED}"
 echo "Batch size: ${BATCH_SIZE}"
+echo "Split seed: ${SPLIT_SEED}"
 
 RUN_NAME_ARGS=()
 if [ -n "${RUN_NAME}" ]; then
@@ -101,6 +103,7 @@ python -u -m models.pinn_noenv.run_pinn_noenv \
   --seed "${SEED}" \
   --batch-size "${BATCH_SIZE}" \
   --pairs-batch-size "${BATCH_SIZE}" \
+  --split-seed "${SPLIT_SEED}" \
   "${RUN_NAME_ARGS[@]}"
 
 echo "--- PINN job end ---"

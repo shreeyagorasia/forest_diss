@@ -65,7 +65,7 @@ DEVICE = "cpu"
 PRIOR_CR_PARAMS = {"y_max": 46.1126, "k": 0.01866979, "p": 1.0175}
 
 
-def build_split_for_cohort(cohort, split_type):
+def build_split_for_cohort(cohort, split_type, split_seed=SEED, name_suffix=""):
     # The split is computed ONCE per cohort, from the smallest shared table
     # (identification, LiDAR_year, blk, cpmt, Age, yldc, elev_percentile_95th --
     # everything Chapman-Richards and average-by-age need), then saved.
@@ -89,7 +89,7 @@ def build_split_for_cohort(cohort, split_type):
         # RF baseline isn't tuned yet either, so val is saved here for
         # schema consistency with later models only -- it is not read by
         # any model fitted in this script. Only train is used for fitting.
-        filtered_df["split"] = plot_level_split(filtered_df, seed=SEED)
+        filtered_df["split"] = plot_level_split(filtered_df, seed=split_seed)
     elif split_type == "spatial_block":
         # Whole compartments go to train/val/test together, with a 60m
         # buffer removing any TRAINING plot too close to a val/test plot --
@@ -100,7 +100,7 @@ def build_split_for_cohort(cohort, split_type):
             filtered_df,
             block_col=SPATIAL_BLOCK_COL,
             buffer_distance=SPATIAL_BUFFER_METRES,
-            seed=SEED,
+            seed=split_seed,
         )
     elif split_type == "temporal":
         # Every plot in this data has full year coverage for its cohort (see
@@ -123,7 +123,7 @@ def build_split_for_cohort(cohort, split_type):
     else:
         raise ValueError(f"Unknown split_type: {split_type!r}")
 
-    split_path = output_dir("splits", cohort, "split_assignment.csv", split_type=split_type)
+    split_path = output_dir(f"splits{name_suffix}", cohort, "split_assignment.csv", split_type=split_type)
     split_path.parent.mkdir(parents=True, exist_ok=True)
     filtered_df[["identification", "LiDAR_year", "split"]].to_csv(split_path, index=False)
     print(f"  Saved split assignment -> {split_path}")
@@ -152,19 +152,27 @@ def load_train_rows(cohort, table_name, split_assignment):
     return merged[merged["split"] == "train"]
 
 
-def fit_chapman_richards_logged(cohort, split_type, cr_train_df, n_rows_fit):
+def fit_chapman_richards_logged(cohort, split_type, cr_train_df, n_rows_fit, split_seed=SEED, name_suffix=""):
     # Returns cr_params, or None if the fit failed/didn't converge -- callers
     # already handle a None result (average-by-age and the summary printers
     # skip it gracefully).
+    #
+    # name_suffix (2026-08-02 addition): "" for the default split_seed (SEED, every prior
+    # result in this repo) -- writes to the exact same plain path as before, zero change.
+    # Non-default split_seed appends "_splitseed<N>" so a robustness-check refit never
+    # overwrites the primary CR anchor pinn_noenv/pinn_env_terrain's load_cr_params() reads by
+    # default. See documentation/experiment_log.md's 2026-08-02 split-seed robustness entries --
+    # this is the CR-anchor half of that check: pinn_noenv/pinn_env_terrain's own load_cr_params()
+    # needs a split-seed-MATCHED anchor to be a valid comparison, not the default-seed one.
     timer = RunTimer().start()
-    hyperparameters = {"seed": SEED}
+    hyperparameters = {"seed": SEED, "split_seed": split_seed}
     attempt_id = write_started_marker(
         model_name="chapman_richards", cohort=cohort, split_type=split_type, run_phase="fit",
         is_test_run=False, device=DEVICE, hyperparameters=hyperparameters,
     )
     try:
         cr_params = fit_chapman_richards(cr_train_df)
-        cr_output_path = output_dir("chapman_richards", cohort, "params.json", split_type=split_type)
+        cr_output_path = output_dir(f"chapman_richards{name_suffix}", cohort, "params.json", split_type=split_type)
         save_cr_params(cr_params, cohort, n_rows_fit, cr_output_path)
         print(f"  Chapman-Richards params saved -> {cr_output_path}")
 
@@ -199,16 +207,16 @@ def fit_chapman_richards_logged(cohort, split_type, cr_train_df, n_rows_fit):
         return None
 
 
-def fit_average_by_age_logged(cohort, split_type, avg_train_df, n_rows_fit):
+def fit_average_by_age_logged(cohort, split_type, avg_train_df, n_rows_fit, split_seed=SEED, name_suffix=""):
     timer = RunTimer().start()
-    hyperparameters = {"seed": SEED}
+    hyperparameters = {"seed": SEED, "split_seed": split_seed}
     attempt_id = write_started_marker(
         model_name="average_by_age", cohort=cohort, split_type=split_type, run_phase="fit",
         is_test_run=False, device=DEVICE, hyperparameters=hyperparameters,
     )
     try:
         lookup_table, fallback_mean_height = fit_average_by_age(avg_train_df)
-        avg_output_path = output_dir("average_by_age", cohort, "lookup.json", split_type=split_type)
+        avg_output_path = output_dir(f"average_by_age{name_suffix}", cohort, "lookup.json", split_type=split_type)
         save_lookup(lookup_table, fallback_mean_height, cohort, n_rows_fit, avg_output_path)
         print(f"  Average-by-age lookup saved -> {avg_output_path}")
 
@@ -232,9 +240,9 @@ def fit_average_by_age_logged(cohort, split_type, avg_train_df, n_rows_fit):
         return None, None
 
 
-def fit_linear_baseline_logged(cohort, split_type, split_assignment):
+def fit_linear_baseline_logged(cohort, split_type, split_assignment, split_seed=SEED, name_suffix=""):
     timer = RunTimer().start()
-    hyperparameters = {"seed": SEED}
+    hyperparameters = {"seed": SEED, "split_seed": split_seed}
     attempt_id = write_started_marker(
         model_name="linear_baseline", cohort=cohort, split_type=split_type, run_phase="fit",
         is_test_run=False, device=DEVICE, hyperparameters=hyperparameters,
@@ -242,7 +250,7 @@ def fit_linear_baseline_logged(cohort, split_type, split_assignment):
     try:
         linear_train_df = load_train_rows(cohort, "linear_baseline", split_assignment)
         linear_params = fit_linear_baseline(linear_train_df)
-        linear_output_path = output_dir("linear_baseline", cohort, "params.json", split_type=split_type)
+        linear_output_path = output_dir(f"linear_baseline{name_suffix}", cohort, "params.json", split_type=split_type)
         save_linear_params(linear_params, cohort, len(linear_train_df), linear_output_path)
         print(f"  Linear baseline params saved -> {linear_output_path}")
 
@@ -265,9 +273,9 @@ def fit_linear_baseline_logged(cohort, split_type, split_assignment):
         print(f"  WARNING: linear baseline fit failed for {cohort}: {error}")
 
 
-def fit_rf_baseline_logged(cohort, split_type, split_assignment):
+def fit_rf_baseline_logged(cohort, split_type, split_assignment, split_seed=SEED, name_suffix=""):
     timer = RunTimer().start()
-    hyperparameters = {"seed": SEED}
+    hyperparameters = {"seed": SEED, "split_seed": split_seed}
     attempt_id = write_started_marker(
         model_name="rf_baseline", cohort=cohort, split_type=split_type, run_phase="fit",
         is_test_run=False, device=DEVICE, hyperparameters=hyperparameters,
@@ -275,7 +283,7 @@ def fit_rf_baseline_logged(cohort, split_type, split_assignment):
     try:
         rf_train_df = load_train_rows(cohort, "rf_baseline", split_assignment)
         rf_model, rf_encoded_column_names = fit_rf_baseline(rf_train_df)
-        rf_output_dir = output_dir("rf_baseline", cohort, split_type=split_type)
+        rf_output_dir = output_dir(f"rf_baseline{name_suffix}", cohort, split_type=split_type)
         rf_model_path = save_rf_model(rf_model, rf_encoded_column_names, cohort, len(rf_train_df), rf_output_dir)
         print(f"  RF baseline model saved -> {rf_model_path}")
 
@@ -297,18 +305,25 @@ def fit_rf_baseline_logged(cohort, split_type, split_assignment):
         print(f"  WARNING: RF baseline fit failed for {cohort}: {error}")
 
 
-def run_for_cohort(cohort, split_type):
-    print(f"===== {cohort} ({split_type}) =====")
-    filtered_df, split_assignment = build_split_for_cohort(cohort, split_type)
+def run_for_cohort(cohort, split_type, split_seed=SEED):
+    # name_suffix: "" for the default split_seed (every existing output stays at its plain
+    # path, zero change); "_splitseed<N>" otherwise, so a robustness-check refit never
+    # overwrites the primary baseline outputs. Same "only non-default gets a suffix"
+    # convention used everywhere else in this repo (e.g. pinn_noenv's physics-weight sweep).
+    name_suffix = "" if split_seed == SEED else f"_splitseed{split_seed}"
+    print(f"===== {cohort} ({split_type}, split_seed={split_seed}) =====")
+    filtered_df, split_assignment = build_split_for_cohort(cohort, split_type, split_seed=split_seed, name_suffix=name_suffix)
     n_rows_fit = int((filtered_df["split"] == "train").sum())
 
     cr_train_df = filtered_df[filtered_df["split"] == "train"]
     avg_train_df = cr_train_df  # average-by-age uses the same age-only table as CR
 
-    cr_params = fit_chapman_richards_logged(cohort, split_type, cr_train_df, n_rows_fit)
-    lookup_table, fallback_mean_height = fit_average_by_age_logged(cohort, split_type, avg_train_df, n_rows_fit)
-    fit_linear_baseline_logged(cohort, split_type, split_assignment)
-    fit_rf_baseline_logged(cohort, split_type, split_assignment)
+    cr_params = fit_chapman_richards_logged(cohort, split_type, cr_train_df, n_rows_fit, split_seed=split_seed, name_suffix=name_suffix)
+    lookup_table, fallback_mean_height = fit_average_by_age_logged(
+        cohort, split_type, avg_train_df, n_rows_fit, split_seed=split_seed, name_suffix=name_suffix
+    )
+    fit_linear_baseline_logged(cohort, split_type, split_assignment, split_seed=split_seed, name_suffix=name_suffix)
+    fit_rf_baseline_logged(cohort, split_type, split_assignment, split_seed=split_seed, name_suffix=name_suffix)
 
     print()
     return cr_params, lookup_table, fallback_mean_height
@@ -368,11 +383,20 @@ def main():
             "11-year train-to-test gap), or temporal_narrow_gap (same idea, 2-year gap)."
         ),
     )
+    parser.add_argument(
+        "--split-seed", type=int, default=SEED,
+        help=f"Seed for spatial_block_split's/plot_level_split's own shuffle (default {SEED}, "
+             "every existing baseline output). Non-default writes to a "
+             "'_splitseed<N>'-suffixed path, never overwriting the primary outputs -- see "
+             "documentation/experiment_log.md's 2026-08-02 split-seed robustness entries. "
+             "pinn_noenv/pinn_env_terrain's load_cr_params() needs a matching CR anchor refit "
+             "here before a non-default --split-seed on those models is a valid comparison.",
+    )
     args = parser.parse_args()
 
     results = {}
     for cohort in COHORTS:
-        results[cohort] = run_for_cohort(cohort, args.split_type)
+        results[cohort] = run_for_cohort(cohort, args.split_type, split_seed=args.split_seed)
 
     print_chapman_richards_summary(results)
     print_average_by_age_summary(results)

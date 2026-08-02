@@ -136,7 +136,16 @@ def select_device():
     return torch.device("cpu")
 
 
-def load_split_table(cohort, split_type):
+def load_split_table(cohort, split_type, split_seed=SPLIT_SEED):
+    # split_seed=SPLIT_SEED (2026-08-02 addition) keeps every existing call exactly as before --
+    # only spatial_block_split's own block-shuffle seed changes when a caller explicitly passes a
+    # different value (see run_dnn_noenv.py/run_dnn_env_terrain.py's --split-seed), for the
+    # spatial_block_split robustness check documentation/experiment_log.md's 2026-08-02 entries
+    # flag as still open: every result up to this point used the SAME fixed partition of
+    # compartments into train/val/test, never varied. temporal_split()/temporal_narrow_gap don't
+    # take a seed at all (year assignment is fixed, not randomised), so split_seed only ever
+    # affects the spatial_block branch below.
+    #
     # Both dnn_noenv and pinn_noenv read the same consolidated model_table.parquet (2026-07-28 --
     # there is no separate per-model file anymore, see data_processing/export_model_tables.py).
     # Applies the same maturity + yield-class filter every other baseline uses, then labels every
@@ -173,7 +182,7 @@ def load_split_table(cohort, split_type):
             filtered_table,
             block_col=SPATIAL_BLOCK_COL,
             buffer_distance=SPATIAL_BUFFER_METRES,
-            seed=SPLIT_SEED,
+            seed=split_seed,
         )
     else:
         raise ValueError(f"Unknown split_type: {split_type!r}")
@@ -181,7 +190,9 @@ def load_split_table(cohort, split_type):
     return filtered_table
 
 
-def load_split_table_with_terrain(cohort, split_type, feature_columns):
+def load_split_table_with_terrain(cohort, split_type, feature_columns, split_seed=SPLIT_SEED):
+    # split_seed passed straight through to load_split_table() -- see that function's own note.
+    #
     # Same as load_split_table() above, plus the chosen terrain/wind feature_columns merged in
     # from the environmental feature export (built by aux_data_resolution_check.ipynb, the same
     # file models/xgb_environmental/data.py reads). feature_columns is a real list, not looked up
@@ -192,7 +203,7 @@ def load_split_table_with_terrain(cohort, split_type, feature_columns):
     # pinn_noenv keep working exactly as before -- they never call this one.
     assert_env_terrain_features_disjoint_from_noenv(feature_columns)
 
-    split_df = load_split_table(cohort, split_type)
+    split_df = load_split_table(cohort, split_type, split_seed=split_seed)
     environmental_features = pd.read_parquet(ENVIRONMENTAL_FEATURES_PATH)
 
     # BUG FIX (2026-08-01): model_table.parquet already carries its own "whcl" column (used

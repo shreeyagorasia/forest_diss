@@ -14,13 +14,14 @@ import torch
 from models.common.metrics import compute_metrics
 from models.common.run_logging import RunTimer, format_error, write_run_log, write_started_marker
 from models.common.saving import model_output_dir
+from models.common.splits import SPLIT_SEED
 from models.common.torch_data import TARGET_COLUMN, build_tensors, build_terrain_tensor, load_split_table_with_terrain, select_device
 from models.dnn_env_terrain.dnn_env_terrain import load_best_model, predict
 
 MODEL_NAME = "dnn_env_terrain"
 
 
-def run_for_cohort(cohort, split_type, run_name=None):
+def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED):
     output_model_name = run_name if run_name else MODEL_NAME
     print(f"===== {cohort} ({output_model_name}, {split_type}) — EVALUATE ONLY =====")
     device = select_device()
@@ -58,7 +59,7 @@ def run_for_cohort(cohort, split_type, run_name=None):
 
         model = load_best_model(n_other_features, device, checkpoints_dir, hidden_layer_sizes=hidden_layer_sizes)
 
-        split_df = load_split_table_with_terrain(cohort, split_type, feature_columns)
+        split_df = load_split_table_with_terrain(cohort, split_type, feature_columns, split_seed=split_seed)
         test_df = split_df[split_df["split"] == "test"]
 
         age_test, other_test_noenv, target_test = build_tensors(
@@ -133,13 +134,17 @@ def main():
         "--run-name", default=None,
         help="Must match the --run-name used when fitting, if one was used.",
     )
+    parser.add_argument(
+        "--split-seed", type=int, default=SPLIT_SEED,
+        help=f"Must match the --split-seed used when fitting (default {SPLIT_SEED}).",
+    )
     args = parser.parse_args()
 
     cohorts = [args.cohort] if args.cohort else ["4survey", "6survey"]
 
     all_metrics = {}
     for cohort in cohorts:
-        all_metrics[cohort] = run_for_cohort(cohort, args.split_type, args.run_name)
+        all_metrics[cohort] = run_for_cohort(cohort, args.split_type, args.run_name, split_seed=args.split_seed)
 
     print("===== Summary: test-split metrics =====")
     for cohort, metrics in all_metrics.items():

@@ -82,6 +82,7 @@ SEED=${8:-42}
 BATCH_SIZE=${9:-128}
 FEATURE_SET=${10:-terrain_wind_solid}
 DROPOUT_RATE=${11:-0.0}
+SPLIT_SEED=${12:-42}
 
 echo "--- PINN env_terrain job start ---"
 echo "Node: $(hostname)"
@@ -96,6 +97,7 @@ echo "Seed: ${SEED}"
 echo "Batch size: ${BATCH_SIZE}"
 echo "Feature set: ${FEATURE_SET}"
 echo "Dropout rate: ${DROPOUT_RATE}"
+echo "Split seed: ${SPLIT_SEED}"
 
 RUN_NAME_ARGS=()
 if [ -n "${RUN_NAME}" ]; then
@@ -114,6 +116,7 @@ python -u -m models.pinn_env_terrain.run_pinn_env_terrain \
   --pairs-batch-size "${BATCH_SIZE}" \
   --feature-set "${FEATURE_SET}" \
   --dropout-rate "${DROPOUT_RATE}" \
+  --split-seed "${SPLIT_SEED}" \
   "${RUN_NAME_ARGS[@]}"
 
 echo "--- PINN env_terrain job end ---"

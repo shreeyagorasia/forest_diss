@@ -46,8 +46,8 @@ from models.common.run_logging import (
     write_run_log,
     write_started_marker,
 )
-from models.common.saving import get_git_commit, model_output_dir
-from models.common.splits import TEMPORAL_YEARS
+from models.common.saving import get_git_commit, load_cr_params, model_output_dir
+from models.common.splits import SPLIT_SEED, TEMPORAL_YEARS
 from models.common.torch_model import parse_hidden_layer_sizes
 from models.common.torch_data import (
     build_pair_tensors,
@@ -84,27 +84,10 @@ DEFAULT_EARLY_STOPPING_PATIENCE = 40
 DEFAULT_OPTIMIZER = "adam"
 
 
-def load_cr_params(cohort, split_type):
-    # Split-MATCHED CR anchor (2026-08-01 fix, switched from the pooled/"cr_pooled" version
-    # this file used before) -- fit using ONLY this split_type's own train-assigned plots
-    # (models/baselines/run_baselines.py's cr_train_df), not a random 60% plot_level split
-    # unrelated to spatial_block/temporal. The old pooled version was confirmed to leak: its
-    # random 60% training plots inevitably overlap with whichever plots a given split_type later
-    # assigns to test, since the two splits were never coordinated (verified directly: the saved
-    # n_rows_fit was exactly 60% of filtered rows -- plot_level_split's train share, not this
-    # split's own). Read as plain floats and treated as FROZEN constants either way -- never
-    # refit here, this file already exists on disk for every split_type PINN uses, built as a
-    # side effect of the CR baseline's own per-split fit.
-    params_path = PROJECT_ROOT / "outputs" / split_type / "chapman_richards" / cohort / "params.json"
-    with open(params_path) as f:
-        params = json.load(f)
-    return {"y_max": params["y_max"], "k": params["k"], "p": params["p"]}
-
-
 def run_for_cohort(
     cohort, split_type, max_epochs, early_stopping_patience, seed, optimizer_name,
     physics_weight, trajectory_weight, batch_size, pairs_batch_size, run_name,
-    learning_rate=LEARNING_RATE, dropout_rate=0.0, hidden_layer_sizes=None,
+    learning_rate=LEARNING_RATE, dropout_rate=0.0, hidden_layer_sizes=None, split_seed=SPLIT_SEED,
 ):
     # run_name only changes where results are SAVED (output_dir below) and
     # how this run is labelled in outputs/run_logs/ -- it never changes
@@ -159,11 +142,11 @@ def run_for_cohort(
     )
 
     try:
-        cr_params = load_cr_params(cohort, split_type)
+        cr_params = load_cr_params(cohort, split_type, split_seed=split_seed)
         print(f"  Frozen CR params (split-matched, {split_type}): y_max={cr_params['y_max']:.4f}, k={cr_params['k']:.6f}, p={cr_params['p']:.6f}")
 
         # ----- Load and prepare the data -----
-        split_df = load_split_table(cohort, split_type)
+        split_df = load_split_table(cohort, split_type, split_seed=split_seed)
         train_df = split_df[split_df["split"] == "train"]
         val_df = split_df[split_df["split"] == "val"]
         # Note: test_df is deliberately never loaded here at all.
@@ -342,6 +325,15 @@ def main():
         help="Comma-separated hidden layer sizes, e.g. '64,32'. Default: the original 3x128 "
              "network (unchanged). See documentation/experiment_log.md's 2026-08-02 entry.",
     )
+    parser.add_argument(
+        "--split-seed", type=int, default=SPLIT_SEED,
+        help=f"Seed for spatial_block_split's own block-shuffle (default {SPLIT_SEED}). Only "
+             "affects split_type=spatial_block. load_cr_params() reads the matching "
+             "'_splitseed<N>'-suffixed CR anchor for a non-default value -- run 'python -m "
+             "models.baselines.run_baselines --split-type <split_type> --split-seed <N>' first "
+             "to produce it. See documentation/experiment_log.md's 2026-08-02 split-seed "
+             "robustness entries.",
+    )
     args = parser.parse_args()
 
     cohorts = [args.cohort] if args.cohort else ["4survey", "6survey"]
@@ -352,7 +344,7 @@ def main():
             cohort, args.split_type, args.max_epochs, args.patience, args.seed, args.optimizer,
             args.physics_weight, args.trajectory_weight, args.batch_size, args.pairs_batch_size,
             args.run_name, learning_rate=args.learning_rate, dropout_rate=args.dropout_rate,
-            hidden_layer_sizes=parse_hidden_layer_sizes(args.hidden_layer_sizes),
+            hidden_layer_sizes=parse_hidden_layer_sizes(args.hidden_layer_sizes), split_seed=args.split_seed,
         )
 
     print("===== Summary: best validation loss reached =====")
