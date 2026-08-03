@@ -101,6 +101,61 @@ ENV_TERRAIN_FEATURE_SETS = {
         "ceh_twi", "eastness", "elevation", "northness", "topex", "whcl", "plan_curvature",
         "chelsa_bio1_celsius", "soilgrids_ph", "dist_to_watercourse",
     ],
+    # Added 2026-08-03: NONE of the sets above contain a genuine wind measurement --
+    # "terrain_wind_solid"/"extended"/"broad" all use `topex` (generic topographic exposure, any
+    # direction) but never `gwa_wind_speed_10m` (observed wind speed, Global Wind Atlas),
+    # `windward_topex` (exposure specifically to the PREVAILING wind direction), or `whcl`
+    # (external, pre-existing Windthrow Hazard Class rating, ordinal 0-6 -- a real forestry
+    # wind-damage assessment, not a proxy). A worst-predicted-plot check this session found
+    # windward_topex elevated in the worst-predicted compartments, scaling with error severity --
+    # motivated adding these here. Exactly `models.xgb_environmental.xgb_environmental
+    # .TERRAIN_AND_WIND_COLUMNS` (this project's own single definition of "terrain+wind", already
+    # used for the XGBoost/SHAP/permutation-importance attribution chain) -- not redefined here,
+    # imported as a literal list so the two definitions can't drift apart. See
+    # documentation/experiment_log.md's 2026-08-03 entry for the reasoning.
+    "terrain_wind_full": [
+        "elevation", "slope_degrees", "northness", "eastness", "profile_curvature",
+        "plan_curvature", "tpi", "elevation_roughness", "ceh_twi", "solar_radiation_index",
+        "inverse_slope_proxy", "frost_hollow_flag", "topex", "windward_topex", "whcl",
+        "gwa_wind_speed_10m",
+    ],
+    # Added 2026-08-03: every column this project has screened and NOT found to be a leak,
+    # circular, or otherwise misleading -- xgb_environmental.ALL_FEATURE_COLUMNS (the current,
+    # leak-fixed 37-variable set) minus two things: (a) CATEGORY_GROUPS["stand_structure"]
+    # (CanopyCover/Thin/time_since_thinning/time_since_thinning_missing/recent_thinning_5yr) --
+    # NOT excluded for being untrustworthy, excluded because they're ALREADY fed to the main
+    # network via NUMERIC_SCALED_COLUMNS/BINARY_PASSTHROUGH_COLUMNS; including them again here
+    # would double-feed the same information through two pathways, exactly what
+    # assert_env_terrain_features_disjoint_from_noenv() below exists to catch; (b) ceh_pedotope/
+    # ceh_subsurface_drainage/ceh_textural_composition -- unordered categorical class IDs (see
+    # the 2026-08-01 LISA-test bug entry in experiment_log.md for why treating these as
+    # continuous is invalid), and this project's terrain-tensor pipeline
+    # (fit_terrain_scaler/build_terrain_tensor) only knows how to StandardScaler continuous
+    # columns, not one-hot-encode categoricals. Deliberately excluded, not silently dropped --
+    # a real scoping decision, worth reconsidering if a categorical-aware encoding path is
+    # ever added to this pipeline (elasticnet_environmental.py already one-hot-encodes these
+    # three, precedent exists).
+    #
+    # `tas_mean`/`groundfrost_mean` also excluded (2026-08-03, found by hitting the actual
+    # error, not anticipated): these are COHORT-SPECIFIC columns in
+    # plot_environmental_features.parquet (`tas_mean_4survey`/`tas_mean_6survey`, per
+    # models/xgb_environmental/data.py::COHORT_SPECIFIC_COLUMNS) -- xgb_environmental's own
+    # pipeline resolves the cohort-suffixed name before use; load_split_table_with_terrain()
+    # does not do that resolution, so a plain "tas_mean"/"groundfrost_mean" here fails with a
+    # KeyError. A real, structural gap in this pipeline's cohort-agnostic feature-set design,
+    # not a reason these two variables are untrustworthy -- worth fixing properly (cohort-aware
+    # column resolution in load_split_table_with_terrain()) if HadUK-Grid climate ever needs to
+    # be in an env_terrain feature set; deliberately not fixed here to stay scoped to today's
+    # actual ask.
+    "broad_legitimate": [
+        "elevation", "slope_degrees", "northness", "eastness", "profile_curvature",
+        "plan_curvature", "tpi", "elevation_roughness", "solar_radiation_index",
+        "inverse_slope_proxy", "frost_hollow_flag", "topex", "windward_topex",
+        "dist_to_cpmt_boundary", "dist_to_forest_perimeter", "dist_to_scpt_boundary",
+        "dist_to_block_boundary", "cpmt_compactness_ratio", "dist_to_road", "dist_to_watercourse",
+        "gwa_wind_speed_10m", "soilgrids_ph", "ceh_twi", "chelsa_bio1_celsius",
+        "chelsa_gdd5_degc", "chelsa_bio12_precip_mm", "whcl",
+    ],
 }
 DEFAULT_ENV_TERRAIN_FEATURE_SET = "terrain_wind_solid"
 

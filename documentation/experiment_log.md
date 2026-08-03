@@ -114,6 +114,56 @@ time, even in short form:
 
 ---
 
+**2026-08-03 — `dnn_terrain_wind` (real wind variables added) and `dnn_broad_legitimate` (full
+vetted feature set) built and multi-seed checked: seed 42 was misleading again, on the exact
+same pattern as `dnn_env_terrain` -- the broader feature set is the BEST performer once averaged
+across seeds, not worse.**
+**What I found:** Added two new `ENV_TERRAIN_FEATURE_SETS` entries (`models/common/torch_data.py`)
+reusing the existing `dnn_env_terrain` model unchanged, no new model files: `terrain_wind_full`
+(16 cols, exactly `xgb_environmental.TERRAIN_AND_WIND_COLUMNS`, imported not redefined -- adds
+`gwa_wind_speed_10m`, `windward_topex`, and `whcl`, the external Windthrow Hazard Class rating,
+none of which are in the default `terrain_wind_solid`) and `broad_legitimate` (27 cols, every
+`ALL_FEATURE_COLUMNS` entry not already fed via the no-env pathway and not an unencoded
+categorical -- `tas_mean`/`groundfrost_mean` also excluded, a real structural gap found by
+hitting the error: they're cohort-suffixed columns `load_split_table_with_terrain()` doesn't
+resolve, unlike `xgb_environmental`'s own pipeline). First fit, seed 42 only, looked like a clear
+regression (`terrain_wind_full` R2=0.6050, `broad_legitimate` R2=0.5876, both below
+`dnn_noenv`'s 0.6330 AND below the smaller `terrain_wind_solid`'s 0.6247). Given the exact same
+seed-42-is-an-outlier pattern already found for `dnn_env_terrain`, refit both under seeds
+43-46 before drawing any conclusion:
+
+| Seed | dnn_noenv | terrain_wind_solid (5) | terrain_wind_full (16) | broad_legitimate (27) |
+|---|---|---|---|---|
+| 42 | 0.6330 | 0.6247 | 0.6050 | 0.5876 |
+| 43 | 0.6415 | 0.7193 | 0.7535 | 0.7551 |
+| 44 | 0.6427 | 0.6732 | 0.6619 | 0.6860 |
+| 45 | 0.6457 | 0.6997 | 0.7246 | 0.7580 |
+| 46 | 0.6418 | 0.6543 | 0.6785 | 0.6789 |
+| **mean delta vs no-env** | -- | **+0.0333/SD 0.0338** | **+0.0438/SD 0.0541** | **+0.0522/SD 0.0656** |
+
+**What's working:** confirmed, again, on a genuinely different feature-set question, not just a
+replication of the earlier finding: seed 42 is a real, recurring outlier for this whole class of
+terrain/environment comparisons on this split, not a one-off. `broad_legitimate` has the LARGEST
+mean improvement of the three feature sets on this same 5-seed set (+0.0522, vs `terrain_wind_full`'s
++0.0438 and `terrain_wind_solid`'s +0.0333) -- more features, on average, genuinely helps here,
+not hurts. Variance also scales with feature-set size (SD 0.034 -> 0.054 -> 0.066) -- expected,
+sensible tradeoff (more capacity to exploit real signal, but also more sensitivity to which
+compartments get held out).
+**What's not working / open concern:** only 5 seeds for the two new feature sets (vs. 8 for
+`dnn_noenv`/`dnn_env_terrain`) -- worth extending to match if this becomes a headline number.
+`broad_legitimate`'s missingness (1,720 rows/430 plots dropped) is real and larger than the
+other sets' (156 rows/39 plots) -- from climate/soil column gaps, not a bug, but worth knowing
+if comparing row counts across configs. The individual contribution of `windward_topex`/`whcl`
+specifically (vs. the whole 16-27 column bundle) is still unknown -- this only tested "does
+adding the whole bundle help," not which specific variable is doing the work.
+**What this means for what's next:** the wind-damage/`whcl` hypothesis from the worst-error
+investigation is not rejected by this result -- if anything, the broader feature set (which
+includes `whcl`) is the best performer on average. A per-variable ablation (does removing
+`windward_topex`/`whcl` specifically from `terrain_wind_full` hurt) would isolate whether it's
+those wind-specific columns doing the work or the extra columns generally. Not yet run.
+
+---
+
 **2026-08-02 — Split-seed robustness check: the "terrain regresses `dnn_env_terrain`" finding
 that motivated most of today's investigation does NOT hold up across `spatial_block_split`
 seeds -- it was true for seed 42 specifically, not true on average.**
@@ -140,7 +190,15 @@ about, in a new form). Refit `dnn_noenv`/`dnn_env_terrain` under seeds 43, 44, 4
 | 44 | 0.6427 | 0.6732 | +0.0305 |
 | 45 | 0.6457 | 0.6997 | +0.0540 |
 | 46 | 0.6418 | 0.6543 | +0.0125 |
-| **Mean +/- SD** | **0.6409 +/- 0.0047** | **0.6742 +/- 0.0372** | **+0.0333 +/- 0.0338** |
+| 47 | 0.6405 | 0.6832 | +0.0427 |
+| 48 | 0.6388 | 0.7014 | +0.0626 |
+| 49 | 0.6477 | 0.7095 | +0.0618 |
+| **Mean +/- SD (n=8)** | **0.6415 +/- 0.0044** | **0.6832 +/- 0.0315** | **+0.0417 +/- 0.0287** |
+
+**Update (n=8, seeds 47-49 added):** 7 of 8 seeds positive; 95% CI on the mean delta is
+approximately [+0.018, +0.066] -- now clearly excludes zero. This is no longer "probably
+positive, thin sample" -- it's a confident result. Terrain reliably helps `dnn_noenv` on
+average; seed 42 was a genuine, if unlucky, outlier.
 
 **What's working:** `dnn_noenv`'s own numbers are tight across all 5 seeds (SD=0.0047) -- the
 no-env model is NOT sensitive to which compartments land in test. This confirms the split-seed
@@ -172,6 +230,103 @@ seed-sensitive. Worth flagging beyond today's scope too: every OTHER spatial_blo
 headline result in this dissertation (the base-case DNN-vs-PINN comparison, the physics-weight
 sweep, `xgb_environmental`'s attribution numbers, NLME) also used this same single seed,
 untested for robustness -- not re-examined here, but the same question applies.
+
+---
+
+**2026-08-02 — PINN split-seed results in (seeds 45, 46, on the cluster, plus the pre-existing
+seed-42 base case): PINN's terrain-delta is tiny and stable across seeds, for a structural
+reason -- the DNN-vs-PINN(w=1) gap itself is the one finding from today that DOES hold up under
+reseeding.**
+**What I found:** `pinn_noenv`/`pinn_env_terrain` refit under seeds 45/46 on the cluster (GPU
+needed, unlike the DNN which ran locally), CR anchors refit first via
+`run_baselines.py --split-seed` and verified to match (`frozen_cr_params` in each run's
+`run_metadata.json` checked against the corresponding `chapman_richards_splitseed<N>/params.json`
+-- agreed to ~9 decimal places for all 4 runs, confirming no stale/mismatched-anchor risk despite
+a messy first cluster submission attempt that hit exactly the job-ordering race flagged when the
+sbatch sequence was handed over -- `run_baselines`/`pinn_env_terrain`'s first attempt showed
+CANCELLED in `sacct`, `pinn_noenv`'s first attempt showed COMPLETED despite the anchor not being
+ready yet, which was the actual reason for double-checking rather than trusting exit code 0
+alone). `pw=1.0/tw=1.0` (untested base case, matching the DNN comparison):
+
+| Seed | dnn_noenv | dnn_env_terrain | dnn delta | pinn_noenv | pinn_env_terrain | pinn delta |
+|---|---|---|---|---|---|---|
+| 42 | 0.6330 | 0.6247 | -0.0083 | 0.580 | 0.5823 | +0.0023 |
+| 45 | 0.6457 | 0.6997 | +0.0540 | 0.5530 | 0.5547 | +0.0017 |
+| 46 | 0.6418 | 0.6543 | +0.0125 | 0.4676 | 0.4682 | +0.0006 |
+
+**What's working:** PINN's terrain-delta stays tiny (+0.0006 to +0.0023) across all three seeds
+-- essentially flat, unlike DNN's -0.008 to +0.054 swing. This is explained directly by the
+architecture, not coincidence: `pinn_env_terrain.py`'s `forward()` is identical code/inputs to
+`pinn_noenv`'s (age + no-env features only) -- the y_max sub-network is called ONLY inside the
+physics/trajectory loss during training, never during a plain height-prediction call. Terrain can
+only reach PINN's predictions indirectly, through how physics-loss gradient pressure reshapes the
+main network's weights over training -- a far more muted channel than DNN's direct feature
+concatenation, which explains both why the effect is small AND why it's stable (an indirect,
+muted channel is less exposed to which specific compartments got held out than a direct one is).
+Separately: DNN beats PINN(w=1) in all three seeds now checked (0.633>0.580; 0.646>0.553;
+0.642>0.468) -- the "physics hurts at full weight" finding, unlike the narrower "terrain
+regresses the DNN control" claim, DOES hold up under reseeding.
+**What's not working / open concern:** PINN's own absolute accuracy swings a lot across seeds
+too (0.580/0.553/0.468 for pinn_noenv) -- comparable in magnitude to `dnn_noenv`'s swings are
+NOT (0.633/0.646/0.642, tight) -- so PINN's overall fit quality (not just its terrain-delta) may
+itself be more seed-sensitive than DNN's base case, a separate question from today's terrain
+investigation, not yet explained.
+**What this means for what's next:** the structural explanation for PINN's muted terrain-delta
+(terrain never touches the main network's forward pass) is a stronger, more direct account of
+"why PINN barely uses terrain" than the physics-loss-rigidity argument alone -- both are true and
+compounding (rigid `k`/`p` limits what the y_max channel COULD express even if given full
+gradient; the forward-pass architecture limits how much that channel can influence predictions AT
+ALL). Any future PINN mechanism redesign (UDE-style time-varying deviation, SA-PINN weighting)
+should address the architecture point first -- letting terrain influence predictions only through
+a training-time loss term, never through the actual forward pass, caps the achievable effect size
+regardless of how well-tuned the loss weighting is.
+
+---
+
+**2026-08-03 — Split-seed robustness completed at n=8 for both DNN and PINN (seeds 42-49):
+every conclusion from the smaller samples confirmed, with the DNN-vs-PINN gap now the most
+solid finding of the whole investigation.**
+**What I found:** User ran the remaining PINN cluster jobs (seeds 43, 44, 47, 48, 49) end to
+end and rsynced. All 10 new outputs (both models x 5 seeds) verified present with matching
+`frozen_cr_params` (confirmed programmatically, not assumed) before trusting any number. Full
+8-seed table, `spatial_block`/4survey, `pw=1.0/tw=1.0`:
+
+| Seed | dnn_noenv | dnn_env_terrain | dnn delta | pinn_noenv | pinn_env_terrain | pinn delta |
+|---|---|---|---|---|---|---|
+| 42 | 0.6330 | 0.6247 | -0.0083 | 0.5798 | 0.5823 | +0.0025 |
+| 43 | 0.6415 | 0.7193 | +0.0778 | 0.5036 | 0.4991 | -0.0045 |
+| 44 | 0.6427 | 0.6732 | +0.0305 | 0.5650 | 0.5678 | +0.0028 |
+| 45 | 0.6457 | 0.6997 | +0.0540 | 0.5530 | 0.5547 | +0.0017 |
+| 46 | 0.6418 | 0.6543 | +0.0125 | 0.4676 | 0.4682 | +0.0006 |
+| 47 | 0.6405 | 0.6832 | +0.0427 | 0.5117 | 0.5169 | +0.0051 |
+| 48 | 0.6388 | 0.7014 | +0.0626 | 0.5955 | 0.6001 | +0.0045 |
+| 49 | 0.6477 | 0.7095 | +0.0618 | 0.5955 | 0.5930 | -0.0025 |
+| **Mean+/-SD** | **0.6415+/-0.0044** | **0.6832+/-0.0315** | **+0.0417+/-0.0287** | **0.5465+/-0.0472** | **0.5478+/-0.0470** | **+0.0013+/-0.0033** |
+
+**What's working (four separate findings, all now at n=8, all confirmed):**
+1. `dnn_env_terrain` genuinely benefits from terrain on average (95% CI on the delta ~[+0.018,
+   +0.066], excludes zero) -- seed 42 was a real outlier, not the typical case.
+2. `pinn_env_terrain`'s terrain-delta stays essentially flat regardless of seed (mean=+0.0013,
+   SD=0.0033, ~9x tighter than DNN's) -- the architectural explanation (terrain never touches
+   the forward pass) is now confirmed at full sample size, not just suggestive.
+3. **DNN beats PINN(w=1) in all 8/8 seeds, no exceptions** -- the single most robust finding of
+   the entire session, more solid than anything else investigated today.
+4. PINN's own accuracy (`pinn_noenv`, nothing to do with terrain) is far more seed-volatile than
+   DNN's -- SD=0.0472 vs. DNN's SD=0.0044, roughly 10x wider -- confirmed at full sample size,
+   still unexplained.
+**What's not working / open concern:** point 4 is a genuinely new, unresolved question this
+investigation surfaced rather than answered -- why is PINN's baseline fit quality itself so much
+more sensitive to which compartments land in the test set than DNN's, independent of terrain
+entirely? Not investigated further this session.
+**What this means for what's next:** the split-seed investigation is complete and its
+conclusions are now trustworthy at a real sample size, not a hunch from 3 seeds. Priority
+ordering for what comes next: (a) point 4 (PINN's seed-volatility) is a new, well-evidenced,
+completely open question worth its own investigation before any PINN mechanism redesign work,
+since an architecture change built on top of an already-unstable base case is hard to evaluate
+cleanly; (b) `env_deviation`'s decoupled approach remains well-motivated by point 2 (the
+architecture point), independent of whatever explains point 4; (c) the DNN feature-engineering
+instructions doc stays deprioritized, per the 2026-08-02 entry's reasoning, now on a firmer
+evidence base.
 
 ---
 
