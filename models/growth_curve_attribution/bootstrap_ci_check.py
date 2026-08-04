@@ -31,10 +31,15 @@ from models.xgb_environmental.xgb_environmental import predict_with_columns as x
 
 
 def get_val_predictions_with_cpmt(cohort, split_seed=SPLIT_SEED):
-    # Fits both models ONCE on the standard train split, then returns every val row's actual
+    # Fits both models ONCE on the standard train split, then returns every TEST row's actual
     # target, both models' predictions, and its compartment -- everything the bootstrap loop
     # below needs, without re-fitting anything inside the loop (that would be the expensive,
     # unnecessary version of this check).
+    #
+    # BUG FIX (2026-08-04): this used to bootstrap over "val" -- the same rows XGBoost's
+    # val_df=val early stopping already used to pick how many boosting rounds to run, biasing the
+    # point estimate the whole confidence interval was built around. "val" now only drives early
+    # stopping; the returned (and bootstrapped) rows are the untouched "test" partition.
     plot_table = build_plot_level_table(cohort, apply_disturbance_cleaning=True)
     plot_table_with_features, feature_columns = merge_environmental_features(plot_table)
 
@@ -46,15 +51,16 @@ def get_val_predictions_with_cpmt(cohort, split_seed=SPLIT_SEED):
     )
 
     train = drop_rows_with_missing_features(table[table["split"] == "train"], feature_columns)
-    val = drop_rows_with_missing_features(table[table["split"] == "val"], feature_columns).copy()
+    val = drop_rows_with_missing_features(table[table["split"] == "val"], feature_columns)
+    test = drop_rows_with_missing_features(table[table["split"] == "test"], feature_columns).copy()
 
     elastic = elasticnet_fit(train, feature_columns, target_col=TARGET)
-    val["elastic_net_predicted"] = elasticnet_predict(val, elastic, feature_columns)
+    test["elastic_net_predicted"] = elasticnet_predict(test, elastic, feature_columns)
 
     tree = xgb_fit(train, feature_columns, val_df=val, target_col=TARGET, n_estimators=500, max_depth=4, learning_rate=0.04)
-    val["xgboost_predicted"] = xgb_predict(val, tree, feature_columns)
+    test["xgboost_predicted"] = xgb_predict(test, tree, feature_columns)
 
-    return val[["identification", "cpmt", TARGET, "elastic_net_predicted", "xgboost_predicted"]]
+    return test[["identification", "cpmt", TARGET, "elastic_net_predicted", "xgboost_predicted"]]
 
 
 def compute_r2(actual, predicted):

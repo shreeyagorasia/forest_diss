@@ -19,7 +19,7 @@ def main():
     results = pd.concat(all_results, ignore_index=True)
     pd.set_option("display.width", 160)
     print()
-    print(results[["cohort", "scale", "method", "n_train", "n_val", "r2", "rmse", "mae", "bias"]].to_string(index=False))
+    print(results[["cohort", "scale", "method", "n_train", "n_val", "n_test", "r2", "rmse", "mae", "bias"]].to_string(index=False))
 
 
 if __name__ == "__main__":

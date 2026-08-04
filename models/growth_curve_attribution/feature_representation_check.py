@@ -73,21 +73,25 @@ def build_cleaned_table_with_extra_columns(cohort, split_seed=SPLIT_SEED):
     return merged
 
 
-def compare_representations(train, val, representations, base_columns, family):
+def compare_representations(train, val, test, representations, base_columns, family):
+    # BUG FIX (2026-08-04): never run/reported, but had the same leak found and fixed elsewhere
+    # this session -- val must only drive XGBoost's early stopping, not double as the reported
+    # evaluation set. Both methods are now scored on the untouched "test" partition.
     rows = []
     for representation, added_columns in representations.items():
         columns = list(dict.fromkeys(base_columns + added_columns))
         train_rows = drop_rows_with_missing_features(train, columns)
         val_rows = drop_rows_with_missing_features(val, columns)
+        test_rows = drop_rows_with_missing_features(test, columns)
 
         elastic = elasticnet_fit(train_rows, columns, target_col=TARGET)
-        elastic_predictions = elasticnet_predict(val_rows, elastic, columns)
-        elastic_metrics = compute_metrics(val_rows[TARGET], elastic_predictions)
+        elastic_predictions = elasticnet_predict(test_rows, elastic, columns)
+        elastic_metrics = compute_metrics(test_rows[TARGET], elastic_predictions)
         rows.append({"family": family, "representation": representation, "method": "Elastic Net", "n_features": len(columns), **elastic_metrics})
 
         tree = xgb_fit(train_rows, columns, val_df=val_rows, target_col=TARGET, n_estimators=500, max_depth=4, learning_rate=0.04)
-        tree_predictions = xgb_predict(val_rows, tree, columns)
-        tree_metrics = compute_metrics(val_rows[TARGET], tree_predictions)
+        tree_predictions = xgb_predict(test_rows, tree, columns)
+        tree_metrics = compute_metrics(test_rows[TARGET], tree_predictions)
         rows.append({"family": family, "representation": representation, "method": "XGBoost", "n_features": len(columns), **tree_metrics})
 
     result = pd.DataFrame(rows)
@@ -102,9 +106,10 @@ def run_for_cohort(cohort, split_seed=SPLIT_SEED):
     merged = build_cleaned_table_with_extra_columns(cohort, split_seed=split_seed)
     train = merged[merged["split"] == "train"]
     val = merged[merged["split"] == "val"]
+    test = merged[merged["split"] == "test"]
 
-    wind_comparison = compare_representations(train, val, WIND_REPRESENTATIONS, NON_WIND_BASE_COLUMNS, "wind")
-    terrain_comparison = compare_representations(train, val, TERRAIN_REPRESENTATIONS, TERRAIN_BASE_COLUMNS, "terrain")
+    wind_comparison = compare_representations(train, val, test, WIND_REPRESENTATIONS, NON_WIND_BASE_COLUMNS, "wind")
+    terrain_comparison = compare_representations(train, val, test, TERRAIN_REPRESENTATIONS, TERRAIN_BASE_COLUMNS, "terrain")
     wind_comparison["cohort"] = cohort
     terrain_comparison["cohort"] = cohort
     return wind_comparison, terrain_comparison

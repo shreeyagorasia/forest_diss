@@ -114,6 +114,12 @@ def build_subcompartment_table(plot_table_with_features, feature_columns):
 
 
 def run_validation_screen(table, feature_columns, scale_name, cohort, split_seed=SPLIT_SEED):
+    # BUG FIX (2026-08-04): this used to evaluate BOTH models on "val" -- the exact same rows
+    # XGBoost's val_df=val early-stopping already used to decide how many boosting rounds to run.
+    # That's a real leak: the model's own fit was tuned to minimise loss on the rows its
+    # performance was then measured on, optimistically biasing every XGBoost R2 this function
+    # produced. spatial_block_split() already builds a genuine third partition ("test") that was
+    # sitting unused -- "val" now ONLY drives early stopping; both methods are scored on "test".
     table = table.copy()
     coordinates = table[["identification", "x", "y"]]
     table["split"] = spatial_block_split(
@@ -123,18 +129,19 @@ def run_validation_screen(table, feature_columns, scale_name, cohort, split_seed
 
     train = drop_rows_with_missing_features(table[table["split"] == "train"], feature_columns)
     val = drop_rows_with_missing_features(table[table["split"] == "val"], feature_columns)
+    test = drop_rows_with_missing_features(table[table["split"] == "test"], feature_columns)
 
     elastic = elasticnet_fit(train, feature_columns, target_col=TARGET)
-    elastic_predictions = elasticnet_predict(val, elastic, feature_columns)
-    elastic_metrics = compute_metrics(val[TARGET], elastic_predictions)
+    elastic_predictions = elasticnet_predict(test, elastic, feature_columns)
+    elastic_metrics = compute_metrics(test[TARGET], elastic_predictions)
 
     tree = xgb_fit(train, feature_columns, val_df=val, target_col=TARGET, n_estimators=500, max_depth=4, learning_rate=0.04)
-    tree_predictions = xgb_predict(val, tree, feature_columns)
-    tree_metrics = compute_metrics(val[TARGET], tree_predictions)
+    tree_predictions = xgb_predict(test, tree, feature_columns)
+    tree_metrics = compute_metrics(test[TARGET], tree_predictions)
 
     return pd.DataFrame([
-        {"cohort": cohort, "scale": scale_name, "method": "Elastic Net", "split_seed": split_seed, "n_train": len(train), "n_val": len(val), **elastic_metrics},
-        {"cohort": cohort, "scale": scale_name, "method": "XGBoost", "split_seed": split_seed, "n_train": len(train), "n_val": len(val), **tree_metrics},
+        {"cohort": cohort, "scale": scale_name, "method": "Elastic Net", "split_seed": split_seed, "n_train": len(train), "n_val": len(val), "n_test": len(test), **elastic_metrics},
+        {"cohort": cohort, "scale": scale_name, "method": "XGBoost", "split_seed": split_seed, "n_train": len(train), "n_val": len(val), "n_test": len(test), **tree_metrics},
     ])
 
 

@@ -89,6 +89,7 @@ just not equally central.
 | `baselines_rebuild_2026-07-28` | 2026-07-28 | `plot_level`, `spatial_block`, `temporal` (wide-gap), `temporal_narrow_gap` -- all four re-run | same year assignments as the retired-pipeline rows above | n/a | CR, average-by-age, linear, RF | both | primary (replaces every baseline number above) | `outputs/<split_type or nothing>/<model>/<cohort>/` | New target (`elev_percentile_95th`) + `yldc` removed from RF/linear. `plot_level`: RF best (R²=0.570) as before. `spatial_block`: RF loses its advantage to linear (R²=0.475 vs 0.512) as before -- same qualitative pattern as the retired pipeline, confirming the rebuild didn't change which baseline "wins" per split, just the absolute numbers. Chapman-Richards fit also fixed a pre-existing degeneracy (y_max was landing exactly on the observed max height under both old and new target) -- lower bound now `max_observed_height * 1.001`. Full reasoning: `progress_notes.md`'s 2026-07-28 entry |
 | `dnn_pinn_epochcheck_2026-07-29` | 2026-07-29 | `spatial_block` | 4survey only, short smoke tests (max 150 epochs, patience 40) | cr_pooled | dnn_noenv, pinn_noenv, 3 PINN weight variants | 4survey only | diagnostic, not a result -- see Findings log | `outputs/spatial_block/{dnn,pinn}_noenv_epochcheck*/4survey/` | Base-case (`W=1.0`) DNN/PINN cluster jobs came back suspiciously fast (~53s, later traced to a missing rsync of `data/processed/transitions/`, fixed). Once fixed: DNN converges normally (val_loss 0.342→0.331 over ~50 epochs, patience stops at 52). PINN never beats its own epoch-1 val_loss at `W=1.0`, `W=0.0`, OR `W=0.05` (best_val_loss ≈ epoch-1's value in all three) -- ruled out physics weight as the cause. Found the real confound: `pinn_noenv.py`'s `BATCH_SIZE=128` vs `dnn_noenv.py`'s `BATCH_SIZE=512`, undocumented, never controlled for. Exposed `--batch-size`/`--pairs-batch-size` as CLI args (previously hardcoded) to test batch-size-matched. Next: rerun `physics_weight=0.0` at `--batch-size 512` on the cluster (see below) to isolate batch size from the physics-weight question properly. |
 | `dnn_pinn_basecase_2026-07-30` (Stage 2) | 2026-07-30 | `spatial_block`, `temporal` | full pipeline, `batch_size=256` both models | cr_pooled | dnn_noenv, pinn_noenv (`physics_weight=trajectory_weight=1.0`, the untested default) | both | primary | `outputs/{spatial_block,temporal}/{dnn_noenv,pinn_noenv_basecase_w1}/<cohort>/` | Real base-case rebuild against the current pipeline (finally superseding the epochcheck smoke tests). Test R²: 4survey spatial_block DNN=0.633 vs PINN(w=1)=0.580; 6survey spatial_block DNN=0.750 vs PINN(w=1)=0.734; 4survey temporal DNN=0.354 vs PINN(w=1)=0.284; 6survey temporal DNN=0.284 vs PINN(w=1)=0.209. DNN beats PINN(w=1) by a real, consistent margin in all 4 cohort×split combinations -- confirms the long-believed "physics constraint hurts at full weight" finding (point 3 in `handover_2026-07-18.md`) survives the full target/yldc/batch-size rebuild, not just true under the retired pipeline. |
+| `growth_curve_broad_static_cv_2026-08-04` | 2026-08-04 16:08 | 5-fold compartment-held-out spatial CV + 60 m leakage buffer | n/a (all years pooled per plot into one `local_y_max_difference` target) | each plot gets its own fixed-shape curve; no pooled CR baseline involved | Elastic Net, XGBoost | both (`4survey` primary) | robustness-check / descriptive extension | `outputs/growth_curve_attribution/{broad_environmental_spatial_cv_4survey.csv,broad_environmental_spatial_cv_6survey.csv,terrain_wind_management_comparison.csv,broad_environmental_category_checks_4survey.csv}` | Follow-on static-model expansion of the validated terrain/wind Stage 2 result. `4survey`: terrain/wind = 0.125 / 0.117 (Elastic Net / XGBoost), broad environment = 0.093 / 0.102, terrain/wind + management = 0.289 / 0.302, all 38 static variables = 0.290 / 0.318. `6survey`: terrain/wind = 0.023 / 0.021, broad environment = 0.019 / 0.027, terrain/wind + management = 0.079 / 0.101, all 38 = 0.110 / 0.094. Category-addition reruns were only written for `4survey`: +climate = 0.112 / 0.127, +soil/site = 0.117 / 0.099, +edge-position = 0.112 / 0.121. This run family is deliberately only Elastic Net + XGBoost; no DNN/PINN was tried for this target extension. |
 | `pinn_physics_weight_grid_2026-07-30` (Stage 3) | 2026-07-30 | `spatial_block` | 4survey: full 10-point `physics_weight`x`trajectory_weight` grid; 6survey: winning config + `0/0` control only | cr_pooled | pinn_noenv | 4survey (full grid), 6survey (2 configs) | primary | `outputs/spatial_block/tune_pinn_{4s,6s}_w*/<cohort>/` | Lowest `best_val_loss_smoothed` on 4survey: `pw=0.1,tw=0.0` (0.3292), essentially tied with `pw=0.01,tw=0.0` (0.3294), `pw=0.0,tw=0.01` (0.3300), `pw=0.1,tw=0.01` (0.3299), and the `0/0` control (0.3308) -- all five within the same ~0.002 noise band Stage 1's batch-size sweep already established. Any `trajectory_weight>=0.1` clearly hurts (0.338-0.350). Picked `pw=0.1,tw=0.0` as "the winner" per the pre-agreed protocol (lowest val loss) and confirmed on 6survey (0.3292-equivalent tie holds there too). **But held-out test R² does not confirm this pick is real signal**: 4survey test R² is 0.6319 (winner) vs 0.6337 (`0/0` control) -- control is *slightly better*; 6survey test R² is 0.7468 (winner) vs 0.7483 (control) -- same direction, control slightly better again. See Findings log entry for what this means before spending Stage 4 cluster time on this weight pair. |
 | `dnn_pinn_final_seeded_2026-07-31` (Stage 4) | 2026-07-31 | `spatial_block`, `temporal`, `temporal_narrow_gap` | full pipeline, `batch_size=256` throughout | cr_pooled | dnn_noenv, pinn_noenv (`pw=0.1,tw=0.0` and `pw=0.0,tw=0.0`, both arms from the Stage 3 decision) | both | primary (`spatial_block`) / secondary (`temporal`, `temporal_narrow_gap`) | `outputs/{spatial_block,temporal,temporal_narrow_gap}/final_{dnn,pinn,pinn_w0}_seed{42-46}/<cohort>/` | 90/90 fits completed (5 seeds x 3 arms x 3 splits x 2 cohorts). All pass the early-stopping sanity check. `temporal`/4survey (15 runs, every seed and arm) shows 0% val-loss improvement from epoch 1 -- a genuine train/val collapse driven by that cell's narrow 2-year training window, not a bug -- see 2026-07-31 Findings entry; excluded from the seed-averaged comparison table. Evaluate loop (`evaluate_dnn_noenv.py`/`evaluate_pinn_noenv.py`) not yet run to get test-set metrics -- see `experiments_to_run.txt`. |
 
@@ -948,6 +949,104 @@ mapped/inspected individually yet (which specific compartments/regions they fall
 agree: this new approach's residual is close to spatially "used up," a meaningfully stronger
 result than the old target's real leftover autocorrelation. Worth including both the global and
 local numbers in any dissertation write-up of this finding, not just the visual map.
+
+---
+
+**2026-08-04 — Q: [MAJOR CORRECTION] Was every reported XGBoost R2 in this Stage 2 investigation
+computed on a genuinely held-out test set, or was the evaluation set also used for early
+stopping? — the user found and fixed a real leak in `spatial_cv_check.py`; a systematic sweep
+found the SAME bug in three more files. The uncleaned-target R2 (previously reported as 0.172/
+0.188, "matches the established ceiling") was almost entirely a leak artefact -- the true,
+leak-free number is NEGATIVE. Cleaning does not just shrink an inflated number, it is what turns
+a null result into a real one.**
+**What I found:** `xgb_environmental.fit_with_columns()`'s `val_df` parameter drives XGBoost's
+early stopping (how many boosting rounds to run, chosen by monitoring loss on `val_df`) -- it is
+not just a label. `scale_comparison_check.py`, `bootstrap_ci_check.py`, and
+`feature_representation_check.py` (never run/reported, fixed anyway) all passed the SAME `val`
+partition both as `val_df` (early stopping) AND as the set predictions/metrics were computed on
+-- meaning the model's own fit was tuned to minimise loss on the exact rows its performance was
+then measured on. `spatial_block_split()` already builds a genuine third partition (`test`) that
+was sitting completely unused in every one of these functions. The user independently found and
+fixed the same pattern in `spatial_cv_check.py` (each fold now carves out a separate `val` fold
+purely for early stopping, evaluates on the rotating held-out `test` fold). A systematic grep of
+every `xgb_fit`/`elasticnet_fit` call site in `models/growth_curve_attribution/` confirmed these
+were the only four affected functions -- `explain_signal.py` (full-data fit, no `val_df`) and
+`importance_stability_check.py` (train-only fit, no `val_df`, no evaluation at all) were never at
+risk. Also checked directly (not assumed): whether the "test" partition now being evaluated
+overlaps with Codex's notebook's own deliberately-locked test set (same seed=42, same split
+mechanism) -- empirically NOT identical (only 15 of ~45-51 compartments overlap), because the
+disturbance-cleaning step changes each compartment's row count, which changes
+`spatial_block_split`'s greedy assignment even under the same seed.
+**Corrected numbers** (single split, seed=42, cleaned population unless noted):
+
+| Check | Metric (EN / XGB), before fix | Metric (EN / XGB), after fix |
+|---|---|---|
+| Uncleaned, single split | R2 = 0.172 / 0.188 | R2 = **-0.054 / -0.020** |
+| Cleaned, single split | R2 = 0.061 / 0.103 | R2 = **0.062 / 0.086** |
+| 5-fold spatial CV, cleaned, pooled | R2 = 0.118 / 0.174 | R2 = **0.119 / 0.134** |
+| Wind-height swap (50m), 5-fold CV | R2 = 0.113 / 0.161 | R2 = **0.119 / 0.135** |
+| Bootstrap 95% CI, single split | [-0.085, 0.187] / [-0.033, 0.227] | **[-0.079, 0.137] / [-0.046, 0.158]** |
+| 4-seed sweep mean, cleaned, single split | not previously reported this way | EN 0.114, XGB 0.121 (every seed positive) |
+
+**What's working:** every qualitative conclusion this session reached survives, several MORE
+cleanly than before: 4survey still shows a real, positive, seed-stable, CV-confirmed signal
+(now every one of 4 re-swept seeds is positive for both methods, not just directionally
+consistent); 6survey is still confirmed null (now negative across all 4 seeds, both methods,
+both before and after cleaning); the wind-height-swap conclusion (signal doesn't depend on the
+contaminated 10m variable) still holds. The disturbance-cleaning finding is actually STRONGER
+now, not weaker: the leak-free uncleaned R2 is negative -- cleaning does not merely reduce an
+inflated number, it is the difference between a real signal and no signal at all for 4survey.
+**What's not working / open concern:** the SHAP/importance/stability/Moran's-I/LISA results
+(section on "what explains the signal") are unaffected by this bug (no `val_df` involved in any
+of those fits) and do not need re-running. The single-split checks (seed sweep, cleaning
+comparison) have now each looked at the same seed=42 test partition more than once across
+different rounds of this session's own decision-making -- not a leak into training, but a softer
+"researcher degrees of freedom" concern in the same spirit the LLM Council's peer review already
+flagged elsewhere. The 15-compartment test-set overlap with Codex's notebook, while not
+identical, means the two threads are not fully independent either -- worth keeping in mind if
+the two are later combined into one final reported number.
+**What this means for what's next:** the notebook (`per_plot_growth_curve_story.ipynb`) was
+built and executed before this fix and needs re-running with corrected numbers throughout. The
+user is separately planning a broader multi-seed sweep across all of this to get a proper error
+bound on the final result -- this correction is exactly the kind of check that needed to happen
+before that larger investment, not after.
+
+---
+
+**2026-08-04 — Q: Given the leak fix, is the 5-fold CV headline number now stable and
+reproducible, or is there ALSO hidden non-determinism (e.g. from unseeded set-iteration order,
+a classic Python gotcha)? — no hidden randomness: 5 repeated runs (including two different
+PYTHONHASHSEED values) against a frozen code state gave bit-identical results. The apparent
+"three different numbers" seen while re-running this check were three different MOMENTS in an
+actively-evolving shared codebase, not true non-determinism.**
+**What I found:** After the leak fix, `run_spatial_cv_check.py`, then the notebook's own
+execution, then a fresh direct call all gave three DIFFERENT 4survey pooled R2 values
+(0.119/0.134, then 0.123/0.162, then 0.130/0.122) despite an apparently fixed seed throughout --
+concerning enough to investigate immediately rather than pick one and move on. Ran the identical
+function 3x in the same process (bit-identical each time: 0.1302/0.1222), then twice more under
+explicit `PYTHONHASHSEED=1` and `PYTHONHASHSEED=2` (ruling out Python's per-process hash
+randomization, a well-known source of `set()`-iteration-order-dependent non-determinism) --
+still bit-identical (0.1302/0.1222) both times.
+**What's working:** given a FROZEN code state, this pipeline is fully deterministic and
+reproducible -- confirmed, not assumed. The three earlier different numbers are explained
+entirely by the shared codebase being actively edited by the other concurrent thread
+(`models/common/splits.py` and related files) between each of these checks this session, exactly
+consistent with the concurrent-editing pattern already observed and flagged multiple times
+(the notebook, `experiment_log.md`, `evaluate_baselines.py`, `spatial_cv_check.py` itself).
+**What's not working / open concern:** this means every number quoted earlier in this
+investigation needs to be read as "correct for the code state at that moment," not as a single
+fixed ground truth -- the project's own convention of re-running scripts rather than trusting
+quoted numbers is what caught this, and remains the right discipline going forward, especially
+while another thread is actively touching shared files.
+**What this means for what's next:** the CURRENT, verified-reproducible 4survey 5-fold CV
+result is R2 = 0.130 (Elastic Net) / 0.122 (XGBoost); 6survey is R2 = 0.044 / -0.028 (still
+confirmed null). The notebook's R2 progression table and headline have been updated to these
+numbers and the notebook re-executed end to end successfully. Also fixed in the same pass: a
+`NameError` in the notebook (a newly-added "follow-on broader models" section -- referencing
+real, valuable `broad_environmental_check.py` output showing terrain/wind+management reaches
+R2~0.29-0.32 for 4survey, correctly kept conceptually separate from the environmental-only
+claim -- used `plt.subplots()` before `matplotlib.pyplot` had been imported); moved the import
+to the notebook's first setup cell.
 
 ---
 
@@ -2374,3 +2473,86 @@ playbook), but "6survey likely lacks the statistical power to detect this attrib
 all, independent of split choice." Any final reporting of this attribution model should treat
 4survey as the primary result and flag 6survey's null result as inconclusive-due-to-sample-size,
 not as evidence terrain/wind doesn't matter there.
+
+---
+
+**2026-08-04 — Q: If the per-plot growth-curve story is widened beyond the validated terrain/wind
+set, do climate, soil/site, edge-position, or management variables materially improve the static
+model -- management does, the wider environmental groups mostly do not.**
+**What I found:** Re-ran a broader static Stage 2 comparison completely outside the notebooks,
+writing fresh CSV outputs on 2026-08-04 (`broad_environmental_spatial_cv_{4survey,6survey}.csv`,
+`terrain_wind_management_comparison.csv`, `broad_environmental_category_checks_4survey.csv`).
+This kept the same cleaned `local_y_max_difference` target, the same 5-fold compartment-held-out
+spatial CV, and the same 60 m buffer, but compared larger static feature scopes using **only
+Elastic Net and XGBoost**. `4survey`: terrain/wind = **0.125 / 0.117** (Elastic Net / XGBoost),
+broad environment (terrain/wind + climate + soil/site + edge) = **0.093 / 0.102**,
+terrain/wind + management = **0.289 / 0.302**, and all 38 static variables together =
+**0.290 / 0.318**. One-category-at-a-time additions for `4survey` were also re-run:
+terrain/wind + climate = **0.112 / 0.127**, +soil/site = **0.117 / 0.099**, +edge-position =
+**0.112 / 0.121**. `6survey`: terrain/wind = **0.023 / 0.021**, broad environment =
+**0.019 / 0.027**, terrain/wind + management = **0.079 / 0.101**, and all 38 = **0.110 / 0.094**.
+No separate `6survey` category-addition CSV was generated in this run family.
+**What's working:** this resolves the user's broader-model question with real reruns, not
+assumed notebook outputs. The result is internally coherent: climate, soil/site, and
+edge-position do not add much on top of terrain/wind at the available resolutions, while the
+five management/stand variables produce the only large descriptive lift. The compact
+terrain/wind+management model captures nearly all of the full 38-variable model's signal in both
+cohorts.
+**What's not working / open concern:** this does NOT mean climate/soil/edge are irrelevant in
+general -- only that under this static one-number-per-plot target, at these data resolutions and
+under these splits, they add little incremental held-out R² once terrain/wind is already in.
+Also, the category-addition reruns were only written for `4survey`, not `6survey`: that was a
+scope choice, not evidence. The reason was practical and evidential, not technical -- `6survey`
+already had a confirmed near-null terrain/wind baseline and much smaller sample size, so the
+one-category-at-a-time 6survey breakdown was expected to be lower-signal and was not needed to
+settle the main story once the broader-environment and management comparisons had already been
+run for `6survey`.
+**What this means for what's next:** the Stage 2 write-up should now distinguish two claims, not
+one. The **environmental attribution claim** remains the narrow terrain/wind result. The **best
+broader static descriptive model** is terrain/wind + management, with the full 38-variable model
+only slightly stronger. If the user wants symmetry, a `6survey` category-addition rerun can still
+be added later, but it is a completeness extension rather than a blocker for the main conclusion.
+
+---
+
+**2026-08-04 — Avenue 1: Which environmental and management conditions are associated with
+plots being consistently taller or shorter than the shared Aberfoyle Chapman--Richards reference
+curve? — the 4survey cohort contains a meaningful spatially generalisable descriptive signal;
+the smaller 6survey cohort does not. (Implemented and run by Codex, not Claude.)**
+**What changed:** Kept the pooled Chapman--Richards curve and each plot's `mean_cr_residual`
+unchanged as the deliberately static, forest-wide descriptive reference. Generalised the existing
+five-fold compartment CV helper so it can evaluate this target with the same held-out-compartment
+rotation, separate validation fold, and 60 m training buffer used by the per-plot work. Evaluated
+the existing 49-variable `all_environmental` set and the 16-variable `terrain_and_wind_only` set
+with Elastic Net and XGBoost. The analysis reads the regenerated environmental table, so it uses
+the corrected inside-polygon sampling coordinates and corrected historical `Thin` values. Added
+the exact forest question and interpretation boundary to
+`notebooks/environmental_data/grouped_category_importance.ipynb`. Compact results were written to
+`outputs/spatial_block_kfold/cr_residual_environmental_spatial_cv.csv`.
+
+| Cohort | Feature set | Elastic Net pooled OOF R2 | XGBoost pooled OOF R2 | evaluated plots / compartments |
+|---|---|---:|---:|---:|
+| 4survey | all environmental + management | 0.360 | 0.411 | 71,330 / 296 |
+| 4survey | terrain and wind only | 0.216 | 0.274 | 71,727 / 296 |
+| 6survey | all environmental + management | 0.004 | 0.062 | 13,897 / 48 |
+| 6survey | terrain and wind only | -0.049 | 0.012 | 13,897 / 48 |
+
+**What's working:** For 4survey, both model families agree that the full environmental/management
+set explains more held-out spatial variation than terrain and wind alone. Because every eligible
+compartment is held out once, this is stronger and more representative evidence than the previous
+single-split result. The agreement between a linear regularised model and a nonlinear tree model
+also makes the direction of the main conclusion less model-dependent.
+**What's not working / interpretation limit:** The 6survey pooled out-of-fold scores remain near
+zero. With only 48 compartments, this cohort should be reported as weak/inconclusive evidence,
+not as a successful attribution model and not as proof that environment or management has no
+effect. The number of evaluated 4survey plots differs between feature sets because rows missing
+any required predictor are removed. Coarse raster values are still repeated across many plots and
+remain a documented data-resolution limitation. Most importantly, this target is fitted relative
+to a pooled curve that overlaps the observed population: the analysis is retrospective spatial
+attribution against a fixed reference, **not** prospective forecasting or fully independent
+prediction of a newly estimated biological target.
+**What this means for what's next:** Use 4survey as the primary Avenue 1 result and present
+6survey as an underpowered/null sensitivity result. Avenue 2 remains the separate per-plot
+growth-curve question; these Avenue 1 results neither replace nor redefine it. No fold-wise CR
+refitting is required because the pooled CR curve is intentionally the shared descriptive
+comparison chosen for this avenue.
