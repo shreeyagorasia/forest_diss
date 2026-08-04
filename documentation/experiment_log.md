@@ -2548,6 +2548,54 @@ be added later, but it is a completeness extension rather than a blocker for the
 
 ---
 
+**2026-08-04 — Q: should Avenue 1 and Avenue 2 be forced onto one identical feature list, and
+does adding the already-built temporal wind information help the current AV2 target if it is
+converted into plot-varying interaction features?**
+**What I found:** Built a shared variable registry export,
+`documentation/variable_registry_av1_av2.csv`, from one code path
+(`models/common/variable_registry.py`, exported by
+`data_processing/export_variable_registry.py`) so every variable now has an explicit cross-avenue
+status: AV1 candidate universe, AV2 static status, AV2 temporal status, provenance, and notes on
+whether it is derived/categorical/cohort-specific. This makes the intended relationship between the
+two avenues explicit: shared definitions where a variable appears in both, but not a forced
+identical feature list across two different targets. Also built and ran
+`models/growth_curve_attribution/temporal_wind_extension_check.py`, keeping the SAME AV2 target
+throughout (`local_y_max_difference`) and testing the only coherent temporal-wind extension
+compatible with that target under the current data shape: cohort-level MIDAS interval storminess
+summaries interacted with plot-level exposure variables (`topex`, `windward_topex`, `whcl`,
+`gwa_wind_speed_50m`). Raw MIDAS interval metrics are effectively constant within a cohort here, so
+they cannot improve a cross-plot model by themselves; only interaction terms can vary plot to plot.
+Results written to `outputs/growth_curve_attribution/temporal_wind_extension_check.csv`:
+`4survey` terrain/wind baseline = **0.130222 / 0.122229** (Elastic Net / XGBoost) versus
+terrain/wind + temporal-wind interactions = **0.130445 / 0.122229**; `6survey` baseline =
+**0.043748 / -0.027513** versus extension = **0.027667 / -0.027513**. In other words: effectively
+no gain for `4survey`, and a small deterioration for `6survey`.
+**What's working:** this resolves two design questions cheaply and cleanly. First, the repo now has
+a single, auditable cross-avenue variable registry instead of relying on notebook memory or prose
+to explain why a variable appears in AV1 but not AV2. Second, the temporal extension was tested
+honestly against the CURRENT AV2 target rather than argued from intuition: because the storm
+metrics are cohort-level summaries, the script only tests the biologically plausible thing they can
+do under this target -- modulate terrain/wind exposure -- and it does so under the same 5-fold
+compartment-held-out CV + 60 m buffer discipline as the established AV2 static checks.
+**What's not working / open concern:** this does NOT mean temporal weather is biologically
+irrelevant. It means that with the current one-number-per-plot AV2 target (`local_y_max_difference`
+= fitted per-plot `y_max` minus yldc-implied `y_max`), the available temporal wind summaries do not
+add useful held-out cross-plot information, even after exposure interactions. That limitation is
+structural, not just predictive: the current MIDAS interval file is cohort-level, not plot-level,
+and the target itself is a persistent plot deviation rather than an interval-specific response.
+So this run is a fair extension of the current target, but not a full causal/timing test of storm
+effects.
+**What this means for what's next:** keep the AV2 target consistent as `local_y_max_difference`
+throughout the current notebook/script family and keep the static terrain/wind model as the primary
+AV2 environmental result. Use the new registry to explain cross-avenue consistency properly: same
+variable definitions and explicit inclusion/exclusion logic, but not a mandatory identical feature
+set across different targets. If temporal weather is to be pursued further, the right next step is
+NOT more static-target feature bloat; it is a separate interval-level AV2 extension with an
+interval-level target (for example, survey-to-survey deviation change), where storm/drought/rain
+timing can be tested directly rather than compressed into one per-plot number.
+
+---
+
 **2026-08-04 — Avenue 1: Which environmental and management conditions are associated with
 plots being consistently taller or shorter than the shared Aberfoyle Chapman--Richards reference
 curve? — the 4survey cohort contains a meaningful spatially generalisable descriptive signal;
