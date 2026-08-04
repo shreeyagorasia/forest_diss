@@ -85,7 +85,7 @@ just not equally central.
 
 | ID | Date | Split design | Years (train / val / test) | CR fit used | Models | Cohorts | Status | Output location | Result summary |
 |---|---|---|---|---|---|---|---|---|---|
-| `xgb_elasticnet_environmental_2026-07-29` | 2026-07-29 | `spatial_block_split` (train/val/test all used; val for feature decisions, test read once) | n/a (all years pooled per plot, mean CR residual target) | cr_pooled: plot_level CR fit (re-derived on `elev_percentile_95th`) | xgb_environmental (XGBoost+SHAP), elasticnet_environmental (ElasticNetCV) | both (4survey primary) | primary (replaces the retired-pipeline row) | `outputs/spatial_block/xgb_environmental/<feature_set>/<cohort>/`, `outputs/spatial_block/elasticnet_environmental/<feature_set>/<cohort>/` | Re-run against the new target + `yldc` removed from the 34-variable unified environmental+silviculture feature set (`Age` still excluded — circular with the CR residual, see Findings log). 4survey `all_environmental`: XGBoost val R²=0.734/test R²=0.629, Elastic Net val R²=0.700/test R²=0.671. 6survey `all_environmental`: XGBoost val R²=0.107/test R²=0.398, Elastic Net val R²=0.147/test R²=0.521 — 6survey's val R² sits well below its own test R² across every feature set for both model types (opposite of the usual overfitting direction); likely which compartments `spatial_block_split` happened to assign to val vs test for the smaller cohort, not yet investigated further. 4survey grouped permutation importance (`grouped_category_importance.ipynb`): `neighbour_spatial_lag` dominates (mean R² drop=1.177, ~10x every other category), then climate/stand_structure/terrain clustered close together (0.11-0.12), wind least (0.023). Full-model residual Moran's I=0.197 (p=0.005) -- still significant spatial autocorrelation left unexplained; removing `terrain` increases it the most (Δ=0.066), even though terrain isn't top for raw accuracy -- a genuine cross-method disagreement (matters for spatial pattern, not for prediction). |
+| `xgb_elasticnet_environmental_2026-07-29` | 2026-07-29 | `spatial_block_split` (train/val/test all used; val for feature decisions, test read once) | n/a (all years pooled per plot, mean CR residual target) | cr_pooled: plot_level CR fit (re-derived on `elev_percentile_95th`) | xgb_environmental (XGBoost+SHAP), elasticnet_environmental (ElasticNetCV) | both (4survey primary) | primary (replaces the retired-pipeline row) | `outputs/spatial_block/xgb_environmental/<feature_set>/<cohort>/`, `outputs/spatial_block/elasticnet_environmental/<feature_set>/<cohort>/` | Re-run against the new target + `yldc` removed from the 34-variable unified environmental+silviculture feature set (`Age` still excluded — circular with the CR residual, see Findings log). 4survey `all_environmental`: XGBoost val R²=0.734/test R²=0.629, Elastic Net val R²=0.700/test R²=0.671. 6survey `all_environmental`: XGBoost val R²=0.107/test R²=0.398, Elastic Net val R²=0.147/test R²=0.521 — 6survey's val R² sits well below its own test R² across every feature set for both model types (opposite of the usual overfitting direction); likely which compartments `spatial_block_split` happened to assign to val vs test for the smaller cohort, not yet investigated further. 4survey grouped permutation importance (`av1_grouped_category_importance.ipynb`): `neighbour_spatial_lag` dominates (mean R² drop=1.177, ~10x every other category), then climate/stand_structure/terrain clustered close together (0.11-0.12), wind least (0.023). Full-model residual Moran's I=0.197 (p=0.005) -- still significant spatial autocorrelation left unexplained; removing `terrain` increases it the most (Δ=0.066), even though terrain isn't top for raw accuracy -- a genuine cross-method disagreement (matters for spatial pattern, not for prediction). |
 | `baselines_rebuild_2026-07-28` | 2026-07-28 | `plot_level`, `spatial_block`, `temporal` (wide-gap), `temporal_narrow_gap` -- all four re-run | same year assignments as the retired-pipeline rows above | n/a | CR, average-by-age, linear, RF | both | primary (replaces every baseline number above) | `outputs/<split_type or nothing>/<model>/<cohort>/` | New target (`elev_percentile_95th`) + `yldc` removed from RF/linear. `plot_level`: RF best (R²=0.570) as before. `spatial_block`: RF loses its advantage to linear (R²=0.475 vs 0.512) as before -- same qualitative pattern as the retired pipeline, confirming the rebuild didn't change which baseline "wins" per split, just the absolute numbers. Chapman-Richards fit also fixed a pre-existing degeneracy (y_max was landing exactly on the observed max height under both old and new target) -- lower bound now `max_observed_height * 1.001`. Full reasoning: `progress_notes.md`'s 2026-07-28 entry |
 | `dnn_pinn_epochcheck_2026-07-29` | 2026-07-29 | `spatial_block` | 4survey only, short smoke tests (max 150 epochs, patience 40) | cr_pooled | dnn_noenv, pinn_noenv, 3 PINN weight variants | 4survey only | diagnostic, not a result -- see Findings log | `outputs/spatial_block/{dnn,pinn}_noenv_epochcheck*/4survey/` | Base-case (`W=1.0`) DNN/PINN cluster jobs came back suspiciously fast (~53s, later traced to a missing rsync of `data/processed/transitions/`, fixed). Once fixed: DNN converges normally (val_loss 0.342→0.331 over ~50 epochs, patience stops at 52). PINN never beats its own epoch-1 val_loss at `W=1.0`, `W=0.0`, OR `W=0.05` (best_val_loss ≈ epoch-1's value in all three) -- ruled out physics weight as the cause. Found the real confound: `pinn_noenv.py`'s `BATCH_SIZE=128` vs `dnn_noenv.py`'s `BATCH_SIZE=512`, undocumented, never controlled for. Exposed `--batch-size`/`--pairs-batch-size` as CLI args (previously hardcoded) to test batch-size-matched. Next: rerun `physics_weight=0.0` at `--batch-size 512` on the cluster (see below) to isolate batch size from the physics-weight question properly. |
 | `dnn_pinn_basecase_2026-07-30` (Stage 2) | 2026-07-30 | `spatial_block`, `temporal` | full pipeline, `batch_size=256` both models | cr_pooled | dnn_noenv, pinn_noenv (`physics_weight=trajectory_weight=1.0`, the untested default) | both | primary | `outputs/{spatial_block,temporal}/{dnn_noenv,pinn_noenv_basecase_w1}/<cohort>/` | Real base-case rebuild against the current pipeline (finally superseding the epochcheck smoke tests). Test R²: 4survey spatial_block DNN=0.633 vs PINN(w=1)=0.580; 6survey spatial_block DNN=0.750 vs PINN(w=1)=0.734; 4survey temporal DNN=0.354 vs PINN(w=1)=0.284; 6survey temporal DNN=0.284 vs PINN(w=1)=0.209. DNN beats PINN(w=1) by a real, consistent margin in all 4 cohort×split combinations -- confirms the long-believed "physics constraint hurts at full weight" finding (point 3 in `handover_2026-07-18.md`) survives the full target/yldc/batch-size rebuild, not just true under the retired pipeline. |
@@ -1005,7 +1005,7 @@ different rounds of this session's own decision-making -- not a leak into traini
 flagged elsewhere. The 15-compartment test-set overlap with Codex's notebook, while not
 identical, means the two threads are not fully independent either -- worth keeping in mind if
 the two are later combined into one final reported number.
-**What this means for what's next:** the notebook (`per_plot_growth_curve_story.ipynb`) was
+**What this means for what's next:** the notebook (`av2_per_plot_growth_curve_story.ipynb`) was
 built and executed before this fix and needs re-running with corrected numbers throughout. The
 user is separately planning a broader multi-seed sweep across all of this to get a proper error
 bound on the final result -- this correction is exactly the kind of check that needed to happen
@@ -1047,6 +1047,39 @@ real, valuable `broad_environmental_check.py` output showing terrain/wind+manage
 R2~0.29-0.32 for 4survey, correctly kept conceptually separate from the environmental-only
 claim -- used `plt.subplots()` before `matplotlib.pyplot` had been imported); moved the import
 to the notebook's first setup cell.
+
+---
+
+**2026-08-04 — Q: What's the real error bound on the 5-fold spatial CV headline R2, across
+different CV fold-assignment seeds (not just one fixed partition)? — a clean, decisive result:
+4survey is positive in all 16 seed x method combinations (R2 0.066-0.141); 6survey's mean sits
+almost exactly on zero across 8 independent partitions.**
+**What I found:** Built `models/growth_curve_attribution/run_cv_seed_sweep.py` -- re-runs the
+full 5-fold spatial CV design (not the older single-split seed sweep) under 8 different
+fold-assignment seeds (42-49), both cohorts, both methods, on the current verified code state:
+
+| Cohort | Method | Mean | Std | Min | Max |
+|---|---|---|---|---|---|
+| 4survey | Elastic Net | 0.116 | 0.023 | 0.077 | 0.138 |
+| 4survey | XGBoost | 0.105 | 0.027 | 0.066 | 0.141 |
+| 6survey | Elastic Net | -0.002 | 0.034 | -0.050 | 0.044 |
+| 6survey | XGBoost | -0.002 | 0.024 | -0.028 | 0.036 |
+
+**What's working:** every one of the 16 4survey seed x method results is positive -- this is now
+the most robust confirmation of the signal in the whole investigation, an actual error bound
+(mean +/- std across independent CV partitions) rather than a single point estimate. 6survey's
+mean landing almost exactly on zero, straddling positive and negative across 8 partitions, is the
+cleanest possible confirmation of a genuine null result, not an inconclusive one.
+**What's not working / open concern:** Elastic Net's mean (0.116) is now slightly higher than
+XGBoost's (0.105) across this seed sweep too, consistent with the earlier single-seed finding
+that the effect is close to linear and tree-based nonlinearity isn't adding real value.
+**What this means for what's next:** this is a defensible final error bound for the headline
+4survey result (R2 ~0.10-0.12, positive under every tested partition) and confirms 6survey's null
+result with real cross-seed evidence, not just one seed's estimate. Given Elastic Net's edge over
+XGBoost, a linear mixed-effects/hierarchical model with partial pooling across compartments
+(Candidate B, informed by the earlier ICC=0.399 finding) is the best-motivated next model --
+testing whether real compartment structure adds anything beyond the fixed terrain/wind effects,
+not chasing a bigger R2.
 
 ---
 
@@ -1226,7 +1259,7 @@ equally likely -- 1 and 2 together are the best-supported explanation for the br
 (small real signal, wrong model family extracting it); 3 is solid but PINN-specific; 4 is the
 single biggest untried lever, independent of every model-architecture question above it.
 **What's not working / open concern:** `mean_cr_residual` (and everything downstream of it --
-SHAP, permutation importance, the refit ablation, Moran's I, `grouped_category_importance.ipynb`)
+SHAP, permutation importance, the refit ablation, Moran's I, `av1_grouped_category_importance.ipynb`)
 still reads the pooled/leaky CR anchor, never revisited since the PINN's own 2026-08-01 fix --
 independent, small, still open.
 **What this means for what's next:** of everything tried or proposed this session, nothing yet
@@ -1443,7 +1476,7 @@ follow-up -- this entry is the state to resume from.
 on `dnn_env_terrain`/`pinn_env_terrain`: another null result -- rules out "wrong columns" as the
 explanation for the DNN's own regression.**
 **What I found:** `terrain_wind_solid` (the default feature set both env_terrain models use) is
-only 5 of the 16 columns `grouped_category_importance.ipynb`'s terrain+wind category analysis
+only 5 of the 16 columns `av1_grouped_category_importance.ipynb`'s terrain+wind category analysis
 used to establish "terrain/wind correlates with the CR residual" -- raised as an open question
 (is the DNN/PINN simply missing signal the stats notebook already found?). Checked against the
 notebook's own per-variable refit ablation (Section 7.2, `per_variable_refit_ablation`, leak-free
@@ -1541,9 +1574,9 @@ toy model with known coefficients -- both confirmed correct, not bugs.
 **What's working:** fixed `fit_nlme()` to take a `reml` parameter (default `True`, right for its
 own coefficient/p-value reporting use) and `variance_explained_by_fixed_effects()` to force
 `reml=False` on both models it compares -- the correct, textbook fix, not a workaround. Built the
-actual calling code as a real notebook section (`spatial_autocorrelation_terrain.ipynb`'s
+actual calling code as a real notebook section (`av1_spatial_autocorrelation_terrain.ipynb`'s
 Section 3, previously a "not built yet" placeholder), fit on the same train-only spatial-block
-split `grouped_category_importance.ipynb` uses, so this is now reproducible end to end.
+split `av1_grouped_category_importance.ipynb` uses, so this is now reproducible end to end.
 **What's not working / open concern:** the fix changed the headline number materially, not just
 cosmetically -- proportion of compartment variance explained went from 2.04% (buggy REML
 comparison, apparently fit on the full pooled cohort) to 5.02% (correct ML comparison, train-only,
@@ -1588,14 +1621,14 @@ per-variable test built alongside this (`ceh_pedotope`/`ceh_subsurface_drainage`
 `ceh_textural_composition` are unordered class IDs, run through Kruskal-Wallis as if
 continuous -- invalid, mirrors the exact issue `elasticnet_environmental.py` already
 one-hot-encodes these three columns to avoid). Doesn't affect the final terrain/wind feature
-list (none of the three were in it), but the `spatial_autocorrelation_terrain.ipynb` Section 3
+list (none of the three were in it), but the `av1_spatial_autocorrelation_terrain.ipynb` Section 3
 table itself still has this error in it, not yet fixed.
 **What this means for what's next:** confirmed nonlinearity demotes Elastic Net and NLME from
 "attribution evidence" to "how much of this is simple/linear structure" cross-checks only --
 the per-category and per-variable REFIT ablation (assumption-free, works on the nonlinear
 XGBoost fit) is the metric to trust. Built `per_variable_refit_ablation()`
 (`models/xgb_environmental/grouped_analysis.py`) and added it as Section 7.2/7.3 in
-`grouped_category_importance.ipynb`, redirecting the ALE plot from SHAP's top-4 (which
+`av1_grouped_category_importance.ipynb`, redirecting the ALE plot from SHAP's top-4 (which
 included `chelsa_bio12_precip_mm`, individually r2_drop=-0.077 -- SHAP ranked as important a
 variable that actively hurts) to the refit-confirmed list instead. This directly justifies
 `pinn_env_terrain`'s `y_max` needing to be a genuinely flexible sub-network, not a linear
@@ -1608,7 +1641,7 @@ significant coefficients is concrete evidence for why, not just a design prefere
 test-set ground truth into themselves; removed from `ALL_FEATURE_COLUMNS` entirely, not just
 re-flagged.**
 **What I found:** both features are built from every OTHER plot's own real 2023 height within a
-75m radius (`aux_data_resolution_check.ipynb`, `cKDTree.query_ball_point`), computed ONCE on the
+75m radius (`av1_aux_data_resolution_check.ipynb`, `cKDTree.query_ball_point`), computed ONCE on the
 full 71,766-plot set BEFORE any train/val/test split exists. Checked directly whether this
 matters given `spatial_block_split()` holds out whole compartments: for a random sample of
 plots, 93.7% of a plot's own 75m-neighbours share its OWN split; for test-set plots
@@ -1632,7 +1665,7 @@ rather than inference from the R² gap alone.
 **What's not working / open concern:** every environmental-attribution number reported before
 2026-07-31 that used `all_environmental` (XGBoost/SHAP, Elastic Net, grouped permutation
 importance, the Section 7.1 refit ablation, the Moran's I before/after check, the closing
-cross-check table in `grouped_category_importance.ipynb`) was computed WITH this leak present,
+cross-check table in `av1_grouped_category_importance.ipynb`) was computed WITH this leak present,
 and needs re-reading against the fixed numbers below, not cited from before this date.
 **What this means for what's next:** `neighbour_mean_height`/`neighbour_height_differential`
 removed from `FEATURE_PROVENANCE`/`ALL_FEATURE_COLUMNS` (`xgb_environmental.py`) and from
@@ -1640,7 +1673,7 @@ removed from `FEATURE_PROVENANCE`/`ALL_FEATURE_COLUMNS` (`xgb_environmental.py`)
 feature set and `FEATURE_SETS_NEEDING_SHAP` entry removed (`all_environmental` itself is the
 fixed, leak-free set now). `run_xgb_environmental.py`/`run_elasticnet_environmental.py` need
 re-running for `all_environmental` (both cohorts) to regenerate the on-disk outputs under the
-corrected feature set, and `grouped_category_importance.ipynb` needs re-executing so every graph
+corrected feature set, and `av1_grouped_category_importance.ipynb` needs re-executing so every graph
 in it reflects the fix. If a genuine spatial-lag feature is wanted again for `pinn_env_terrain`,
 it needs a split-aware construction (only ever averaging TRAINING-set neighbours' heights, even
 for val/test rows) — not the global pre-split version used here.
@@ -1789,7 +1822,7 @@ years) would cost kept permanently (this machine had 14GB free). Two real bugs f
 along the way: (1) the download initially used `data.ceda.ac.uk`, which silently returns an
 empty 200 response for an authenticated file GET instead of erroring -- `dap.ceda.ac.uk` is the
 host CEDA's own token documentation actually uses; (2) a stale "blocked" placeholder row for
-HadUK-Grid in `aux_data_resolution_check.ipynb` (from before CEDA access was unblocked) was
+HadUK-Grid in `av1_aux_data_resolution_check.ipynb` (from before CEDA access was unblocked) was
 never removed, silently colliding with the real entry's name and only surfacing as a `NaN`
 crash on a genuinely fresh, full top-to-bottom run -- this notebook apparently hadn't had one in
 a while.
@@ -1818,12 +1851,12 @@ higher number.
 **What this means for what's next:** `FEATURE_PROVENANCE`/`CATEGORY_GROUPS` updated
 (`haduk_tas_2021_mean` -> `tas_mean` + new `groundfrost_mean`), `load_plots_for_cohort()`
 generalized to handle any number of cohort-suffixed columns, not just the residual target.
-`grouped_category_importance.ipynb` re-run end to end against the corrected feature set.
+`av1_grouped_category_importance.ipynb` re-run end to end against the corrected feature set.
 
 ---
 
 **2026-07-30 — Restored the predecessor notebook's decisive refit-based ablation for
-`neighbour_spatial_lag`, missing from `grouped_category_importance.ipynb` since it replaced
+`neighbour_spatial_lag`, missing from `av1_grouped_category_importance.ipynb` since it replaced
 `env_variable_importance_RETIRED_2026-07-28.ipynb`.**
 **What I found:** the retired notebook's single most decisive number was a real refit-based R2
 comparison for the neighbour-features category (test R2 0.596 with them in, 0.187 without,
@@ -1841,7 +1874,7 @@ both questions.
 category, more than 4x the next-largest (`stand_structure`, +0.069). Directly confirms the
 predecessor notebook's conclusion, now via the actively-maintained notebook's own methodology
 rather than a retired one.
-**What this means for what's next:** `grouped_category_importance.ipynb` section 7.1 now carries
+**What this means for what's next:** `av1_grouped_category_importance.ipynb` section 7.1 now carries
 this check going forward -- no need to reference the retired notebook for it anymore.
 
 ---
@@ -1871,7 +1904,7 @@ R²=-0.351 (RMSE=3.856), Elastic Net R²=0.096 (RMSE=3.155) -- markedly weaker t
 signal. Any prior "terrain and wind explain X%" claim referencing the old `terrain_and_wind_only`
 numbers needs re-reading against these.
 **What this means for what's next:** the write-up's XGB-A/B/C-equivalent comparison should cite
-these corrected numbers, not the ones from before 2026-07-30. `grouped_category_importance.ipynb`
+these corrected numbers, not the ones from before 2026-07-30. `av1_grouped_category_importance.ipynb`
 (the actively-maintained category-level analysis) was never affected by this bug -- it always read
 `CATEGORY_GROUPS` directly, not `TERRAIN_AND_WIND_COLUMNS`.
 
@@ -2281,7 +2314,7 @@ reason by category.
 (232/47 vs. the familiar 296 (4survey) / 48 (6survey) full-population compartment counts elsewhere
 in this project: same underlying compartment population, not a different dataset — confirmed
 directly by loading `clean_master_4survey.parquet`/`clean_master_6survey.parquet` (296/48 distinct
-`cpmt`, matching `aux_data_resolution_check.ipynb`/`baseline_results.ipynb`) vs.
+`cpmt`, matching `av1_aux_data_resolution_check.ipynb`/`baseline_results.ipynb`) vs.
 `load_filtered_growth_curve_table()` (232/47 distinct `cpmt`). 64 (4survey) / 1 (6survey) whole
 compartments contain zero plots reaching Age>=30 by the 2023 survey and so drop out entirely under
 `filter_data()`'s standard gate — this ICC is computed on the filtered population, same as every
@@ -2527,7 +2560,7 @@ the existing 49-variable `all_environmental` set and the 16-variable `terrain_an
 with Elastic Net and XGBoost. The analysis reads the regenerated environmental table, so it uses
 the corrected inside-polygon sampling coordinates and corrected historical `Thin` values. Added
 the exact forest question and interpretation boundary to
-`notebooks/environmental_data/grouped_category_importance.ipynb`. Compact results were written to
+`notebooks/environmental_data/av1_grouped_category_importance.ipynb`. Compact results were written to
 `outputs/spatial_block_kfold/cr_residual_environmental_spatial_cv.csv`.
 
 | Cohort | Feature set | Elastic Net pooled OOF R2 | XGBoost pooled OOF R2 | evaluated plots / compartments |

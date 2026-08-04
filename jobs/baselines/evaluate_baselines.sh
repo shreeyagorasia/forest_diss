@@ -3,7 +3,7 @@
 # Run on the ICF cluster from the project root:
 #
 #   cd ~/forest_diss
-#   sbatch jobs/baselines/evaluate_baselines.sh [split_type]
+#   sbatch jobs/baselines/evaluate_baselines.sh [split_type] [split_seed] [n_folds] [fold_index]
 #
 # Examples:
 #   sbatch jobs/baselines/evaluate_baselines.sh plot_level
@@ -44,11 +44,16 @@ mkdir -p logs/baselines outputs
 export PYTHONPATH="$(pwd)"
 
 SPLIT_TYPE=${1:-plot_level}
+SPLIT_SEED=${2:-42}
+N_FOLDS=${3:-5}
+FOLD_INDEX=${4:-0}
 
 echo "--- Baseline evaluate job start ---"
 echo "Node: $(hostname)"
 echo "Split type: ${SPLIT_TYPE}"
+echo "K-fold: ${FOLD_INDEX}/${N_FOLDS}"
 
-python -u -m models.baselines.evaluate_baselines --split-type "${SPLIT_TYPE}"
+python -u -m models.baselines.evaluate_baselines --split-type "${SPLIT_TYPE}" \
+  --split-seed "${SPLIT_SEED}" --n-folds "${N_FOLDS}" --fold-index "${FOLD_INDEX}"
 
 echo "--- Baseline evaluate job end ---"

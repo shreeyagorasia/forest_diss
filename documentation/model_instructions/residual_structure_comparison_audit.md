@@ -1,4 +1,4 @@
-# Instructions: Audit + extend `notebooks/model_diagnostics/residual_structure_comparison.ipynb`
+# Instructions: Audit + extend `notebooks/model_diagnostics/av1_residual_structure_comparison.ipynb`
 
 **Status: DRAFT — not yet approved, do not execute.** This is not a new build — it's an audit of
 an existing, uncommitted, actively-being-worked-on notebook (`git status` shows it modified,

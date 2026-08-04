@@ -3,7 +3,7 @@
 # Run on the ICF cluster from the project root:
 #
 #   cd ~/forest_diss
-#   sbatch jobs/dnn_noenv/run_dnn_noenv.sh [cohort] [max_epochs] [patience] [split_type] [seed] [run_name] [batch_size]
+#   sbatch jobs/dnn_noenv/run_dnn_noenv.sh [cohort] [max_epochs] [patience] [split_type] [seed] [run_name] [batch_size] [split_seed] [n_folds] [fold_index]
 #
 # Examples:
 #   sbatch jobs/dnn_noenv/run_dnn_noenv.sh 4survey 5 3
@@ -59,6 +59,9 @@ SPLIT_TYPE=${4:-temporal}
 SEED=${5:-42}
 RUN_NAME=${6:-}
 BATCH_SIZE=${7:-512}
+SPLIT_SEED=${8:-42}
+N_FOLDS=${9:-5}
+FOLD_INDEX=${10:-0}
 
 echo "--- DNN job start ---"
 echo "Node: $(hostname)"
@@ -69,6 +72,8 @@ echo "Split type: ${SPLIT_TYPE}"
 echo "Seed: ${SEED}"
 echo "Run name: ${RUN_NAME:-(none, uses default dnn_noenv path)}"
 echo "Batch size: ${BATCH_SIZE}"
+echo "Split seed: ${SPLIT_SEED}"
+echo "K-fold: ${FOLD_INDEX}/${N_FOLDS}"
 
 RUN_NAME_ARGS=()
 if [ -n "${RUN_NAME}" ]; then
@@ -82,6 +87,9 @@ python -u -m models.dnn_noenv.run_dnn_noenv \
   --split-type "${SPLIT_TYPE}" \
   --seed "${SEED}" \
   --batch-size "${BATCH_SIZE}" \
+  --split-seed "${SPLIT_SEED}" \
+  --n-folds "${N_FOLDS}" \
+  --fold-index "${FOLD_INDEX}" \
   "${RUN_NAME_ARGS[@]}"
 
 echo "--- DNN job end ---"

@@ -3,7 +3,7 @@
 # Run on the ICF cluster from the project root:
 #
 #   cd ~/forest_diss
-#   sbatch jobs/pinn_env_terrain/run_pinn_env_terrain.sh [cohort] [max_epochs] [patience] [split_type] [physics_weight] [trajectory_weight] [run_name] [seed] [batch_size] [feature_set] [dropout_rate]
+#   sbatch jobs/pinn_env_terrain/run_pinn_env_terrain.sh [cohort] [max_epochs] [patience] [split_type] [physics_weight] [trajectory_weight] [run_name] [seed] [batch_size] [feature_set] [dropout_rate] [split_seed] [n_folds] [fold_index]
 #
 # Examples:
 #   sbatch jobs/pinn_env_terrain/run_pinn_env_terrain.sh 4survey 5 3
@@ -83,6 +83,8 @@ BATCH_SIZE=${9:-128}
 FEATURE_SET=${10:-terrain_wind_solid}
 DROPOUT_RATE=${11:-0.0}
 SPLIT_SEED=${12:-42}
+N_FOLDS=${13:-5}
+FOLD_INDEX=${14:-0}
 
 echo "--- PINN env_terrain job start ---"
 echo "Node: $(hostname)"
@@ -98,6 +100,7 @@ echo "Batch size: ${BATCH_SIZE}"
 echo "Feature set: ${FEATURE_SET}"
 echo "Dropout rate: ${DROPOUT_RATE}"
 echo "Split seed: ${SPLIT_SEED}"
+echo "K-fold: ${FOLD_INDEX}/${N_FOLDS}"
 
 RUN_NAME_ARGS=()
 if [ -n "${RUN_NAME}" ]; then
@@ -117,6 +120,8 @@ python -u -m models.pinn_env_terrain.run_pinn_env_terrain \
   --feature-set "${FEATURE_SET}" \
   --dropout-rate "${DROPOUT_RATE}" \
   --split-seed "${SPLIT_SEED}" \
+  --n-folds "${N_FOLDS}" \
+  --fold-index "${FOLD_INDEX}" \
   "${RUN_NAME_ARGS[@]}"
 
 echo "--- PINN env_terrain job end ---"

@@ -24,6 +24,7 @@ from models.chapman_richards.chapman_richards import chapman_richards
 from models.common.data import filter_data, load_cohort_data, load_model_table
 from models.common.metrics import compute_metrics
 from models.common.run_logging import RunTimer, format_error, write_run_log, write_started_marker
+from models.common.splits import DEFAULT_K_FOLDS
 from models.linear_baseline.linear_baseline import predict as predict_linear_baseline
 from models.rf_baseline.rf_baseline import load_model as load_rf_model
 from models.rf_baseline.rf_baseline import predict as predict_rf_baseline
@@ -185,7 +186,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--split-type",
-        choices=["plot_level", "spatial_block", "temporal", "temporal_narrow_gap"],
+        choices=["plot_level", "spatial_block", "spatial_block_kfold", "temporal", "temporal_narrow_gap"],
         default="plot_level",
         help="Must match whichever split_type run_baselines.py was run with.",
     )
@@ -194,12 +195,22 @@ def main():
         help=f"Must match whichever --maturity-age-min run_baselines.py was run with (default "
              f"{MATURITY_AGE_MIN_DEFAULT}) -- reads the matching '_agemin<N>'-suffixed outputs.",
     )
+    parser.add_argument("--split-seed", type=int, default=SEED)
+    parser.add_argument("--n-folds", type=int, default=DEFAULT_K_FOLDS)
+    parser.add_argument("--fold-index", type=int, default=0)
     args = parser.parse_args()
     split_type = args.split_type
     maturity_age_min = args.maturity_age_min
-    # SEED here always matches run_baselines.py's own default -- this script has no
-    # --split-seed of its own yet, so the suffix can only ever be driven by maturity_age_min.
-    name_suffix = "" if maturity_age_min == MATURITY_AGE_MIN_DEFAULT else f"_agemin{maturity_age_min}"
+    suffix_parts = []
+    if args.split_seed != SEED:
+        suffix_parts.append(f"_splitseed{args.split_seed}")
+    if maturity_age_min != MATURITY_AGE_MIN_DEFAULT:
+        suffix_parts.append(f"_agemin{maturity_age_min}")
+    if split_type == "spatial_block_kfold":
+        if not (0 <= args.fold_index < args.n_folds):
+            raise ValueError(f"--fold-index must be in [0, {args.n_folds}), got {args.fold_index}")
+        suffix_parts.append(f"_fold{args.fold_index}")
+    name_suffix = "".join(suffix_parts)
 
     all_results = {}
     evaluators = {

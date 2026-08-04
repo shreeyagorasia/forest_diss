@@ -105,7 +105,7 @@ ENV_TERRAIN_FEATURE_SETS = {
     ],
     # Added 2026-08-03: NONE of the sets above contain a genuine wind measurement --
     # "terrain_wind_solid"/"extended"/"broad" all use `topex` (generic topographic exposure, any
-    # direction) but never `gwa_wind_speed_10m` (observed wind speed, Global Wind Atlas),
+    # direction) but never `gwa_wind_speed_10m` (modelled wind climatology, Global Wind Atlas),
     # `windward_topex` (exposure specifically to the PREVAILING wind direction), or `whcl`
     # (external, pre-existing Windthrow Hazard Class rating, ordinal 0-6 -- a real forestry
     # wind-damage assessment, not a proxy). A worst-predicted-plot check this session found

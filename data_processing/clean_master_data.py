@@ -134,6 +134,8 @@ def add_export_metrics(exported):
     exported = exported.sort_values(["identification", "LiDAR_year"]).copy()
 
     valid_last_thinning = exported["last_thinn"].gt(0) & exported["last_thinn"].le(exported["LiDAR_year"])
+    # Thin is a per-survey feature: it must not reveal a thinning event that happens later.
+    exported["Thin"] = valid_last_thinning.astype(int)
     exported["time_since_thinning"] = np.where(
         valid_last_thinning, exported["LiDAR_year"] - exported["last_thinn"], np.nan,
     )

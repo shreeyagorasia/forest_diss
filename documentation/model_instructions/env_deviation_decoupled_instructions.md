@@ -3,7 +3,7 @@
 **Status: DRAFT — not yet approved, do not execute.** Written to be reviewed and confirmed before
 any code is written. New folder, never an edit to `dnn_env_terrain`/`pinn_env_terrain` (which stay
 as the reported joint-training baseline this is measured against) or to `xgb_environmental`/
-`grouped_category_importance.ipynb` (which stay as the existing attribution-only pipeline this
+`av1_grouped_category_importance.ipynb` (which stay as the existing attribution-only pipeline this
 extends, not replaces).
 
 ## 0. Why this exists, and how it differs from what's already built (read this first)
@@ -15,7 +15,7 @@ gradient to `y_max`, `pw=1.0` -> real responsiveness but test R2 drops 0.633->0.
 them. Fit the base growth model however it's already fit, then treat "does terrain predict the
 LEFTOVER deviation" as its own separate supervised-learning problem.
 
-**This is not a new idea in this repo -- `xgb_environmental.py`/`grouped_category_importance.ipynb`
+**This is not a new idea in this repo -- `xgb_environmental.py`/`av1_grouped_category_importance.ipynb`
 already predict `mean_cr_residual` from terrain, decoupled from the PINN's joint training, and
 already show real signal (terrain+wind alone: R2=0.162-0.188).** What's actually new here is
 closing three specific, concrete gaps in that existing pipeline, not a new modeling idea:
@@ -126,7 +126,7 @@ can silently drift from the other two. Small, mechanical, no behaviour change.
 
 ## 5. Explicit "don't"s
 
-- Don't reuse or modify `mean_cr_residual`/`aux_data_resolution_check.ipynb`'s existing
+- Don't reuse or modify `mean_cr_residual`/`av1_aux_data_resolution_check.ipynb`'s existing
   computation in place -- it's plot-level/pooled and belongs to the attribution notebook's own
   purpose. Its still-pooled (leaky) CR anchor is a separate, real bug worth its own
   `experiment_log.md` line, independent of this model.

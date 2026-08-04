@@ -3,7 +3,7 @@
 # Run on the ICF cluster from the project root:
 #
 #   cd ~/forest_diss
-#   sbatch jobs/pinn_noenv/run_pinn_noenv.sh [cohort] [max_epochs] [patience] [split_type] [physics_weight] [trajectory_weight] [run_name] [seed] [batch_size]
+#   sbatch jobs/pinn_noenv/run_pinn_noenv.sh [cohort] [max_epochs] [patience] [split_type] [physics_weight] [trajectory_weight] [run_name] [seed] [batch_size] [split_seed] [n_folds] [fold_index]
 #
 # Examples:
 #   sbatch jobs/pinn_noenv/run_pinn_noenv.sh 4survey 5 3
@@ -74,6 +74,8 @@ RUN_NAME=${7:-}
 SEED=${8:-42}
 BATCH_SIZE=${9:-128}
 SPLIT_SEED=${10:-42}
+N_FOLDS=${11:-5}
+FOLD_INDEX=${12:-0}
 
 echo "--- PINN job start ---"
 echo "Node: $(hostname)"
@@ -87,6 +89,7 @@ echo "Run name: ${RUN_NAME:-(none, uses default pinn_noenv path)}"
 echo "Seed: ${SEED}"
 echo "Batch size: ${BATCH_SIZE}"
 echo "Split seed: ${SPLIT_SEED}"
+echo "K-fold: ${FOLD_INDEX}/${N_FOLDS}"
 
 RUN_NAME_ARGS=()
 if [ -n "${RUN_NAME}" ]; then
@@ -104,6 +107,8 @@ python -u -m models.pinn_noenv.run_pinn_noenv \
   --batch-size "${BATCH_SIZE}" \
   --pairs-batch-size "${BATCH_SIZE}" \
   --split-seed "${SPLIT_SEED}" \
+  --n-folds "${N_FOLDS}" \
+  --fold-index "${FOLD_INDEX}" \
   "${RUN_NAME_ARGS[@]}"
 
 echo "--- PINN job end ---"

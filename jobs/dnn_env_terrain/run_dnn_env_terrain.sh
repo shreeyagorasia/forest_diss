@@ -3,7 +3,7 @@
 # Run on the ICF cluster from the project root:
 #
 #   cd ~/forest_diss
-#   sbatch jobs/dnn_env_terrain/run_dnn_env_terrain.sh [cohort] [max_epochs] [patience] [split_type] [seed] [run_name] [batch_size] [feature_set] [dropout_rate]
+#   sbatch jobs/dnn_env_terrain/run_dnn_env_terrain.sh [cohort] [max_epochs] [patience] [split_type] [seed] [run_name] [batch_size] [feature_set] [dropout_rate] [split_seed] [n_folds] [fold_index]
 #
 # Examples:
 #   sbatch jobs/dnn_env_terrain/run_dnn_env_terrain.sh 4survey 5 3
@@ -69,6 +69,9 @@ RUN_NAME=${6:-}
 BATCH_SIZE=${7:-512}
 FEATURE_SET=${8:-terrain_wind_solid}
 DROPOUT_RATE=${9:-0.0}
+SPLIT_SEED=${10:-42}
+N_FOLDS=${11:-5}
+FOLD_INDEX=${12:-0}
 
 echo "--- DNN env_terrain job start ---"
 echo "Node: $(hostname)"
@@ -81,6 +84,8 @@ echo "Run name: ${RUN_NAME:-(none, uses default dnn_env_terrain path)}"
 echo "Batch size: ${BATCH_SIZE}"
 echo "Feature set: ${FEATURE_SET}"
 echo "Dropout rate: ${DROPOUT_RATE}"
+echo "Split seed: ${SPLIT_SEED}"
+echo "K-fold: ${FOLD_INDEX}/${N_FOLDS}"
 
 RUN_NAME_ARGS=()
 if [ -n "${RUN_NAME}" ]; then
@@ -96,6 +101,9 @@ python -u -m models.dnn_env_terrain.run_dnn_env_terrain \
   --batch-size "${BATCH_SIZE}" \
   --feature-set "${FEATURE_SET}" \
   --dropout-rate "${DROPOUT_RATE}" \
+  --split-seed "${SPLIT_SEED}" \
+  --n-folds "${N_FOLDS}" \
+  --fold-index "${FOLD_INDEX}" \
   "${RUN_NAME_ARGS[@]}"
 
 echo "--- DNN env_terrain job end ---"

@@ -42,12 +42,12 @@ notebooks/    # restructured 22 July 2026 from three separate top-level notebook
 │   └── lidar_years_all_data_understanding.ipynb
 ├── environmental_data/
 │   ├── environmental_data_sources_survey_SUPERSEDED_2026-07-30.ipynb   # Tier 1 data-source survey, see section below
-│   ├── aux_data_resolution_check.ipynb           # empirical re-check of every source (real
+│   ├── av1_aux_data_resolution_check.ipynb           # empirical re-check of every source (real
 │   │                                              # extraction + statistical screen), see below
 │   └── figures/   # aux_data_resolution_check_results.csv lives here now
 ├── spatial_analysis/
 │   ├── spatial_temporal_split_visualisation.ipynb # maps/visualises the three split types
-│   └── spatial_autocorrelation_terrain.ipynb      # built 22 July 2026 -- Moran's I + semivariogram
+│   └── av1_spatial_autocorrelation_terrain.ipynb      # built 22 July 2026 -- Moran's I + semivariogram
 │                                                   # done (section 1); SHAP/NLME/GWR terrain
 │                                                   # attribution (section 2) blocked on the
 │                                                   # per-plot feature extraction step, not built yet
@@ -296,7 +296,7 @@ access/resolution tests, not per-plot extraction yet (that's step 3, next).
   1-2 timeline; this is currently the blocking step for the "wind" side of Env-PINN v3).
 - **HadUK-Grid, ERA5-Land, CEH soil, James Hutton soil map** — **correction, superseded below.**
   This line originally said these were ruled out on resolution grounds without live-testing them.
-  That was wrong — see `aux_data_resolution_check.ipynb` below, which actually extracted and
+  That was wrong — see `av1_aux_data_resolution_check.ipynb` below, which actually extracted and
   statistically screened all four (plus more) and found real, significant plot-level structure in
   most of them. Left here so the correction is visible, not silently dropped.
 
@@ -308,7 +308,7 @@ were implemented) but have no real code yet — blocked on this extraction step.
 
 ***
 
-## Environmental data sources, re-checked empirically (21 July 2026, `aux_data_resolution_check.ipynb`)
+## Environmental data sources, re-checked empirically (21 July 2026, `av1_aux_data_resolution_check.ipynb`)
 
 Settles the "resolution label alone" problem above with real extraction + a statistical screen
 (CV, variogram range, Moran's I, within/between-compartment ICC, Spearman vs. the CR residual) on
@@ -330,7 +330,7 @@ ERA5-Land and AlphaEarth. Neither is excluded for access reasons anymore:
   averaged across all 6 survey years, cohort-aware (`models/common/download_haduk_multi_year.py`),
   and `tas`'s correlation held up under the real multi-year check (Spearman 0.273, 4survey).
   HadUK-Grid has moved from "held back" to "in the main feature set" — see
-  `aux_data_resolution_check.ipynb`'s HadUK-Grid section and `handover_2026-07-18.md` for the
+  `av1_aux_data_resolution_check.ipynb`'s HadUK-Grid section and `handover_2026-07-18.md` for the
   full numbers. Left the original line above unedited so the correction is visible, not silently
   dropped, per this doc's own convention just above.
 - **ERA5-Land**: real (~11.1km resolution via GEE, `ECMWF/ERA5_LAND/MONTHLY_AGGR`), but weak
@@ -356,7 +356,7 @@ driver. Needs a with/without SHAP check before use, not optional.
 (Spearman +0.093) is **entirely explained by elevation** — controlling for elevation drops it to
 -0.001 (p=0.804, not significant). (2026-07-30: corrected to match the notebook's actual printed
 output -- this entry previously said 0.098/0.001/0.836, copied from a markdown cell in
-`aux_data_resolution_check.ipynb` that itself didn't match its own cell's real output, now also
+`av1_aux_data_resolution_check.ipynb` that itself didn't match its own cell's real output, now also
 fixed.) Global Wind Atlas wind speed keeps about half its signal after
 the same control (-0.206 raw -> -0.091 elevation-controlled, still p<0.001). A windward-only
 (south-west-facing, Scotland's prevailing wind) variant of TOPEX was also built and tested — no
@@ -468,7 +468,7 @@ into a shared `spatial_plot.py` utility so this decision only gets made once.
 ## Spatial attribution: `models/spatial_attribution/` built, steps 1-2 done (22-23 July 2026)
 
 New branch: `spatial_attribution`. New folder `models/spatial_attribution/` holds the real,
-reusable code — the notebook (`notebooks/spatial_analysis/spatial_autocorrelation_terrain.ipynb`)
+reusable code — the notebook (`notebooks/spatial_analysis/av1_spatial_autocorrelation_terrain.ipynb`)
 only calls it and adds plots, per the user's explicit "keep plotting logic in the notebook, not
 the module" correction this session.
 
@@ -558,14 +558,14 @@ explained" claim against this smaller baseline, not CR's.
 1. Build val-residual generation (CR first — trivial; DNN/PINN need checkpoint+scaler reload).
 2. Extract terrain/wind covariates into a clean, reusable per-plot table (Tier 1 step 3 — still
    the biggest remaining blocker, not done yet despite the exploratory work in
-   `aux_data_resolution_check.ipynb`).
+   `av1_aux_data_resolution_check.ipynb`).
 3. Run XGBoost + SHAP for real, on validation residuals + real covariates.
 4. Build `pinn_env_terrain` using whatever SHAP confirms is worth conditioning on.
 
 **Open question, not yet answered**: have we done *enough* testing to know which variables to
 include? No — not yet. Steps 1-2 above only establish THAT real spatial structure exists (the
 gate); no actual covariate has been tested against the residual with a proper multivariate method
-yet. `aux_data_resolution_check.ipynb`'s Spearman correlations are useful exploratory signal
+yet. `av1_aux_data_resolution_check.ipynb`'s Spearman correlations are useful exploratory signal
 (HadUK-Grid strongest at 0.291, TOPEX's correlation with residual vanishing once elevation is
 controlled for, GWA keeping about half its signal) but are univariate, not the real screening
 step — that's what Step 3 (SHAP) is for, still to come.
@@ -784,7 +784,7 @@ numbers preserved here:
 
 ## Environmental attribution, Tier 2: XGBoost/SHAP, Elastic Net, grouped category analysis (28 July 2026)
 
-**Tier 1 additions to `aux_data_resolution_check.ipynb`** since the 21 July entry above: added
+**Tier 1 additions to `av1_aux_data_resolution_check.ipynb`** since the 21 July entry above: added
 CEH TWI/subsurface_drainage/textural_composition and CHELSA gdd5/bio12 (found while answering the
 notebook's own embedded "QUESTIONS I HAVE" cells — these map onto data already downloaded but
 unused). Corrected an earlier mistake: HadUK-Grid and ERA5-Land were nearly excluded TOGETHER as
@@ -837,7 +837,7 @@ encoded (feeding a class ID into a linear model would assume a fake ordering); r
 missing feature are dropped (XGBoost handles NaN natively, Elastic Net cannot, <1% of rows
 affected).
 
-**Grouped category analysis, new notebook: `notebooks/environmental_data/grouped_category_importance.ipynb`**
+**Grouped category analysis, new notebook: `notebooks/environmental_data/av1_grouped_category_importance.ipynb`**
 — supersedes `env_variable_importance_RETIRED_2026-07-28.ipynb` (retired, note added at its own top, left
 unmaintained not deleted). Domain categories (not the same as the earlier correlation-based
 clusters): terrain, wind, soil/site, climate, spatial position/edge effects
@@ -878,7 +878,7 @@ apparent skill (test R² 0.598→0.321 4survey, 0.327→−0.337 6survey, per th
 `all_environmental_no_neighbour` ablation) — not because it was a genuinely powerful
 environmental driver. Every number in this section computed before 2026-07-31 needs re-reading
 against the fixed numbers (`experiment_log.md`'s 2026-07-31 entry, and the re-run
-`grouped_category_importance.ipynb`), not cited as-is. Checked every other feature in
+`av1_grouped_category_importance.ipynb`), not cited as-is. Checked every other feature in
 `ALL_FEATURE_COLUMNS` for the same construction pattern (an aggregate of other plots' own
 height/growth, computed pre-split) — none share it.
 
@@ -913,7 +913,7 @@ GPKG and clean master rather than guessing, and found four real, previously-unus
 `models/common/export_compartment_boundaries.py` generalized to dissolve at all three scales
 (compartment/sub-compartment/block) in one script; `models/common/geo.py` gained
 `load_subcompartment_boundaries()`/`load_block_boundaries()` alongside the existing
-`load_compartment_boundaries()`. All four added to `aux_data_resolution_check.ipynb` (extraction
+`load_compartment_boundaries()`. All four added to `av1_aux_data_resolution_check.ipynb` (extraction
 + `screen_covariate()` + trust-score entries) and to `xgb_environmental.py`'s
 `FEATURE_PROVENANCE`/`spatial_position_edge_effects` category — the unified feature set is now
 39 variables (was 35).
@@ -929,7 +929,7 @@ suspicious jump that turned out to be circular with the target).
 
 **Two decisions triggered a full, systematic rebuild rather than a quick patch.**
 
-**1. `yldc` removed as a feature everywhere.** While reviewing `grouped_category_importance.ipynb`,
+**1. `yldc` removed as a feature everywhere.** While reviewing `av1_grouped_category_importance.ipynb`,
 asked whether `yldc` (Forestry Commission Yield Class) might be circular with the height target,
 the way `Age` was found to be earlier this session. Researched how General Yield Class is
 actually calculated (Edwards & Christie 1981, Forest Research Booklet 48): a deterministic
@@ -1084,7 +1084,7 @@ target/no-`yldc` pipeline.** Removed `yldc` from `xgb_environmental.py`'s `FEATU
 and `grouped_analysis.py`'s `CATEGORY_GROUPS` (`stand_structure`) — confirmed via grep, nothing
 else in either package or `elasticnet_environmental/` still referenced `yldc` or `Top_Height99`.
 
-Before re-running, had to recover `aux_data_resolution_check.ipynb`'s re-execution from a real
+Before re-running, had to recover `av1_aux_data_resolution_check.ipynb`'s re-execution from a real
 hang: the earlier plain `jupyter nbconvert --execute --inplace` background run had been running
 13 hours with only 30 seconds of CPU time used — silently stuck, not slow (confirmed via `ps`
 elapsed-vs-CPU-time and zero file writes the whole time). Root cause not conclusively identified
@@ -1097,20 +1097,20 @@ silently for half a day. Re-ran cleanly (98/98 cells, ~14 minutes total, longest
 37s). This driver script is worth reusing for any future notebook re-execution in this repo,
 plain `nbconvert --execute` no longer trusted at face value for anything long-running.
 
-Also discovered mid-recovery: both `aux_data_resolution_check.ipynb` and
-`grouped_category_importance.ipynb` were open in **live Jupyter browser sessions** while being
+Also discovered mid-recovery: both `av1_aux_data_resolution_check.ipynb` and
+`av1_grouped_category_importance.ipynb` were open in **live Jupyter browser sessions** while being
 re-executed on disk — a real risk (an earlier session's note on the cleaning notebook already
 flagged this exact race: a live tab's autosave can silently overwrite a fresh execution with
-stale in-memory state). For `aux_data_resolution_check.ipynb` the risk was already taken (executed
+stale in-memory state). For `av1_aux_data_resolution_check.ipynb` the risk was already taken (executed
 in place); flagged to the user to reload/close that tab rather than save over it. For
-`grouped_category_importance.ipynb`, used the safer pattern instead: copied to a temp file in the
+`av1_grouped_category_importance.ipynb`, used the safer pattern instead: copied to a temp file in the
 same directory, executed the temp copy, verified it, then moved it over the original only after
 confirming success — never executed the live file directly.
 
 **Results** (`xgb_elasticnet_environmental_2026-07-29` row in `experiment_log.md` has the full
 numbers): re-derived `plot_environmental_features.parquet` (residual now built on
 `elev_percentile_95th`), then `run_xgb_environmental.py` / `run_elasticnet_environmental.py` /
-`grouped_category_importance.ipynb` all re-run cleanly. 4survey `all_environmental`: XGBoost val
+`av1_grouped_category_importance.ipynb` all re-run cleanly. 4survey `all_environmental`: XGBoost val
 R²=0.734/test R²=0.629, Elastic Net val R²=0.700/test R²=0.671 — broadly similar shape to the
 retired pipeline's numbers (val/test both around 0.6-0.7), same qualitative story (neighbour
 spatial-lag dominates grouped permutation importance, ~10x every other category; real spatial
@@ -1121,7 +1121,7 @@ R²=0.107 vs test R²=0.398) — the opposite of the usual overfitting direction
 across two independent model types, so probably a real property of which compartments
 `spatial_block_split` assigned to val vs test for the smaller cohort rather than noise in one
 model. Not yet investigated further — flagged for whenever 6survey's environmental story gets
-written up. Every markdown cell in `grouped_category_importance.ipynb` was already written
+written up. Every markdown cell in `av1_grouped_category_importance.ipynb` was already written
 number-agnostic ("how to read this chart", not "X equals Y") — checked and confirmed nothing
 stale needed fixing, satisfying the "check markdown too, not just numbers" standing practice
 without requiring any edits this time.
@@ -1175,7 +1175,7 @@ several `FEATURE_PROVENANCE` entries asking for the actual formula/source rather
 one-line summary, plus a syntax typo (stray `=` after the `soilgrids_ph` line, breaking the whole
 module on import — fixed, clearly accidental, not an intentional edit). Traced every "own
 calculation" feature back to where it's actually computed in
-`aux_data_resolution_check.ipynb` and wrote the real formula into each entry (not guessed):
+`av1_aux_data_resolution_check.ipynb` and wrote the real formula into each entry (not guessed):
 `slope_degrees`/aspect via `np.gradient` on the 50m DTM grid; `northness`/`eastness` = cos/sin of
 that aspect; `profile_curvature`/`plan_curvature` (Zevenbergen & Thorne 1987, sign-validated
 against a synthetic bowl/dome); `tpi` = elevation minus a 100m-window mean

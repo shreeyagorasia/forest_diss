@@ -52,7 +52,7 @@ sweep, architecture-size sweep, feature-set-parity check, scope-matched XGBoost 
 
 ### 2a. Which base columns to engineer from
 
-Use the per-variable refit ablation (`grouped_category_importance.ipynb` Section 7.2,
+Use the per-variable refit ablation (`av1_grouped_category_importance.ipynb` Section 7.2,
 leak-free per the 2026-07-31 fix) to pick columns, not intuition:
 
 | Column | refit r2_drop | Currently in `terrain_wind_solid`? |

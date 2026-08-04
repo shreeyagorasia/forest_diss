@@ -176,9 +176,9 @@ def derive_multiscale_terrain(plots):
     metadata = {
         "source": "OS Terrain 50 cached ASCII tiles",
         "native_pixel_size_metres": pixel_size,
-        "tpi_250m": "plot elevation minus circular-scale proxy moving mean; 250 m radius (11x11 cells)",
-        "tpi_500m": "plot elevation minus circular-scale proxy moving mean; 500 m radius (21x21 cells)",
-        "local_relief_500m": "maximum minus minimum elevation in the same 500 m-radius proxy window",
+        "tpi_250m": "plot elevation minus moving mean in an 11x11-cell square window (about 550m wide)",
+        "tpi_500m": "plot elevation minus moving mean in a 21x21-cell square window (about 1050m wide)",
+        "local_relief_500m": "maximum minus minimum elevation in the same 21x21-cell square window",
     }
     return output, metadata
 

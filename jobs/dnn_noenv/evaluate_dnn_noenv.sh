@@ -3,7 +3,7 @@
 # Run on the ICF cluster from the project root:
 #
 #   cd ~/forest_diss
-#   sbatch jobs/dnn_noenv/evaluate_dnn_noenv.sh [cohort] [split_type]
+#   sbatch jobs/dnn_noenv/evaluate_dnn_noenv.sh [cohort] [split_type] [run_name] [split_seed] [n_folds] [fold_index]
 #
 # Examples:
 #   sbatch jobs/dnn_noenv/evaluate_dnn_noenv.sh 4survey
@@ -48,16 +48,28 @@ export PYTHONPATH="$(pwd)"
 
 COHORT=${1:-}
 SPLIT_TYPE=${2:-temporal}
+RUN_NAME=${3:-}
+SPLIT_SEED=${4:-42}
+N_FOLDS=${5:-5}
+FOLD_INDEX=${6:-0}
 
 echo "--- DNN evaluate job start ---"
 echo "Node: $(hostname)"
 echo "Cohort: ${COHORT:-both}"
 echo "Split type: ${SPLIT_TYPE}"
+echo "K-fold: ${FOLD_INDEX}/${N_FOLDS}"
 
-if [ -n "$COHORT" ]; then
-  python -u -m models.dnn_noenv.evaluate_dnn_noenv --cohort "${COHORT}" --split-type "${SPLIT_TYPE}"
-else
-  python -u -m models.dnn_noenv.evaluate_dnn_noenv --split-type "${SPLIT_TYPE}"
+EXTRA_ARGS=()
+if [ -n "${COHORT}" ]; then
+  EXTRA_ARGS+=(--cohort "${COHORT}")
 fi
+if [ -n "${RUN_NAME}" ]; then
+  EXTRA_ARGS+=(--run-name "${RUN_NAME}")
+fi
+
+python -u -m models.dnn_noenv.evaluate_dnn_noenv \
+  --split-type "${SPLIT_TYPE}" --split-seed "${SPLIT_SEED}" \
+  --n-folds "${N_FOLDS}" --fold-index "${FOLD_INDEX}" \
+  "${EXTRA_ARGS[@]}"
 
 echo "--- DNN evaluate job end ---"

@@ -50,6 +50,8 @@ COHORT=${1:-}
 SPLIT_TYPE=${2:-temporal}
 RUN_NAME=${3:-}
 SPLIT_SEED=${4:-42}
+N_FOLDS=${5:-5}
+FOLD_INDEX=${6:-0}
 
 echo "--- PINN evaluate job start ---"
 echo "Node: $(hostname)"
@@ -57,6 +59,7 @@ echo "Cohort: ${COHORT:-both}"
 echo "Split type: ${SPLIT_TYPE}"
 echo "Run name: ${RUN_NAME:-(none, uses default pinn_noenv path)}"
 echo "Split seed: ${SPLIT_SEED}"
+echo "K-fold: ${FOLD_INDEX}/${N_FOLDS}"
 
 RUN_NAME_ARGS=()
 if [ -n "${RUN_NAME}" ]; then
@@ -71,6 +74,8 @@ fi
 python -u -m models.pinn_noenv.evaluate_pinn_noenv \
   --split-type "${SPLIT_TYPE}" \
   --split-seed "${SPLIT_SEED}" \
+  --n-folds "${N_FOLDS}" \
+  --fold-index "${FOLD_INDEX}" \
   "${COHORT_ARGS[@]}" \
   "${RUN_NAME_ARGS[@]}"
 

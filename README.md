@@ -21,6 +21,11 @@ working towards PINN-based growth modelling.
 The source and generated datasets are not committed to Git because they are too
 large for an ordinary source-code repository.
 
+The modelling cohorts are balanced-panel survivor cohorts, not all Aberfoyle plots: a plot must
+have every required survey, remain Sitka spruce, and pass the planting-year, age and height checks.
+Results therefore describe this retained population rather than harvested, converted, damaged,
+young or incompletely surveyed plots.
+
 Place the source GeoPackage at:
 
 ```text

@@ -34,18 +34,18 @@ FEATURE_PROVENANCE = {
     ),
     "tpi_250m": (
         "own calculation (data_processing/add_environmental_candidates.py, 2026-08-04): elevation "
-        "minus a 250m-radius moving-window mean, same OS Terrain 50 tiles and moving-window method "
+        "minus an 11x11-cell square moving-window mean, same OS Terrain 50 tiles and method "
         "as the existing `tpi` (100m window) above -- a genuinely different spatial scale, not a "
         "duplicate. Read `tpi` and `tpi_250m`/`tpi_500m` together as a multiscale check, not three "
         "independent measurements of different things."
     ),
     "tpi_500m": (
         "own calculation (data_processing/add_environmental_candidates.py, 2026-08-04): same "
-        "method as tpi_250m, 500m-radius window."
+        "method as tpi_250m, using a 21x21-cell square window."
     ),
     "local_relief_500m": (
         "own calculation (data_processing/add_environmental_candidates.py, 2026-08-04): maximum "
-        "minus minimum elevation within the same 500m-radius window used for tpi_500m -- a local "
+        "minus minimum elevation within the same 21x21-cell square window used for tpi_500m -- a local "
         "ruggedness measure, not a directional slope/aspect one."
     ),
     "solar_radiation_index": (

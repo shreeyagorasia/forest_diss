@@ -7,9 +7,9 @@
 #
 # Each plot's geometry is a cell from an adaptive 20m/40m grid (see
 # data_exploration_gpkg's grid generation notes), and that geometry is the
-# same for a plot across every survey year it appears in. So the centroid of
-# that one polygon is exactly the centre of the plot's grid cell, and only
-# needs to be computed once per plot, not once per row.
+# same for a plot across every survey year it appears in. Most are regular
+# grid cells, but border polygons can be irregular, so use one guaranteed
+# interior point per plot rather than assuming every centroid lies inside.
 
 from pathlib import Path
 
@@ -44,9 +44,13 @@ def export_plot_coordinates():
     print(f"  {len(one_row_per_plot):,} unique plots")
 
     centroids = one_row_per_plot.geometry.centroid
+    sample_points = centroids.where(
+        centroids.within(one_row_per_plot.geometry),
+        one_row_per_plot.geometry.representative_point(),
+    )
     coordinates = one_row_per_plot[["identification", "cpmt"]].copy()
-    coordinates["x"] = centroids.x.values
-    coordinates["y"] = centroids.y.values
+    coordinates["x"] = sample_points.x.values
+    coordinates["y"] = sample_points.y.values
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     coordinates.to_csv(OUTPUT_PATH, index=False, compression="gzip")
