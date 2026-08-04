@@ -236,6 +236,48 @@ any-second-knob rather than something k-specific.
 
 ---
 
+**2026-08-04 — Q: does `pinn_env_terrain_k`'s wide learned-k range persist even with y_max
+completely pinned (the council's freeze-one-vary-other ablation) -- yes, almost as wide as the
+full two-parameter model, pointing away from a two-knobs-fighting-each-other explanation.**
+**What I found:** Added a `freeze_y_max` flag to `models/pinn_env_terrain_k/pinn_env_terrain_k.py`
+(`compute_physics_loss`/`compute_trajectory_loss`/`train_one_epoch`/`fit`, threaded via a new
+`--freeze-y-max` CLI flag on `run_pinn_env_terrain_k.py`) -- when set, `y_max_per_row` is pinned
+to the plain global CR constant and `y_max_subnetwork` is never called in the loss computation
+at all, so it receives zero gradient and stays at its random initialisation for the whole run
+(confirmed: its reported "learned_y_max" is then meaningless noise, not a trained value -- only
+`learned_k` is a real result from this variant). Full real run (not a smoke test), 4survey/
+`spatial_block`, seed=42: converged cleanly in 77 epochs (early-stopped, same shape as every
+other healthy run this session). Result: **learned y_max range = 51.96m to 51.96m (numerically
+exact constant, freeze confirmed working)**; **learned k range = 0.009116 to 0.018244** (width
+0.009128) -- compare to the full two-parameter model's own k range, 0.009965 to 0.021879 (width
+0.011914). y_max/k correlation is `+nan` (mathematically correct and expected: correlation with
+a true constant is 0/0-undefined, not a bug).
+**What's working:** the ablation mechanism itself is clean and verifiable -- a numerically exact
+constant y_max (not just "close to constant") proves the sub-network really received zero
+gradient, so this is a genuine single-degree-of-freedom test, not an approximation.
+**What's not working / open concern:** the frozen-k-only model's k-range (0.0091) is ~77% as
+wide as the full model's k-range (0.0119) -- almost as wide, from a SINGLE free parameter per
+plot instead of two. This weakens (does not eliminate) the "two knobs fighting over one true
+degree of freedom" explanation the council's First Principles Thinker and Outsider raised --
+if that were the whole story, pinning y_max should have let k settle into a much NARROWER,
+better-identified range once it no longer had to share ambiguity with a second free parameter.
+It didn't, materially. This is more consistent with either (a) a single per-plot free parameter
+responding to weak/noisy terrain features generally runs this wide regardless of how many knobs
+exist, or (b) genuine terrain-driven variation in growth rate across plots -- this ablation alone
+cannot distinguish those two.
+**What this means for what's next:** combined with the same-day Hessian check (classical fit's
+own y_max/k correlation is extremely negative, -0.99, though a different statistic) and the
+bootstrap CI (the -0.71 correlation is real, not small-sample noise), the weight of evidence
+across all three cheap diagnostics leans toward "this is a real, precise, but hard-to-interpret
+property of fitting Chapman-Richards curves to this dataset's height-age shape with ANY per-plot
+free parameter" rather than a clean architecture bug specific to having two sub-networks. Given
+this, a genuine multi-seed check (5-8 seeds, matching this project's established protocol) is
+now better-motivated than before this ablation -- there's no cheap remaining diagnostic left to
+run before it, and the open question has narrowed from "is this even real" (resolved: yes) to
+"does this exact pattern replicate across seeds," which only multi-seed averaging can answer.
+
+---
+
 **2026-08-03 — Q: can conditioning the Chapman-Richards rate parameter `k` (not just `y_max`) on
 terrain/wind let the PINN express "same ceiling, different timing" -- built `pinn_env_terrain_k`,
 first (single-seed) result shows a real but strongly confounded effect, needs multi-seed checking
