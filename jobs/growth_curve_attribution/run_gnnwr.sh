@@ -28,8 +28,14 @@
 # investigation): GNNWR's spatial-weighting sub-network takes each plot's full distance-to-every-
 # training-plot vector as input, so its first layer's width equals the training set size --
 # roughly 500 million parameters for this project's ~31,000-plot 4survey training set, plus
-# several GB of pairwise distance matrices. That does not fit an 8.6 GB RAM laptop. --mem is set
-# well above this project's other DNN/PINN jobs (16G) for that reason.
+# several GB of pairwise distance matrices. That does not fit an 8.6 GB RAM laptop, and does not
+# fit the cluster's default "generic gpu:1" allocation either (10.57 GiB VRAM -- confirmed by an
+# actual CUDA OOM on the first optimizer step, using ~10.5 GiB). --gres below requests an RTX
+# A6000 (48 GiB VRAM) instead of the generic gres, giving ~4.5x headroom over the estimated need
+# so the FULL training population can be used (no reference-set subsampling, so the result stays
+# directly comparable to every other model in this project). --mem is also set well above this
+# project's other DNN/PINN jobs (16G) for the same reason -- the pairwise distance matrices are
+# several GB of host-side memory too, before anything moves to the GPU.
 #
 # Logs:
 #   stdout -> logs/growth_curve_attribution/gnnwr_<jobid>.out
@@ -49,7 +55,7 @@
 #SBATCH --error=logs/growth_curve_attribution/%x_%j.err
 #SBATCH --time=08:00:00
 #SBATCH --partition=Teaching
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:nvidia_rtx_a6000:1
 #SBATCH --mem=32G
 
 cd ~/forest_diss

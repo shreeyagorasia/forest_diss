@@ -9,15 +9,19 @@
 #   17-feature terrain/wind scope: EN 0.125, XGB 0.117 (outputs/growth_curve_attribution/
 #   broad_environmental_spatial_cv_4survey.csv / terrain_wind_management_comparison.csv).
 #
-# IMPORTANT hardware note (found by reading the installed gnnwr package source directly, not
-# assumed): GNNWR's spatial-weighting sub-network (SWNN) takes each plot's full distance-to-every-
-# reference-point vector as input, so its input layer width equals the size of the reference set
-# (by default, the whole training set). For this project's ~31,000-plot training set that is a
-# first dense layer with roughly 500 million parameters, plus multi-GB pairwise distance
-# matrices -- this does not fit in this laptop's 8.6 GB RAM. It is designed to run on the
-# cluster GPU (see jobs/growth_curve_attribution/run_gnnwr.sh). --subsample-train exists ONLY for
-# a quick local smoke test of the code path on a tiny slice; a subsampled run is not a real result
-# and must never be reported as one.
+# IMPORTANT hardware note (found by reading the installed gnnwr package source directly, then
+# confirmed empirically on the cluster): GNNWR's spatial-weighting sub-network (SWNN) takes each
+# plot's full distance-to-every-reference-point vector as input, so its input layer width equals
+# the size of the reference set (by default, the whole training set). On the cluster's default
+# GPU allocation (10.57 GiB VRAM, the "generic gpu:1" gres), the FULL ~31,000-plot reference set
+# OOM'd on the very first optimizer step (Adagrad's per-parameter state for that one layer alone
+# is ~2 GB, on top of ~2 GB weights and ~2 GB gradients -- roughly matches the observed ~10.5 GiB
+# in use when it died). No batch-size or CUDA-flag tweak fixes this -- the bottleneck is static
+# per-parameter state, not per-batch activations. The fix used here is requesting a GPU with more
+# VRAM (see jobs/growth_curve_attribution/run_gnnwr.sh's --gres line, e.g. an RTX A6000 at 48 GiB
+# or an H200 slice), NOT shrinking the reference set -- this keeps the full training population,
+# so the result stays directly comparable to every other model in this project, which also uses
+# the full population.
 
 from __future__ import annotations
 
