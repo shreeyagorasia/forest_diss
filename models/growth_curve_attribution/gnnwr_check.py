@@ -22,6 +22,18 @@
 # or an H200 slice), NOT shrinking the reference set -- this keeps the full training population,
 # so the result stays directly comparable to every other model in this project, which also uses
 # the full population.
+#
+# SECOND, SEPARATE hardware note: fixing the above surfaced a different, worse bottleneck --
+# gnnwr's DIAGNOSIS class (used only for the per-epoch "Train AIC" progress-bar number) builds a
+# classic-GWR "hat matrix" by tiling the whole training feature matrix against itself, an O(n^2 *
+# n_features) tensor. For our ~31,000-row training set that is 54 GB, which OOM'd even the 48 GiB
+# A6000. Unlike the first bottleneck, more VRAM alone does not comfortably fix this one -- it
+# scales with the SQUARE of the reference-set size, so even the largest cluster GPU (an H200 at
+# 141 GiB) would have little headroom left for everything else running alongside it. This is
+# patched below (see _FastDiagnosis in run_gnnwr()) by skipping that hat-matrix construction for
+# any dataset above HAT_MATRIX_ROW_LIMIT rows -- it is never used for the actual gradient step or
+# for choosing which epoch's model to keep, only for a cosmetic progress-bar number, so this is a
+# free fix, not an approximation of anything that matters for the reported result.
 
 from __future__ import annotations
 
@@ -121,8 +133,56 @@ def run_gnnwr(
 
     _tensorboard_module.SummaryWriter = _NoOpSummaryWriter
 
+    import torch
+
     from gnnwr.datasets import init_dataset_split
+    import gnnwr.models as _gnnwr_models
     from gnnwr.models import GNNWR
+    from gnnwr.utils import DIAGNOSIS as _RealDiagnosis
+
+    # WORKAROUND (2026-08-04, found on the cluster): gnnwr's DIAGNOSIS class (used for the
+    # per-epoch "Train AIC" progress-bar number, and rebuilt once more for the final train/valid/
+    # test report) computes a classic-GWR "hat matrix" by literally tiling the whole feature
+    # matrix against itself: `x_data.repeat(n, 1)` where n is the number of rows passed in. For
+    # our ~31,000-row training set that is a (31000 x 31000 x n_features) tensor -- 54 GB for the
+    # 17-feature scope -- which OOM'd even on the cluster's 48 GiB A6000. This computation is
+    # NOT used for the actual gradient step or for choosing which epoch's model to keep (that is
+    # driven by validation R2, computed separately on the much smaller ~11,600-row validation
+    # set) -- it only feeds cosmetic AIC/F-test numbers. So for any dataset bigger than
+    # HAT_MATRIX_ROW_LIMIT (val/test, at ~11,600 rows each, comfortably stay under it and get the
+    # REAL, unpatched computation -- only the full training set is ever large enough to trip
+    # this), skip building the hat matrix and approximate its "effective degrees of freedom"
+    # (self.__S) with the plain feature count k, the same approximation ordinary (non-spatially-
+    # weighted) regression uses. R2/RMSE/Adjust_R2 do not depend on the hat matrix at all and stay
+    # exact either way. F1/F2/F3 (which DO need the hat matrix) are never called on the training
+    # set anywhere in gnnwr -- only on the small test set in the final result() report, which
+    # always uses the real, unpatched class.
+    HAT_MATRIX_ROW_LIMIT = 20_000
+
+    class _FastDiagnosis(_RealDiagnosis):
+        def __init__(self, weight, x_data, y_data, y_pred):
+            if len(y_data) <= HAT_MATRIX_ROW_LIMIT:
+                super().__init__(weight, x_data, y_data, y_pred)
+                return
+            # Same cheap bookkeeping the real class does, using its own private attribute names
+            # (Python name-mangles them to _DIAGNOSIS__x on any subclass) so the inherited
+            # R2()/RMSE()/Adjust_R2()/AIC()/AICc() methods keep working unchanged.
+            k = x_data.shape[1]
+            self.__dict__["_DIAGNOSIS__weight"] = weight.clone()
+            self.__dict__["_DIAGNOSIS__x_data"] = x_data.clone()
+            self.__dict__["_DIAGNOSIS__y_data"] = y_data.clone()
+            self.__dict__["_DIAGNOSIS__y_pred"] = y_pred.clone()
+            self.__dict__["_DIAGNOSIS__n"] = len(y_data)
+            self.__dict__["_DIAGNOSIS__k"] = k
+            self.__dict__["_DIAGNOSIS__residual"] = y_data - y_pred
+            self.__dict__["_DIAGNOSIS__ssr"] = torch.sum((y_pred - y_data) ** 2)
+            self.__dict__["_DIAGNOSIS__S"] = float(k)  # approx effective degrees of freedom
+
+    # Python looks up "DIAGNOSIS" inside gnnwr.models.__train()/__evaluate() from the models
+    # module's own namespace at call time, not at gnnwr.models' own import time -- so patching
+    # this attribute here (after gnnwr.models has already been imported) still takes effect for
+    # every DIAGNOSIS(...) call made from inside that module from now on.
+    _gnnwr_models.DIAGNOSIS = _FastDiagnosis
 
     table, feature_columns = build_scope_table(cohort, scope, split_seed=split_seed)
 
