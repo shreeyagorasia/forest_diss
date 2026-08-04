@@ -1,4 +1,5 @@
 geopandas
+gnnwr==0.1.17
 joblib
 jupyter
 matplotlib
