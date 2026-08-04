@@ -32,6 +32,22 @@ FEATURE_PROVENANCE = {
         "variance identity Var = E[X^2] - E[X]^2 (scipy.ndimage.uniform_filter, much faster than "
         "a literal per-cell std loop)"
     ),
+    "tpi_250m": (
+        "own calculation (data_processing/add_environmental_candidates.py, 2026-08-04): elevation "
+        "minus a 250m-radius moving-window mean, same OS Terrain 50 tiles and moving-window method "
+        "as the existing `tpi` (100m window) above -- a genuinely different spatial scale, not a "
+        "duplicate. Read `tpi` and `tpi_250m`/`tpi_500m` together as a multiscale check, not three "
+        "independent measurements of different things."
+    ),
+    "tpi_500m": (
+        "own calculation (data_processing/add_environmental_candidates.py, 2026-08-04): same "
+        "method as tpi_250m, 500m-radius window."
+    ),
+    "local_relief_500m": (
+        "own calculation (data_processing/add_environmental_candidates.py, 2026-08-04): maximum "
+        "minus minimum elevation within the same 500m-radius window used for tpi_500m -- a local "
+        "ruggedness measure, not a directional slope/aspect one."
+    ),
     "solar_radiation_index": (
         "own calculation: cos(slope)*cos(zenith) + sin(slope)*sin(zenith)*cos(aspect - solar "
         "azimuth), evaluated at solar noon on the summer solstice (declination 23.44 deg, site "
@@ -60,6 +76,50 @@ FEATURE_PROVENANCE = {
     "windward_topex": (
         "own calculation: reuses the same topex() function as topex, restricted to a single "
         "bearing (225 degrees / south-west, Scotland's prevailing wind direction), same 1000m radius"
+    ),
+    "gwa_weibull_a_10m": (
+        "external (Global Wind Atlas GBR national Weibull-A raster, 10m height, cropped to a 5km "
+        "buffer around Aberfoyle by data_processing/add_environmental_candidates.py, 2026-08-04). "
+        "A DIFFERENT source/product to the existing gwa_wind_speed_10m above (that one is the GWA "
+        "REST API's mean-wind endpoint; this is the raw national Weibull-scale raster) -- both "
+        "describe 10m wind but are not guaranteed to agree exactly, worth checking their "
+        "correlation before treating both as independent evidence. CAVEAT (2026-08-04, flagged by "
+        "a parallel session's council review of the same 10m/50m GWA family for a different "
+        "target): 10m wind is a SUB-CANOPY measurement -- using it to explain a MATURE canopy's "
+        "wind response is conceptually backwards for this stand. Prefer the 50m columns below (or "
+        "topex/windward_topex/whcl) as the primary wind-exposure variables; keep the 10m columns "
+        "as a comparison, not the headline evidence, until checked."
+    ),
+    "gwa_weibull_k_10m": (
+        "external, same source/script as gwa_weibull_a_10m -- the Weibull shape parameter at 10m."
+    ),
+    "gwa_wind_p95_10m": (
+        "own calculation, DERIVED from gwa_weibull_a_10m and gwa_weibull_k_10m "
+        "(A * [-ln(1-0.95)]^(1/k), data_processing/add_environmental_candidates.py) -- not a third "
+        "independent measurement. Per this notebook's own redundancy rule (grouped_category_"
+        "importance.ipynb cell 45/48), do not read this alongside both Weibull parameters as if "
+        "all three carry separate information."
+    ),
+    "gwa_prob_above_critical_10m": (
+        "own calculation, DERIVED from gwa_weibull_a_10m and gwa_weibull_k_10m "
+        "(exp[-(20 m/s / A)^k], data_processing/add_environmental_candidates.py) -- modelled "
+        "probability of exceeding a 20 m/s screening threshold, not a validated tree-failure "
+        "threshold. Same derived-not-independent caveat as gwa_wind_p95_10m."
+    ),
+    "gwa_wind_speed_50m": (
+        "external (Global Wind Atlas GBR national mean-wind raster, 50m height, same crop/script "
+        "as gwa_weibull_a_10m). A different height level to gwa_wind_speed_10m, not a duplicate, "
+        "but plausibly highly correlated with it -- check before treating both as independent."
+    ),
+    "gwa_weibull_a_50m": "external, same source/script as gwa_weibull_a_10m -- Weibull scale parameter at 50m.",
+    "gwa_weibull_k_50m": "external, same source/script as gwa_weibull_a_10m -- Weibull shape parameter at 50m.",
+    "gwa_wind_p95_50m": (
+        "own calculation, DERIVED from gwa_weibull_a_50m and gwa_weibull_k_50m -- same derivation "
+        "and same not-independent caveat as gwa_wind_p95_10m."
+    ),
+    "gwa_prob_above_critical_50m": (
+        "own calculation, DERIVED from gwa_weibull_a_50m and gwa_weibull_k_50m -- same derivation "
+        "and same not-independent caveat as gwa_prob_above_critical_10m."
     ),
     "dist_to_cpmt_boundary": (
         "own calculation: geometric distance from the plot point to its own compartment "

@@ -14,7 +14,7 @@ import pandas as pd
 from models.common.metrics import compute_metrics
 from models.common.run_logging import RunTimer, format_error, write_run_log, write_started_marker
 from models.common.saving import model_output_dir
-from models.common.splits import SPLIT_SEED
+from models.common.splits import DEFAULT_K_FOLDS, SPLIT_SEED
 from models.common.torch_data import TARGET_COLUMN, build_tensors, build_terrain_tensor, load_split_table_with_terrain, select_device
 from models.pinn_env_terrain.pinn_env_terrain import load_best_model, predict, predict_y_max
 
@@ -22,9 +22,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MODEL_NAME = "pinn_env_terrain"
 
 
-def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED):
+def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED, k_folds=DEFAULT_K_FOLDS, held_out_fold=0):
     output_model_name = run_name if run_name else MODEL_NAME
-    print(f"===== {cohort} ({output_model_name}, {split_type}) — EVALUATE ONLY =====")
+    fold_suffix = f", fold={held_out_fold}/{k_folds}" if split_type == "spatial_block_kfold" else ""
+    print(f"===== {cohort} ({output_model_name}, {split_type}{fold_suffix}) — EVALUATE ONLY =====")
     device = select_device()
     print(f"  Using device: {device}")
 
@@ -35,7 +36,10 @@ def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED):
     )
 
     try:
-        output_dir = model_output_dir(output_model_name, cohort, split_type=split_type)
+        if split_type == "spatial_block_kfold":
+            output_dir = model_output_dir(output_model_name, cohort, f"fold_{held_out_fold}", split_type=split_type)
+        else:
+            output_dir = model_output_dir(output_model_name, cohort, split_type=split_type)
         checkpoints_dir = output_dir / "checkpoints"
         preprocessing_dir = output_dir / "preprocessing"
 
@@ -67,7 +71,8 @@ def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED):
         # any height prediction or metric (predict() never uses global_y_max at all) -- only
         # the reported "learned_y_max" column/anchor print, which a future check comparing the
         # learned y_max map against known terrain effects would rely on being correct.
-        with open(PROJECT_ROOT / "outputs" / split_type / "chapman_richards" / cohort / "params.json") as f:
+        cr_name_suffix = f"_fold{held_out_fold}" if split_type == "spatial_block_kfold" else ""
+        with open(PROJECT_ROOT / "outputs" / split_type / f"chapman_richards{cr_name_suffix}" / cohort / "params.json") as f:
             global_y_max = json.load(f)["y_max"]
 
         model = load_best_model(
@@ -75,7 +80,9 @@ def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED):
             hidden_layer_sizes=hidden_layer_sizes,
         )
 
-        split_df = load_split_table_with_terrain(cohort, split_type, feature_columns, split_seed=split_seed)
+        split_df = load_split_table_with_terrain(
+            cohort, split_type, feature_columns, split_seed=split_seed, k_folds=k_folds, held_out_fold=held_out_fold,
+        )
         test_df = split_df[split_df["split"] == "test"]
 
         age_test, other_test, target_test = build_tensors(
@@ -154,7 +161,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--cohort", choices=["4survey", "6survey"], default=None, help="Omit to run both cohorts.")
     parser.add_argument(
-        "--split-type", choices=["temporal", "spatial_block", "temporal_narrow_gap"], default="temporal"
+        "--split-type",
+        choices=["temporal", "spatial_block", "spatial_block_kfold", "temporal_narrow_gap"],
+        default="temporal",
     )
     parser.add_argument(
         "--run-name", default=None,
@@ -164,13 +173,24 @@ def main():
         "--split-seed", type=int, default=SPLIT_SEED,
         help=f"Must match the --split-seed used when fitting (default {SPLIT_SEED}).",
     )
+    parser.add_argument(
+        "--n-folds", type=int, default=DEFAULT_K_FOLDS,
+        help="Must match --n-folds used when fitting, for --split-type spatial_block_kfold.",
+    )
+    parser.add_argument(
+        "--fold-index", type=int, default=0,
+        help="Must match --fold-index used when fitting, for --split-type spatial_block_kfold.",
+    )
     args = parser.parse_args()
 
     cohorts = [args.cohort] if args.cohort else ["4survey", "6survey"]
 
     all_metrics = {}
     for cohort in cohorts:
-        all_metrics[cohort] = run_for_cohort(cohort, args.split_type, args.run_name, split_seed=args.split_seed)
+        all_metrics[cohort] = run_for_cohort(
+            cohort, args.split_type, args.run_name, split_seed=args.split_seed,
+            k_folds=args.n_folds, held_out_fold=args.fold_index,
+        )
 
     print("===== Summary: test-split metrics =====")
     for cohort, metrics in all_metrics.items():

@@ -15,6 +15,7 @@ from sklearn.preprocessing import StandardScaler
 
 from models.common.data import filter_data, load_model_table
 from models.common.splits import (
+    DEFAULT_K_FOLDS,
     SPATIAL_BLOCK_COL,
     SPATIAL_BUFFER_METRES,
     SPLIT_SEED,
@@ -22,6 +23,7 @@ from models.common.splits import (
     TEMPORAL_YEARS_NARROW_GAP,
     assert_no_split_columns_in_features,
     spatial_block_split,
+    spatial_kfold_split,
     temporal_split,
 )
 
@@ -191,7 +193,7 @@ def select_device():
     return torch.device("cpu")
 
 
-def load_split_table(cohort, split_type, split_seed=SPLIT_SEED):
+def load_split_table(cohort, split_type, split_seed=SPLIT_SEED, k_folds=DEFAULT_K_FOLDS, held_out_fold=0):
     # split_seed=SPLIT_SEED (2026-08-02 addition) keeps every existing call exactly as before --
     # only spatial_block_split's own block-shuffle seed changes when a caller explicitly passes a
     # different value (see run_dnn_noenv.py/run_dnn_env_terrain.py's --split-seed), for the
@@ -239,14 +241,33 @@ def load_split_table(cohort, split_type, split_seed=SPLIT_SEED):
             buffer_distance=SPATIAL_BUFFER_METRES,
             seed=split_seed,
         )
+    elif split_type == "spatial_block_kfold":
+        # A single spatial_block_split() only ever evaluates on one arbitrary ~20% slice of
+        # compartments -- k_folds/held_out_fold rotate which slice is held out, so a full sweep
+        # (held_out_fold=0..k_folds-1) evaluates the WHOLE population instead. split_seed controls
+        # the same underlying compartment shuffle spatial_block_split uses (assign_spatial_folds
+        # inside spatial_kfold_split), so held_out_fold=0 with k_folds=5 is NOT the same partition
+        # as plain "spatial_block" above (2 buckets vs. 5), even at the same seed -- this is a
+        # genuinely different split_type, not an alias.
+        filtered_table["split"] = spatial_kfold_split(
+            filtered_table,
+            block_col=SPATIAL_BLOCK_COL,
+            k=k_folds,
+            held_out_fold=held_out_fold,
+            buffer_distance=SPATIAL_BUFFER_METRES,
+            seed=split_seed,
+        )
     else:
         raise ValueError(f"Unknown split_type: {split_type!r}")
 
     return filtered_table
 
 
-def load_split_table_with_terrain(cohort, split_type, feature_columns, split_seed=SPLIT_SEED):
-    # split_seed passed straight through to load_split_table() -- see that function's own note.
+def load_split_table_with_terrain(
+    cohort, split_type, feature_columns, split_seed=SPLIT_SEED, k_folds=DEFAULT_K_FOLDS, held_out_fold=0,
+):
+    # split_seed/k_folds/held_out_fold passed straight through to load_split_table() -- see that
+    # function's own note.
     #
     # Same as load_split_table() above, plus the chosen terrain/wind feature_columns merged in
     # from the environmental feature export (built by aux_data_resolution_check.ipynb, the same
@@ -258,7 +279,7 @@ def load_split_table_with_terrain(cohort, split_type, feature_columns, split_see
     # pinn_noenv keep working exactly as before -- they never call this one.
     assert_env_terrain_features_disjoint_from_noenv(feature_columns)
 
-    split_df = load_split_table(cohort, split_type, split_seed=split_seed)
+    split_df = load_split_table(cohort, split_type, split_seed=split_seed, k_folds=k_folds, held_out_fold=held_out_fold)
     environmental_features = pd.read_parquet(ENVIRONMENTAL_FEATURES_PATH)
 
     # BUG FIX (2026-08-01): model_table.parquet already carries its own "whcl" column (used

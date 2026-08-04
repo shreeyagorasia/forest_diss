@@ -38,12 +38,14 @@ from models.common.data import filter_data, load_cohort_data, load_model_table
 from models.common.run_logging import RunTimer, format_error, write_run_log, write_started_marker
 from models.common.saving import model_output_dir as output_dir
 from models.common.splits import (
+    DEFAULT_K_FOLDS,
     SPATIAL_BLOCK_COL,
     SPATIAL_BUFFER_METRES,
     TEMPORAL_YEARS,
     TEMPORAL_YEARS_NARROW_GAP,
     plot_level_split,
     spatial_block_split,
+    spatial_kfold_split,
     temporal_split,
 )
 from models.linear_baseline.linear_baseline import fit as fit_linear_baseline
@@ -56,6 +58,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 COHORTS = ["4survey", "6survey"]
 SEED = 42
 
+# filter_data()'s own default -- kept as its own named constant here (not just re-typing "30")
+# so build_split_for_cohort()/run_for_cohort() can compare against it to decide whether a
+# non-default --maturity-age-min needs its own suffixed output path, same pattern as split_seed.
+MATURITY_AGE_MIN_DEFAULT = 30
+
 # None of these four baselines use a GPU -- sklearn/scipy only. Recorded in
 # every log entry anyway for schema consistency with the DNN/PINN logs,
 # where device actually varies (cpu/cuda/mps).
@@ -65,7 +72,10 @@ DEVICE = "cpu"
 PRIOR_CR_PARAMS = {"y_max": 46.1126, "k": 0.01866979, "p": 1.0175}
 
 
-def build_split_for_cohort(cohort, split_type, split_seed=SEED, name_suffix=""):
+def build_split_for_cohort(
+    cohort, split_type, split_seed=SEED, maturity_age_min=MATURITY_AGE_MIN_DEFAULT, name_suffix="",
+    k_folds=DEFAULT_K_FOLDS, held_out_fold=0,
+):
     # The split is computed ONCE per cohort, from the smallest shared table
     # (identification, LiDAR_year, blk, cpmt, Age, yldc, elev_percentile_95th --
     # everything Chapman-Richards and average-by-age need), then saved.
@@ -80,7 +90,7 @@ def build_split_for_cohort(cohort, split_type, split_seed=SEED, name_suffix=""):
     # (see models/common/data.py), so a plot's early rows here can still show
     # Age well under 20 -- that is expected, not a bug.
     df = load_cohort_data(cohort)
-    filtered_df = filter_data(df)
+    filtered_df = filter_data(df, maturity_age_min=maturity_age_min)
 
     if split_type == "plot_level":
         # Returns a three-way train/val/test split (60/20/20). Neither
@@ -120,6 +130,20 @@ def build_split_for_cohort(cohort, split_type, split_seed=SEED, name_suffix=""):
             year_col="LiDAR_year",
             **TEMPORAL_YEARS_NARROW_GAP[cohort],
         )
+    elif split_type == "spatial_block_kfold":
+        # A CR anchor fit on a plain spatial_block split's train set would leak some of THIS
+        # fold's held-out compartments into the "frozen" physics anchor pinn_env_terrain/
+        # pinn_env_terrain_k read -- fitting CR (and, for consistency, the other three baselines)
+        # separately per fold, on that fold's own train set, keeps the anchor genuinely
+        # fold-matched. See models/common/splits.py::spatial_kfold_split() for the fold mechanics.
+        filtered_df["split"] = spatial_kfold_split(
+            filtered_df,
+            block_col=SPATIAL_BLOCK_COL,
+            k=k_folds,
+            held_out_fold=held_out_fold,
+            buffer_distance=SPATIAL_BUFFER_METRES,
+            seed=split_seed,
+        )
     else:
         raise ValueError(f"Unknown split_type: {split_type!r}")
 
@@ -136,12 +160,16 @@ def build_split_for_cohort(cohort, split_type, split_seed=SEED, name_suffix=""):
     return filtered_df, split_assignment
 
 
-def load_train_rows(cohort, table_name, split_assignment):
+def load_train_rows(cohort, table_name, split_assignment, maturity_age_min=MATURITY_AGE_MIN_DEFAULT):
     # Every model reads the same consolidated model_table.parquet now (2026-07-28) --
     # table_name is kept as a parameter purely to label the assertion message below, not to pick
     # a different source file.
+    #
+    # maturity_age_min MUST match whatever build_split_for_cohort() used to build
+    # split_assignment, or the row-count assertion below fails -- run_for_cohort() passes the
+    # same value to both, so this can only drift if a caller bypasses run_for_cohort().
     table = load_model_table(cohort)
-    filtered_table = filter_data(table)
+    filtered_table = filter_data(table, maturity_age_min=maturity_age_min)
 
     merged = filtered_table.merge(split_assignment, on=["identification", "LiDAR_year"], how="inner")
     assert len(merged) == len(filtered_table), (
@@ -152,7 +180,7 @@ def load_train_rows(cohort, table_name, split_assignment):
     return merged[merged["split"] == "train"]
 
 
-def fit_chapman_richards_logged(cohort, split_type, cr_train_df, n_rows_fit, split_seed=SEED, name_suffix=""):
+def fit_chapman_richards_logged(cohort, split_type, cr_train_df, n_rows_fit, split_seed=SEED, maturity_age_min=MATURITY_AGE_MIN_DEFAULT, name_suffix=""):
     # Returns cr_params, or None if the fit failed/didn't converge -- callers
     # already handle a None result (average-by-age and the summary printers
     # skip it gracefully).
@@ -165,7 +193,7 @@ def fit_chapman_richards_logged(cohort, split_type, cr_train_df, n_rows_fit, spl
     # this is the CR-anchor half of that check: pinn_noenv/pinn_env_terrain's own load_cr_params()
     # needs a split-seed-MATCHED anchor to be a valid comparison, not the default-seed one.
     timer = RunTimer().start()
-    hyperparameters = {"seed": SEED, "split_seed": split_seed}
+    hyperparameters = {"seed": SEED, "split_seed": split_seed, "maturity_age_min": maturity_age_min}
     attempt_id = write_started_marker(
         model_name="chapman_richards", cohort=cohort, split_type=split_type, run_phase="fit",
         is_test_run=False, device=DEVICE, hyperparameters=hyperparameters,
@@ -207,9 +235,9 @@ def fit_chapman_richards_logged(cohort, split_type, cr_train_df, n_rows_fit, spl
         return None
 
 
-def fit_average_by_age_logged(cohort, split_type, avg_train_df, n_rows_fit, split_seed=SEED, name_suffix=""):
+def fit_average_by_age_logged(cohort, split_type, avg_train_df, n_rows_fit, split_seed=SEED, maturity_age_min=MATURITY_AGE_MIN_DEFAULT, name_suffix=""):
     timer = RunTimer().start()
-    hyperparameters = {"seed": SEED, "split_seed": split_seed}
+    hyperparameters = {"seed": SEED, "split_seed": split_seed, "maturity_age_min": maturity_age_min}
     attempt_id = write_started_marker(
         model_name="average_by_age", cohort=cohort, split_type=split_type, run_phase="fit",
         is_test_run=False, device=DEVICE, hyperparameters=hyperparameters,
@@ -240,15 +268,15 @@ def fit_average_by_age_logged(cohort, split_type, avg_train_df, n_rows_fit, spli
         return None, None
 
 
-def fit_linear_baseline_logged(cohort, split_type, split_assignment, split_seed=SEED, name_suffix=""):
+def fit_linear_baseline_logged(cohort, split_type, split_assignment, split_seed=SEED, maturity_age_min=MATURITY_AGE_MIN_DEFAULT, name_suffix=""):
     timer = RunTimer().start()
-    hyperparameters = {"seed": SEED, "split_seed": split_seed}
+    hyperparameters = {"seed": SEED, "split_seed": split_seed, "maturity_age_min": maturity_age_min}
     attempt_id = write_started_marker(
         model_name="linear_baseline", cohort=cohort, split_type=split_type, run_phase="fit",
         is_test_run=False, device=DEVICE, hyperparameters=hyperparameters,
     )
     try:
-        linear_train_df = load_train_rows(cohort, "linear_baseline", split_assignment)
+        linear_train_df = load_train_rows(cohort, "linear_baseline", split_assignment, maturity_age_min=maturity_age_min)
         linear_params = fit_linear_baseline(linear_train_df)
         linear_output_path = output_dir(f"linear_baseline{name_suffix}", cohort, "params.json", split_type=split_type)
         save_linear_params(linear_params, cohort, len(linear_train_df), linear_output_path)
@@ -273,15 +301,15 @@ def fit_linear_baseline_logged(cohort, split_type, split_assignment, split_seed=
         print(f"  WARNING: linear baseline fit failed for {cohort}: {error}")
 
 
-def fit_rf_baseline_logged(cohort, split_type, split_assignment, split_seed=SEED, name_suffix=""):
+def fit_rf_baseline_logged(cohort, split_type, split_assignment, split_seed=SEED, maturity_age_min=MATURITY_AGE_MIN_DEFAULT, name_suffix=""):
     timer = RunTimer().start()
-    hyperparameters = {"seed": SEED, "split_seed": split_seed}
+    hyperparameters = {"seed": SEED, "split_seed": split_seed, "maturity_age_min": maturity_age_min}
     attempt_id = write_started_marker(
         model_name="rf_baseline", cohort=cohort, split_type=split_type, run_phase="fit",
         is_test_run=False, device=DEVICE, hyperparameters=hyperparameters,
     )
     try:
-        rf_train_df = load_train_rows(cohort, "rf_baseline", split_assignment)
+        rf_train_df = load_train_rows(cohort, "rf_baseline", split_assignment, maturity_age_min=maturity_age_min)
         rf_model, rf_encoded_column_names = fit_rf_baseline(rf_train_df)
         rf_output_dir = output_dir(f"rf_baseline{name_suffix}", cohort, split_type=split_type)
         rf_model_path = save_rf_model(rf_model, rf_encoded_column_names, cohort, len(rf_train_df), rf_output_dir)
@@ -305,25 +333,52 @@ def fit_rf_baseline_logged(cohort, split_type, split_assignment, split_seed=SEED
         print(f"  WARNING: RF baseline fit failed for {cohort}: {error}")
 
 
-def run_for_cohort(cohort, split_type, split_seed=SEED):
-    # name_suffix: "" for the default split_seed (every existing output stays at its plain
-    # path, zero change); "_splitseed<N>" otherwise, so a robustness-check refit never
-    # overwrites the primary baseline outputs. Same "only non-default gets a suffix"
-    # convention used everywhere else in this repo (e.g. pinn_noenv's physics-weight sweep).
-    name_suffix = "" if split_seed == SEED else f"_splitseed{split_seed}"
-    print(f"===== {cohort} ({split_type}, split_seed={split_seed}) =====")
-    filtered_df, split_assignment = build_split_for_cohort(cohort, split_type, split_seed=split_seed, name_suffix=name_suffix)
+def run_for_cohort(
+    cohort, split_type, split_seed=SEED, maturity_age_min=MATURITY_AGE_MIN_DEFAULT,
+    k_folds=DEFAULT_K_FOLDS, held_out_fold=0,
+):
+    # name_suffix: "" only when split_seed/maturity_age_min are at their defaults AND split_type
+    # isn't spatial_block_kfold -- every existing output then stays at its exact original plain
+    # path, zero change. Each non-default piece appends its own tag ("_splitseed<N>",
+    # "_agemin<N>", "_fold<i>"), same "only non-default gets a suffix" convention already used for
+    # split_seed alone (2026-08-02) -- multiple can be non-default at once, the tags concatenate.
+    # A fold tag is always added under spatial_block_kfold (never omitted), since held_out_fold=0
+    # is still a genuinely different split from every other fold, not a "default" in the same
+    # sense split_seed=SEED is.
+    suffix_parts = []
+    if split_seed != SEED:
+        suffix_parts.append(f"_splitseed{split_seed}")
+    if maturity_age_min != MATURITY_AGE_MIN_DEFAULT:
+        suffix_parts.append(f"_agemin{maturity_age_min}")
+    if split_type == "spatial_block_kfold":
+        suffix_parts.append(f"_fold{held_out_fold}")
+    name_suffix = "".join(suffix_parts)
+
+    print(
+        f"===== {cohort} ({split_type}, split_seed={split_seed}, maturity_age_min={maturity_age_min}"
+        f"{f', fold={held_out_fold}/{k_folds}' if split_type == 'spatial_block_kfold' else ''}) ====="
+    )
+    filtered_df, split_assignment = build_split_for_cohort(
+        cohort, split_type, split_seed=split_seed, maturity_age_min=maturity_age_min, name_suffix=name_suffix,
+        k_folds=k_folds, held_out_fold=held_out_fold,
+    )
     n_rows_fit = int((filtered_df["split"] == "train").sum())
 
     cr_train_df = filtered_df[filtered_df["split"] == "train"]
     avg_train_df = cr_train_df  # average-by-age uses the same age-only table as CR
 
-    cr_params = fit_chapman_richards_logged(cohort, split_type, cr_train_df, n_rows_fit, split_seed=split_seed, name_suffix=name_suffix)
-    lookup_table, fallback_mean_height = fit_average_by_age_logged(
-        cohort, split_type, avg_train_df, n_rows_fit, split_seed=split_seed, name_suffix=name_suffix
+    cr_params = fit_chapman_richards_logged(
+        cohort, split_type, cr_train_df, n_rows_fit, split_seed=split_seed, maturity_age_min=maturity_age_min, name_suffix=name_suffix
     )
-    fit_linear_baseline_logged(cohort, split_type, split_assignment, split_seed=split_seed, name_suffix=name_suffix)
-    fit_rf_baseline_logged(cohort, split_type, split_assignment, split_seed=split_seed, name_suffix=name_suffix)
+    lookup_table, fallback_mean_height = fit_average_by_age_logged(
+        cohort, split_type, avg_train_df, n_rows_fit, split_seed=split_seed, maturity_age_min=maturity_age_min, name_suffix=name_suffix
+    )
+    fit_linear_baseline_logged(
+        cohort, split_type, split_assignment, split_seed=split_seed, maturity_age_min=maturity_age_min, name_suffix=name_suffix
+    )
+    fit_rf_baseline_logged(
+        cohort, split_type, split_assignment, split_seed=split_seed, maturity_age_min=maturity_age_min, name_suffix=name_suffix
+    )
 
     print()
     return cr_params, lookup_table, fallback_mean_height
@@ -375,13 +430,27 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--split-type",
-        choices=["plot_level", "spatial_block", "temporal", "temporal_narrow_gap"],
+        choices=["plot_level", "spatial_block", "spatial_block_kfold", "temporal", "temporal_narrow_gap"],
         default="plot_level",
         help=(
             "plot_level (default, easy/established), spatial_block (harder, "
-            "unseen-compartment test), temporal (predict a real future survey, "
-            "11-year train-to-test gap), or temporal_narrow_gap (same idea, 2-year gap)."
+            "unseen-compartment test), spatial_block_kfold (rotates which compartments are held "
+            "out across --n-folds folds -- use with --fold-index to fit a fold-matched CR anchor "
+            "for pinn_env_terrain/pinn_env_terrain_k's k-fold runs), temporal (predict a real "
+            "future survey, 11-year train-to-test gap), or temporal_narrow_gap (same idea, 2-year "
+            "gap)."
         ),
+    )
+    parser.add_argument(
+        "--n-folds", type=int, default=DEFAULT_K_FOLDS,
+        help=f"Number of folds for --split-type spatial_block_kfold (default {DEFAULT_K_FOLDS}). "
+             "Ignored for every other split type.",
+    )
+    parser.add_argument(
+        "--fold-index", type=int, default=0,
+        help="Which fold to hold out as test, for --split-type spatial_block_kfold (0-indexed, "
+             "must be < --n-folds). Ignored for every other split type. Run once per fold "
+             "(0 .. n-folds-1) to fit a CR anchor matching every fold of the DNN/PINN k-fold sweep.",
     )
     parser.add_argument(
         "--split-seed", type=int, default=SEED,
@@ -392,11 +461,27 @@ def main():
              "pinn_noenv/pinn_env_terrain's load_cr_params() needs a matching CR anchor refit "
              "here before a non-default --split-seed on those models is a valid comparison.",
     )
+    parser.add_argument(
+        "--maturity-age-min", type=int, default=MATURITY_AGE_MIN_DEFAULT,
+        help=f"Passed straight through to filter_data()'s maturity_age_min (default "
+             f"{MATURITY_AGE_MIN_DEFAULT}, every existing baseline output). A plot whose Age at "
+             "the 2023 survey is below this is dropped ENTIRELY (every one of its survey years, "
+             "not just the young one) -- see models/common/data.py::filter_data(). Pass 0 to "
+             "disable the gate and keep every plot regardless of maturity, to check whether this "
+             "filter is helping or hurting model accuracy. Non-default writes to a "
+             "'_agemin<N>'-suffixed path, never overwriting the primary outputs.",
+    )
     args = parser.parse_args()
+
+    if args.split_type == "spatial_block_kfold" and not (0 <= args.fold_index < args.n_folds):
+        raise ValueError(f"--fold-index must be in [0, {args.n_folds}), got {args.fold_index}")
 
     results = {}
     for cohort in COHORTS:
-        results[cohort] = run_for_cohort(cohort, args.split_type, split_seed=args.split_seed)
+        results[cohort] = run_for_cohort(
+            cohort, args.split_type, split_seed=args.split_seed, maturity_age_min=args.maturity_age_min,
+            k_folds=args.n_folds, held_out_fold=args.fold_index,
+        )
 
     print_chapman_richards_summary(results)
     print_average_by_age_summary(results)

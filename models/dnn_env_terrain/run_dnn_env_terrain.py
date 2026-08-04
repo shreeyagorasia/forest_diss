@@ -22,7 +22,7 @@ from models.common.run_logging import (
     write_started_marker,
 )
 from models.common.saving import get_git_commit, model_output_dir
-from models.common.splits import SPLIT_SEED, TEMPORAL_YEARS
+from models.common.splits import DEFAULT_K_FOLDS, SPLIT_SEED, TEMPORAL_YEARS
 from models.common.torch_model import parse_hidden_layer_sizes
 from models.common.torch_data import (
     DEFAULT_ENV_TERRAIN_FEATURE_SET,
@@ -62,9 +62,11 @@ def run_for_cohort(
     cohort, split_type, max_epochs, early_stopping_patience, seed, optimizer_name,
     run_name=None, batch_size=BATCH_SIZE, feature_set_name=DEFAULT_ENV_TERRAIN_FEATURE_SET,
     dropout_rate=0.0, learning_rate=LEARNING_RATE, hidden_layer_sizes=None, split_seed=SPLIT_SEED,
+    k_folds=DEFAULT_K_FOLDS, held_out_fold=0,
 ):
     output_model_name = run_name if run_name else MODEL_NAME
-    print(f"===== {cohort} ({output_model_name}, {split_type}) — FIT ONLY, no test-set evaluation =====")
+    fold_suffix = f", fold={held_out_fold}/{k_folds}" if split_type == "spatial_block_kfold" else ""
+    print(f"===== {cohort} ({output_model_name}, {split_type}{fold_suffix}) — FIT ONLY, no test-set evaluation =====")
 
     is_test_run = max_epochs < TEST_RUN_MAX_EPOCHS_THRESHOLD
     device = select_device()
@@ -102,7 +104,9 @@ def run_for_cohort(
     try:
         # ----- Load and prepare the data -- load_split_table_with_terrain() merges the chosen
         # terrain/wind columns in, on top of load_dnn_noenv's usual no-env table. -----
-        split_df = load_split_table_with_terrain(cohort, split_type, feature_columns, split_seed=split_seed)
+        split_df = load_split_table_with_terrain(
+            cohort, split_type, feature_columns, split_seed=split_seed, k_folds=k_folds, held_out_fold=held_out_fold,
+        )
         train_df = split_df[split_df["split"] == "train"]
         val_df = split_df[split_df["split"] == "val"]
 
@@ -146,7 +150,10 @@ def run_for_cohort(
         )
 
         # ----- Save everything needed to evaluate this model LATER -----
-        output_dir = model_output_dir(output_model_name, cohort, split_type=split_type)
+        if split_type == "spatial_block_kfold":
+            output_dir = model_output_dir(output_model_name, cohort, f"fold_{held_out_fold}", split_type=split_type)
+        else:
+            output_dir = model_output_dir(output_model_name, cohort, split_type=split_type)
         output_dir.mkdir(parents=True, exist_ok=True)
 
         history_df.to_csv(output_dir / "training_history.csv", index=False)
@@ -212,7 +219,19 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--cohort", choices=["4survey", "6survey"], default=None, help="Omit to run both cohorts.")
     parser.add_argument(
-        "--split-type", choices=["temporal", "spatial_block", "temporal_narrow_gap"], default="temporal"
+        "--split-type",
+        choices=["temporal", "spatial_block", "spatial_block_kfold", "temporal_narrow_gap"],
+        default="temporal",
+    )
+    parser.add_argument(
+        "--n-folds", type=int, default=DEFAULT_K_FOLDS,
+        help=f"Number of folds for --split-type spatial_block_kfold (default {DEFAULT_K_FOLDS}). "
+             "Ignored for every other split type.",
+    )
+    parser.add_argument(
+        "--fold-index", type=int, default=0,
+        help="Which fold to hold out as test, for --split-type spatial_block_kfold (0-indexed, "
+             "must be < --n-folds). Ignored for every other split type.",
     )
     parser.add_argument("--max-epochs", type=int, default=DEFAULT_MAX_EPOCHS)
     parser.add_argument("--patience", type=int, default=DEFAULT_EARLY_STOPPING_PATIENCE)
@@ -253,6 +272,9 @@ def main():
     )
     args = parser.parse_args()
 
+    if args.split_type == "spatial_block_kfold" and not (0 <= args.fold_index < args.n_folds):
+        raise ValueError(f"--fold-index must be in [0, {args.n_folds}), got {args.fold_index}")
+
     cohorts = [args.cohort] if args.cohort else ["4survey", "6survey"]
 
     results = {}
@@ -261,7 +283,7 @@ def main():
             cohort, args.split_type, args.max_epochs, args.patience, args.seed, args.optimizer, args.run_name,
             batch_size=args.batch_size, feature_set_name=args.feature_set, dropout_rate=args.dropout_rate,
             learning_rate=args.learning_rate, hidden_layer_sizes=parse_hidden_layer_sizes(args.hidden_layer_sizes),
-            split_seed=args.split_seed,
+            split_seed=args.split_seed, k_folds=args.n_folds, held_out_fold=args.fold_index,
         )
 
     print("===== Summary: best validation loss reached =====")

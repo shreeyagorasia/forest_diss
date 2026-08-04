@@ -13,7 +13,7 @@ def chapman_richards(age, y_max, k, p):
     return y_max * (1 - np.exp(-k * age)) ** p
 
 
-def fit(train_df, age_col="Age", height_col="elev_percentile_95th"):
+def fit(train_df, age_col="Age", height_col="elev_percentile_95th", return_covariance=False):
     # Fit y_max, k and p so the curve matches the training data as closely
     # as possible.
     #
@@ -60,11 +60,12 @@ def fit(train_df, age_col="Age", height_col="elev_percentile_95th"):
     ]
 
     best_params = None
+    best_pcov = None
     best_sum_squared_error = None
 
     for starting_guess in starting_guesses:
         try:
-            fitted_values, _ = curve_fit(
+            fitted_values, covariance = curve_fit(
                 chapman_richards,
                 age_values,
                 height_values,
@@ -82,12 +83,22 @@ def fit(train_df, age_col="Age", height_col="elev_percentile_95th"):
         if best_sum_squared_error is None or sum_squared_error < best_sum_squared_error:
             best_sum_squared_error = sum_squared_error
             best_params = fitted_values
+            best_pcov = covariance
 
     if best_params is None:
         raise RuntimeError("Chapman-Richards fit did not converge for any starting guess.")
 
     y_max, k, p = best_params
-    return {"y_max": float(y_max), "k": float(k), "p": float(p)}
+    params = {"y_max": float(y_max), "k": float(k), "p": float(p)}
+    # return_covariance (2026-08-04 addition, default False): every existing caller
+    # (run_baselines.py) is unaffected -- it never passes this flag, so it keeps getting exactly
+    # the plain params dict it always has. Set True to also get curve_fit's own parameter
+    # covariance matrix (3x3, ordered y_max/k/p, from the WINNING multi-start attempt only) --
+    # built for check_cr_identifiability.py's y_max/k correlation check, not used by the frozen-
+    # anchor path at all.
+    if return_covariance:
+        return params, best_pcov
+    return params
 
 
 def save_params(params, cohort, n_rows_fit, output_path):

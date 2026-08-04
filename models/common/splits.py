@@ -241,6 +241,76 @@ def apply_spatial_buffer(df, split_labels, buffer_distance, coordinates_df):
     return buffered_labels
 
 
+DEFAULT_K_FOLDS = 5
+
+
+def assign_spatial_folds(df, block_col=SPATIAL_BLOCK_COL, k=DEFAULT_K_FOLDS, seed=SPLIT_SEED):
+    # Generalises spatial_block_split's own greedy row-count-balancing idea from 2 buckets
+    # (test/val) to K buckets: shuffle the compartments into a random order, then walk through
+    # them one at a time, always adding the next compartment to whichever fold currently has the
+    # FEWEST rows so far. Compartments range from 1 to 1,300+ rows (see spatial_block_split's own
+    # comment above), so balancing purely by compartment COUNT would leave wildly uneven folds.
+    #
+    # Lifted here (2026-08-04) from models/growth_curve_attribution/spatial_cv_check.py, which
+    # built this first for the Elastic Net/XGBoost terrain-attribution work -- that file now
+    # imports this one instead of keeping its own copy, so there is a single shared
+    # implementation, not two that could silently drift apart.
+    rows_per_block = df.groupby(block_col).size()
+    block_ids = rows_per_block.index.to_numpy().copy()
+    rng = np.random.default_rng(seed)
+    rng.shuffle(block_ids)
+
+    fold_row_counts = np.zeros(k, dtype=int)
+    block_to_fold = {}
+    for block_id in block_ids:
+        fold_index = int(np.argmin(fold_row_counts))
+        block_to_fold[block_id] = fold_index
+        fold_row_counts[fold_index] += rows_per_block[block_id]
+
+    fold_assignment = df[block_col].map(block_to_fold).to_numpy()
+    return fold_assignment, fold_row_counts
+
+
+def spatial_kfold_split(
+    df,
+    block_col=SPATIAL_BLOCK_COL,
+    k=DEFAULT_K_FOLDS,
+    held_out_fold=0,
+    buffer_distance=None,
+    coordinates_df=None,
+    seed=SPLIT_SEED,
+):
+    # One fold of a K-fold spatial cross-validation scheme, in this project's usual train/val/test
+    # shape -- unlike assign_spatial_folds' original caller (spatial_cv_check.py), which only
+    # needs train/test since it doesn't do early stopping, DNN/PINN models need a real val split
+    # too. held_out_fold becomes "test"; the NEXT fold around (wrapping with % k) becomes "val";
+    # everything else is "train". Every compartment lands in "test" exactly once across
+    # held_out_fold=0..k-1 (and in "val" exactly once too, just shifted by one fold), so a full
+    # K-fold sweep evaluates the WHOLE population instead of the one arbitrary ~20% slice a single
+    # spatial_block_split() call holds out -- the precision problem this function exists to fix
+    # (see documentation/experiment_log.md's 2026-08-04 entries for the bootstrap-CI finding that
+    # motivated this).
+    if not (0 <= held_out_fold < k):
+        raise ValueError(f"held_out_fold must be in [0, {k}), got {held_out_fold}")
+
+    fold_assignment, _ = assign_spatial_folds(df, block_col=block_col, k=k, seed=seed)
+    val_fold = (held_out_fold + 1) % k
+
+    split_labels = []
+    for fold in fold_assignment:
+        if fold == held_out_fold:
+            split_labels.append("test")
+        elif fold == val_fold:
+            split_labels.append("val")
+        else:
+            split_labels.append("train")
+
+    if buffer_distance is not None:
+        split_labels = apply_spatial_buffer(df, split_labels, buffer_distance, coordinates_df)
+
+    return split_labels
+
+
 def temporal_split(df, year_col, train_years, test_years, val_years=None):
     # Splits purely by survey year, ignoring block and plot identity
     # completely. The same plot can legitimately appear in both train and

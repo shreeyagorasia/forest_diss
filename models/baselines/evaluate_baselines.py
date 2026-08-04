@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 
 from models.average_by_age.average_by_age import predict as predict_average_by_age
-from models.baselines.run_baselines import output_dir
+from models.baselines.run_baselines import MATURITY_AGE_MIN_DEFAULT, SEED, output_dir
 from models.chapman_richards.chapman_richards import chapman_richards
 from models.common.data import filter_data, load_cohort_data, load_model_table
 from models.common.metrics import compute_metrics
@@ -48,7 +48,7 @@ MIN_ROWS_TO_TRUST_A_BAND = 30
 LARGE_BIAS_METRES = 2.0
 
 
-def load_test_rows(cohort, table_name, split_type):
+def load_test_rows(cohort, table_name, split_type, maturity_age_min=MATURITY_AGE_MIN_DEFAULT, name_suffix=""):
     # Rebuild the same filtered rows used for fitting (filtering is
     # deterministic, so this reproduces the same rows every time), then
     # attach the split labels that were already saved by run_baselines.py —
@@ -66,13 +66,17 @@ def load_test_rows(cohort, table_name, split_type):
     # load_cohort_data() uses for fitting. Every model reads the same consolidated
     # model_table.parquet now (2026-07-28) -- table_name only picks between that trimmed view
     # and the full table, it no longer selects a different source file.
+    #
+    # maturity_age_min/name_suffix MUST match whatever run_baselines.py was actually run with,
+    # or the row-count assertion below fails -- main() builds both the same way run_baselines.py
+    # does, from the same --maturity-age-min value.
     if table_name == "cr_age":
         table = load_cohort_data(cohort)
     else:
         table = load_model_table(cohort)
-    filtered_table = filter_data(table)
+    filtered_table = filter_data(table, maturity_age_min=maturity_age_min)
 
-    split_path = output_dir("splits", cohort, "split_assignment.csv", split_type=split_type)
+    split_path = output_dir(f"splits{name_suffix}", cohort, "split_assignment.csv", split_type=split_type)
     split_assignment = pd.read_csv(split_path)
 
     merged_df = filtered_table.merge(split_assignment, on=["identification", "LiDAR_year"], how="inner")
@@ -84,51 +88,51 @@ def load_test_rows(cohort, table_name, split_type):
     return merged_df[merged_df["split"] == "test"].copy()
 
 
-def evaluate_chapman_richards(cohort, split_type):
-    test_df = load_test_rows(cohort, "cr_age", split_type)
+def evaluate_chapman_richards(cohort, split_type, maturity_age_min=MATURITY_AGE_MIN_DEFAULT, name_suffix=""):
+    test_df = load_test_rows(cohort, "cr_age", split_type, maturity_age_min=maturity_age_min, name_suffix=name_suffix)
 
-    params_path = output_dir("chapman_richards", cohort, "params.json", split_type=split_type)
+    params_path = output_dir(f"chapman_richards{name_suffix}", cohort, "params.json", split_type=split_type)
     with open(params_path) as f:
         params = json.load(f)
 
     predicted_heights = chapman_richards(test_df["Age"].values, params["y_max"], params["k"], params["p"])
-    return build_results("chapman_richards", cohort, test_df, predicted_heights, split_type)
+    return build_results(f"chapman_richards{name_suffix}", cohort, test_df, predicted_heights, split_type)
 
 
-def evaluate_average_by_age(cohort, split_type):
-    test_df = load_test_rows(cohort, "cr_age", split_type)  # same age-only table CR uses
+def evaluate_average_by_age(cohort, split_type, maturity_age_min=MATURITY_AGE_MIN_DEFAULT, name_suffix=""):
+    test_df = load_test_rows(cohort, "cr_age", split_type, maturity_age_min=maturity_age_min, name_suffix=name_suffix)  # same age-only table CR uses
 
-    lookup_path = output_dir("average_by_age", cohort, "lookup.json", split_type=split_type)
+    lookup_path = output_dir(f"average_by_age{name_suffix}", cohort, "lookup.json", split_type=split_type)
     with open(lookup_path) as f:
         lookup_data = json.load(f)
 
     predicted_heights = predict_average_by_age(
         test_df["Age"].values, lookup_data["lookup_table"], lookup_data["fallback_mean_height"]
     )
-    return build_results("average_by_age", cohort, test_df, predicted_heights, split_type)
+    return build_results(f"average_by_age{name_suffix}", cohort, test_df, predicted_heights, split_type)
 
 
-def evaluate_linear_baseline(cohort, split_type):
-    test_df = load_test_rows(cohort, "linear_baseline", split_type)
+def evaluate_linear_baseline(cohort, split_type, maturity_age_min=MATURITY_AGE_MIN_DEFAULT, name_suffix=""):
+    test_df = load_test_rows(cohort, "linear_baseline", split_type, maturity_age_min=maturity_age_min, name_suffix=name_suffix)
 
-    params_path = output_dir("linear_baseline", cohort, "params.json", split_type=split_type)
+    params_path = output_dir(f"linear_baseline{name_suffix}", cohort, "params.json", split_type=split_type)
     with open(params_path) as f:
         params = json.load(f)
 
     predicted_heights = predict_linear_baseline(test_df, params)
-    return build_results("linear_baseline", cohort, test_df, predicted_heights, split_type)
+    return build_results(f"linear_baseline{name_suffix}", cohort, test_df, predicted_heights, split_type)
 
 
-def evaluate_rf_baseline(cohort, split_type):
-    test_df = load_test_rows(cohort, "rf_baseline", split_type)
+def evaluate_rf_baseline(cohort, split_type, maturity_age_min=MATURITY_AGE_MIN_DEFAULT, name_suffix=""):
+    test_df = load_test_rows(cohort, "rf_baseline", split_type, maturity_age_min=maturity_age_min, name_suffix=name_suffix)
 
-    model_dir = output_dir("rf_baseline", cohort, split_type=split_type)
+    model_dir = output_dir(f"rf_baseline{name_suffix}", cohort, split_type=split_type)
     model = load_rf_model(model_dir)
     with open(model_dir / "model_metadata.json") as f:
         metadata = json.load(f)
 
     predicted_heights = predict_rf_baseline(test_df, model, metadata["encoded_column_names"])
-    return build_results("rf_baseline", cohort, test_df, predicted_heights, split_type)
+    return build_results(f"rf_baseline{name_suffix}", cohort, test_df, predicted_heights, split_type)
 
 
 def build_results(model_name, cohort, test_df, predicted_heights, split_type):
@@ -185,8 +189,17 @@ def main():
         default="plot_level",
         help="Must match whichever split_type run_baselines.py was run with.",
     )
+    parser.add_argument(
+        "--maturity-age-min", type=int, default=MATURITY_AGE_MIN_DEFAULT,
+        help=f"Must match whichever --maturity-age-min run_baselines.py was run with (default "
+             f"{MATURITY_AGE_MIN_DEFAULT}) -- reads the matching '_agemin<N>'-suffixed outputs.",
+    )
     args = parser.parse_args()
     split_type = args.split_type
+    maturity_age_min = args.maturity_age_min
+    # SEED here always matches run_baselines.py's own default -- this script has no
+    # --split-seed of its own yet, so the suffix can only ever be driven by maturity_age_min.
+    name_suffix = "" if maturity_age_min == MATURITY_AGE_MIN_DEFAULT else f"_agemin{maturity_age_min}"
 
     all_results = {}
     evaluators = {
@@ -197,33 +210,34 @@ def main():
     }
 
     for cohort in COHORTS:
-        print(f"===== {cohort} ({split_type}) =====")
+        print(f"===== {cohort} ({split_type}, maturity_age_min={maturity_age_min}) =====")
 
         cohort_results = {}
         for model_name in MODEL_NAMES:
+            suffixed_model_name = f"{model_name}{name_suffix}"
             timer = RunTimer().start()
             attempt_id = write_started_marker(
-                model_name=model_name, cohort=cohort, split_type=split_type, run_phase="evaluate",
-                is_test_run=False, device=DEVICE, hyperparameters={},
+                model_name=suffixed_model_name, cohort=cohort, split_type=split_type, run_phase="evaluate",
+                is_test_run=False, device=DEVICE, hyperparameters={"maturity_age_min": maturity_age_min},
             )
             try:
-                metrics = evaluators[model_name](cohort, split_type)
+                metrics = evaluators[model_name](cohort, split_type, maturity_age_min=maturity_age_min, name_suffix=name_suffix)
                 flag_issues(cohort, model_name, metrics)
                 cohort_results[model_name] = metrics
                 write_run_log(
                     attempt_id=attempt_id,
-                    model_name=model_name, cohort=cohort, split_type=split_type, run_phase="evaluate",
+                    model_name=suffixed_model_name, cohort=cohort, split_type=split_type, run_phase="evaluate",
                     status="success", is_test_run=False, device=DEVICE,
-                    hyperparameters={}, metrics=metrics, error=None,
-                    output_dir=output_dir(model_name, cohort, split_type=split_type),
+                    hyperparameters={"maturity_age_min": maturity_age_min}, metrics=metrics, error=None,
+                    output_dir=output_dir(suffixed_model_name, cohort, split_type=split_type),
                     runtime_seconds=timer.elapsed_seconds(),
                 )
             except Exception as error:
                 write_run_log(
                     attempt_id=attempt_id,
-                    model_name=model_name, cohort=cohort, split_type=split_type, run_phase="evaluate",
+                    model_name=suffixed_model_name, cohort=cohort, split_type=split_type, run_phase="evaluate",
                     status="failed", is_test_run=False, device=DEVICE,
-                    hyperparameters={}, metrics=None, error=format_error(error),
+                    hyperparameters={"maturity_age_min": maturity_age_min}, metrics=None, error=format_error(error),
                     output_dir=None, runtime_seconds=timer.elapsed_seconds(),
                 )
                 print(f"  WARNING: evaluation failed for {model_name}/{cohort}/{split_type}: {error}")

@@ -104,13 +104,184 @@ your understanding or your plan — not for every routine run (that's what
 `outputs/run_logs/` and the Experiment table are for). Use this four-part shape every
 time, even in short form:
 
-> **[date] — [one-line headline of the finding].**
+> **[date] — Q: [the question this entry investigates] — [one-line headline of the finding].**
 > **What I found:** the actual result, with numbers.
 > **What's working:** what this confirms is sound / trustworthy.
 > **What's not working / open concern:** what this exposes as a problem, risk, or
 > unanswered question.
 > **What this means for what's next:** the concrete decision or next step this
 > directly caused — this is the line that turns a result into a research narrative.
+
+**Titling rule (added 2026-08-03, user request):** lead every headline with `Q: <question
+being investigated>` before the finding itself. Multiple lines of investigation run in
+parallel in this project (different sessions, different agents) — a question-first title
+lets entries be scanned and grouped by thread even when they land interleaved by date, not
+just read as one continuous chronological narrative.
+
+---
+
+**2026-08-04 — Q: does adding the newer, already-extracted GWA Weibull + multiscale terrain
+candidates (`data_processing/add_environmental_candidates.py`) to `grouped_category_importance
+.ipynb`'s feature set improve or clarify the environmental attribution picture -- no, it exposes a
+multicollinearity instability that needs consolidating before any new ranking is trusted.**
+**What I found:** Added 12 previously-unused-but-already-validated columns (real per-plot
+variance confirmed on disk before adding) to `FEATURE_PROVENANCE`/`ALL_FEATURE_COLUMNS`
+(`xgb_environmental.py`) and `CATEGORY_GROUPS` (`grouped_analysis.py`): GWA Weibull wind
+(`gwa_weibull_a/k_10m`, `gwa_wind_p95_10m`, `gwa_prob_above_critical_10m`, and the 50m
+equivalents) and multiscale terrain (`tpi_250m`, `tpi_500m`, `local_relief_500m`) -- this is
+exactly what the notebook's own "Future wind screen" planning cell (added 2026-08-03) already
+called for, just waiting on the extraction step, which was already done. Re-ran the notebook's
+existing pipeline unchanged (correlation/Elastic Net/XGBoost/permutation/SHAP/ALE/spatial-CV/
+Moran's-I/refit-ablation) against the expanded 49-variable set. Real result: the `wind`
+category's genuine-refit ablation (`r2_drop`) flips from a small positive contribution to
+**-0.076** (now ranked worst of 6 categories, below climate) once all 9 GWA additions sit
+alongside the 4 pre-existing wind columns -- while at the SAME time, one individual wind variable
+(`gwa_wind_speed_10m`) shows the single LARGEST per-variable `r2_drop` (+0.274) of all 49
+variables, a dramatic reversal from its previous near-zero/negative individual score. Both
+numbers can't be telling a coherent "wind matters" story at once -- this is the textbook signature
+of multicollinearity destabilising single-variable ablation while the whole correlated bundle
+nets negative.
+**What's working:** the redundancy the notebook's own cell 45 anticipated ("check GWA A/k_w/mean
+wind/p90/p95 for redundancy... do not put several deterministic transformations of the same two
+parameters into the headline model") is now directly measurable, not hypothetical --
+`gwa_weibull_a_50m`/`gwa_wind_speed_50m`/`gwa_wind_p95_50m` all correlate with `elevation` at
+rho=0.66-0.73, and `tpi_500m` correlates with `topex` at rho=-0.777. A PyALE library bug
+(`IndexError` on a categorical feature, `ceh_pedotope`, that newly qualified for the top-4
+refit-confirmed ALE plot) was caught and worked around with a try/except that skips just that
+one subplot -- doesn't touch any correlation/importance/SHAP number, only a plotting cell.
+**What's not working / open concern:** this independently confirms, on a DIFFERENT target
+(`mean_cr_residual`, not the per-plot growth-curve deviation a parallel session's own council
+reviewed the same GWA bundle for), that raw-adding all 9 GWA columns causes real instability, not
+a clean improvement -- convergent evidence across two different targets/pipelines. `gwa_wind_speed_10m`
+is also flagged (2026-08-04, cross-referenced from that parallel session's council) as
+conceptually backwards for a mature canopy (sub-canopy wind measurement) -- now doubly suspect:
+wrong in principle AND behaving erratically in practice.
+**What this means for what's next:** do NOT treat this run's per-variable refit-ablation ranking
+as final -- the GWA wind bundle needs consolidating (single best representation, or a PCA/VIF-
+based reduction) before re-running, matching what the parallel session's own council on the
+per-plot target already concluded independently. Not re-litigated here to avoid duplicating that
+session's work -- see its own variable-selection conclusions once finalised. `terrain` and
+`spatial_position_edge_effects` remain the two categories every method agrees are genuinely
+useful (`refit_r2_drop` 0.306 and 0.190, ranked 1st/2nd on every one of the four cross-checked
+methods), unaffected by the wind-bundle instability.
+
+---
+
+**2026-08-04 — Q: is `pinn_env_terrain_k`'s -0.71 y_max/k correlation inherited from a known
+classical curve-fitting identifiability property, or something the neural architecture
+introduced -- the classical fit's own correlation is far MORE extreme (-0.99), but it's a
+different statistic, so this doesn't cleanly settle the question either way.**
+**What I found:** Per the `llm-council` review's top-priority diagnostic (see the 2026-08-03
+entry below), added an optional `return_covariance` flag to `models/chapman_richards/
+chapman_richards.py::fit()` (default `False`, zero behaviour change for its one existing caller,
+`run_baselines.py`) that also returns `curve_fit`'s own 3x3 parameter covariance matrix from the
+winning multi-start attempt. New script `models/pinn_env_terrain_k/check_cr_identifiability.py`
+reuses `run_baselines.py`'s own train-split construction (same rows the frozen CR anchor was
+actually fit on) and computes the classical fit's y_max/k correlation from that covariance.
+Result, 4survey/`spatial_block`: classical correlation = **-0.9930** (near-total degeneracy) vs.
+`pinn_env_terrain_k`'s own **-0.7109** (from its existing seed-42 `metrics.json`).
+**What's working:** the diagnostic ran cleanly and cheaply (no cluster time, reuses existing
+fit/split code). It also surfaced a real conceptual point the council's own framing glossed over:
+these are NOT the same statistic. The classical number is a single global fit's OWN parameter-
+estimation-uncertainty correlation (how jointly uncertain the one true y_max/k point estimate
+is); the neural number is a CROSS-SECTIONAL correlation across many different plots' own learned
+per-plot (y_max, k) pairs. They answer different questions and aren't expected to match
+numerically -- an earlier version of this script's automated "READ" line compared them with a
+same-sign/same-magnitude heuristic and produced a confidently wrong verdict ("does not look like
+inheritance") before this was caught and the interpretation corrected.
+**What's not working / open concern:** because the two numbers aren't directly comparable, this
+diagnostic does NOT cleanly resolve the "inherited vs. introduced" question the council posed --
+it can only say the classical fit's own extreme correlation (-0.99, near the -1 boundary) is
+strong INDEPENDENT evidence that y_max and k are hard to identify separately from this dataset's
+height-vs-age shape at all, which makes the neural network hitting a similar ambiguity per plot
+MORE plausible, not less -- but doesn't rule out an architecture-specific cause (two identical
+sub-networks fed identical terrain inputs) either. 6survey's own `pinn_env_terrain_k` comparison
+is still missing -- no checkpoint has been fit for that cohort yet, only 4survey.
+**What this means for what's next:** this diagnostic alone can't distinguish "inherited curve-
+shape ambiguity" from "architecture artefact" -- the freeze-one-vary-other ablation (y_max pinned
+to the global constant, only k learned per plot) is the next, more decisive check, since it
+directly tests whether the wide learned-k range persists even with only one degree of freedom
+per plot, which the population-correlation number here cannot test on its own.
+
+---
+
+**2026-08-04 — Q: is `pinn_env_terrain_k`'s -0.71 y_max/k correlation just noise from a small
+number of held-out compartments -- no, it's real and precise: 95% CI [-0.77, -0.62].**
+**What I found:** Every one of the council's 5 peer reviewers independently flagged the same gap:
+nobody checked whether -0.71 was even statistically distinguishable from noise. New script
+`models/pinn_env_terrain_k/bootstrap_correlation_check.py` reuses the cluster-bootstrap pattern
+already proven in `models/growth_curve_attribution/bootstrap_ci_check.py` (resample whole
+compartments with replacement, not individual plot rows, since plots in the same compartment
+aren't independent) -- deduplicated `predictions.csv` to one row per plot first (learned_y_max/k
+are static per plot, repeated across a plot's own survey-year rows; bootstrapping the long table
+directly would silently over-count multi-survey plots). 4survey/`spatial_block`, 2000 resamples,
+11,739 test plots across 51 compartments: point estimate -0.7109, bootstrap mean -0.7034
+(std=0.0404), **95% CI [-0.7737, -0.6163]** -- 0% of resamples landed on the wrong (positive) sign.
+**What's working:** this closes one of the two remaining open questions from the 2026-08-03
+council review cleanly -- the correlation's sign and rough magnitude are NOT an artefact of a
+small, arbitrary test-compartment sample. Whatever is causing it (curve-shape identifiability,
+architecture, or genuine ecology), it's a real, stable feature of this fit, not noise.
+**What's not working / open concern:** a real, precise correlation still doesn't say WHY it
+exists -- this bootstrap can't distinguish identifiability-artefact from architecture-artefact
+from genuine ecological signal, only that whichever it is, it's not sampling noise. The same-day
+Hessian-covariance check (see the other 2026-08-04 entry) found the classical CR fit's own
+y_max/k correlation is even more extreme (-0.99) but is a different statistic (single-fit
+estimation uncertainty, not cross-plot population correlation) -- still not conclusive on its own.
+**What this means for what's next:** the freeze-one-vary-other ablation (y_max pinned to the
+global constant, only k free per plot) is now the clearly decisive remaining check -- with both
+"is it noise" (no) and "is it inherited from the classical fit" (ambiguous, different statistics)
+answered, only the ablation can directly test whether restricting to ONE free parameter per plot
+still produces an implausibly wide learned-k range, which would point at overparameterisation-of-
+any-second-knob rather than something k-specific.
+
+---
+
+**2026-08-03 — Q: can conditioning the Chapman-Richards rate parameter `k` (not just `y_max`) on
+terrain/wind let the PINN express "same ceiling, different timing" -- built `pinn_env_terrain_k`,
+first (single-seed) result shows a real but strongly confounded effect, needs multi-seed checking
+before any conclusion.**
+**What I found:** Supervisor (Hermann, via email) asked whether an exponent/rate parameter could
+be environment-conditioned, reasoning "trees reach their height eventually but not at the same
+time." Checked the ecological literature before picking a parameter (not guessed): `k` is
+described as scaling absolute growth rate (plausibly site-sensitive); `p` is tied to catabolic/
+allometric scaling theory, typically a fixed biological constant. Built `models/pinn_env_terrain_k/`
+(new folder, no shared code with `pinn_env_terrain` or the unrelated Stage 2 per-plot work in
+`models/growth_curve_attribution/`) -- adds a second small sub-network (reusing `YMaxSubNetwork`)
+outputting a per-plot adjustment to `k`, parameterised multiplicatively in log-space
+(`k_per_row = global_k * exp(k_log_adjustment)`, guarantees positivity) alongside the EXISTING
+`y_max` adjustment; `p` stays global/frozen. This is a real, deliberate departure from
+`pinn_env_terrain`'s own documented citation (Socha et al. 2021's ADA/GADA framework, which
+treats the asymptote as the site-varying parameter), not a bug fix.
+
+First result, seed 42, `spatial_block`/4survey, `pw=tw=1.0` (matching how `pinn_env_terrain`
+itself was first evaluated): test R2=0.5871 vs `pinn_env_terrain`'s 0.5823 at the same
+seed/config vs `dnn_noenv`'s 0.6330. Learned `y_max` range 45.98-52.56m (global anchor 51.96m --
+notably WIDER than `pinn_env_terrain` alone ever showed at this weight). Learned `k` range
+0.009965-0.021879 (global anchor 0.010369). **`y_max`/`k` correlation across test plots: -0.71**
+-- a strong negative correlation, exactly the confound risk flagged when this was designed (a
+lower `k` could be mimicking what should be a lower `y_max`, or vice versa, rather than the two
+being independently meaningful).
+**What's working:** both fit and evaluate scripts run cleanly end to end (smoke-tested before the
+real run), training pattern is healthy (61 epochs, standard early-stopping shape, not degenerate).
+The `y_max`/`k` correlation diagnostic itself works as designed -- it's there specifically to
+catch this kind of confound, and it did.
+**What's not working / open concern:** only ONE seed so far. This project has already found,
+twice this session (`dnn_env_terrain`'s and then `dnn_terrain_wind`/`dnn_broad_legitimate`'s
+terrain-delta), that seed 42 specifically gives a MISLEADING single-seed picture for exactly this
+kind of environment-conditioning question -- averaging across seeds reversed the conclusion both
+times. No conclusion should be drawn from this one seed given that track record. The -0.71
+correlation itself is also not yet interpreted -- could mean the two adjustments are
+uninterpretably substitutable (bad), or could reflect a real, coherent relationship (e.g. faster-
+growing sites plausibly also reaching a lower realised ceiling within the observed age range) --
+not yet distinguished.
+**What this means for what's next:** multi-seed check (matching the now-established 5-8 seed
+protocol) before any interpretation of either the R2 or the confound. User is restarting the
+session to invoke the `llm-council` skill (`.claude/skills/llm-council/SKILL.md`) for an
+independent critical review of this design before proceeding further -- not run yet in this
+session (`Skill` tool returned "Unknown skill", likely added to `.claude/skills/` after this
+session started and not live-reloaded). Resume point for the next session: get the council
+review first, then multi-seed `pinn_env_terrain_k` before treating either number above as a real
+finding.
 
 ---
 
@@ -327,6 +498,454 @@ cleanly; (b) `env_deviation`'s decoupled approach remains well-motivated by poin
 architecture point), independent of whatever explains point 4; (c) the DNN feature-engineering
 instructions doc stays deprioritized, per the 2026-08-02 entry's reasoning, now on a firmer
 evidence base.
+
+---
+
+**2026-08-03 — Q: Does excluding the confidently-clearfell/measurement-inconsistent plots from
+the per-plot y_max fit improve the terrain/wind attribution R2, as expected, or reveal that the
+uncleaned number was inflated by contamination? — the latter: 4survey's R2 roughly HALVES after
+cleaning, the opposite of what cleaning "garbage" data should do.**
+**What I found:** Wired `disturbance_checks.summarize_plot_disturbance_status()` (built on
+Codex's `classify_structural_change_intervals()`) into `scale_comparison_check.
+build_plot_level_table()` -- any plot with at least one `clearfell_like` or
+`measurement_inconsistent` interval is excluded before `fit_y_max_per_plot()` runs (mixing pre-
+and post-event rows into one curve fit is meaningless either way); `ambiguous_disturbance` plots
+are kept, per the earlier decision not to remove possible genuine disturbance signal. Only a
+small fraction of plots are actually excluded (315/56,841 = 0.55% for 4survey, 138/13,473 = 1.0%
+for 6survey). Re-ran the plot-level terrain+wind attribution check (`TERRAIN_AND_WIND_COLUMNS`,
+seed 42, both cohorts):
+
+| Cohort | Cleaning | Elastic Net R2 | XGBoost R2 | Plots excluded |
+|---|---|---|---|---|
+| 4survey | uncleaned | 0.172 | 0.188 | -- |
+| 4survey | cleaned | 0.061 | 0.103 | 315 (0.55%) |
+| 6survey | uncleaned | -0.028 | -0.012 | -- |
+| 6survey | cleaned | -0.032 | -0.013 | 138 (1.0%) |
+
+**What's working:** the exclusion logic itself ran correctly and only touched the intended small
+fraction of plots (confirmed via the printed exclusion count, not assumed) -- 4survey still shows
+a real, positive signal after cleaning (0.06-0.10), not zero, so the core "terrain/wind explains
+something" finding survives, just at a smaller magnitude.
+**What's not working / open concern:** removing under 1% of plots roughly HALVED 4survey's R2 --
+the opposite of the expected direction for removing garbage data, and a large effect for such a
+small excluded fraction. Most likely explanation: felling is not randomly distributed across the
+forest (it follows compartment-level management schedules, which plausibly correlate with
+terrain via access/rotation planning or storm-driven early felling) -- if the pre-cleaning model
+was partly fitting "terrain predicts which plots got felled" rather than "terrain predicts real
+growth deviation," removing those corrupted target values would shrink R2 exactly like this. This
+means the earlier read ("4survey's uncleaned R2=0.17-0.19 matches the established ceiling, looks
+sane") was likely partly an artefact of contamination, not a clean confirmation -- a real revision
+to how that number should be reported. 6survey barely moves either way, reinforcing that its
+weak/negative result is independent of this specific data-quality issue.
+**What this means for what's next:** 0.06-0.10 (4survey) is the more honest current estimate of
+the real terrain/wind effect size on this target, but it hasn't been stress-tested the way the
+uncleaned number was -- a signal this much smaller is more vulnerable to being a single-seed
+result. Re-running the cleaned check across a few split seeds (same seeds already used for the
+uncleaned sweep: 42/43/44/45) is the next concrete step before reporting either number as final.
+
+---
+
+**2026-08-03 — Q: Does the cleaned attribution signal hold up across split seeds the way the
+uncleaned one did, or was 0.06-0.10 itself a single-seed fluke? — it holds up: positive in every
+seed/method combination for 4survey, mean ~0.11-0.13; 6survey stays exactly as messy as before.**
+**What I found:** Re-ran `run_seed_sweep_check.py` (now defaulting to cleaned, since
+`build_plot_level_table()`'s `apply_disturbance_cleaning=True` default took effect), same 4
+seeds as the uncleaned sweep:
+
+| Cohort | Seed | Elastic Net R2 | XGBoost R2 |
+|---|---|---|---|
+| 4survey | 42 | 0.061 | 0.103 |
+| 4survey | 43 | 0.055 | 0.049 |
+| 4survey | 44 | 0.123 | 0.101 |
+| 4survey | 45 | 0.200 | 0.255 |
+| 6survey | 42 | -0.032 | -0.013 |
+| 6survey | 43 | -0.006 | 0.002 |
+| 6survey | 44 | 0.011 | -0.000 |
+| 6survey | 45 | -0.253 | 0.144 |
+
+**What's working:** 4survey's cleaned mean across seeds is 0.110 (Elastic Net) / 0.127
+(XGBoost) -- positive in all 8 cells, confirming this is a real, stable effect, not a one-seed
+artefact, just genuinely smaller than the uncleaned 0.17-0.19 and noisier seed-to-seed (0.05-0.26
+range) than the uncleaned version was.
+**What's not working / open concern:** 6survey reproduces the exact same inconsistent,
+near-zero-in-both-directions pattern found for the uncleaned target (including one seed, 45,
+with opposite signs between Elastic Net (-0.253) and XGBoost (+0.144)) -- cleaning neither fixed
+nor explained 6survey's weak signal, confirming it as a separate, likely sample-size-driven issue
+rather than a data-quality one.
+**What this means for what's next:** the attribution model's honest reportable numbers are now:
+4survey R2~0.11-0.13 (real, stable, but ~35% smaller than first thought before contamination was
+removed), 6survey inconclusive (likely underpowered, not yet resolved). This is a defensible
+place to move on from the data-cleaning question -- next open items are 4survey's shape-misfit
+(problem 1), finalizing the feature representation on this cleaned population, and reconciling
+with Codex's notebook, before any locked-test-set evaluation.
+
+---
+
+**2026-08-04 — Q: Is the per-plot growth-curve attribution avenue (Candidate A) worth continued
+investment, given the effect size has only shrunk under scrutiny (0.17-0.19 -> 0.11-0.13) and
+now matches -- not beats -- every other method tried against a different, invalidated target? —
+ran this whole question through the `llm-council` skill (5 independent advisor personas, peer
+review, chairman synthesis). Near-unanimous verdict: don't build Candidates B/C to chase a bigger
+number; quantify uncertainty on the existing result before writing anything up.**
+**What I found:** Framed the full avenue (target construction, cleaning results, seed sweep,
+6survey's null result, the two unbuilt candidates, the parallel PINN thread) as a council
+question. All 5 advisors independently leaned toward NOT continuing to build Bayesian
+hierarchical/GNNWR (Candidates B/C) as a way to chase a larger R2 -- reasoning: they'd share the
+same 16 features and same target as Candidate A, so absent a specific hypothesis that functional
+form (not signal availability) is the bottleneck, they'd inherit the same ceiling. Peer review
+(5 reviewers, anonymized responses) converged 5/5 on the single most important blind spot: one
+advisor's suggestion to peek at the LOCKED TEST SET to help decide direction was flagged by every
+reviewer as a real methodological risk -- it would repeat the exact leakage mistake that
+invalidated the original pooled-CR target. Peer review also converged 4/5 on the universal gap:
+no confidence intervals anywhere in the existing R2 numbers, and no count of how many independent
+compartments the spatial CV is actually averaging over -- without that, "converges" (some
+advisors) and "declines toward zero" (other advisors) were both just readings of a trend into
+numbers with unknown uncertainty. Chairman's one concrete recommendation: bootstrap a CI on the
+existing 4survey R2 before doing anything else.
+**What's working:** the council correctly flagged that months of refinement had moved the effect
+size in one direction only (smaller), and correctly refused to accept either "this is a real
+converged finding" or "this is a shared artifact" as settled without the missing uncertainty
+quantification -- a genuinely useful gate that stopped further blind iteration on Candidate A
+(more feature engineering, more representation comparisons) before checking whether the result
+even supports being iterated on further.
+**What's not working / open concern:** the council session itself required framing the full
+context by hand (a 5-paragraph prompt) since the skill has no access to this project's actual
+files/history -- worth noting for future use, not a flaw in the verdict itself.
+**What this means for what's next:** immediately actioned (see next entry) -- built and ran the
+cluster bootstrap CI the chairman specified.
+
+---
+
+**2026-08-04 — Q: What's the real uncertainty on 4survey's/6survey's plot-level attribution R2,
+and how many independent compartments is the spatial CV actually averaging over? — 4survey's val
+set spans only 39 compartments, 6survey's only 7; BOTH of 4survey's 95% confidence intervals
+span zero, meaning the R2~0.06-0.10 result is NOT statistically distinguishable from noise at
+conventional confidence, despite being positive in every seed checked.**
+**What I found:** Built `models/growth_curve_attribution/bootstrap_ci_check.py` -- a CLUSTER
+bootstrap (resampling whole COMPARTMENTS with replacement, not individual plot rows, since
+within-compartment plots are not independent -- same pseudo-replication concern already fixed
+for the compartment-ICC check) on the fixed split_seed=42 validation predictions, 2,000
+resamples, both cohorts, both methods, on the cleaned population:
+
+| Cohort | Method | n_val_compartments | Point R2 | 95% CI | % resamples < 0 |
+|---|---|---|---|---|---|
+| 4survey | Elastic Net | 39 | 0.061 | [-0.085, 0.187] | 25.2% |
+| 4survey | XGBoost | 39 | 0.103 | [-0.033, 0.227] | 9.5% |
+| 6survey | Elastic Net | 7 | -0.032 | [-0.203, -0.000] | 100% |
+| 6survey | XGBoost | 7 | -0.013 | [-0.202, 0.054] | 66.8% |
+
+**What's working:** this directly and quantitatively resolves the council's central open
+question. 4survey's val set holding only 39 independent compartments (out of 232 total) is now a
+concrete, checkable number, not a suspicion -- and it explains why both 4survey confidence
+intervals span zero despite every point estimate across the 4-seed sweep being positive: the
+DIRECTION is consistently positive (a real pattern), but the PRECISION on any single estimate is
+much weaker than the "0.11-0.13, real and stable" framing implied before this check.
+**What's not working / open concern:** 6survey's 7 compartments make its interval close to
+uninformative either way -- not a new finding, but now quantified rather than inferred. This
+bootstrap only quantifies evaluation-sample uncertainty for a FIXED trained model at one split
+seed; it does not by itself combine with the separate seed-to-seed variability already found in
+`run_seed_sweep_check.py` -- the two are complementary evidence, not yet combined into one
+number.
+**What this means for what's next:** the honest characterization of Candidate A's headline
+result changes: not "a real, stable 0.11-0.13 R2" but "a consistently positive point estimate
+across seeds and methods, whose precision on any single evaluation is too wide to rule out zero
+given Aberfoyle's limited number of independent compartments." This is itself a legitimate,
+reportable methodological finding (small-forest spatial attribution is fundamentally
+precision-limited by compartment count, not just signal size) -- worth writing up as a real
+limitation rather than resolved further by more feature engineering on Candidate A.
+
+---
+
+**2026-08-04 — Q: Does rotating the held-out compartments across many folds (instead of one
+fixed split) actually fix the precision problem the bootstrap check found? — yes, decisively:
+4survey's R2 comes back higher AND every fold agrees on the sign (0.105-0.204 XGBoost, all
+positive); 6survey comes back confidently null (nearly every fold negative), not just
+inconclusive.**
+**What I found:** Built `models/growth_curve_attribution/spatial_cv_check.py` -- rotates which
+compartments are held out across K=5 folds (greedy row-count-balanced partitioning of
+compartments, same buffer-distance leakage protection reused per fold via
+`apply_spatial_buffer()`), pools every plot's out-of-fold prediction (every plot gets evaluated
+exactly once, by a model that never saw its own compartment) into one R2 computed over the WHOLE
+population, cleaned target, `TERRAIN_AND_WIND_COLUMNS`:
+
+| Cohort | Method | Pooled R2 (all compartments) | Per-fold mean +/- std | Per-fold range |
+|---|---|---|---|---|
+| 4survey (231 compartments) | Elastic Net | 0.118 | 0.100 +/- 0.032 | 0.054-0.144 (all 5 positive) |
+| 4survey (231 compartments) | XGBoost | 0.174 | 0.156 +/- 0.038 | 0.105-0.204 (all 5 positive) |
+| 6survey (47 compartments) | Elastic Net | -0.029 | -0.082 +/- 0.069 | all 5 folds negative |
+| 6survey (47 compartments) | XGBoost | 0.029 | -0.021 +/- 0.034 | mostly negative, one marginal positive |
+
+**What's working:** this directly resolves the bootstrap check's "CI spans zero" finding for
+4survey -- using the full compartment population instead of one ~39-compartment slice, EVERY
+fold agrees on sign for both methods, and the pooled R2 (0.118-0.174) is higher than the single
+split_seed=42 estimate (0.061-0.103) was -- that seed happened to be a below-average draw, not a
+representative one. 6survey is now confidently null (not just inconclusive) using all 47
+compartments -- nearly every fold negative for both methods, a cleaner result than the
+single-split/bootstrap check could support.
+**What's not working / open concern:** this used the DEFAULT (existing) model hyperparameters
+for both Elastic Net and XGBoost, not a fresh tuning pass -- per the reasoning already logged
+(the earlier dropout/LR/architecture-size sweeps for DNN/PINN found null results, so a full new
+sweep wasn't run here either) -- worth a light sanity check later, not expected to change the
+qualitative conclusion.
+**What this means for what's next:** 4survey's terrain/wind attribution result is now a
+genuinely confirmed, precisely-estimated finding (R2~0.12-0.17, real and consistent across every
+fold), a materially stronger and more defensible headline number than anything reported earlier
+in this investigation. 6survey's null result is likewise now confirmed, not just suspected. This
+whole precision question -- raised by the LLM Council, diagnosed by the bootstrap check, fixed
+here -- is the cleanest, most decisive result of the entire Stage 2 growth-curve investigation.
+Same spatial-CV-folds approach is worth applying to Stage 1's existing spatial_block_split
+results (xgb_environmental, DNN/PINN) before treating those numbers as final either, though not
+yet done.
+
+---
+
+**2026-08-04 — Q: LLM Council on which of the 28 available terrain/wind columns should go into
+the explanation model — does the confirmed 4survey signal survive swapping the established
+list's `gwa_wind_speed_10m` (known to likely measure sub-canopy wind, physically backwards for a
+mature stand) for `gwa_wind_speed_50m`? — yes, the signal survives essentially unchanged,
+resolving the council's single most consequential open question.**
+**What I found:** Ran a second `llm-council` session specifically on variable selection for the
+next (explanation/SHAP) phase -- all 5 peer reviewers unanimously picked the Contrarian's
+response as strongest, converging on: don't trust "local shelter beats GWA" (that comparison ran
+on the OLD uncleaned target) or the R2=0.12-0.17 headline itself as settled, since both may be
+entangled with the known-contaminated `gwa_wind_speed_10m` variable already sitting in the
+established 16-column list. Peer review also caught a target-circularity check nobody proposed
+independently (do any of these columns feed into the target's own construction upstream -- not
+yet checked) and flagged that no correlation/VIF check has been run inside the project's own
+spatial CV framework. Chairman's "one thing to do first": swap 10m for 50m under the same 5-fold
+spatial CV and see if R2 survives. Ran it (`run_wind_height_swap_check.py`, both cohorts):
+
+| Cohort | Feature set | Elastic Net R2 | XGBoost R2 |
+|---|---|---|---|
+| 4survey | 10m wind (established) | 0.118 | 0.174 |
+| 4survey | 50m wind (swapped) | 0.113 | 0.161 |
+| 6survey | 10m wind (established) | -0.029 | 0.029 |
+| 6survey | 50m wind (swapped) | -0.032 | 0.021 |
+
+**What's working:** 4survey's drop (0.005 Elastic Net, 0.013 XGBoost) is well within the
+per-fold standard deviation (0.032-0.037) already measured for this check -- noise-level
+movement, not a real change. The confirmed signal does NOT depend on the contaminated 10m
+variable; it holds up on the physically more defensible 50m measurement. This resolves the
+council's single most consequential open question directly, with a real number, not an assumption.
+**What's not working / open concern:** the OTHER items the council flagged as needing checking
+before finalizing a variable list are still open: whether "local shelter beats GWA" replicates on
+the current cleaned target, the TPI-100m/250m/500m correlation matrix (not yet run), the
+target-circularity check (whether any of these columns were already consumed building
+`local_y_max_difference` upstream -- not yet checked, and flagged as the single most
+project-relevant catch from peer review, echoing this project's own established `Age`/CR-curve
+circularity precedent), and whether SHAP/importance rankings are stable under the spatial CV
+framework rather than a single pooled fit.
+**What this means for what's next:** the wind-height question is closed. The remaining
+pre-SHAP checklist from the council (re-confirm local-shelter-vs-GWA on cleaned data, TPI
+correlation matrix, circularity check, `inverse_slope_proxy` redundancy confirmed with a real
+number not narrative) should be worked through before building the actual SHAP/permutation-
+importance explanation pass -- the circularity check in particular should go first, since it's
+the one check that could invalidate a variable entirely rather than just simplify the list.
+
+---
+
+**2026-08-04 — Q: Were any of the candidate terrain/wind columns already consumed constructing
+`local_y_max_difference` upstream (the target-circularity check the council's peer review flagged
+as the single most project-relevant, unchecked risk)? — no code-level circularity found: every
+formula ingredient traces back to raw Forestry Commission inventory fields, not terrain/wind
+data.**
+**What I found:** Traced the full formula chain directly against the real code (not from
+memory): `local_y_max_difference = y_max_fit - y_max_yldc`. `y_max_fit`
+(`temporal_stability_check.fit_y_max_per_plot()`) uses only `Top_Height95`/`Age`/`p4`/`p5`.
+`y_max_yldc = yldc*p2 + p1 + p3*2` (`export_growth_curve_tables.py:108`) uses only
+`yldc`/`p1`/`p2`/`p3`. Checked `clean_master_data.py`'s own `MASTER_COLUMNS` list and comments to
+confirm these are all raw, independently-recorded FC inventory fields, not derived from any
+terrain/wind formula in this pipeline. `whcl` (the one terrain/wind-adjacent field that DOES live
+in the same master table) is explicitly commented "audit/sensitivity only, never a baseline model
+feature" and never enters any of the target formulas. The terrain/wind candidate columns
+(`plot_environmental_features.parquet`) come from an entirely separate GIS/climate extraction
+pipeline, merged in only downstream as candidate predictors.
+**What's working:** none of the 16 (or 28) candidate columns are mathematically consumed
+anywhere in constructing the target -- a clean, verified result, not an assumption.
+**What's not working / open concern:** this can only verify circularity WITHIN this codebase's
+own pipeline. Whether the Forestry Commission's original, decades-old assignment of `yldc` or
+`p1`-`p5` to a stand ever informally incorporated visible site exposure at assignment time is a
+genuine historical-provenance question no amount of code-tracing can resolve -- flagged as an
+open, documented limitation, not silently assumed away. Would need real forestry domain knowledge
+(the user's, if they have it) to address further.
+**What this means for what's next:** the circularity gate is cleared. Remaining pre-SHAP items:
+re-confirm local-shelter-vs-GWA on the cleaned target, the TPI-100m/250m/500m correlation matrix,
+and `inverse_slope_proxy`'s redundancy confirmed with an actual correlation number.
+
+---
+
+**2026-08-04 — Q: TPI-multiscale and inverse_slope_proxy correlation checks (the council's
+remaining "waved through without a number" items) — TPI at native/250m/500m turns out genuinely
+NOT redundant (native-vs-500m rho=0.62), overturning the earlier "keep at most one extra scale"
+assumption; inverse_slope_proxy confirmed an exact -1.0 duplicate of slope_degrees.**
+**What I found:** Built `models/growth_curve_attribution/correlation_screen.py`, ran real
+Spearman correlations (not assumed): `tpi` (native ~100m) vs `tpi_250m`=0.841, `tpi_250m` vs
+`tpi_500m`=0.879, but `tpi` vs `tpi_500m`=only 0.619 -- the two extremes are meaningfully
+distinct even though each correlates strongly with the middle scale. `local_relief_500m` is
+essentially uncorrelated with any TPI scale (-0.07 to -0.11) -- a genuinely separate variable,
+not a TPI duplicate. `inverse_slope_proxy` vs `slope_degrees` = exactly -1.0, confirming the
+code's own comment ("an EXACT linear duplicate") with a real number.
+**What's working:** this overturns the pre-registered plan from the council chairman's own
+recommendation ("keep at most one extra TPI scale") -- native and 500m TPI both carry real,
+non-redundant information, so dropping to one scale would have discarded real signal on an
+untested assumption. `inverse_slope_proxy` drops cleanly, confirmed not assumed.
+**What this means for what's next:** final feature list can include native `tpi` AND `tpi_500m`
+AND `local_relief_500m` together (all three add distinct information), while dropping
+`tpi_250m` (redundant with both neighbours) and `inverse_slope_proxy` (exact duplicate).
+
+---
+
+**2026-08-04 — Q: What actually explains the confirmed 4survey terrain/wind signal — which
+variables, in which direction? — a coherent, physically-sensible wind-exposure story, told
+consistently by six variables via two independent methods: elevation, wind speed, Windthrow
+Hazard Class, and shelter indices all point the same direction.**
+**What I found:** Skipped the expensive (~120-fit) representation-CV sweep in favour of a cheap,
+self-contained check that didn't depend on it: built a final 17-column feature list directly
+from checks already on disk (established 16 minus `inverse_slope_proxy`, `gwa_wind_speed_10m`
+swapped for 50m, `tpi_500m`/`local_relief_500m` added -- all justified by prior entries, no new
+comparison needed), then ONE XGBoost fit on the full cleaned 4survey population (56,489 plots --
+an interpretation model, not a performance-evaluation one, so no held-out split needed) plus
+Spearman correlation as a near-free first pass. Top variables, consistent across both methods:
+`elevation` (SHAP-dominant, 2.96 mean |SHAP|, more than double the next variable),
+`gwa_wind_speed_50m` (strongest raw correlation, -0.178), `whcl` (-0.165), `windward_topex`
+(+0.157), `topex` (+0.123), `tpi_500m` (-0.100), `eastness` (+0.112).
+**What's working:** every top-ranked variable points the SAME direction -- more wind exposure/
+less shelter/more ridge-like position associates with underperforming the yield-class rating;
+more shelter associates with outperforming it. `eastness`'s positive sign is coherent with this
+too, not a separate effect -- Scotland's prevailing wind is westerly/southwesterly, so
+east-facing slopes are the sheltered ones. This directly validates the FC's own `whcl`
+(Windthrow Hazard Class) index as carrying real signal against a newly-confirmed target, and is
+consistent with Aberfoyle/Loch Ard's documented history as a windthrow-prone region -- the result
+matches what forestry domain knowledge would predict, not an implausible artefact.
+**What's not working / open concern:** this is one model fit, not yet cross-validated for
+importance STABILITY (a gap the council's peer review flagged -- do these rankings hold up under
+the same spatial CV that confirmed the underlying signal, or would a different held-out
+compartment set reorder them). SHAP mean |value| also doesn't distinguish correlation from
+causation, same caveat as everywhere else in this project's attribution work.
+**What this means for what's next:** a real, coherent, publication-worthy "what reason" answer
+now exists for the confirmed 4survey signal -- wind exposure, corroborated by an independent
+operational forestry index. Worth checking importance stability under spatial CV before treating
+this ranking as final, and worth mapping the explained/unexplained deviation spatially (the
+originally planned "step 3") to see if the pattern is geographically coherent.
+
+---
+
+**2026-08-04 — Q: Does the SHAP-based ranking from the single full-data fit hold up across
+different held-out compartment sets, and does the explained-vs-unexplained deviation look
+spatially coherent when mapped? — yes to both: elevation/whcl are rock-solid stable at #1/#2
+across every fold, and the environment-explained component shows real spatial structure while
+the residual looks like genuine noise.**
+**What I found:** Two cheap checks, both reusing infrastructure already built rather than new
+expensive fits. (1) `importance_stability_check.py` -- XGBoost's own built-in gain importance
+(not a full SHAP recompute) from 5 fold-specific TRAIN-only fits, same fold assignment as the
+confirmed spatial CV. `elevation` (rank_mean=1.2, std=0.45) and `whcl` (rank_mean=1.8, std=0.45)
+are always #1 or #2 across every one of the 5 folds -- extremely stable. A second tier
+(`slope_degrees`, `eastness`, `local_relief_500m`, `topex`, `windward_topex`,
+`elevation_roughness`, `solar_radiation_index`) clusters together as a GROUP (never top-2, never
+bottom-tier) even though their exact order shifts fold to fold. Curvature/frost/native-`tpi`
+variables are consistently unimportant (stable low rank, low std). One real nuance:
+`gwa_wind_speed_50m` drops to rank_mean=10.8 here despite having the single strongest raw
+Spearman correlation (-0.178) -- gain-based importance shows it's largely redundant with
+elevation/whcl/topex once those are already in the tree, not adding much UNIQUE information on
+top, a genuinely different question than simple correlation answers.
+(2) Spatial map (`deviation_map.png`, 3-panel: observed / environment-explained / residual) --
+the environment-explained component shows real spatial coherence (large, smooth blocks of
+consistent colour, matching how terrain/elevation/shelter actually vary across a real landscape),
+while the residual looks much more like the raw observed deviation -- fine-grained, speckled,
+plot-to-plot scatter with no obvious large-scale structure.
+**What's working:** both checks point the same direction as each other and as the earlier SHAP
+result -- this is a real, stable, spatially coherent signal, not an artefact of one lucky fit or
+noise that happens to correlate. The residual's LACK of visible spatial structure is itself
+informative: if terrain were missing something systematic, the residual would likely still show
+a spatial pattern; it doesn't, which is consistent with the terrain features having genuinely
+"used up" the spatial part of the signal rather than leaving it on the table.
+**What's not working / open concern:** the gain-importance-vs-correlation divergence for
+`gwa_wind_speed_50m` is worth a line in the write-up (unique vs. marginal contribution are
+different questions, both worth reporting) but doesn't change the headline story. The residual
+map is a visual read, not a formal spatial-autocorrelation test (e.g. Moran's I on the residual,
+already used elsewhere in this project for the old pooled-CR target) -- worth running that formal
+version if this becomes a dissertation-reported figure.
+**What this means for what's next:** the explanation phase for 4survey's confirmed signal is
+essentially complete and well-evidenced: real signal (5-fold spatial CV), survives its one
+identified vulnerability (wind-height swap), no circularity, a coherent and stable wind-exposure
+story (elevation + whcl dominant, corroborated by an independent FC index), and spatially
+coherent when mapped. This is a strong, defensible place to write this up as the dissertation's
+core Stage 2 finding.
+
+---
+
+**2026-08-04 — Q: Were Moran's I / LISA run on this new per-plot residual, or only ever on the
+old pooled-CR target? — not run until now; the real numbers show this new approach leaves
+behind dramatically less GLOBAL spatial structure than the old target did (I=0.0021 vs the old
+target's I=0.197), while LISA finds a real, coherent ~21% local-cluster pattern underneath that
+near-zero global average.**
+**What I found:** Reused this project's own established spatial-autocorrelation tools
+(`models/spatial_attribution/spatial_autocorrelation.py::global_morans_i()`,
+`models/spatial_attribution/lisa.py::local_morans_i()`, both already used elsewhere for the OLD
+pooled-CR-residual target) on the residual from the same full-data XGBoost fit used for SHAP.
+Global Moran's I = 0.0021 (p=0.004 -- nominally significant only because of the large sample
+size; the effect size itself is essentially zero). LISA (k=8 nearest neighbours, Benjamini-
+Hochberg FDR-corrected, both already this module's own established defaults): 79.1% of plots
+"Not significant", 10.4% Low-Low (cold-spot), 9.5% High-High (hot-spot), 1.0% High-Low/Low-High
+(spatial outliers).
+**What's working:** directly comparable to an already-logged number from this project's own
+history -- the old pooled-CR target's full-model residual Moran's I was 0.197, ~2 orders of
+magnitude larger than this new target's 0.0021. This new, more carefully validated per-plot
+approach leaves behind far less unexplained global spatial structure than the old approach did,
+a real, quantified improvement, not just a methodological preference. The LISA result is a
+coherent nuance, not a contradiction: ~21% of plots sit in a real local hot/cold-spot cluster
+even though positive and negative clusters cancel out to a near-zero GLOBAL average -- exactly
+what local indicators are built to catch that a global statistic alone would miss.
+**What's not working / open concern:** the semivariogram fit used to pick Moran's I's distance
+parameter returned "no_structure" on this residual (fell back to the project's own established
+3,956m range from the old target's fit) -- consistent with the residual having very little
+range-detectable spatial structure to begin with, but means the 3,956m distance wasn't
+independently re-derived for this specific target. The ~21% local-cluster plots haven't been
+mapped/inspected individually yet (which specific compartments/regions they fall in).
+**What this means for what's next:** both the visual read and the formal statistical tests now
+agree: this new approach's residual is close to spatially "used up," a meaningfully stronger
+result than the old target's real leftover autocorrelation. Worth including both the global and
+local numbers in any dissertation write-up of this finding, not just the visual map.
+
+---
+
+**2026-08-03 — Q: Given 6survey's plots are a strict subset of 4survey's, why does its
+terrain/wind attribution signal behave so differently? — 6survey's compartments sit in a
+genuinely narrower slice of the landscape (roughly half the elevation and wind-exposure range of
+4survey), a second, independent, compounding reason beyond raw sample size.**
+**What I found:** Confirmed directly (not assumed from the established project convention):
+6survey's 13,769 plots and 47 compartments are a strict subset of 4survey's 58,112 plots / 232
+compartments (`issubset()` check, both True). Compared geographic footprint and
+`TERRAIN_AND_WIND_COLUMNS` variance between the two populations:
+
+| Measure | 4survey | 6survey | 6survey as % of 4survey |
+|---|---|---|---|
+| x-range (m) | 16,785 | 8,110 | 48% |
+| y-range (m) | 12,013 | 6,462 | 54% |
+| `elevation` std | 112.6 | 47.8 | 42% |
+| `topex` std | 19.6 | 10.6 | 54% |
+| `windward_topex` std | 6.25 | 2.55 | 41% |
+| `gwa_wind_speed_10m` std | 1.11 | 0.56 | 50% |
+| `elevation_roughness` std | 7.36 | 5.25 | 71% |
+| `northness`/`eastness`/`tpi`/`ceh_twi` std | -- | -- | ~95-102% (essentially unchanged) |
+
+**What's working:** the variables that shrink the most in 6survey (elevation, both topex
+measures, GWA wind speed, elevation roughness) are exactly the ones tied to a compartment's
+position in the BROADER landscape -- the ones that barely change (northness/eastness/TPI/TWI,
+local micro-topography shape) aren't tied to broad-landscape position. This is a coherent,
+specific pattern, not noise: 6survey's 47 compartments occupy a genuinely more
+terrain-homogeneous, geographically smaller slice of Aberfoyle (roughly half the elevation and
+wind-exposure range), not a random sample of 4survey's full landscape variety.
+**What's not working / open concern:** WHY these particular 47 compartments got surveyed 6 times
+instead of 4 (a management/research decision) isn't known from data on disk -- only the
+consequence (narrower terrain range) is demonstrated here, not the cause.
+**What this means for what's next:** 6survey's weak attribution signal now has TWO independent,
+compounding, real explanations -- smaller sample size (already established) AND less terrain
+variation to explain in the first place (this entry) -- rather than one unresolved mystery.
+Reframes problem 3 again: not "find what's wrong with 6survey," but "6survey may have a
+genuinely lower achievable ceiling for this question, for reasons that don't reflect on the
+method." Any final write-up should report 6survey's null result with this context, not as an
+unexplained inconsistency.
 
 ---
 
@@ -1343,3 +1962,373 @@ for exactly this reason, once `spatial_block_split` was wired in as a second opt
   the plain, unprefixed path; for **DNN/PINN**, `temporal` and `spatial_block` are
   both always prefixed, so "which one is primary" is a fact to check in this log's
   Experiment table (Status column), not something the path itself tells you.
+
+## Stage 2: Per-plot growth curve vs. yldc
+
+A new, parallel model family (separate from everything above) — instead of comparing every plot
+against ONE pooled Chapman-Richards curve, give each plot its own growth curve (fixed shape from
+that plot's own recorded `(p1..p5)`, only `y_max` free) and compare it against the FC's own
+static, per-plot yldc-implied curve. See `documentation/model_instructions/
+growth_curve_stage2_handover.md` for the full write-up (idea, candidate architectures, coding-style
+instructions) — this section is the factual experiment/findings record only, matching this file's
+own convention.
+
+**What's built** (all new files, nothing in Stage 1 touched — confirmed via `git status` after
+every step): `data_processing/export_growth_curve_tables.py` (new data layer, writes
+`data/processed/growth_curve/<cohort>/growth_curve_table.parquet`) and
+`models/growth_curve_attribution/` (`data.py`, `phase0_checks.py`, `temporal_stability_check.py`,
+`disturbance_checks.py`, each with a `run_*.py` runner).
+
+**Decided 2026-08-03**: comparisons happen in `Top_Height95` space (`elev_percentile_95th x 1.1`),
+matching the FC's own GYC convention, not the raw target Stage 1 trains on — explicit user
+choice, not a default. Also decided: NLME/GADA-style per-plot fitting is the cheap FEASIBILITY
+diagnostic for this question, not a candidate AI model itself — the actual candidate models
+(per-plot fixed-shape fit + tree attribution, Bayesian hierarchical, GNNWR/GRF/GPBoost-style,
+explicitly NOT a PINN) stay a shortlist, not yet chosen, per the user's explicit choice to compare
+2-3 side by side rather than commit to one this early.
+
+---
+
+**2026-08-03 — Q: Can a reliable per-plot growth-curve data layer be built (with p1-p5/yldc/
+coordinates the Stage 1 model_table drops), and is its output trustworthy? — a real
+cpmt/cpmt_x/cpmt_y merge-collision bug found and
+fixed before the export was trusted.**
+**What I found:** `export_growth_curve_tables.py` reads `clean_master_{cohort}.parquet` directly
+(already has `p1-p5`/`yldc`/`area` — Stage 1's `model_table.parquet` drops these, which is why
+this needed its own script). First run's output columns included `cpmt_x`/`cpmt_y` instead of a
+clean `cpmt` — `plot_coordinates.csv.gz` carries its own `cpmt` column, colliding silently with
+master's own `cpmt` during the merge, exact same failure shape as the `whcl` collision already
+found once in `torch_data.py`. Fixed by dropping any pre-existing coordinate column before
+merging, re-ran, confirmed `cpmt` clean afterward.
+**What's working:** row/plot counts match the documented values exactly (287,064/71,766 4survey,
+83,382/13,897 6survey) — the merge/computation didn't drop or duplicate anything. `y_max_yldc`
+(`yldc*p2+p1+p3*2`) confirmed static per plot (std=0). Coordinates land inside the real Aberfoyle
+range, not just the wide sanity envelope.
+**What's not working / open concern:** 5,168 rows/1,292 plots (4survey, 1.8%) and 1,776
+rows/296 plots (6survey, 2.1%) have no valid p1-p5 combination, so no yldc curve — flagged in the
+export's own console output, not silently dropped. `p1-p5` itself takes 7 distinct value-sets in
+this data (not one universal species constant an earlier brainstorm assumed) — constant per plot,
+not tied to that plot's own yldc — still unexplained why 7 sets exist for a
+single-species-filtered cohort, functionally fine to proceed on (each plot's own tuple is used
+directly, faithful to how the FC itself computed `GYCspec95`/`Vol95` for that plot) but a real
+open question for the write-up's limitations.
+**What this means for what's next:** data layer trustworthy enough to build Phase 0 checks and
+the temporal stability check on top of.
+
+---
+
+**2026-08-03 — Q: Before building any Stage 2 model, is there real signal in the yldc deviation
+worth explaining, and would a distance-based spatial mechanism (GNNWR/GRF) even be viable under
+spatial_block_split? — real yldc-deviation signal confirmed, but the neighbour-coverage
+problem that killed the leak-safe spatial-lag feature in Stage 1 is very likely to recur for any
+distance-based Stage 2 architecture.**
+**What I found:** Four cheap, no-fitting checks (`models/growth_curve_attribution/
+phase0_checks.py`), both cohorts. (1) Every plot has exactly 4 (4survey) or 6 (6survey) distinct
+survey years — a genuinely balanced panel, no low-timestamp subgroup. (2) yldc deviation
+(`Top_Height95 - top_height95_yldc_predicted`) has real, non-degenerate spread: mean
++1.58m/+2.19m, std 6.5m/4.7m, skew -0.26/-0.55, excess kurtosis 1.57/5.41 — and the spread GROWS
+with Age (std climbs from ~3.8-4.7m at young ages to ~9-9.5m at the oldest bands), the OPPOSITE of
+an initial low-Age-instability guess, corrected once actually checked. (3) Thinning confound is
+real but modest and inconsistent in direction between cohorts. (4) 96.3% (4survey) / 97.1%
+(6survey) of `spatial_block_split` test plots have ZERO train-plot neighbours within 75m (mean
+distance to nearest train plot ~260-295m) — essentially the same number already found fatal for
+the leak-safe `neighbour_mean_height` feature (2026-08-02 entry above).
+**What's working:** the deviation's real, non-trivial spread answers "is there anything here to
+explain" cheaply, before any model — yes. The balanced-panel result removes one whole category of
+worry (uneven identifiability) from every candidate architecture.
+**What's not working / open concern:** finding 4 means a short-bandwidth GNNWR/GRF is very likely
+dead on arrival under `spatial_block_split`, same structural reason as the Stage 1 neighbour-lag
+finding — whole compartments held out, and compartments are almost always bigger than a short
+radius. Finding 2's Age-growing variance isn't modelled by any of the 3 shortlisted candidates yet.
+**What this means for what's next:** any distance-based Stage 2 model needs a large bandwidth
+(hundreds-to-thousands of metres, closer to the ~3,956m semivariogram range already measured for
+the Stage 1 CR residual), not a short local radius, decided BEFORE building it, not discovered
+after.
+
+---
+
+**2026-08-03 — Q: Is a per-plot fixed-shape growth curve (single free y_max) a real, stable
+quantity worth attributing, or just curve-fitting noise? — the core per-plot-curve premise
+passes clearly, with two
+real caveats.**
+**What I found:** Fit each plot's `y_max` using ONLY its earliest survey years (`TEMPORAL_YEARS`'
+own `train_years`), then check how well that predicts the SAME plot's own later, held-out years
+(`models/growth_curve_attribution/temporal_stability_check.py`, closed-form fit: since
+`height = y_max * shape_term` is linear in `y_max` given fixed `p4`/`p5`, the least-squares
+solution is `sum(height*shape_term)/sum(shape_term^2)`, no iterative `curve_fit` needed).
+
+| Cohort | Held-out year | Early-fit curve R2 | Static yldc curve R2 |
+|---|---|---|---|
+| 4survey | 2021 (9yr ahead) | 0.873 | 0.226 |
+| 4survey | 2023 (11yr ahead) | 0.779 | 0.165 |
+| 6survey | 2021 (9yr ahead) | 0.525 | 0.101 |
+| 6survey | 2023 (11yr ahead) | 0.386 | -0.029 |
+
+**What's working:** a plot's own early growth predicts its own future height far better than its
+assigned yield class does, at both cohorts and both extrapolation horizons — direct, quantified
+evidence of real, stable, plot-specific site information the old pooled-CR-residual approach
+never demonstrated before attributing anything to environment.
+**What's not working / open concern:** real, systematic degradation with horizon (R2 drops, bias
+grows in magnitude, as the gap lengthens) — the premise is good, not perfect. 4survey and 6survey
+disagree in a way not yet explained: 6survey is consistently weaker despite an identical
+extrapolation horizon from the same last fitting year (2012), and the bias even flips sign
+between cohorts (4survey underpredicts growth over time, 6survey overpredicts it).
+**What this means for what's next:** clears the gate to build a spatial attribution model on top
+of a per-plot y_max — the target itself has real predictive validity, not just in-sample fit. The
+cohort disagreement is now one of the 6 open problems being investigated next (see the
+2026-08-03 disturbance-checks entry and the handover doc's problem list).
+
+---
+
+**2026-08-03 — Q: Does the per-plot curve's leftover residual show a real mid-trajectory
+disturbance signature, and does recorded thinning explain any of the temporal-check bias? —
+4survey's residual pattern looks like shape-misfit, not a
+disturbance event; a data-quality-flagged long tail found; thinning found to make the fit MORE
+accurate, consistent with top height's known thinning-invariance.**
+**What I found:** Fit `y_max` using ALL years per plot (not just early), looked at the leftover
+residual three ways (`models/growth_curve_attribution/disturbance_checks.py`). (1a) Residual by
+survey year, population-level: 4survey is smooth and monotonic (-0.36 -> -0.19 -> -0.03 -> +0.45
+across 2008/2012/2021/2023) — no dip anywhere. 6survey shows a real dip specifically at 2021
+(-0.57, the single most negative point), more disturbance-like — but the exact survey MONTH (not
+just year) isn't known, so this can't yet be checked against a specific storm/drought date.
+(1b) Per-plot residual range (max-min across a plot's own years): median 2.1m/2.9m, but max
+**47.2m (4survey) / 35.3m (6survey)** — almost certainly clearfell/replant or boundary-mismatch
+data problems, not real growth variance; which specific plots these are is NOT yet identified.
+(2) Cross-referencing the temporal-check's bias-growth finding against RECORDED thinning
+(`last_thinn` — confirmed constant per plot, 0 of 71,766 plots vary, so this checks whether that
+single value falls inside the gap window, not a before/after comparison): thinned-during-gap
+plots show bias consistently closer to zero than non-thinned plots, in BOTH cohorts, even though
+the cohorts' overall bias sign disagrees.
+**What's working:** the thinning finding lines up with a real forestry fact surfaced this
+session — top height (this whole project's target) is relatively insensitive to thinning by
+design (thinning removes suppressed/intermediate trees, not the dominants that define top
+height) — so thinning normalising growth toward the textbook curve, rather than boosting past it,
+is the theoretically expected direction, not a puzzle.
+**What's not working / open concern:** 4survey's smooth monotonic misfit suggests the fixed
+`(k,p)` per plot may not flex enough even with `y_max` free — a genuine modelling-assumption
+weakness, distinct from and more fundamental than the disturbance question this check set out to
+test. The 47m/35m residual-range tail is a real, unaddressed data-quality risk for trusting any
+per-plot `y_max` broadly.
+**What this means for what's next:** the 6 open problems (4survey shape-misfit, the long-tail
+plots, the cohort disagreement, terrain's established ceiling, the neighbour-coverage bandwidth
+decision, the unmeasured 2012-2021 gap) are now the explicit next work, ranked cheapest-first in
+`documentation/model_instructions/growth_curve_stage2_handover.md` — resume there, starting with
+the long-tail plots (cheapest, most concrete, most likely to change how much the other 5 matter).
+
+---
+
+**2026-08-03 — Q: Does compartment membership explain enough of yldc_deviation's variance to
+justify building a compartment-pooled growth-curve model (Candidate B)? — compartment
+membership explains real, substantial variance (not the ~5% figure from a DIFFERENT target) — BUT the
+long-tail plots (problem 2, finally identified) turn out to cluster heavily by compartment too,
+so the ICC number above needs re-checking once those are handled, not taken at face value yet.**
+**What I found:** Built `models/growth_curve_attribution/compartment_pooling_check.py` —
+one-way random-effects ICC of `yldc_deviation` grouped by `cpmt`, computed on each plot's OWN
+MEAN deviation across its years (not raw plot-year rows — collapsing to one row per plot first
+matters here: plot-year rows are repeated measurements of the same trees, not independent
+observations, and grouping raw rows directly by compartment would conflate trivial within-plot
+variance with real between-plot variance). This is a check on THIS target specifically — not
+copied from the ~5% compartment-variance figure already found for `mean_cr_residual` (Stage 1's
+different, pooled-CR target), per this project's own rule to re-pull every number rather than
+reason by category.
+
+| Cohort | n plots | n compartments | ICC |
+|---|---|---|---|
+| 4survey | 56,841 | 232 | **0.399** |
+| 6survey | 13,473 | 47 | **0.188** |
+
+(232/47 vs. the familiar 296 (4survey) / 48 (6survey) full-population compartment counts elsewhere
+in this project: same underlying compartment population, not a different dataset — confirmed
+directly by loading `clean_master_4survey.parquet`/`clean_master_6survey.parquet` (296/48 distinct
+`cpmt`, matching `aux_data_resolution_check.ipynb`/`baseline_results.ipynb`) vs.
+`load_filtered_growth_curve_table()` (232/47 distinct `cpmt`). 64 (4survey) / 1 (6survey) whole
+compartments contain zero plots reaching Age>=30 by the 2023 survey and so drop out entirely under
+`filter_data()`'s standard gate — this ICC is computed on the filtered population, same as every
+other Stage 2 number.)
+
+ICC also computed by 5-year age band for both cohorts (see the module's own output) — ranges
+roughly 0.20-0.61 (4survey) and 0.04-0.58 (6survey), noisier in the oldest/youngest bands where
+few compartments have any plots at all, but no band collapses to near-zero.
+**What's working:** compartment membership explains a real, substantial share of this target's
+variance — ~40% (4survey) / ~19% (6survey) — genuinely different from (and much larger than)
+the ~5% figure from the unrelated NLME/`mean_cr_residual` check, confirming that number does not
+transfer across targets. This is a real, on-paper case FOR compartment-pooling (Candidate B),
+not against it.
+**What's not working / open concern:** this ICC was computed on the FULL filtered population,
+including the long-tail plots identified in the same session (see next entry) — and those
+cluster heavily in a small number of compartments (one single compartment, `2033`, holds 142 of
+4survey's 1,137 flagged plots — 12.5% of the whole flagged set in one compartment). If a
+compartment's own long-tail plots share a common DATA problem (not a real site effect), that
+compartment's mean deviation is distorted by the same artefact for every one of its plots, which
+would inflate the between-compartment variance this ICC measures for the wrong reason. The 0.399/
+0.188 numbers are therefore an upper bound until re-checked with the long-tail plots
+excluded/corrected, not yet a clean answer.
+**What this means for what's next:** re-run this exact check after resolving the long-tail
+plots (next entry) before using 0.399/0.188 to justify building a compartment-pooled model —
+this is now the concrete blocking dependency between problem 2 and the compartment-pooling
+question, not two independent problems.
+
+---
+
+**2026-08-03 — Q: Which specific plots have the extreme (up to 47m) residual swings flagged by
+the disturbance checks, and why? — nearly all of
+them share one specific signature — smooth, plausible growth through the first 3 surveys, then a
+collapse to single-digit height at the very next survey — and they cluster heavily by
+compartment, consistent with clearfell/windthrow, not scattered per-plot noise.**
+**What I found:** Built `models/growth_curve_attribution/long_tail_plots.py`, pulled the top 2%
+of plots by `per_plot_residual_range` (already computed by `disturbance_checks.py`, but never
+before actually looked at row-by-row) and printed their real Age/height/thinning trajectories.
+1,137 plots flagged (4survey), 270 (6survey). Eyeballing the 15 single worst plots per cohort:
+the overwhelming majority show `Top_Height95` climbing smoothly and plausibly (e.g. 37m -> 39m ->
+42m across 2008/2012/2021), THEN dropping to 4-10m at the very next survey, while
+`predicted_height` keeps climbing smoothly across the same years — a 25-32m single-survey height
+loss, physically impossible for a mature stand without felling. For 4survey this collapse is
+overwhelmingly at 2023 (the last survey); for 6survey it's a mix of 2023 and 2002 (the very
+FIRST survey, i.e. an implausibly-high starting height rather than a collapse — same signature,
+opposite end of the timeline). Only 340/1,137 (4survey, 29.9%) and 71/270 (6survey, 26.3%) trip
+the crude "one year >=3x the median of the plot's other years" ratio test — the test undercounts
+(e.g. plot 51917's 2023 crash is 26.5m vs a 9.6m median, ratio 2.76, just under the 3x cutoff) —
+the pattern is clearer from reading the trajectories directly than from that single ratio.
+Crucially, this does NOT line up with recorded thinning: several of the worst plots (e.g. 318400,
+330689, 372203) show `Thin=0.0`/`never_thinned` for their entire recorded history, ruling out
+"the recorded thinning field already explains this."
+Compartment clustering: the 1,137 flagged 4survey plots span only 128 compartments, and the
+single worst compartment (`2033`) alone holds 142 of them (12.5%). 6survey's 270 flagged plots
+span 28 compartments, with three compartments (`2250`, `2251`, `2217`) each holding 33.
+**What's working:** this directly answers "which specific plots" (never identified before this
+session) and gives a real, physically-grounded explanation (clearfell/replant, or possibly storm/
+windthrow given the compartment clustering and the lack of a recorded-thinning match) rather than
+leaving this as an unexplained statistical tail. The compartment clustering is independently
+consistent with the wind-damage/`whcl` hypothesis already raised elsewhere in this project (2026-
+08-03 `dnn_terrain_wind` entry) — storm damage plausibly hits a whole compartment at once, not
+scattered individual plots.
+**What's not working / open concern:** whether this is clearfell/replant (a management decision,
+not an environmental signal at all) or storm/windthrow (an environmental signal terrain/wind
+SHOULD in principle explain) is not yet distinguished — both produce the same height-collapse
+signature in this data, and choosing "exclude as data-quality" vs. "keep as a genuine environment-
+attributable disturbance target" depends on which. Not yet cross-checked against any external
+felling-record or storm-date source.
+**What this means for what's next:** (1) the crash is usually confined to ONE survey year per
+plot, with 3 (4survey) or 5 (6survey) other years of good data — dropping only the corrupted
+plot-YEAR, not the whole plot, preserves real data the whole-plot exclusion in the original
+disturbance-check framing would have thrown away. (2) Compartments `2033` (4survey) and
+`2250`/`2251`/`2217` (6survey) are the concrete, checkable next targets — worth a direct look
+(and asking the user, who may know the management history) at whether these were felled or
+storm-hit around 2021-2023 (4survey) or right at survey start (6survey). (3) The compartment-
+variance ICC above must be re-run after this resolution, not trusted as-is.
+
+---
+
+**2026-08-03 — Q: Is the Age<30 plot-level filter hurting or helping baseline model accuracy?
+(`--maturity-age-min`, new CLI flag on `run_baselines.py`/`evaluate_baselines.py`) — disabling
+the Age<30 gate raises every baseline's R² on
+`plot_level`, but this is a test-set-composition artefact, not a real accuracy improvement on
+the population the filter was built to isolate.**
+**What I found:** Added `--maturity-age-min` (default 30, matching `filter_data()`'s own
+default) to both scripts, non-default writing to a `_agemin<N>`-suffixed output path (same
+"only non-default gets a suffix" convention as `--split-seed`). Ran all four baselines,
+`plot_level`, both cohorts, with `--maturity-age-min 0` (filter fully disabled) and compared
+against the existing default (`maturity_age_min=30`) results. Headline R² rises for every
+model/cohort (e.g. `rf_baseline`/4survey: 0.570 -> 0.636; `average_by_age`/4survey: 0.429 ->
+0.534; `chapman_richards`/4survey: 0.394 -> 0.509) -- looks like a clear case for dropping the
+filter. But the age-banded breakdown (`metrics.json`'s own `age_bands`) tells a different story:
+on every band that exists in BOTH runs (40-60, 60-80, 80+ -- the mature stands the filter is
+built around), MAE/RMSE are essentially identical between the two runs (e.g. `rf_baseline`
+40-60: MAE 4.343 vs 4.342; 60-80: MAE 5.468 vs 5.450). The entire R² gain comes from the new
+`<30` band the no-filter run adds (21,087 rows for 4survey `rf_baseline`), which has
+substantially lower error than every other band (MAE=2.818 vs 3.3-5.7 elsewhere) simply because
+young trees are shorter with less variance to predict -- not because the model became more
+accurate at anything it previously did.
+**What's working:** the age-banded diagnostic caught exactly the confound worth worrying about
+before trusting a headline R² change -- comparing overall R² across two DIFFERENT test
+populations (one with an easy young-stand subset, one without) is not a fair "did this filter
+help or hurt" comparison, and this is now demonstrated with real numbers rather than argued from
+first principles.
+**What's not working / open concern:** this was only run under `plot_level`; the same
+comparison was not repeated under `spatial_block`/`temporal`, the DNN/PINN pipeline, or Stage
+2's `load_filtered_growth_curve_table()` (which calls the same `filter_data()`) -- not expected
+to show a different mechanism, but not directly verified either.
+**What this means for what's next:** the Age<30 filter should stay as-is -- it correctly
+isolates the harder, forestry-relevant mature-stand population (the UK practice switch from
+top-height measurement to Yield-Class estimation this filter's own comment already documents),
+and removing it does not make predictions on that population any better, it just dilutes the
+test set with an easier population that inflates the headline number. No further reruns planned
+under this thread unless a genuinely different mechanism is suspected elsewhere.
+
+---
+
+**2026-08-03 — Q: For the Stage 2 growth-curve attribution target, is per-plot or
+subcompartment-level aggregation the right unit of analysis? — per-plot
+is decisively the right unit of analysis, not a close call -- but 6survey's plot-level result
+itself is a new, unresolved problem (near-zero/negative R2, unlike 4survey's expected result).**
+**What I found:** Built `models/growth_curve_attribution/scale_comparison_check.py` --
+`local_y_max_difference` (fitted per-plot `y_max` minus the yldc-implied `y_max`, same
+construction as the parallel notebook Codex is building) attributed via Elastic Net + XGBoost
+against `xgb_environmental.TERRAIN_AND_WIND_COLUMNS` (the established, already-vetted 16-column
+terrain+wind set, not the notebook's wider experimental candidates), under `spatial_block_split`,
+val-set R2 (test locked):
+
+| Cohort | Scale | Elastic Net R2 | XGBoost R2 | n (train/val) |
+|---|---|---|---|---|
+| 4survey | plot | 0.172 | 0.188 | 31,603 / 11,517 |
+| 4survey | subcompartment | -0.048 | -0.006 | 350 / 118 |
+| 6survey | plot | -0.028 | -0.012 | 7,131 / 2,721 |
+| 6survey | subcompartment | -0.199 | -0.158 | 85 / 30 |
+
+Subcompartment table built by grouping plot-level rows on `(cpmt, scpt)`, taking the median of
+the target and every feature (same aggregation the notebook uses) -- only 589 (4survey) / 147
+(6survey) subcompartments exist in total, matching the earlier concern (raised before any code
+was written) that collapsing to this unit would leave far too few units for a signal this small.
+**What's working:** 4survey's plot-level number (R2=0.17-0.19) lands exactly where every other
+terrain/wind attribution in this project has landed (R2~0.16-0.19) -- a real, expected, sane
+result, confirming the `local_y_max_difference` target behaves sensibly at plot level. Aggregating
+to subcompartment collapses this to WORSE than predicting the mean for both cohorts -- decisive,
+not marginal, evidence against any coarser unit (subcompartment, or a hypothetical intermediate
+"divide a subcompartment into areas" unit, which would only sit between these two and inherit the
+same small-N problem to a lesser degree).
+**What's not working / open concern:** 6survey's plot-level result (R2 ~ -0.01 to -0.03) is
+NOT the expected result -- it's a genuinely different outcome from 4survey's, not just a smaller
+version of the same signal. This is a new manifestation of problem 3 (the already-open 4survey
+vs 6survey disagreement) on a DIFFERENT target than where that problem was first found (the
+temporal-stability bias-sign flip) -- worth investigating together, not as two separate issues.
+**What this means for what's next:** the scale question (plot vs subcompartment) is settled --
+proceed with per-plot as the committed unit of analysis for the attribution model, no further
+time on subcompartment or intermediate-area aggregation. 6survey's weak/negative plot-level
+signal is now a concrete, evidenced blocker worth investigating before treating either cohort's
+attribution number as final.
+
+---
+
+**2026-08-03 — Q: Is 6survey's near-zero/negative plot-level attribution R2 a real result, or an
+artefact of the one split seed (42) this project has always used? — 4survey's signal is real
+and stable; 6survey does NOT show the same "one unlucky seed hides a real signal" pattern this
+project found for the DNN earlier -- it looks like genuine small-sample noise around a weak
+effect, not a hidden strong one.**
+**What I found:** Re-ran `scale_comparison_check.run_for_cohort()` (plot-level only, subcompartment
+already settled dead-on-arrival) under 4 split seeds (42/43/44/45), same `TERRAIN_AND_WIND_COLUMNS`
+target/features as the entry above:
+
+| Cohort | Method | seed 42 | seed 43 | seed 44 | seed 45 |
+|---|---|---|---|---|---|
+| 4survey | Elastic Net | 0.172 | 0.039 | 0.129 | 0.113 |
+| 4survey | XGBoost | 0.188 | 0.139 | 0.130 | 0.168 |
+| 6survey | Elastic Net | -0.028 | -0.005 | 0.012 | -0.142 |
+| 6survey | XGBoost | -0.012 | 0.008 | 0.002 | 0.144 |
+
+**What's working:** 4survey is positive across every seed and method -- XGBoost stays in a tight
+0.13-0.19 band, confirming seed 42 was not an unusually lucky draw for this cohort; the signal is
+real and reasonably stable.
+**What's not working / open concern:** 6survey does NOT reproduce the 2026-08-02 DNN precedent
+(where one bad seed hid a consistent positive signal every other seed revealed). Three of four
+seeds cluster near zero in BOTH directions (-0.03 to +0.01); only one cell (XGBoost/seed 45)
+reaches 0.144, while Elastic Net under that SAME seed goes the other way (-0.142) -- inconsistent
+in sign even within one seed, not a clean reversal. Reads as noise around a small/near-zero true
+effect, not a real signal masked by an unlucky partition -- most likely explained by 6survey's
+much smaller sample (6,500-7,200 train plots per seed vs 4survey's ~31,000), not a split-seed
+artefact.
+**What this means for what's next:** problem 3 (4survey vs 6survey disagreement) should be
+reframed for this target -- not "find the split that reveals 6survey's real signal" (the DNN
+playbook), but "6survey likely lacks the statistical power to detect this attribution question at
+all, independent of split choice." Any final reporting of this attribution model should treat
+4survey as the primary result and flag 6survey's null result as inconclusive-due-to-sample-size,
+not as evidence terrain/wind doesn't matter there.

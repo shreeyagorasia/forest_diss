@@ -17,8 +17,21 @@ CATEGORY_GROUPS = {
         "elevation", "slope_degrees", "northness", "eastness", "profile_curvature",
         "plan_curvature", "tpi", "elevation_roughness", "solar_radiation_index",
         "inverse_slope_proxy", "frost_hollow_flag", "ceh_twi",
+        # Multiscale terrain (2026-08-04, data_processing/add_environmental_candidates.py) --
+        # same terrain category as `tpi`/`elevation_roughness` above, just at 250m/500m radii
+        # instead of 100m. See xgb_environmental.py's FEATURE_PROVENANCE for the multiscale note.
+        "tpi_250m", "tpi_500m", "local_relief_500m",
     ],
-    "wind": ["gwa_wind_speed_10m", "topex", "windward_topex", "whcl"],
+    "wind": [
+        "gwa_wind_speed_10m", "topex", "windward_topex", "whcl",
+        # GWA Weibull candidates (2026-08-04, data_processing/add_environmental_candidates.py).
+        # gwa_wind_p95_10m/50m and gwa_prob_above_critical_10m/50m are DERIVED from the paired
+        # Weibull A/k columns, not independent measurements -- see xgb_environmental.py's
+        # FEATURE_PROVENANCE for the exact formulas and the redundancy caveat.
+        "gwa_weibull_a_10m", "gwa_weibull_k_10m", "gwa_wind_p95_10m", "gwa_prob_above_critical_10m",
+        "gwa_wind_speed_50m", "gwa_weibull_a_50m", "gwa_weibull_k_50m",
+        "gwa_wind_p95_50m", "gwa_prob_above_critical_50m",
+    ],
     "soil_site": [
         "soilgrids_ph", "ceh_pedotope", "ceh_subsurface_drainage",
         "ceh_textural_composition", "dist_to_watercourse",
