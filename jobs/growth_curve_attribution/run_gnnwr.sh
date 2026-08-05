@@ -31,16 +31,20 @@
 #                        early stopping. Defaults to 20.
 #   reference_set_size   Caps GNNWR's reference/training set to this many plots
 #                        (compartment-stratified) -- see gnnwr_check.py's module docstring.
-#                        Defaults to 16000 (DEFAULT_REFERENCE_SET_SIZE), sized against the same
-#                        memory-cost model that predicted the real observed OOM at the full
-#                        31,117 rows almost exactly (est. ~4.1 GB for 16,000 rows, comfortably
-#                        inside the GENERIC "gpu:1" gres below -- an earlier, more conservative
-#                        6,000-row default has already been run once and logged separately).
-#                        Pass 0 to use the full ~31,000-plot population instead -- only attempt
-#                        that with a high-VRAM GPU (e.g. --gres=gpu:nvidia_rtx_a6000:1), and only
-#                        if one is actually available: a specific-GPU-type request sat PD
-#                        ("ReqNodeNotAvail") for a full day on this cluster's queue, so the
-#                        generic pool is the more reliable default.
+#                        Defaults to 0 (the FULL ~31,117-plot population) -- the memory-cost model
+#                        that correctly predicted the real observed OOM at full scale on a 10.57
+#                        GiB GPU (est. ~12.9 GB vs the actual crash) also shows the full population
+#                        only needs ~12.8 GB, which comfortably fits the --gres below (an 18 GiB
+#                        H200 MIG slice), so there is no need to shrink the reference set at all
+#                        on this GPU type -- GNNWR sees the SAME training population as EN/XGBoost/
+#                        the DNN baselines, not a disclosed-but-real handicap.
+#                        FALLBACK, if the MIG slice also turns out hard to schedule (untested --
+#                        only a specific RTX A6000 request has actually been confirmed to sit PD
+#                        for a full day on this cluster's queue; MIG slices are a reasonable bet
+#                        to be more available since they let several modest jobs share one
+#                        physical GPU, but that is not yet verified empirically): switch --gres
+#                        back to the generic "gpu:1" pool and pass 16000 here instead (est. ~4.1 GB,
+#                        safely fits 10.57 GiB), or 6000 for an even cheaper, already-tested value.
 #   split_seed           Seed for the compartment-based spatial_block_split. Defaults to 42 (this
 #                        project's standard SPLIT_SEED), matching every other
 #                        growth-curve-attribution check so results are directly comparable.
@@ -53,18 +57,21 @@
 #   k_folds              Number of folds, only used when held_out_fold is set. Defaults to 5
 #                        (DEFAULT_K_FOLDS), matching Elastic Net/XGBoost's own spatial CV.
 #
-# Why the reference set is capped rather than requesting bigger hardware (see gnnwr_check.py's
-# module docstring for the full investigation, including a second, separate memory bottleneck in
-# gnnwr's own diagnostic code that is patched inside gnnwr_check.py itself): GNNWR's spatial-
-# weighting sub-network takes each plot's full distance-to-every-reference-plot vector as input,
-# so its first layer's width equals the reference-set size. At the full ~31,000-plot population
-# that is roughly 500 million parameters, which OOM's the cluster's generic GPU allocation
-# (10.57 GiB VRAM). A specific bigger GPU (RTX A6000, 48 GiB) fixes that particular number, but
-# is not reliably available on this cluster's queue in practice. Capping the reference set to
-# 6,000 plots (compartment-stratified, so it still covers the whole forest) keeps this comfortably
-# within the generic pool's budget without waiting on a scarce resource -- a disclosed,
-# deliberate trade-off (GNNWR sees fewer reference points than EN/XGBoost/the DNN baselines see
-# training rows), not a hidden one.
+# Why an 18 GiB H200 MIG slice instead of the generic pool or a specific bigger card (see
+# gnnwr_check.py's module docstring for the full investigation, including a second, separate
+# memory bottleneck in gnnwr's own diagnostic code that is patched inside gnnwr_check.py itself):
+# GNNWR's spatial-weighting sub-network takes each plot's full distance-to-every-reference-plot
+# vector as input, so its first layer's width equals the reference-set size. At the full
+# ~31,000-plot population that is roughly 500 million parameters (~12.9 GB total with the
+# accompanying distance tensors) -- confirmed to OOM the cluster's generic "gpu:1" allocation
+# (10.57 GiB VRAM) in an earlier run. Rather than shrink the reference set (the earlier fix, still
+# available as a fallback -- see reference_set_size above) or request a specific high-VRAM card
+# like an RTX A6000 (48 GiB, confirmed to sit PD/"ReqNodeNotAvail" for a full day on this
+# cluster's queue), this instead requests a MIG slice of the cluster's H200 -- just 18 GiB is
+# already comfortably enough to fit the FULL training population with real margin, and MIG slices
+# are a more plausible bet for fast scheduling than a whole scarce high-end card, since several
+# modest jobs can share one physical GPU. If this GRES also proves hard to schedule in practice,
+# fall back to --gres=gpu:1 with reference_set_size=16000 (or 6000).
 #
 # Logs:
 #   stdout -> logs/growth_curve_attribution/gnnwr_<jobid>.out
@@ -84,7 +91,7 @@
 #SBATCH --error=logs/growth_curve_attribution/%x_%j.err
 #SBATCH --time=04:00:00
 #SBATCH --partition=Teaching
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:h200_1g.18gb:1
 #SBATCH --mem=16G
 
 cd ~/forest_diss
@@ -100,7 +107,7 @@ COHORT=${1:-4survey}
 SCOPE=${2:-terrain_wind}
 MAX_EPOCH=${3:-200}
 EARLY_STOP=${4:-20}
-REFERENCE_SET_SIZE=${5:-16000}
+REFERENCE_SET_SIZE=${5:-0}
 SPLIT_SEED=${6:-42}
 HELD_OUT_FOLD=${7:-}
 K_FOLDS=${8:-5}
