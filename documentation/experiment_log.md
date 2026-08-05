@@ -279,6 +279,56 @@ run before it, and the open question has narrowed from "is this even real" (reso
 
 ---
 
+**2026-08-05 — Q: does 6survey's residual spatial pattern under `spatial_block` look anything like
+4survey's -- no, 4survey shows small-but-real spatial clustering everywhere, 6survey shows almost
+none, consistently across every model checked.**
+**What I found:** New script `models/common/spatial_pattern_check.py` -- Moran's I on a DNN/PINN
+model's own held-out residuals, reusing `models.spatial_attribution.spatial_autocorrelation`'s
+existing `semivariogram_range()`/`global_morans_i()` primitives directly against `evaluate_*.py`'s
+already-saved `predictions.csv` (no refitting). Aggregated to one mean residual per plot first
+(not one row per plot-year) -- residual rows for the same plot share near-identical coordinates,
+which would otherwise pseudo-replicate the same spatial observation, the same "the plot is the
+real independent unit" issue already flagged for compartment-level bootstrap resampling elsewhere
+in this project. Scoped deliberately to `spatial_block`/`spatial_block_kfold` only -- Moran's I
+answers a spatial-pattern question, meaningless for `temporal`, low-value for `plot_level`.
+
+| Model | Cohort | Moran's I | p | Range | Status |
+|---|---|---|---|---|---|
+| `pinn_env_terrain_k` | 4survey | 0.0561 | 0.001 | 4125m | resolved |
+| `dnn_noenv` | 4survey | 0.0507 | 0.001 | 3750m | resolved |
+| `dnn_env_terrain` | 4survey | 0.0437 | 0.001 | 3622m | resolved |
+| `pinn_env_terrain` | 4survey | 0.0537 | 0.001 | 3902m | resolved |
+| `pinn_noenv` (w=1) | 4survey | 0.0591 | 0.001 | 3694m | resolved |
+| `dnn_noenv` | 6survey | 0.0041 | 0.001 | 5000m | exceeds_window |
+| `dnn_env_terrain` | 6survey | n/a | n/a | 0m | no_structure |
+| `pinn_env_terrain` | 6survey | n/a | n/a | 5000m | exceeds_window |
+| `pinn_noenv` (w=1) | 6survey | 0.0039 | 0.001 | 5000m | exceeds_window |
+
+Every 4survey model: small but real Moran's I (0.04-0.06, p=0.001) at a consistent ~3600-4100m
+range -- matching the ~3,956m semivariogram range already documented elsewhere in this project
+for a different residual target, an independent cross-check landing in the same ballpark. Every
+6survey model: near-zero Moran's I (0.004-0.005) or no resolvable structure at all, regardless of
+which model produced the residuals.
+**What's working:** the pattern is consistent ACROSS every model tried (baseline-conditioned,
+env-conditioned, physics-informed or not) for a given cohort -- this isn't one model's quirk, it's
+a genuine property of the two cohorts' residual structure. `pinn_env_terrain_k`'s 4survey value
+(0.0561) sits in the same narrow band as every other 4survey model (0.044-0.059), so whatever the
+y_max/k conditioning does, it isn't leaving behind more or less residual spatial pattern than any
+other model here.
+**What's not working / open concern:** 6survey's `exceeds_window`/`no_structure` statuses mean the
+semivariogram didn't resolve within the 5000m cap tested -- this could mean genuinely near-zero
+spatial structure, OR that 6survey's much smaller test set (2,781 plots vs 4survey's ~11,700)
+makes the semivariogram too noisy to resolve a real pattern that's actually there. Not yet
+distinguished; would need a larger `max_distance` sweep specifically for 6survey to tell apart.
+**What this means for what's next:** worth a line in the write-up either way (4survey has small,
+real, model-independent leftover spatial pattern; 6survey's own signal is either absent or
+underpowered to detect) -- but not worth deeper investigation right now given the small effect
+size (I~0.05 is not a large clustering signal) relative to the k-fold sweep already in progress.
+Re-run this same script once `E3_kfold`'s pooled predictions land (whole-population residuals,
+not one ~20% slice) for a more precise version of this same check.
+
+---
+
 **2026-08-03 — Q: can conditioning the Chapman-Richards rate parameter `k` (not just `y_max`) on
 terrain/wind let the PINN express "same ceiling, different timing" -- built `pinn_env_terrain_k`,
 first (single-seed) result shows a real but strongly confounded effect, needs multi-seed checking
@@ -2637,3 +2687,54 @@ prediction of a newly estimated biological target.
 growth-curve question; these Avenue 1 results neither replace nor redefine it. No fold-wise CR
 refitting is required because the pooled CR curve is intentionally the shared descriptive
 comparison chosen for this avenue.
+
+---
+
+**2026-08-05 — Q: literature check — does Wang et al.'s GWDNN paper (iForest, dead-wood-volume
+GWR/DNN hybrid) validate the `gnnwr_check.py` approach, and does it suggest concrete changes?
+(Literature/methodology review, no code run — no new numbers on disk.)**
+**What I found:** Read the paper (`https://iforest.sisef.org/contents/?id=ifor3705-014`) in
+detail via two targeted fetches (methodology + results). It models a different target (down dead
+wood volume, a single 2019 spatial snapshot, 130 plots/0.06ha in a Chinese reserve) with the same
+model family shape we're testing: OLS -> LMM (compartment random effects) -> GWR -> DNN -> GWDNN
+(a two-branch net where one branch, the SWNN, learns spatial weights straight from distance
+vectors instead of a classic GWR kernel -- conceptually the same mechanism as GNNWR's SWNN,
+Du et al. 2020). Reported result: GWDNN R2=0.85 vs GWR's 0.52, and residual Moran's I collapses
+from OLS's 0.24 to GWDNN's -0.01 (LMM alone already gets to 0.06, nearly as good as GWR's 0.05).
+Checked four things specifically because they determine whether the comparison transfers to our
+setup: (1) split method -- **plain random 80/20, no spatial blocking** ("104 samples...randomly
+selected...for model training, and 26...for verification"); (2) how spatial weights are learned --
+neural, no explicit bandwidth reported, same as GNNWR; (3) Moran's I is computed on residuals
+after fitting, per model, exactly as tabulated above; (4) no discussion anywhere of compute cost,
+memory, or scalability -- 130 rows never stresses anything, so the paper is silent on the exact
+problem `gnnwr_check.py`'s own docstring spends 40+ lines on (the O(n^2) hat-matrix blowup,
+16k-row reference-set subsampling, GPU OOM workarounds). Also checked whether they interpret
+spatial coefficient maps (a claimed GWR-family strength) -- they don't; only aggregate accuracy
+numbers are reported, same limitation our own `gnnwr_check.py` currently has.
+**What's working:** the paper is real, independent precedent that a GWR/GNNWR-family spatial
+weighting mechanism can beat a flat global model (and a plain DNN) for an ecological
+forest-structure variable -- modest support for testing GNNWR here at all. Two cheap, concrete
+additions surfaced: (a) compute residual Moran's I for GNNWR vs EN/XGBoost as a diagnostic
+alongside R2/RMSE, checkable against the ~3,956m semivariogram range already measured for the CR
+residual in Stage 1; (b) test compartment-level LMM/partial-pooling as an intermediate baseline
+before investing further in GNNWR -- the paper's own numbers suggest LMM alone captures most of
+GWR's Moran's I improvement, which lines up with this project's own Stage 2 problem 7 ICC numbers
+(0.399/0.188) and the already-shortlisted Candidate B (Bayesian hierarchical partial pooling).
+**What's not working / open concern:** the paper's own methodology is weaker than ours in exactly
+the dimension that matters most here -- its random split lets train/test points sit adjacent in
+space, which is the condition that flatters any distance-weighted local model; our
+`spatial_block_split` (60m buffer) is deliberately harder, and Stage 2's own phase0 check already
+found 96.3%/97.1% of `spatial_block_split` test plots (4survey/6survey) have zero training
+neighbours within 75m -- a regime the paper never tests, so its GWR/GWDNN gains cannot be assumed
+to transfer under our evaluation. The paper's target is also a static single-snapshot spatial
+field; ours is a per-plot growth-curve deviation with known sharp compartment-level discontinuities
+(the long-tail clearfell/windthrow plots, up to 47m single-survey collapses) that a smooth
+distance-decay kernel is not designed to capture. And the paper's ceiling (OLS->GWDNN: 0.52->0.85)
+is much larger than ours (EN/XGBoost terrain/wind already at ~0.12-0.13), so even a genuine local-
+weighting win here is likely to be a small absolute move, not a transformative one.
+**What this means for what's next:** treat this as suggestive background, not validation that
+GNNWR will work under our stricter split -- the neighbour-coverage problem (Stage 2 problem 5)
+still has to be resolved/decided (large bandwidth vs. tabular-only Candidate A) before trusting any
+GNNWR result either way. Concrete next steps if pursued: add residual Moran's I to
+`gnnwr_check.py`'s reported metrics, and run a compartment-level LMM/partial-pooling check as a
+cheaper intermediate test before further GNNWR cluster spend.

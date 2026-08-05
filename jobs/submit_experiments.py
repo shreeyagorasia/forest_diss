@@ -139,9 +139,8 @@ def build_kfold_stage_jobs():
                 "42", "", "512", "42", str(n_folds), str(fold_index),
             ])
             model_evaluate_commands.append([
-                "python", "-m", "models.dnn_noenv.evaluate_dnn_noenv",
-                "--cohort", cohort, "--split-type", "spatial_block_kfold",
-                "--split-seed", "42", "--n-folds", str(n_folds), "--fold-index", str(fold_index),
+                "jobs/dnn_noenv/evaluate_dnn_noenv.sh", cohort, "spatial_block_kfold", "", "42",
+                str(n_folds), str(fold_index),
             ])
 
             model_fit_jobs.append([
@@ -149,9 +148,8 @@ def build_kfold_stage_jobs():
                 "42", "", "256", "terrain_wind_solid", "0.0", "42", str(n_folds), str(fold_index),
             ])
             model_evaluate_commands.append([
-                "python", "-m", "models.dnn_env_terrain.evaluate_dnn_env_terrain",
-                "--cohort", cohort, "--split-type", "spatial_block_kfold",
-                "--split-seed", "42", "--n-folds", str(n_folds), "--fold-index", str(fold_index),
+                "jobs/dnn_env_terrain/evaluate_dnn_env_terrain.sh", cohort, "spatial_block_kfold", "", "42",
+                str(n_folds), str(fold_index),
             ])
 
             model_fit_jobs.append([
@@ -159,9 +157,8 @@ def build_kfold_stage_jobs():
                 "1.0", "1.0", "", "42", "256", "terrain_wind_solid", "0.0", "42", str(n_folds), str(fold_index),
             ])
             model_evaluate_commands.append([
-                "python", "-m", "models.pinn_env_terrain.evaluate_pinn_env_terrain",
-                "--cohort", cohort, "--split-type", "spatial_block_kfold",
-                "--split-seed", "42", "--n-folds", str(n_folds), "--fold-index", str(fold_index),
+                "jobs/pinn_env_terrain/evaluate_pinn_env_terrain.sh", cohort, "spatial_block_kfold", "", "42",
+                str(n_folds), str(fold_index),
             ])
 
             model_fit_jobs.append([
@@ -169,9 +166,8 @@ def build_kfold_stage_jobs():
                 "1.0", "1.0", "", "42", "256", "terrain_wind_solid", "0.0", "42", str(n_folds), str(fold_index),
             ])
             model_evaluate_commands.append([
-                "python", "-m", "models.pinn_env_terrain_k.evaluate_pinn_env_terrain_k",
-                "--cohort", cohort, "--split-type", "spatial_block_kfold",
-                "--split-seed", "42", "--n-folds", str(n_folds), "--fold-index", str(fold_index),
+                "jobs/pinn_env_terrain_k/evaluate_pinn_env_terrain_k.sh", cohort, "spatial_block_kfold", "", "42",
+                str(n_folds), str(fold_index),
             ])
 
     return baseline_fit_jobs, model_fit_jobs, model_evaluate_commands
@@ -213,7 +209,7 @@ STAGES["E4_pinn_env_terrain_k_6survey_base"] = {
         ["jobs/pinn_env_terrain_k/run_pinn_env_terrain_k.sh", "6survey", "500", "40", "spatial_block", "1.0", "1.0", "", "42", "256"],
     ],
     "evaluate_commands": [
-        ["python", "-m", "models.pinn_env_terrain_k.evaluate_pinn_env_terrain_k", "--cohort", "6survey", "--split-type", "spatial_block"],
+        ["jobs/pinn_env_terrain_k/evaluate_pinn_env_terrain_k.sh", "6survey", "spatial_block"],
     ],
 }
 
@@ -233,10 +229,10 @@ STAGES["E5_pinn_env_terrain_k_temporal"] = {
         ["jobs/pinn_env_terrain_k/run_pinn_env_terrain_k.sh", "6survey", "500", "40", "temporal_narrow_gap", "1.0", "1.0", "", "42", "256"],
     ],
     "evaluate_commands": [
-        ["python", "-m", "models.pinn_env_terrain_k.evaluate_pinn_env_terrain_k", "--cohort", "4survey", "--split-type", "temporal"],
-        ["python", "-m", "models.pinn_env_terrain_k.evaluate_pinn_env_terrain_k", "--cohort", "6survey", "--split-type", "temporal"],
-        ["python", "-m", "models.pinn_env_terrain_k.evaluate_pinn_env_terrain_k", "--cohort", "4survey", "--split-type", "temporal_narrow_gap"],
-        ["python", "-m", "models.pinn_env_terrain_k.evaluate_pinn_env_terrain_k", "--cohort", "6survey", "--split-type", "temporal_narrow_gap"],
+        ["jobs/pinn_env_terrain_k/evaluate_pinn_env_terrain_k.sh", "4survey", "temporal"],
+        ["jobs/pinn_env_terrain_k/evaluate_pinn_env_terrain_k.sh", "6survey", "temporal"],
+        ["jobs/pinn_env_terrain_k/evaluate_pinn_env_terrain_k.sh", "4survey", "temporal_narrow_gap"],
+        ["jobs/pinn_env_terrain_k/evaluate_pinn_env_terrain_k.sh", "6survey", "temporal_narrow_gap"],
     ],
 }
 
@@ -277,16 +273,39 @@ def run_fit_jobs(stage_name, dry_run):
 
 
 def run_evaluate_commands(stage_name, dry_run):
+    # Two shapes of "evaluate command" live in this file, and each is handled differently:
+    #   - a plain ["python", "-m", ...] list (E1/E2's original shape) -- run directly, right
+    #     here, in whatever shell called this script. Fine ONLY if that shell is your own
+    #     laptop or an interactive compute-node allocation, NEVER the cluster's shared login
+    #     node -- even a "cheap CPU-only" script is still real compute, and the login node is
+    #     shared by every user on the cluster (2026-08-05 fix: this was silently assumed
+    #     "locally" always meant a laptop, which isn't true for everyone).
+    #   - a [".../evaluate_*.sh", ...] list (E3/E4/E5's shape) -- submitted via sbatch, exactly
+    #     like a fit job, so it actually runs on a real (CPU-only, no --gres=gpu) compute node
+    #     instead of wherever this script itself happens to be running.
     stage = STAGES[stage_name]
     print(f"===== Running evaluate commands for stage {stage_name} =====")
     print(stage["description"])
     print()
 
+    sbatch_is_available = shutil.which("sbatch") is not None
+
     for command in stage["evaluate_commands"]:
-        print("  " + " ".join(command))
-        if dry_run:
-            continue
-        subprocess.run(command, check=True)
+        is_sbatch_job = command[0].endswith(".sh")
+        if is_sbatch_job:
+            full_command = ["sbatch"] + command
+            print("  " + " ".join(full_command))
+            if dry_run:
+                continue
+            if not sbatch_is_available:
+                print("    (sbatch not found on this machine -- not actually submitted)")
+                continue
+            subprocess.run(full_command, check=True)
+        else:
+            print("  " + " ".join(command))
+            if dry_run:
+                continue
+            subprocess.run(command, check=True)
 
     print()
     print(f"Done evaluating stage {stage_name}.")
