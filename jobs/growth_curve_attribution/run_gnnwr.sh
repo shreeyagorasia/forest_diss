@@ -3,12 +3,20 @@
 # Run on the ICF cluster from the project root:
 #
 #   cd ~/forest_diss
-#   sbatch jobs/growth_curve_attribution/run_gnnwr.sh [cohort] [scope] [max_epoch] [early_stop] [reference_set_size] [split_seed]
+#   sbatch jobs/growth_curve_attribution/run_gnnwr.sh [cohort] [scope] [max_epoch] [early_stop] [reference_set_size] [split_seed] [held_out_fold] [k_folds]
 #
 # Examples:
 #   sbatch jobs/growth_curve_attribution/run_gnnwr.sh 4survey terrain_wind
 #   sbatch jobs/growth_curve_attribution/run_gnnwr.sh 4survey terrain_wind 300 30
 #   sbatch jobs/growth_curve_attribution/run_gnnwr.sh 4survey terrain_wind_plus_management 300 30
+#   # 5-fold spatial CV at the cheap 6,000-row reference-set size (submit once per fold):
+#   sbatch jobs/growth_curve_attribution/run_gnnwr.sh 4survey terrain_wind 200 20 6000 42 0 5
+#   sbatch jobs/growth_curve_attribution/run_gnnwr.sh 4survey terrain_wind 200 20 6000 42 1 5
+#   sbatch jobs/growth_curve_attribution/run_gnnwr.sh 4survey terrain_wind 200 20 6000 42 2 5
+#   sbatch jobs/growth_curve_attribution/run_gnnwr.sh 4survey terrain_wind 200 20 6000 42 3 5
+#   sbatch jobs/growth_curve_attribution/run_gnnwr.sh 4survey terrain_wind 200 20 6000 42 4 5
+#   # then pool the 5 resulting CSVs:
+#   python -m models.growth_curve_attribution.pool_gnnwr_kfold_results --cohort 4survey --scope terrain_wind --reference-set-size 6000
 #
 # Arguments:
 #   cohort               4survey or 6survey. Defaults to 4survey.
@@ -36,6 +44,14 @@
 #   split_seed           Seed for the compartment-based spatial_block_split. Defaults to 42 (this
 #                        project's standard SPLIT_SEED), matching every other
 #                        growth-curve-attribution check so results are directly comparable.
+#   held_out_fold        Leave BLANK for the original single train/val/test split (unchanged
+#                        default behaviour). Pass 0..k_folds-1 to instead run ONE fold of a
+#                        proper K-fold spatial CV -- the same kind of split Elastic Net/XGBoost's
+#                        own headline numbers are pooled across. Submit once per fold value (see
+#                        examples above), then pool the resulting CSVs with
+#                        pool_gnnwr_kfold_results.py for a genuinely comparable headline R2.
+#   k_folds              Number of folds, only used when held_out_fold is set. Defaults to 5
+#                        (DEFAULT_K_FOLDS), matching Elastic Net/XGBoost's own spatial CV.
 #
 # Why the reference set is capped rather than requesting bigger hardware (see gnnwr_check.py's
 # module docstring for the full investigation, including a second, separate memory bottleneck in
@@ -86,6 +102,8 @@ MAX_EPOCH=${3:-200}
 EARLY_STOP=${4:-20}
 REFERENCE_SET_SIZE=${5:-16000}
 SPLIT_SEED=${6:-42}
+HELD_OUT_FOLD=${7:-}
+K_FOLDS=${8:-5}
 
 echo "--- GNNWR job start ---"
 echo "Node: $(hostname)"
@@ -95,6 +113,14 @@ echo "Max epoch: ${MAX_EPOCH}"
 echo "Early stop patience: ${EARLY_STOP}"
 echo "Reference set size: ${REFERENCE_SET_SIZE}"
 echo "Split seed: ${SPLIT_SEED}"
+echo "Held-out fold: ${HELD_OUT_FOLD:-(none -- single split)}"
+
+# Only pass --held-out-fold when actually set -- omitting it entirely (not passing 0/blank)
+# keeps gnnwr_check.py's original single-split behaviour, which is its own default too.
+FOLD_ARGS=()
+if [ -n "${HELD_OUT_FOLD}" ]; then
+  FOLD_ARGS=(--held-out-fold "${HELD_OUT_FOLD}" --k-folds "${K_FOLDS}")
+fi
 
 python -u -m models.growth_curve_attribution.gnnwr_check \
   --cohort "${COHORT}" \
@@ -103,6 +129,7 @@ python -u -m models.growth_curve_attribution.gnnwr_check \
   --early-stop "${EARLY_STOP}" \
   --reference-set-size "${REFERENCE_SET_SIZE}" \
   --split-seed "${SPLIT_SEED}" \
-  --use-gpu
+  --use-gpu \
+  "${FOLD_ARGS[@]}"
 
 echo "--- GNNWR job end ---"

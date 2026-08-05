@@ -51,7 +51,14 @@ import numpy as np
 import pandas as pd
 
 from models.common.metrics import compute_metrics
-from models.common.splits import SPATIAL_BLOCK_COL, SPATIAL_BUFFER_METRES, SPLIT_SEED, spatial_block_split
+from models.common.splits import (
+    DEFAULT_K_FOLDS,
+    SPATIAL_BLOCK_COL,
+    SPATIAL_BUFFER_METRES,
+    SPLIT_SEED,
+    spatial_block_split,
+    spatial_kfold_split,
+)
 from models.elasticnet_environmental.elasticnet_environmental import drop_rows_with_missing_features
 from models.growth_curve_attribution.broad_environmental_check import columns_for_groups
 from models.growth_curve_attribution.scale_comparison_check import TARGET, build_plot_level_table, merge_environmental_features
@@ -69,16 +76,40 @@ SCOPES = {
 }
 
 
-def build_scope_table(cohort: str, scope: str, split_seed: int = SPLIT_SEED):
-    """Build the cleaned, feature-merged, split-labelled plot table for one feature scope."""
+def build_scope_table(
+    cohort: str,
+    scope: str,
+    split_seed: int = SPLIT_SEED,
+    held_out_fold: int | None = None,
+    k_folds: int = DEFAULT_K_FOLDS,
+):
+    """Build the cleaned, feature-merged, split-labelled plot table for one feature scope.
+
+    held_out_fold=None (the default) keeps this function's original behaviour EXACTLY: one
+    single train/val/test split via spatial_block_split(), same as every run so far tonight.
+    Passing an integer 0..k_folds-1 instead switches to ONE FOLD of a proper K-fold spatial CV
+    (spatial_kfold_split() -- the same helper Elastic Net/XGBoost's own headline numbers, e.g.
+    the 0.125/0.117 this project compares GNNWR against, are pooled across). Running this once
+    per held_out_fold and pooling the out-of-fold test predictions gives a GNNWR number that is
+    actually comparable to those EN/XGBoost numbers, instead of the single-split estimate used so
+    far, which this project's own seed-sweep work already showed has real variance (EN's 5-fold
+    pooled R2 itself moves +/-0.023 across different fold-assignment seeds for 4survey).
+    """
     feature_columns = columns_for_groups(SCOPES[scope])
     plot_table = build_plot_level_table(cohort, apply_disturbance_cleaning=True)
     merged, available_columns = merge_environmental_features(plot_table, feature_columns=feature_columns)
     merged = drop_rows_with_missing_features(merged, available_columns)
-    merged["split"] = spatial_block_split(
-        merged, block_col=SPATIAL_BLOCK_COL, buffer_distance=SPATIAL_BUFFER_METRES,
-        coordinates_df=merged[["identification", "x", "y"]], seed=split_seed,
-    )
+    if held_out_fold is None:
+        merged["split"] = spatial_block_split(
+            merged, block_col=SPATIAL_BLOCK_COL, buffer_distance=SPATIAL_BUFFER_METRES,
+            coordinates_df=merged[["identification", "x", "y"]], seed=split_seed,
+        )
+    else:
+        merged["split"] = spatial_kfold_split(
+            merged, block_col=SPATIAL_BLOCK_COL, k=k_folds, held_out_fold=held_out_fold,
+            buffer_distance=SPATIAL_BUFFER_METRES, coordinates_df=merged[["identification", "x", "y"]],
+            seed=split_seed,
+        )
     return merged, available_columns
 
 
@@ -125,6 +156,8 @@ def run_gnnwr(
     use_gpu: bool,
     reference_set_size: int | None = DEFAULT_REFERENCE_SET_SIZE,
     split_seed: int = SPLIT_SEED,
+    held_out_fold: int | None = None,
+    k_folds: int = DEFAULT_K_FOLDS,
 ):
     # Imported here, not at module level -- gnnwr pulls in torch, and this module's
     # build_scope_table()/subsample_reference_set() are useful even where torch isn't installed
@@ -220,7 +253,11 @@ def run_gnnwr(
     # every DIAGNOSIS(...) call made from inside that module from now on.
     _gnnwr_models.DIAGNOSIS = _FastDiagnosis
 
-    table, feature_columns = build_scope_table(cohort, scope, split_seed=split_seed)
+    table, feature_columns = build_scope_table(
+        cohort, scope, split_seed=split_seed, held_out_fold=held_out_fold, k_folds=k_folds,
+    )
+    if held_out_fold is not None:
+        print(f"  K-fold spatial CV: fold {held_out_fold} of {k_folds} held out as test (seed={split_seed})")
 
     train = table[table["split"] == "train"].copy()
     val = table[table["split"] == "val"].copy()
@@ -245,11 +282,12 @@ def run_gnnwr(
         spatial_column=["x", "y"],
     )
 
-    # Includes reference_set_size in the name so different reference-set-size runs (e.g. a sweep
-    # comparing 6,000 vs 16,000 vs the full population) get their own model checkpoint and CSV
-    # output instead of silently overwriting each other's results.
+    # Includes reference_set_size AND (when in k-fold mode) the held-out fold index in the name,
+    # so different reference-set-size runs and different folds all get their own model checkpoint
+    # and CSV output instead of silently overwriting each other's results.
     reference_set_label = "full" if reference_set_size is None else str(reference_set_size)
-    run_name = f"gnnwr_{scope}_{cohort}_ref{reference_set_label}"
+    fold_label = "" if held_out_fold is None else f"_fold{held_out_fold}of{k_folds}"
+    run_name = f"gnnwr_{scope}_{cohort}_ref{reference_set_label}{fold_label}"
     model = GNNWR(
         train_dataset,
         valid_dataset,
@@ -305,6 +343,17 @@ def main():
         ),
     )
     parser.add_argument("--split-seed", type=int, default=SPLIT_SEED)
+    parser.add_argument(
+        "--held-out-fold", type=int, default=None,
+        help=(
+            "Run ONE fold of a proper K-fold spatial CV instead of the default single "
+            "train/val/test split -- pass 0..k_folds-1, and run this once per fold value, then "
+            "pool the resulting test-prediction CSVs for a headline number that's actually "
+            "comparable to the EN/XGBoost baseline's own pooled 5-fold R2. Omit (the default) "
+            "for the original single-split behaviour."
+        ),
+    )
+    parser.add_argument("--k-folds", type=int, default=DEFAULT_K_FOLDS)
     args = parser.parse_args()
 
     run_gnnwr(
@@ -315,6 +364,8 @@ def main():
         use_gpu=args.use_gpu,
         reference_set_size=args.reference_set_size if args.reference_set_size > 0 else None,
         split_seed=args.split_seed,
+        held_out_fold=args.held_out_fold,
+        k_folds=args.k_folds,
     )
 
 
