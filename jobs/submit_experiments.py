@@ -100,6 +100,147 @@ STAGES = {
 }
 
 
+# ---------------------------------------------------------------------------
+# E3: the spatial_block_kfold sweep (2026-08-05) -- built with loops instead of hardcoded lists
+# like E1/E2 above, purely because of scale: 5 folds x 2 cohorts x 4 models is 40 fit jobs and
+# 40 evaluate commands, not the 4-8 of E1/E2. The JOB ORDER MATTERS here in a way E1/E2 didn't:
+#   1. Run E3_baselines_kfold FIRST and wait for all 5 jobs to finish. These fit the
+#      fold-MATCHED Chapman-Richards anchor (and the other three baselines, fit as a side
+#      effect) for every fold -- pinn_env_terrain/pinn_env_terrain_k's load_cr_params() reads
+#      this file and will fail with a clear "No such file" error if it doesn't exist yet.
+#   2. THEN run "E3_kfold fit", wait for those 40 cluster jobs to finish.
+#   3. THEN run "E3_kfold evaluate" (runs locally, cheap CPU-only, one call per model/cohort/fold).
+#   4. Once every fold's predictions.csv exists, pool them with
+#      models/common/kfold_summary.py (not part of this script -- see its own module docstring).
+# dnn_noenv/dnn_env_terrain don't actually need step 1 (no physics anchor), but there's no harm
+# in waiting for it anyway -- simpler to always do steps in the same order than to special-case.
+def build_kfold_stage_jobs():
+    n_folds = 5
+    cohorts = ["4survey", "6survey"]
+
+    baseline_fit_jobs = []
+    for fold_index in range(n_folds):
+        # run_baselines.py always fits BOTH cohorts in one call (see its own main()) -- one job
+        # per fold, not one per (cohort, fold) pair.
+        baseline_fit_jobs.append(
+            ["jobs/baselines/run_baselines.sh", "spatial_block_kfold", "42", str(n_folds), str(fold_index)]
+        )
+
+    model_fit_jobs = []
+    model_evaluate_commands = []
+    for cohort in cohorts:
+        for fold_index in range(n_folds):
+            # batch_size=256 for both dnn_env_terrain and the two PINN models, matching E1's own
+            # reasoning above (avoids an uncontrolled DNN-vs-PINN batch-size mismatch) -- left at
+            # dnn_noenv.sh's own default (512) since there's no PINN-equivalent batch size it
+            # needs to match here (dnn_noenv has no physics loss).
+            model_fit_jobs.append([
+                "jobs/dnn_noenv/run_dnn_noenv.sh", cohort, "500", "40", "spatial_block_kfold",
+                "42", "", "512", "42", str(n_folds), str(fold_index),
+            ])
+            model_evaluate_commands.append([
+                "python", "-m", "models.dnn_noenv.evaluate_dnn_noenv",
+                "--cohort", cohort, "--split-type", "spatial_block_kfold",
+                "--split-seed", "42", "--n-folds", str(n_folds), "--fold-index", str(fold_index),
+            ])
+
+            model_fit_jobs.append([
+                "jobs/dnn_env_terrain/run_dnn_env_terrain.sh", cohort, "500", "40", "spatial_block_kfold",
+                "42", "", "256", "terrain_wind_solid", "0.0", "42", str(n_folds), str(fold_index),
+            ])
+            model_evaluate_commands.append([
+                "python", "-m", "models.dnn_env_terrain.evaluate_dnn_env_terrain",
+                "--cohort", cohort, "--split-type", "spatial_block_kfold",
+                "--split-seed", "42", "--n-folds", str(n_folds), "--fold-index", str(fold_index),
+            ])
+
+            model_fit_jobs.append([
+                "jobs/pinn_env_terrain/run_pinn_env_terrain.sh", cohort, "500", "40", "spatial_block_kfold",
+                "1.0", "1.0", "", "42", "256", "terrain_wind_solid", "0.0", "42", str(n_folds), str(fold_index),
+            ])
+            model_evaluate_commands.append([
+                "python", "-m", "models.pinn_env_terrain.evaluate_pinn_env_terrain",
+                "--cohort", cohort, "--split-type", "spatial_block_kfold",
+                "--split-seed", "42", "--n-folds", str(n_folds), "--fold-index", str(fold_index),
+            ])
+
+            model_fit_jobs.append([
+                "jobs/pinn_env_terrain_k/run_pinn_env_terrain_k.sh", cohort, "500", "40", "spatial_block_kfold",
+                "1.0", "1.0", "", "42", "256", "terrain_wind_solid", "0.0", "42", str(n_folds), str(fold_index),
+            ])
+            model_evaluate_commands.append([
+                "python", "-m", "models.pinn_env_terrain_k.evaluate_pinn_env_terrain_k",
+                "--cohort", cohort, "--split-type", "spatial_block_kfold",
+                "--split-seed", "42", "--n-folds", str(n_folds), "--fold-index", str(fold_index),
+            ])
+
+    return baseline_fit_jobs, model_fit_jobs, model_evaluate_commands
+
+
+_BASELINE_KFOLD_FIT_JOBS, _MODEL_KFOLD_FIT_JOBS, _MODEL_KFOLD_EVALUATE_COMMANDS = build_kfold_stage_jobs()
+
+STAGES["E3_baselines_kfold"] = {
+    "description": (
+        "Fold-matched Chapman-Richards anchors (+ average-by-age/linear/RF as a side effect) "
+        "for all 5 folds, both cohorts -- MUST be run and finished before E3_kfold, since "
+        "pinn_env_terrain/pinn_env_terrain_k read these files. No separate evaluate step -- "
+        "the baselines' own accuracy under k-fold isn't the point here, just their output files."
+    ),
+    "fit_jobs": _BASELINE_KFOLD_FIT_JOBS,
+    "evaluate_commands": [],
+}
+
+STAGES["E3_kfold"] = {
+    "description": (
+        "5-fold spatial_block_kfold sweep for dnn_noenv, dnn_env_terrain, pinn_env_terrain, "
+        "pinn_env_terrain_k, both cohorts -- the precision fix for the single-slice spatial_block "
+        "numbers everywhere else in this project (see documentation/experiment_log.md's 2026-08-04 "
+        "entries). Run E3_baselines_kfold FIRST and wait for it to finish. Once this stage's "
+        "'evaluate' step is done, pool each model's 5 folds with models/common/kfold_summary.py."
+    ),
+    "fit_jobs": _MODEL_KFOLD_FIT_JOBS,
+    "evaluate_commands": _MODEL_KFOLD_EVALUATE_COMMANDS,
+}
+
+STAGES["E4_pinn_env_terrain_k_6survey_base"] = {
+    "description": (
+        "The one missing single-seed base-case cell: pinn_env_terrain_k has never been run for "
+        "6survey at all (only 4survey, seed 42, spatial_block -- the council's original result). "
+        "Plain spatial_block, not k-fold -- reads the existing (non-fold) CR anchor, no "
+        "dependency on E3_baselines_kfold."
+    ),
+    "fit_jobs": [
+        ["jobs/pinn_env_terrain_k/run_pinn_env_terrain_k.sh", "6survey", "500", "40", "spatial_block", "1.0", "1.0", "", "42", "256"],
+    ],
+    "evaluate_commands": [
+        ["python", "-m", "models.pinn_env_terrain_k.evaluate_pinn_env_terrain_k", "--cohort", "6survey", "--split-type", "spatial_block"],
+    ],
+}
+
+
+STAGES["E5_pinn_env_terrain_k_temporal"] = {
+    "description": (
+        "pinn_env_terrain_k has never been run under temporal or temporal_narrow_gap at all -- "
+        "it didn't exist yet when E2 covered this for dnn_env_terrain/pinn_env_terrain. Both "
+        "cohorts, both temporal split types. Frozen CR anchors already exist for both "
+        "(outputs/{temporal,temporal_narrow_gap}/chapman_richards/<cohort>/params.json), so no "
+        "baseline dependency here, unlike E3_kfold."
+    ),
+    "fit_jobs": [
+        ["jobs/pinn_env_terrain_k/run_pinn_env_terrain_k.sh", "4survey", "500", "40", "temporal", "1.0", "1.0", "", "42", "256"],
+        ["jobs/pinn_env_terrain_k/run_pinn_env_terrain_k.sh", "6survey", "500", "40", "temporal", "1.0", "1.0", "", "42", "256"],
+        ["jobs/pinn_env_terrain_k/run_pinn_env_terrain_k.sh", "4survey", "500", "40", "temporal_narrow_gap", "1.0", "1.0", "", "42", "256"],
+        ["jobs/pinn_env_terrain_k/run_pinn_env_terrain_k.sh", "6survey", "500", "40", "temporal_narrow_gap", "1.0", "1.0", "", "42", "256"],
+    ],
+    "evaluate_commands": [
+        ["python", "-m", "models.pinn_env_terrain_k.evaluate_pinn_env_terrain_k", "--cohort", "4survey", "--split-type", "temporal"],
+        ["python", "-m", "models.pinn_env_terrain_k.evaluate_pinn_env_terrain_k", "--cohort", "6survey", "--split-type", "temporal"],
+        ["python", "-m", "models.pinn_env_terrain_k.evaluate_pinn_env_terrain_k", "--cohort", "4survey", "--split-type", "temporal_narrow_gap"],
+        ["python", "-m", "models.pinn_env_terrain_k.evaluate_pinn_env_terrain_k", "--cohort", "6survey", "--split-type", "temporal_narrow_gap"],
+    ],
+}
+
+
 def list_stages():
     # Just prints out what's available, without running anything -- so you can check what a
     # stage will do before actually submitting it.
