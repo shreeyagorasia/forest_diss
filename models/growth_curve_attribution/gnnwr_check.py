@@ -201,7 +201,9 @@ def run_gnnwr(
             self.__dict__["_DIAGNOSIS__k"] = k
             self.__dict__["_DIAGNOSIS__residual"] = y_data - y_pred
             self.__dict__["_DIAGNOSIS__ssr"] = torch.sum((y_pred - y_data) ** 2)
-            self.__dict__["_DIAGNOSIS__S"] = float(k)  # approx effective degrees of freedom
+            # Must be a tensor, not a plain float -- run()'s own progress bar calls
+            # .AIC().data.cpu().numpy() on this every epoch, which only works on a tensor.
+            self.__dict__["_DIAGNOSIS__S"] = torch.tensor(float(k), device=weight.device)  # approx effective degrees of freedom
 
     # Python looks up "DIAGNOSIS" inside gnnwr.models.__train()/__evaluate() from the models
     # module's own namespace at call time, not at gnnwr.models' own import time -- so patching
