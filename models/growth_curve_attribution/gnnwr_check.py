@@ -82,10 +82,19 @@ def build_scope_table(cohort: str, scope: str, split_seed: int = SPLIT_SEED):
     return merged, available_columns
 
 
-# Default reference-set cap -- see module docstring, "Bottleneck 1". Comfortably below the
-# ~11,600-row validation/test sets too, which matters for HAT_MATRIX_ROW_LIMIT below (train must
-# stay smaller than val/test for the size-based threshold there to treat all three consistently).
-DEFAULT_REFERENCE_SET_SIZE = 6_000
+# Default reference-set cap -- see module docstring, "Bottleneck 1". Sized against the SAME cost
+# model that predicted the real observed crash at the full 31,117 rows almost exactly (est. 12.9
+# GB vs the actual "10.51 GiB in use" OOM on the 10.57 GiB generic GPU) -- so this number is
+# calibrated, not guessed. That model's estimate for 16,000 rows is ~4.1 GB, comfortably inside
+# the 10.57 GiB generic "gpu:1" pool (the only GPU type reliably schedulable on this cluster's
+# queue -- a specific high-VRAM GPU, e.g. RTX A6000, sat pending for a full day with
+# "ReqNodeNotAvail" when tried). 16,000 rows is roughly 2.7x the plots the earlier 6,000-row runs
+# used, while still leaving several GB of margin. (Memory does not grow smoothly with this
+# number -- it jumps in steps, because the SWNN's first layer width snaps to the nearest power of
+# 2 below the reference-set size -- so 16,000 was chosen because it sits comfortably inside a
+# step, not right at its edge.) HAT_MATRIX_ROW_LIMIT below is a SEPARATE, already-patched
+# bottleneck (gnnwr's own O(n^2) diagnostic tensor) and no longer constrains this number at all.
+DEFAULT_REFERENCE_SET_SIZE = 16_000
 
 
 def subsample_reference_set(train_df: pd.DataFrame, reference_set_size: int | None, seed: int) -> pd.DataFrame:
@@ -236,7 +245,11 @@ def run_gnnwr(
         spatial_column=["x", "y"],
     )
 
-    run_name = f"gnnwr_{scope}_{cohort}"
+    # Includes reference_set_size in the name so different reference-set-size runs (e.g. a sweep
+    # comparing 6,000 vs 16,000 vs the full population) get their own model checkpoint and CSV
+    # output instead of silently overwriting each other's results.
+    reference_set_label = "full" if reference_set_size is None else str(reference_set_size)
+    run_name = f"gnnwr_{scope}_{cohort}_ref{reference_set_label}"
     model = GNNWR(
         train_dataset,
         valid_dataset,

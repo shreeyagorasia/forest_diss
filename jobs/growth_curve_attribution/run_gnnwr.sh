@@ -23,12 +23,16 @@
 #                        early stopping. Defaults to 20.
 #   reference_set_size   Caps GNNWR's reference/training set to this many plots
 #                        (compartment-stratified) -- see gnnwr_check.py's module docstring.
-#                        Defaults to 6000 (DEFAULT_REFERENCE_SET_SIZE), sized to fit comfortably
-#                        on the GENERIC "gpu:1" gres below. Pass 0 to use the full ~31,000-plot
-#                        population instead -- only attempt that with a high-VRAM GPU (e.g.
-#                        --gres=gpu:nvidia_rtx_a6000:1), and only if one is actually available:
-#                        a specific-GPU-type request sat PD ("ReqNodeNotAvail") for a full day on
-#                        this cluster's queue, so the generic pool is the more reliable default.
+#                        Defaults to 16000 (DEFAULT_REFERENCE_SET_SIZE), sized against the same
+#                        memory-cost model that predicted the real observed OOM at the full
+#                        31,117 rows almost exactly (est. ~4.1 GB for 16,000 rows, comfortably
+#                        inside the GENERIC "gpu:1" gres below -- an earlier, more conservative
+#                        6,000-row default has already been run once and logged separately).
+#                        Pass 0 to use the full ~31,000-plot population instead -- only attempt
+#                        that with a high-VRAM GPU (e.g. --gres=gpu:nvidia_rtx_a6000:1), and only
+#                        if one is actually available: a specific-GPU-type request sat PD
+#                        ("ReqNodeNotAvail") for a full day on this cluster's queue, so the
+#                        generic pool is the more reliable default.
 #   split_seed           Seed for the compartment-based spatial_block_split. Defaults to 42 (this
 #                        project's standard SPLIT_SEED), matching every other
 #                        growth-curve-attribution check so results are directly comparable.
@@ -80,7 +84,7 @@ COHORT=${1:-4survey}
 SCOPE=${2:-terrain_wind}
 MAX_EPOCH=${3:-200}
 EARLY_STOP=${4:-20}
-REFERENCE_SET_SIZE=${5:-6000}
+REFERENCE_SET_SIZE=${5:-16000}
 SPLIT_SEED=${6:-42}
 
 echo "--- GNNWR job start ---"
