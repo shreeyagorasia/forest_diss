@@ -73,6 +73,18 @@
 # modest jobs can share one physical GPU. If this GRES also proves hard to schedule in practice,
 # fall back to --gres=gpu:1 with reference_set_size=16000 (or 6000).
 #
+# --mem=32G (2026-08-05, found via a real oom_kill on the first full-population attempt at
+# --mem=16G): a SEPARATE, HOST-RAM-side bottleneck, nothing to do with the GPU numbers above.
+# gnnwr's distance computation (BasicDistance(), called from _init_gnnwr_distance()) runs on the
+# CPU via scipy.spatial.distance.cdist() BEFORE anything reaches the GPU -- and despite the
+# function explicitly casting its inputs to float32, cdist() always returns float64 output
+# regardless of input dtype (confirmed directly: cdist() on float32 arrays still returns a
+# float64 array). At the full ~31,117-plot population, the three float64 distance matrices
+# (train<->train, val<->train, test<->train) total ~13.5 GB in host RAM alone, before pandas/
+# Python overhead and the subsequent scaling step's own temporary arrays -- comfortably over the
+# previous 16G request, hence the OOM-kill. Smaller reference_set_size values (6000/16000) never
+# hit this, since their distance matrices are proportionately smaller even in float64.
+#
 # Logs:
 #   stdout -> logs/growth_curve_attribution/gnnwr_<jobid>.out
 #   stderr -> logs/growth_curve_attribution/gnnwr_<jobid>.err
@@ -92,7 +104,7 @@
 #SBATCH --time=04:00:00
 #SBATCH --partition=Teaching
 #SBATCH --gres=gpu:h200_1g.18gb:1
-#SBATCH --mem=16G
+#SBATCH --mem=32G
 
 cd ~/forest_diss
 
