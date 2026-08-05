@@ -3,7 +3,7 @@
 # Run on the ICF cluster from the project root:
 #
 #   cd ~/forest_diss
-#   sbatch jobs/growth_curve_attribution/run_gnnwr.sh [cohort] [scope] [max_epoch] [early_stop] [split_seed]
+#   sbatch jobs/growth_curve_attribution/run_gnnwr.sh [cohort] [scope] [max_epoch] [early_stop] [reference_set_size] [split_seed]
 #
 # Examples:
 #   sbatch jobs/growth_curve_attribution/run_gnnwr.sh 4survey terrain_wind
@@ -11,31 +11,40 @@
 #   sbatch jobs/growth_curve_attribution/run_gnnwr.sh 4survey terrain_wind_plus_management 300 30
 #
 # Arguments:
-#   cohort       4survey or 6survey. Defaults to 4survey.
-#   scope        terrain_wind (17 features, the headline comparison against the established
-#                Elastic Net/XGBoost result of 0.125/0.117 pooled OOF R2) or
-#                terrain_wind_plus_management (22 features, the best-performing static scope
-#                found by broad_environmental_check.py, EN/XGB 0.289/0.302). Defaults to
-#                terrain_wind. See SCOPES in models/growth_curve_attribution/gnnwr_check.py.
-#   max_epoch    Maximum training epochs. Defaults to 200.
-#   early_stop   Stop if validation R2 hasn't improved for this many epochs. -1 disables early
-#                stopping. Defaults to 20.
-#   split_seed   Seed for the compartment-based spatial_block_split. Defaults to 42 (this
-#                project's standard SPLIT_SEED), matching every other growth-curve-attribution
-#                check so results are directly comparable.
+#   cohort               4survey or 6survey. Defaults to 4survey.
+#   scope                terrain_wind (17 features, the headline comparison against the
+#                        established Elastic Net/XGBoost result of 0.125/0.117 pooled OOF R2) or
+#                        terrain_wind_plus_management (22 features, the best-performing static
+#                        scope found by broad_environmental_check.py, EN/XGB 0.289/0.302).
+#                        Defaults to terrain_wind. See SCOPES in
+#                        models/growth_curve_attribution/gnnwr_check.py.
+#   max_epoch            Maximum training epochs. Defaults to 200.
+#   early_stop           Stop if validation R2 hasn't improved for this many epochs. -1 disables
+#                        early stopping. Defaults to 20.
+#   reference_set_size   Caps GNNWR's reference/training set to this many plots
+#                        (compartment-stratified) -- see gnnwr_check.py's module docstring.
+#                        Defaults to 6000 (DEFAULT_REFERENCE_SET_SIZE), sized to fit comfortably
+#                        on the GENERIC "gpu:1" gres below. Pass 0 to use the full ~31,000-plot
+#                        population instead -- only attempt that with a high-VRAM GPU (e.g.
+#                        --gres=gpu:nvidia_rtx_a6000:1), and only if one is actually available:
+#                        a specific-GPU-type request sat PD ("ReqNodeNotAvail") for a full day on
+#                        this cluster's queue, so the generic pool is the more reliable default.
+#   split_seed           Seed for the compartment-based spatial_block_split. Defaults to 42 (this
+#                        project's standard SPLIT_SEED), matching every other
+#                        growth-curve-attribution check so results are directly comparable.
 #
-# Why this needs the cluster, not a laptop (see gnnwr_check.py's module docstring for the full
-# investigation): GNNWR's spatial-weighting sub-network takes each plot's full distance-to-every-
-# training-plot vector as input, so its first layer's width equals the training set size --
-# roughly 500 million parameters for this project's ~31,000-plot 4survey training set, plus
-# several GB of pairwise distance matrices. That does not fit an 8.6 GB RAM laptop, and does not
-# fit the cluster's default "generic gpu:1" allocation either (10.57 GiB VRAM -- confirmed by an
-# actual CUDA OOM on the first optimizer step, using ~10.5 GiB). --gres below requests an RTX
-# A6000 (48 GiB VRAM) instead of the generic gres, giving ~4.5x headroom over the estimated need
-# so the FULL training population can be used (no reference-set subsampling, so the result stays
-# directly comparable to every other model in this project). --mem is also set well above this
-# project's other DNN/PINN jobs (16G) for the same reason -- the pairwise distance matrices are
-# several GB of host-side memory too, before anything moves to the GPU.
+# Why the reference set is capped rather than requesting bigger hardware (see gnnwr_check.py's
+# module docstring for the full investigation, including a second, separate memory bottleneck in
+# gnnwr's own diagnostic code that is patched inside gnnwr_check.py itself): GNNWR's spatial-
+# weighting sub-network takes each plot's full distance-to-every-reference-plot vector as input,
+# so its first layer's width equals the reference-set size. At the full ~31,000-plot population
+# that is roughly 500 million parameters, which OOM's the cluster's generic GPU allocation
+# (10.57 GiB VRAM). A specific bigger GPU (RTX A6000, 48 GiB) fixes that particular number, but
+# is not reliably available on this cluster's queue in practice. Capping the reference set to
+# 6,000 plots (compartment-stratified, so it still covers the whole forest) keeps this comfortably
+# within the generic pool's budget without waiting on a scarce resource -- a disclosed,
+# deliberate trade-off (GNNWR sees fewer reference points than EN/XGBoost/the DNN baselines see
+# training rows), not a hidden one.
 #
 # Logs:
 #   stdout -> logs/growth_curve_attribution/gnnwr_<jobid>.out
@@ -53,10 +62,10 @@
 #SBATCH --job-name=gnnwr
 #SBATCH --output=logs/growth_curve_attribution/%x_%j.out
 #SBATCH --error=logs/growth_curve_attribution/%x_%j.err
-#SBATCH --time=08:00:00
+#SBATCH --time=04:00:00
 #SBATCH --partition=Teaching
-#SBATCH --gres=gpu:nvidia_rtx_a6000:1
-#SBATCH --mem=32G
+#SBATCH --gres=gpu:1
+#SBATCH --mem=16G
 
 cd ~/forest_diss
 
@@ -71,7 +80,8 @@ COHORT=${1:-4survey}
 SCOPE=${2:-terrain_wind}
 MAX_EPOCH=${3:-200}
 EARLY_STOP=${4:-20}
-SPLIT_SEED=${5:-42}
+REFERENCE_SET_SIZE=${5:-6000}
+SPLIT_SEED=${6:-42}
 
 echo "--- GNNWR job start ---"
 echo "Node: $(hostname)"
@@ -79,6 +89,7 @@ echo "Cohort: ${COHORT}"
 echo "Scope: ${SCOPE}"
 echo "Max epoch: ${MAX_EPOCH}"
 echo "Early stop patience: ${EARLY_STOP}"
+echo "Reference set size: ${REFERENCE_SET_SIZE}"
 echo "Split seed: ${SPLIT_SEED}"
 
 python -u -m models.growth_curve_attribution.gnnwr_check \
@@ -86,6 +97,7 @@ python -u -m models.growth_curve_attribution.gnnwr_check \
   --scope "${SCOPE}" \
   --max-epoch "${MAX_EPOCH}" \
   --early-stop "${EARLY_STOP}" \
+  --reference-set-size "${REFERENCE_SET_SIZE}" \
   --split-seed "${SPLIT_SEED}" \
   --use-gpu
 

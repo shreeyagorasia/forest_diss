@@ -9,31 +9,38 @@
 #   17-feature terrain/wind scope: EN 0.125, XGB 0.117 (outputs/growth_curve_attribution/
 #   broad_environmental_spatial_cv_4survey.csv / terrain_wind_management_comparison.csv).
 #
-# IMPORTANT hardware note (found by reading the installed gnnwr package source directly, then
-# confirmed empirically on the cluster): GNNWR's spatial-weighting sub-network (SWNN) takes each
-# plot's full distance-to-every-reference-point vector as input, so its input layer width equals
-# the size of the reference set (by default, the whole training set). On the cluster's default
-# GPU allocation (10.57 GiB VRAM, the "generic gpu:1" gres), the FULL ~31,000-plot reference set
-# OOM'd on the very first optimizer step (Adagrad's per-parameter state for that one layer alone
-# is ~2 GB, on top of ~2 GB weights and ~2 GB gradients -- roughly matches the observed ~10.5 GiB
-# in use when it died). No batch-size or CUDA-flag tweak fixes this -- the bottleneck is static
-# per-parameter state, not per-batch activations. The fix used here is requesting a GPU with more
-# VRAM (see jobs/growth_curve_attribution/run_gnnwr.sh's --gres line, e.g. an RTX A6000 at 48 GiB
-# or an H200 slice), NOT shrinking the reference set -- this keeps the full training population,
-# so the result stays directly comparable to every other model in this project, which also uses
-# the full population.
+# IMPORTANT hardware notes (found by reading the installed gnnwr package source directly, then
+# confirmed empirically on the cluster). Two SEPARATE bottlenecks, both fixed below by shrinking
+# what GNNWR is asked to process, not by requesting bigger hardware -- a specific high-VRAM GPU
+# (tried: RTX A6000) is not reliably available on this cluster's queue (jobs sat PD for a full
+# day with "ReqNodeNotAvail"), so the fix needs to work on the GENERIC "gpu:1" pool instead.
 #
-# SECOND, SEPARATE hardware note: fixing the above surfaced a different, worse bottleneck --
-# gnnwr's DIAGNOSIS class (used only for the per-epoch "Train AIC" progress-bar number) builds a
-# classic-GWR "hat matrix" by tiling the whole training feature matrix against itself, an O(n^2 *
-# n_features) tensor. For our ~31,000-row training set that is 54 GB, which OOM'd even the 48 GiB
-# A6000. Unlike the first bottleneck, more VRAM alone does not comfortably fix this one -- it
-# scales with the SQUARE of the reference-set size, so even the largest cluster GPU (an H200 at
-# 141 GiB) would have little headroom left for everything else running alongside it. This is
-# patched below (see _FastDiagnosis in run_gnnwr()) by skipping that hat-matrix construction for
-# any dataset above HAT_MATRIX_ROW_LIMIT rows -- it is never used for the actual gradient step or
-# for choosing which epoch's model to keep, only for a cosmetic progress-bar number, so this is a
-# free fix, not an approximation of anything that matters for the reported result.
+# Bottleneck 1: GNNWR's spatial-weighting sub-network (SWNN) takes each plot's full distance-to-
+# every-reference-point vector as input, so its input layer width equals the size of the
+# reference set (by default, the whole training set, ~31,000 plots) -- OOM'd a 10.57 GiB GPU on
+# the very first optimizer step. Fixed here by capping the reference set to REFERENCE_SET_SIZE
+# rows (see subsample_reference_set()), sampled proportionally from every compartment so a
+# smaller reference set still covers the whole forest geographically, not just a lucky/unlucky
+# random slice. This DOES mean GNNWR sees fewer reference points than EN/XGBoost/the DNN
+# baselines see training rows -- a genuine, disclosed methodological difference, not hidden.
+#
+# Bottleneck 2: separately, gnnwr's DIAGNOSIS class (used only for the per-epoch "Train AIC"
+# progress-bar number, and rebuilt once more for the final train/valid/test result() report)
+# builds a classic-GWR "hat matrix" by tiling the whole feature matrix passed to it against
+# itself -- an O(n^2 * n_features) tensor, where n is THAT DATASET'S OWN row count (train,
+# valid, or test), independent of the SWNN reference-set size above. At our scale this is 54 GB
+# for the ~31,000-row training set, and ~18 GB even for the ~11,600-row validation/test sets --
+# both exceed a 10.57 GiB GPU regardless of how small the reference set is shrunk. This is NOT
+# used for the actual gradient step or for choosing which epoch's model to keep (validation R2
+# is computed separately, with a plain formula, no hat matrix involved -- confirmed by reading
+# __valid() directly) -- it only feeds cosmetic AIC/F-test numbers. Patched below (_FastDiagnosis
+# in run_gnnwr()) to skip the hat-matrix construction entirely for any dataset above
+# HAT_MATRIX_ROW_LIMIT rows, set low enough to cover train, valid, AND test at this project's
+# scale. R2/RMSE/Adjust_R2 do not depend on the hat matrix and stay exact either way -- only
+# AIC/AICc (approximated via plain feature count instead of the true GWR-corrected effective
+# degrees of freedom) and F1/F2/F3 (unavailable) are affected, and R2/RMSE is what this project
+# actually compares against EN/XGBoost/the DNN baselines throughout, so this is a disclosed,
+# deliberate trade-off, not a silent loss of rigor.
 
 from __future__ import annotations
 
@@ -75,11 +82,30 @@ def build_scope_table(cohort: str, scope: str, split_seed: int = SPLIT_SEED):
     return merged, available_columns
 
 
-def maybe_subsample_train(train_df: pd.DataFrame, subsample_train: int | None, seed: int) -> pd.DataFrame:
-    """ONLY for a local smoke test of the code path -- see module docstring. Not a real result."""
-    if subsample_train is None or subsample_train >= len(train_df):
+# Default reference-set cap -- see module docstring, "Bottleneck 1". Comfortably below the
+# ~11,600-row validation/test sets too, which matters for HAT_MATRIX_ROW_LIMIT below (train must
+# stay smaller than val/test for the size-based threshold there to treat all three consistently).
+DEFAULT_REFERENCE_SET_SIZE = 6_000
+
+
+def subsample_reference_set(train_df: pd.DataFrame, reference_set_size: int | None, seed: int) -> pd.DataFrame:
+    """Shrink GNNWR's reference/training set to a memory-safe size (see module docstring).
+
+    Samples roughly the same FRACTION of rows from every compartment (not a plain random sample
+    of the whole table), so a smaller reference set still covers the whole forest geographically
+    instead of over- or under-representing individual compartments by chance. Pass
+    reference_set_size=None to use the full population (only safe with a high-VRAM GPU -- see
+    module docstring).
+    """
+    if reference_set_size is None or reference_set_size >= len(train_df):
         return train_df
-    return train_df.sample(n=subsample_train, random_state=seed)
+    fraction = reference_set_size / len(train_df)
+    # GroupBy.sample() (not .apply(lambda g: g.sample(...))) -- pandas 3.x's groupby-apply
+    # permanently drops the grouping column from what the function receives (confirmed directly:
+    # include_groups=True raises "no longer allowed"), which silently deleted 'cpmt' here. The
+    # dedicated GroupBy.sample() method has no such issue.
+    sampled = train_df.groupby("cpmt", group_keys=False).sample(frac=fraction, random_state=seed)
+    return sampled
 
 
 def run_gnnwr(
@@ -88,11 +114,11 @@ def run_gnnwr(
     max_epoch: int,
     early_stop: int,
     use_gpu: bool,
-    subsample_train: int | None = None,
+    reference_set_size: int | None = DEFAULT_REFERENCE_SET_SIZE,
     split_seed: int = SPLIT_SEED,
 ):
     # Imported here, not at module level -- gnnwr pulls in torch, and this module's
-    # build_scope_table()/maybe_subsample_train() are useful even where torch isn't installed
+    # build_scope_table()/subsample_reference_set() are useful even where torch isn't installed
     # (e.g. quick unit checks of the split logic).
     #
     # WORKAROUND (2026-08-04): gnnwr.models.GNNWR() unconditionally constructs a
@@ -107,10 +133,9 @@ def run_gnnwr(
     # clean run every time -- consistent with a broader native-threading conflict between
     # simultaneously-loaded PyTorch, XGBoost, and TensorBoard on macOS, not one single bug. Kept
     # here anyway since it is free and removes one real contributor. Net conclusion: this
-    # machine is not reliable for actually training GNNWR (on top of the separate, definite
-    # memory ceiling documented in the module docstring) -- use --subsample-train only to sanity
-    # check that build_scope_table()/init_dataset_split() wiring is correct up to the point
-    # GNNWR() is constructed, and run the real experiment on the cluster
+    # machine is not reliable for actually training GNNWR end-to-end -- local runs are useful for
+    # sanity-checking that build_scope_table()/init_dataset_split()/a few epochs all wire up
+    # correctly, but the real experiment still belongs on the cluster
     # (jobs/growth_curve_attribution/run_gnnwr.sh), whose Linux/CUDA stack every other DNN/PINN
     # job in this project already trains on successfully.
     import torch.utils.tensorboard as _tensorboard_module
@@ -140,24 +165,24 @@ def run_gnnwr(
     from gnnwr.models import GNNWR
     from gnnwr.utils import DIAGNOSIS as _RealDiagnosis
 
-    # WORKAROUND (2026-08-04, found on the cluster): gnnwr's DIAGNOSIS class (used for the
+    # WORKAROUND (2026-08-04/05, found on the cluster): gnnwr's DIAGNOSIS class (used for the
     # per-epoch "Train AIC" progress-bar number, and rebuilt once more for the final train/valid/
     # test report) computes a classic-GWR "hat matrix" by literally tiling the whole feature
-    # matrix against itself: `x_data.repeat(n, 1)` where n is the number of rows passed in. For
-    # our ~31,000-row training set that is a (31000 x 31000 x n_features) tensor -- 54 GB for the
-    # 17-feature scope -- which OOM'd even on the cluster's 48 GiB A6000. This computation is
-    # NOT used for the actual gradient step or for choosing which epoch's model to keep (that is
-    # driven by validation R2, computed separately on the much smaller ~11,600-row validation
-    # set) -- it only feeds cosmetic AIC/F-test numbers. So for any dataset bigger than
-    # HAT_MATRIX_ROW_LIMIT (val/test, at ~11,600 rows each, comfortably stay under it and get the
-    # REAL, unpatched computation -- only the full training set is ever large enough to trip
-    # this), skip building the hat matrix and approximate its "effective degrees of freedom"
-    # (self.__S) with the plain feature count k, the same approximation ordinary (non-spatially-
-    # weighted) regression uses. R2/RMSE/Adjust_R2 do not depend on the hat matrix at all and stay
-    # exact either way. F1/F2/F3 (which DO need the hat matrix) are never called on the training
-    # set anywhere in gnnwr -- only on the small test set in the final result() report, which
-    # always uses the real, unpatched class.
-    HAT_MATRIX_ROW_LIMIT = 20_000
+    # matrix passed to it against itself: `x_data.repeat(n, 1)` where n is THAT DATASET'S OWN row
+    # count -- train, valid, or test, independent of the SWNN reference-set size shrunk above.
+    # This is 54 GB for the ~31,000-row training set, and ~18 GB even for the ~11,600-row
+    # validation/test sets -- both exceed the generic 10.57 GiB cluster GPU. This computation is
+    # NOT used for the actual gradient step or for choosing which epoch's model to keep
+    # (validation R2 is computed separately, with a plain formula, no hat matrix involved --
+    # confirmed by reading __valid() directly) -- it only feeds cosmetic AIC/F-test numbers. So
+    # HAT_MATRIX_ROW_LIMIT is set low enough to cover train, valid, AND test at this project's
+    # scale (all comfortably above it), guaranteeing the cheap path everywhere rather than
+    # relying on a specific GPU's VRAM being large enough for the real one. R2/RMSE/Adjust_R2 do
+    # not depend on the hat matrix at all and stay exact either way -- only AIC/AICc (here
+    # approximated with the plain feature count instead of the true GWR-corrected effective
+    # degrees of freedom) and F1/F2/F3 (unavailable) are affected, and R2/RMSE is what this
+    # project actually compares against EN/XGBoost/the DNN baselines throughout.
+    HAT_MATRIX_ROW_LIMIT = 2_000
 
     class _FastDiagnosis(_RealDiagnosis):
         def __init__(self, weight, x_data, y_data, y_pred):
@@ -189,11 +214,12 @@ def run_gnnwr(
     train = table[table["split"] == "train"].copy()
     val = table[table["split"] == "val"].copy()
     test = table[table["split"] == "test"].copy()
-    train = maybe_subsample_train(train, subsample_train, seed=split_seed)
+    full_train_size = len(train)
+    train = subsample_reference_set(train, reference_set_size, seed=split_seed)
 
     print(f"{cohort} / {scope}: train={len(train):,}  val={len(val):,}  test={len(test):,}  features={len(feature_columns)}")
-    if subsample_train is not None:
-        print(f"  ** SMOKE TEST: train subsampled to {len(train):,} rows -- NOT a real result **")
+    if len(train) < full_train_size:
+        print(f"  Reference set capped to {len(train):,} of {full_train_size:,} training plots (compartment-stratified) -- see module docstring, Bottleneck 1")
 
     # id_column is deliberately left at its default (None) so gnnwr auto-creates a plain integer
     # 'id' column. Passing our own id_column name (e.g. 'identification') breaks GNNWR.getCoefs(),
@@ -246,8 +272,12 @@ def main():
     parser.add_argument("--early-stop", type=int, default=20)
     parser.add_argument("--use-gpu", action="store_true", default=False)
     parser.add_argument(
-        "--subsample-train", type=int, default=None,
-        help="ONLY for a local smoke test of the code path on a tiny slice -- see module docstring.",
+        "--reference-set-size", type=int, default=DEFAULT_REFERENCE_SET_SIZE,
+        help=(
+            "Cap GNNWR's reference/training set to this many plots (compartment-stratified) so it "
+            "fits a generic ~10.5 GiB GPU -- see module docstring, Bottleneck 1. Pass 0 to use the "
+            "full training population instead (only safe with a high-VRAM GPU such as an A6000)."
+        ),
     )
     parser.add_argument("--split-seed", type=int, default=SPLIT_SEED)
     args = parser.parse_args()
@@ -258,7 +288,7 @@ def main():
         max_epoch=args.max_epoch,
         early_stop=args.early_stop,
         use_gpu=args.use_gpu,
-        subsample_train=args.subsample_train,
+        reference_set_size=args.reference_set_size if args.reference_set_size > 0 else None,
         split_seed=args.split_seed,
     )
 
