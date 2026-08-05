@@ -249,7 +249,17 @@ def run_gnnwr(
     )
     model.run(max_epoch=max_epoch, early_stop=early_stop)
 
-    print(model.result())
+    # model.result() prints gnnwr's own classical-GWR diagnostics report (R2/RMSE/AIC/F-tests).
+    # F1_Global()/F2_Global()/F3_Local() need the real hat matrix (_DIAGNOSIS__hat), which
+    # _FastDiagnosis deliberately never builds for any dataset above HAT_MATRIX_ROW_LIMIT -- at
+    # this project's scale that is train, valid, AND test, so result() always hits this. Wrapped
+    # defensively rather than fixed properly: result() is not needed for anything below (R2/RMSE
+    # come from model.result_data, set inside run() itself, independent of result()), so a
+    # failure here should never cost the actual results.
+    try:
+        print(model.result())
+    except AttributeError as error:
+        print(f"model.result()'s classical GWR diagnostics unavailable under the DIAGNOSIS patch ({error}) -- R2/RMSE below are unaffected and remain the authoritative comparison metric.")
 
     # model.result_data already joins predictions back onto the original plot-level columns
     # (including our TARGET column) via GNNWR.getCoefs(), called at the end of run().
