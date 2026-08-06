@@ -3037,3 +3037,57 @@ until E6/E7 resolve which model/tier/hyperparameters are actually worth reportin
 `E6_stage_sweep`, then `E7_hyperparameter_sweep` (re-pointing its `feature_set` if E6 changes the
 primary tier), pool each with `kfold_summary.py`, then decide whether the multi-seed ensemble is
 worth queuing on the winning configuration for a genuine per-plot CI figure.
+
+---
+
+**2026-08-06 — Q: why did `plot_environmental_features.parquet` lose its GWA Weibull/multiscale-
+terrain columns mid-session, and what stops it happening again? -- `av1_aux_data_resolution_check
+.ipynb`'s export cell overwrote the shared file unconditionally; fixed to merge-preserve. Also
+found and fixed a second, unrelated bug: `E6_stage_sweep`/`E7_hyperparameter_sweep` had all three
+env_terrain models sharing one `run_name` per configuration, so their outputs raced to overwrite
+each other at an identical path.**
+**What I found:** `data/processed/environmental/plot_environmental_features.parquet` was rewritten
+2026-08-06 21:48, dropping `tpi_500m`, `local_relief_500m`, and every `gwa_weibull_*`/`gwa_wind_p95_*`/
+`gwa_prob_above_critical_*` column added earlier this session by `data_processing/
+add_environmental_candidates.py`. Root cause, confirmed by reading the actual cell, not guessed:
+`av1_aux_data_resolution_check.ipynb`'s hand-off cell does `plots.to_parquet(environmental_export_path,
+index=False)` unconditionally -- it has no idea `add_environmental_candidates.py` runs *after* it
+and merges columns in (that script's own docstring: "existing columns and rows... are preserved" --
+verified true, it reads the current file, merges, writes via a temp-file-then-atomic-replace). If
+the aux notebook is ever re-executed (most likely the concurrent Avenue 2 session, given the
+timestamp) after the candidates script has already run, the blind overwrite silently destroys
+everything the candidates script added, with no error or warning. Separately, while trying to
+verify an unrelated Elastic Net notebook addition, found `build_stage_sweep_jobs()`/
+`build_hyperparameter_sweep_jobs()` in `jobs/submit_experiments.py` gave `dnn_env_terrain`,
+`pinn_env_terrain`, and `pinn_env_terrain_k` the SAME `run_name` per (feature_set, cohort, fold) or
+(dropout, lr, cohort) combination -- `model_output_dir()` uses `run_name` as the actual output path,
+so all three models were writing to the identical directory. Since sbatch jobs finish in no
+guaranteed order, whichever model happened to finish last silently overwrote the other two's
+checkpoints and predictions -- a race condition, not even a deterministic overwrite. The user had
+already run `E6_stage_sweep` fit+evaluate under the buggy definitions before this was caught.
+**What's working:** Restored the data file by re-running `add_environmental_candidates.py` (verified:
+71,766 rows unchanged, all 12 missing columns back, `load_plots_for_cohort()` confirms). Patched
+the aux notebook's export cell (via nbformat on a temp copy, not the Read/NotebookEdit tools --
+the file is too large for Read's token limit) to check for any column already in the file that
+its own `plots` DataFrame doesn't produce, and carry those forward via a merge on `identification`
+before writing -- verified correct with a standalone simulation against the real file (dropped the
+13 at-risk columns from a copy of the real data, ran the exact patched logic, asserted the
+reconstructed table is byte-identical to the original) rather than executing the full multi-hour
+notebook. Fixed `submit_experiments.py` to give each model its own suffixed `run_name`
+(`{feature_set}_dnn_env_terrain`, etc.) — dry-run confirmed three distinct output paths per
+configuration now. Searched every notebook in the repo for `.to_parquet`/`.to_csv` calls touching
+a file another script also extends -- confirmed these two writers (the aux notebook and
+`add_environmental_candidates.py`) are the only pair with this dependency; `spatial_temporal_split
+_visualisation.ipynb` writes to a standalone `data/interim/` demo directory nothing else reads.
+**What's not working / open follow-up:** the user's already-run `E6_stage_sweep` fit+evaluate must
+be discarded and re-run under the fixed job definitions -- there is no way to recover which
+model's results actually survived at the collided paths, since completion order on the cluster
+isn't logged. The stale, collided output directories (e.g. `outputs/spatial_block_kfold/
+stage1_terrain/` with no model suffix) will be orphaned once the fix is used, not automatically
+cleaned up -- worth deleting on the cluster.
+**What this means for what's next:** re-run `E6_stage_sweep fit`/`evaluate` from scratch, then
+pool with `kfold_summary.py` using the new per-model run_names. `E7_hyperparameter_sweep` was
+never run under the old buggy definitions, so it just needs the (already-fixed) corrected version
+run once. This incident is a specific instance of a general risk in this repo: any notebook that
+writes to a file a *different* script later extends needs to either not be re-run out of order, or
+be made merge-safe like this fix -- worth keeping in mind before adding any new derived-data export.
