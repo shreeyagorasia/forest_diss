@@ -247,34 +247,45 @@ def build_stage_sweep_jobs():
     for feature_set in feature_sets:
         for cohort in cohorts:
             for fold_index in range(n_folds):
-                run_name = feature_set
+                # BUG FIX (2026-08-06, found while investigating an unrelated notebook failure):
+                # this used to be a single `run_name = feature_set` shared by all three models.
+                # model_output_dir() uses run_name AS the output directory name -- so all three
+                # models were writing to the exact same path per (feature_set, cohort, fold),
+                # e.g. outputs/spatial_block_kfold/stage1_terrain/4survey/fold_0/. Since sbatch
+                # jobs don't complete in a guaranteed order, whichever of the 3 models happened
+                # to finish writing LAST at that path silently overwrote the other two's
+                # checkpoints/predictions -- a race condition, not even a deterministic overwrite.
+                # Each model now gets its own suffixed run_name so their outputs can never collide.
+                dnn_run_name = f"{feature_set}_dnn_env_terrain"
+                pinn_run_name = f"{feature_set}_pinn_env_terrain"
+                pinn_k_run_name = f"{feature_set}_pinn_env_terrain_k"
 
                 # Same explicit batch_size=256 reasoning as E1/E3 above -- keeps DNN and both
                 # PINN variants on the same batch size for a controlled comparison.
                 fit_jobs.append([
                     "jobs/dnn_env_terrain/run_dnn_env_terrain.sh", cohort, "500", "40", "spatial_block_kfold",
-                    "42", run_name, "256", feature_set, "0.0", "42", str(n_folds), str(fold_index),
+                    "42", dnn_run_name, "256", feature_set, "0.0", "42", str(n_folds), str(fold_index),
                 ])
                 evaluate_commands.append([
-                    "jobs/dnn_env_terrain/evaluate_dnn_env_terrain.sh", cohort, "spatial_block_kfold", run_name,
+                    "jobs/dnn_env_terrain/evaluate_dnn_env_terrain.sh", cohort, "spatial_block_kfold", dnn_run_name,
                     "42", str(n_folds), str(fold_index),
                 ])
 
                 fit_jobs.append([
                     "jobs/pinn_env_terrain/run_pinn_env_terrain.sh", cohort, "500", "40", "spatial_block_kfold",
-                    "1.0", "1.0", run_name, "42", "256", feature_set, "0.0", "42", str(n_folds), str(fold_index),
+                    "1.0", "1.0", pinn_run_name, "42", "256", feature_set, "0.0", "42", str(n_folds), str(fold_index),
                 ])
                 evaluate_commands.append([
-                    "jobs/pinn_env_terrain/evaluate_pinn_env_terrain.sh", cohort, "spatial_block_kfold", run_name,
+                    "jobs/pinn_env_terrain/evaluate_pinn_env_terrain.sh", cohort, "spatial_block_kfold", pinn_run_name,
                     "42", str(n_folds), str(fold_index),
                 ])
 
                 fit_jobs.append([
                     "jobs/pinn_env_terrain_k/run_pinn_env_terrain_k.sh", cohort, "500", "40", "spatial_block_kfold",
-                    "1.0", "1.0", run_name, "42", "256", feature_set, "0.0", "42", str(n_folds), str(fold_index),
+                    "1.0", "1.0", pinn_k_run_name, "42", "256", feature_set, "0.0", "42", str(n_folds), str(fold_index),
                 ])
                 evaluate_commands.append([
-                    "jobs/pinn_env_terrain_k/evaluate_pinn_env_terrain_k.sh", cohort, "spatial_block_kfold", run_name,
+                    "jobs/pinn_env_terrain_k/evaluate_pinn_env_terrain_k.sh", cohort, "spatial_block_kfold", pinn_k_run_name,
                     "42", str(n_folds), str(fold_index),
                 ])
 
@@ -326,31 +337,37 @@ def build_hyperparameter_sweep_jobs():
     for cohort in cohorts:
         for dropout_rate in dropout_rates:
             for learning_rate in learning_rates:
-                run_name = f"hp_sweep_drop{dropout_rate}_lr{learning_rate}"
+                # Same run_name-collision bug fix as build_stage_sweep_jobs() above -- each model
+                # needs its own distinct run_name, not one shared string, or their outputs land
+                # at the identical path and race-overwrite each other.
+                base_run_name = f"hp_sweep_drop{dropout_rate}_lr{learning_rate}"
+                dnn_run_name = f"{base_run_name}_dnn_env_terrain"
+                pinn_run_name = f"{base_run_name}_pinn_env_terrain"
+                pinn_k_run_name = f"{base_run_name}_pinn_env_terrain_k"
 
                 fit_jobs.append([
                     "jobs/dnn_env_terrain/run_dnn_env_terrain.sh", cohort, "500", "40", "spatial_block",
-                    "42", run_name, "256", "terrain_wind_solid", dropout_rate, "42", "5", "0", learning_rate,
+                    "42", dnn_run_name, "256", "terrain_wind_solid", dropout_rate, "42", "5", "0", learning_rate,
                 ])
                 evaluate_commands.append([
-                    "jobs/dnn_env_terrain/evaluate_dnn_env_terrain.sh", cohort, "spatial_block", run_name,
+                    "jobs/dnn_env_terrain/evaluate_dnn_env_terrain.sh", cohort, "spatial_block", dnn_run_name,
                 ])
 
                 fit_jobs.append([
                     "jobs/pinn_env_terrain/run_pinn_env_terrain.sh", cohort, "500", "40", "spatial_block",
-                    "1.0", "1.0", run_name, "42", "256", "terrain_wind_solid", dropout_rate, "42", "5", "0", learning_rate,
+                    "1.0", "1.0", pinn_run_name, "42", "256", "terrain_wind_solid", dropout_rate, "42", "5", "0", learning_rate,
                 ])
                 evaluate_commands.append([
-                    "jobs/pinn_env_terrain/evaluate_pinn_env_terrain.sh", cohort, "spatial_block", run_name,
+                    "jobs/pinn_env_terrain/evaluate_pinn_env_terrain.sh", cohort, "spatial_block", pinn_run_name,
                 ])
 
                 fit_jobs.append([
                     "jobs/pinn_env_terrain_k/run_pinn_env_terrain_k.sh", cohort, "500", "40", "spatial_block",
-                    "1.0", "1.0", run_name, "42", "256", "terrain_wind_solid", dropout_rate, "42", "5", "0", "",
+                    "1.0", "1.0", pinn_k_run_name, "42", "256", "terrain_wind_solid", dropout_rate, "42", "5", "0", "",
                     learning_rate,
                 ])
                 evaluate_commands.append([
-                    "jobs/pinn_env_terrain_k/evaluate_pinn_env_terrain_k.sh", cohort, "spatial_block", run_name,
+                    "jobs/pinn_env_terrain_k/evaluate_pinn_env_terrain_k.sh", cohort, "spatial_block", pinn_k_run_name,
                 ])
 
     return fit_jobs, evaluate_commands
@@ -368,6 +385,51 @@ STAGES["E7_hyperparameter_sweep"] = {
     ),
     "fit_jobs": _HYPERPARAMETER_SWEEP_FIT_JOBS,
     "evaluate_commands": _HYPERPARAMETER_SWEEP_EVALUATE_COMMANDS,
+}
+
+
+# E8: pinn_noenv was never included in build_kfold_stage_jobs() above -- a real gap in the
+# original E3_kfold build (2026-08-05), only noticed 2026-08-06 while filling in the residual
+# Moran's I ledger (pinn_noenv has single-slice spatial_block Moran's I for both cohorts, but no
+# pooled 5-fold number at all -- every other model in that table does). A SEPARATE stage, not
+# added into build_kfold_stage_jobs() itself, because E3_kfold's other 40 jobs (dnn_noenv,
+# dnn_env_terrain, pinn_env_terrain, pinn_env_terrain_k) have likely already been run -- adding
+# pinn_noenv into that same function would mean re-running "E3_kfold fit" resubmits all 40
+# already-done jobs alongside the 10 new ones.
+#
+# batch_size=512 (not pinn_noenv.sh's own default of 128) -- matches dnn_noenv's batch size, same
+# "keep DNN and PINN on the same batch size for a fair comparison" reasoning as E1/E3_kfold.
+def build_pinn_noenv_kfold_jobs():
+    n_folds = 5
+    cohorts = ["4survey", "6survey"]
+
+    fit_jobs = []
+    evaluate_commands = []
+    for cohort in cohorts:
+        for fold_index in range(n_folds):
+            fit_jobs.append([
+                "jobs/pinn_noenv/run_pinn_noenv.sh", cohort, "500", "40", "spatial_block_kfold",
+                "1.0", "1.0", "", "42", "512", "42", str(n_folds), str(fold_index),
+            ])
+            evaluate_commands.append([
+                "jobs/pinn_noenv/evaluate_pinn_noenv.sh", cohort, "spatial_block_kfold", "", "42",
+                str(n_folds), str(fold_index),
+            ])
+
+    return fit_jobs, evaluate_commands
+
+
+_PINN_NOENV_KFOLD_FIT_JOBS, _PINN_NOENV_KFOLD_EVALUATE_COMMANDS = build_pinn_noenv_kfold_jobs()
+
+STAGES["E8_pinn_noenv_kfold"] = {
+    "description": (
+        "The missing pinn_noenv cell in E3_kfold -- 5-fold spatial_block_kfold, both cohorts "
+        "(10 fit jobs). Requires E3_baselines_kfold to have already finished (reuses its CR "
+        "anchors, same as E3_kfold). Once evaluated, pool with models/common/kfold_summary.py "
+        "and re-run models/common/spatial_pattern_check.py to fill the pooled Moran's I gap."
+    ),
+    "fit_jobs": _PINN_NOENV_KFOLD_FIT_JOBS,
+    "evaluate_commands": _PINN_NOENV_KFOLD_EVALUATE_COMMANDS,
 }
 
 
