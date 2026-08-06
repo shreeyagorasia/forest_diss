@@ -18,9 +18,11 @@ CATEGORY_GROUPS = {
         "plan_curvature", "tpi", "elevation_roughness", "solar_radiation_index",
         "inverse_slope_proxy", "frost_hollow_flag", "ceh_twi",
         # Multiscale terrain (2026-08-04, data_processing/add_environmental_candidates.py) --
-        # same terrain category as `tpi`/`elevation_roughness` above, just at 250m/500m radii
-        # instead of 100m. See xgb_environmental.py's FEATURE_PROVENANCE for the multiscale note.
-        "tpi_250m", "tpi_500m", "local_relief_500m",
+        # same terrain category as `tpi`/`elevation_roughness` above, just at a 500m radius
+        # instead of 100m. `tpi_250m` deliberately NOT included (removed 2026-08-06) -- see
+        # xgb_environmental.py's FEATURE_PROVENANCE for the redundancy evidence (ρ=0.841/0.879
+        # with its two multiscale neighbours, confirmed via Avenue 2's correlation_screen.py).
+        "tpi_500m", "local_relief_500m",
     ],
     "wind": [
         "gwa_wind_speed_10m", "topex", "windward_topex", "whcl",

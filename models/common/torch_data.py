@@ -119,7 +119,12 @@ ENV_TERRAIN_FEATURE_SETS = {
         "elevation", "slope_degrees", "northness", "eastness", "profile_curvature",
         "plan_curvature", "tpi", "elevation_roughness", "ceh_twi", "solar_radiation_index",
         "inverse_slope_proxy", "frost_hollow_flag", "topex", "windward_topex", "whcl",
-        "gwa_wind_speed_10m",
+        # Swapped 10m->50m 2026-08-06: Avenue 2's own council review flagged 10m GWA wind as a
+        # SUB-CANOPY measurement, backwards for a mature-canopy target, then formally resolved
+        # this by swapping to 50m (documentation/variable_registry_av1_av2.csv). Same physical
+        # argument applies here (this project's own trees are mature Sitka spruce) -- adopting
+        # AV2's resolved choice, not just the caveat this file already carried unresolved.
+        "gwa_wind_speed_50m",
     ],
     # Added 2026-08-03: every column this project has screened and NOT found to be a leak,
     # circular, or otherwise misleading -- xgb_environmental.ALL_FEATURE_COLUMNS (the current,
@@ -155,8 +160,69 @@ ENV_TERRAIN_FEATURE_SETS = {
         "inverse_slope_proxy", "frost_hollow_flag", "topex", "windward_topex",
         "dist_to_cpmt_boundary", "dist_to_forest_perimeter", "dist_to_scpt_boundary",
         "dist_to_block_boundary", "cpmt_compactness_ratio", "dist_to_road", "dist_to_watercourse",
-        "gwa_wind_speed_10m", "soilgrids_ph", "ceh_twi", "chelsa_bio1_celsius",
+        # Swapped 10m->50m 2026-08-06 -- same reasoning as terrain_wind_full above.
+        "gwa_wind_speed_50m", "soilgrids_ph", "ceh_twi", "chelsa_bio1_celsius",
         "chelsa_gdd5_degc", "chelsa_bio12_precip_mm", "whcl",
+    ],
+    # Added 2026-08-06: every entry above was built ad hoc -- a variable got added whenever
+    # someone had an idea, with correlation checked (if at all) AFTER fitting, as interpretive
+    # context. notebooks/environmental_data/multicollinearity_screen_av1.ipynb replaces that with
+    # a mechanical, pre-registered screen (deterministic-duplicate removal, then near-exact
+    # empirical duplicates at |rho|>=0.95 -- see models/xgb_environmental/
+    # multicollinearity_screen.py), reviewed and revised by an llm-council pass before being
+    # coded (documentation/experiment_log.md's 2026-08-06 entry has the full review). These four
+    # are cumulative and staged, matching how the evidence is actually built up: terrain only,
+    # then +wind, then +whichever other categories (climate/soil/edge) show real individual
+    # signal, then +every environmental category unfiltered as a "for the sake of proof" check.
+    # Deliberately NO variance-discarding VIF step here (unlike the notebook's OTHER output, the
+    # "attribution-safe" tiers meant for xgb_environmental's SHAP/permutation tooling) -- per the
+    # council review, a network being FED redundant raw inputs isn't hurt the way a linear
+    # coefficient or a SHAP value is, so removing correlated-but-real variance from what the PINN
+    # sees would cost real information for no established benefit.
+    "stage1_terrain": [
+        "elevation", "slope_degrees", "northness", "eastness", "profile_curvature",
+        "plan_curvature", "tpi", "elevation_roughness", "solar_radiation_index",
+        "frost_hollow_flag", "ceh_twi", "tpi_500m", "local_relief_500m",
+    ],
+    "stage2_terrain_wind": [
+        "elevation", "slope_degrees", "northness", "eastness", "profile_curvature",
+        "plan_curvature", "tpi", "elevation_roughness", "solar_radiation_index",
+        "frost_hollow_flag", "ceh_twi", "tpi_500m", "local_relief_500m",
+        "gwa_wind_speed_10m", "topex", "windward_topex", "whcl",
+        "gwa_weibull_a_10m", "gwa_weibull_k_10m", "gwa_weibull_a_50m", "gwa_weibull_k_50m",
+    ],
+    # stage3 and stage4 happened to come out identical this run -- every remaining category
+    # (climate/soil/edge) cleared the notebook's signal-strength bar, so "the ones deemed
+    # useful" and "all of them" are the same set right now. Kept as two separately named tiers
+    # anyway: the filter is a real check every time this notebook is re-run (e.g. after a new
+    # candidate variable is added), not something guaranteed to always produce two different lists.
+    # tas_mean/groundfrost_mean deliberately excluded from stage3/stage4 below -- same
+    # cohort-suffix resolution gap that already excludes them from broad_legitimate above
+    # (load_split_table_with_terrain() doesn't resolve tas_mean_4survey/_6survey the way
+    # xgb_environmental's own pipeline does; a plain "tas_mean" here would KeyError at run
+    # time). The notebook's OTHER output, the attribution-safe tiers (for xgb_environmental,
+    # which does resolve the cohort suffix), keeps both columns -- see the notebook itself.
+    "stage3_terrain_wind_plus": [
+        "elevation", "slope_degrees", "northness", "eastness", "profile_curvature",
+        "plan_curvature", "tpi", "elevation_roughness", "solar_radiation_index",
+        "frost_hollow_flag", "ceh_twi", "tpi_500m", "local_relief_500m",
+        "gwa_wind_speed_10m", "topex", "windward_topex", "whcl",
+        "gwa_weibull_a_10m", "gwa_weibull_k_10m", "gwa_weibull_a_50m", "gwa_weibull_k_50m",
+        "chelsa_gdd5_degc", "chelsa_bio12_precip_mm",
+        "soilgrids_ph", "dist_to_watercourse", "dist_to_cpmt_boundary",
+        "dist_to_forest_perimeter", "dist_to_scpt_boundary", "dist_to_block_boundary",
+        "cpmt_compactness_ratio", "dist_to_road",
+    ],
+    "stage4_all_environmental": [
+        "elevation", "slope_degrees", "northness", "eastness", "profile_curvature",
+        "plan_curvature", "tpi", "elevation_roughness", "solar_radiation_index",
+        "frost_hollow_flag", "ceh_twi", "tpi_500m", "local_relief_500m",
+        "gwa_wind_speed_10m", "topex", "windward_topex", "whcl",
+        "gwa_weibull_a_10m", "gwa_weibull_k_10m", "gwa_weibull_a_50m", "gwa_weibull_k_50m",
+        "chelsa_gdd5_degc", "chelsa_bio12_precip_mm",
+        "soilgrids_ph", "dist_to_watercourse", "dist_to_cpmt_boundary",
+        "dist_to_forest_perimeter", "dist_to_scpt_boundary", "dist_to_block_boundary",
+        "cpmt_compactness_ratio", "dist_to_road",
     ],
 }
 DEFAULT_ENV_TERRAIN_FEATURE_SET = "terrain_wind_solid"

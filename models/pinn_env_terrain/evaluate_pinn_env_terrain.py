@@ -6,6 +6,7 @@
 
 import argparse
 import json
+import time
 from pathlib import Path
 
 import joblib
@@ -90,6 +91,10 @@ def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED, k_f
         )
         terrain_test = build_terrain_tensor(test_df, scaler_terrain, feature_columns, device)
 
+        # Timed for a runtime-comparison chart -- see evaluate_dnn_noenv.py's identical comment.
+        # Spans BOTH predict() and predict_y_max() below, since together they're this model's
+        # full inference cost, not just the height number alone.
+        inference_start_time = time.time()
         predicted_height_test_scaled = predict(model, age_test, other_test)
         predicted_height_test = scaler_height.inverse_transform(
             predicted_height_test_scaled.cpu().numpy()
@@ -101,8 +106,11 @@ def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED, k_f
         # mapped/compared against terrain directly (e.g. in spatial_autocorrelation_terrain.ipynb),
         # not just used internally by the physics loss.
         learned_y_max_test = predict_y_max(model, terrain_test, global_y_max).cpu().numpy().flatten()
+        inference_elapsed_seconds = time.time() - inference_start_time
 
         metrics = compute_metrics(observed_height_test, predicted_height_test, age=test_df["Age"].values)
+        metrics["inference_seconds_total"] = inference_elapsed_seconds
+        metrics["inference_ms_per_plot"] = (inference_elapsed_seconds / len(test_df)) * 1000
 
         predictions_df = pd.DataFrame({
             "identification": test_df["identification"].values,

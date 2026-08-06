@@ -12,6 +12,7 @@
 # reintroducing that exact bug class in a new file.
 
 import json
+import time
 from pathlib import Path
 
 import argparse
@@ -85,6 +86,9 @@ def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED, k_f
         )
         terrain_test = build_terrain_tensor(test_df, scaler_terrain, feature_columns, device)
 
+        # Timed for a runtime-comparison chart -- see evaluate_dnn_noenv.py's identical comment.
+        # Spans predict()/predict_y_max()/predict_k() together, this model's full inference cost.
+        inference_start_time = time.time()
         predicted_height_test_scaled = predict(model, age_test, other_test)
         predicted_height_test = scaler_height.inverse_transform(
             predicted_height_test_scaled.cpu().numpy()
@@ -94,6 +98,7 @@ def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED, k_f
         # The two learned, plot-specific maps -- y_max (as in pinn_env_terrain) and now k too.
         learned_y_max_test = predict_y_max(model, terrain_test, global_y_max).cpu().numpy().flatten()
         learned_k_test = predict_k(model, terrain_test, global_k).cpu().numpy().flatten()
+        inference_elapsed_seconds = time.time() - inference_start_time
 
         # Confound check (see pinn_env_terrain_k.py's top-of-file note): if y_max and k are
         # substitutable given only terrain inputs, they'd end up correlated across plots even
@@ -104,6 +109,8 @@ def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED, k_f
         y_max_k_correlation = float(np.corrcoef(learned_y_max_test, learned_k_test)[0, 1])
 
         metrics = compute_metrics(observed_height_test, predicted_height_test, age=test_df["Age"].values)
+        metrics["inference_seconds_total"] = inference_elapsed_seconds
+        metrics["inference_ms_per_plot"] = (inference_elapsed_seconds / len(test_df)) * 1000
 
         predictions_df = pd.DataFrame({
             "identification": test_df["identification"].values,

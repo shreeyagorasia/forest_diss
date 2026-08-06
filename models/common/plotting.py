@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 # One fixed colour per survey year, shared by every plot in this module, so
@@ -11,6 +12,51 @@ YEAR_COLORS = {
     2021: "#ff7f0e",
     2023: "#d62728",
 }
+
+
+def plot_ordered_predictions_with_ci(y_true, y_pred, ci_low, ci_high, unit_labels=None, ax=None, y_log_scale=False):
+    # Matches the standard "district/unit-level predictions with confidence intervals" figure
+    # used in the GNN/spatial-modelling literature (e.g. a per-district prediction plotted
+    # against its target, units sorted by ascending target value, with a shaded CI band around
+    # the prediction line): sort every unit by its OWN observed value (not by row order, which
+    # is usually arbitrary/spatial and would make the plot unreadable), then draw the prediction
+    # as a line, the [ci_low, ci_high] band as a shaded region behind it, and the true observed
+    # values as scattered points on top.
+    #
+    # y_true/y_pred/ci_low/ci_high must all be the same length, one entry per unit (e.g. one row
+    # per plot, already aggregated/deduplicated if the source predictions.csv has multiple rows
+    # per plot). ci_low/ci_high come from wherever the per-unit interval was computed (e.g. a
+    # multi-seed ensemble's min/max or 2.5th/97.5th percentile across seeds for that same unit) --
+    # this function only draws them, it doesn't compute them itself.
+    if ax is None:
+        _, ax = plt.subplots()
+
+    order = np.argsort(y_true)
+    sorted_true = np.asarray(y_true)[order]
+    sorted_pred = np.asarray(y_pred)[order]
+    sorted_ci_low = np.asarray(ci_low)[order]
+    sorted_ci_high = np.asarray(ci_high)[order]
+    x_positions = np.arange(len(sorted_true))
+
+    ax.fill_between(x_positions, sorted_ci_low, sorted_ci_high, color="#2ca02c", alpha=0.3, label="Confidence interval")
+    ax.plot(x_positions, sorted_pred, color="#1f77b4", linewidth=1, label="Prediction")
+    ax.scatter(x_positions, sorted_true, color="#d62728", s=6, label="Target", zorder=3)
+
+    if y_log_scale:
+        ax.set_yscale("log")
+
+    xlabel = "Unit (ordered by ascending target value)"
+    if unit_labels is not None:
+        # Only label a handful of ticks -- with hundreds/thousands of units, labelling every
+        # single one would be unreadable, same reasoning as the reference figure's own sparse
+        # x-axis ticks.
+        tick_step = max(len(x_positions) // 10, 1)
+        ax.set_xticks(x_positions[::tick_step])
+        ax.set_xticklabels(np.asarray(unit_labels)[order][::tick_step], rotation=45, ha="right", fontsize=7)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel("elev_percentile_95th (top height)")
+    ax.legend(fontsize=8)
+    return ax
 
 
 def plot_predicted_vs_observed(y_true, y_pred, ax=None):

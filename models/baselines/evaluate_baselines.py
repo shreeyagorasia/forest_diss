@@ -13,6 +13,7 @@
 
 import argparse
 import json
+import time
 from pathlib import Path
 
 import numpy as np
@@ -96,8 +97,10 @@ def evaluate_chapman_richards(cohort, split_type, maturity_age_min=MATURITY_AGE_
     with open(params_path) as f:
         params = json.load(f)
 
+    inference_start_time = time.time()
     predicted_heights = chapman_richards(test_df["Age"].values, params["y_max"], params["k"], params["p"])
-    return build_results(f"chapman_richards{name_suffix}", cohort, test_df, predicted_heights, split_type)
+    inference_elapsed_seconds = time.time() - inference_start_time
+    return build_results(f"chapman_richards{name_suffix}", cohort, test_df, predicted_heights, split_type, inference_elapsed_seconds)
 
 
 def evaluate_average_by_age(cohort, split_type, maturity_age_min=MATURITY_AGE_MIN_DEFAULT, name_suffix=""):
@@ -107,10 +110,12 @@ def evaluate_average_by_age(cohort, split_type, maturity_age_min=MATURITY_AGE_MI
     with open(lookup_path) as f:
         lookup_data = json.load(f)
 
+    inference_start_time = time.time()
     predicted_heights = predict_average_by_age(
         test_df["Age"].values, lookup_data["lookup_table"], lookup_data["fallback_mean_height"]
     )
-    return build_results(f"average_by_age{name_suffix}", cohort, test_df, predicted_heights, split_type)
+    inference_elapsed_seconds = time.time() - inference_start_time
+    return build_results(f"average_by_age{name_suffix}", cohort, test_df, predicted_heights, split_type, inference_elapsed_seconds)
 
 
 def evaluate_linear_baseline(cohort, split_type, maturity_age_min=MATURITY_AGE_MIN_DEFAULT, name_suffix=""):
@@ -120,8 +125,10 @@ def evaluate_linear_baseline(cohort, split_type, maturity_age_min=MATURITY_AGE_M
     with open(params_path) as f:
         params = json.load(f)
 
+    inference_start_time = time.time()
     predicted_heights = predict_linear_baseline(test_df, params)
-    return build_results(f"linear_baseline{name_suffix}", cohort, test_df, predicted_heights, split_type)
+    inference_elapsed_seconds = time.time() - inference_start_time
+    return build_results(f"linear_baseline{name_suffix}", cohort, test_df, predicted_heights, split_type, inference_elapsed_seconds)
 
 
 def evaluate_rf_baseline(cohort, split_type, maturity_age_min=MATURITY_AGE_MIN_DEFAULT, name_suffix=""):
@@ -132,11 +139,13 @@ def evaluate_rf_baseline(cohort, split_type, maturity_age_min=MATURITY_AGE_MIN_D
     with open(model_dir / "model_metadata.json") as f:
         metadata = json.load(f)
 
+    inference_start_time = time.time()
     predicted_heights = predict_rf_baseline(test_df, model, metadata["encoded_column_names"])
-    return build_results(f"rf_baseline{name_suffix}", cohort, test_df, predicted_heights, split_type)
+    inference_elapsed_seconds = time.time() - inference_start_time
+    return build_results(f"rf_baseline{name_suffix}", cohort, test_df, predicted_heights, split_type, inference_elapsed_seconds)
 
 
-def build_results(model_name, cohort, test_df, predicted_heights, split_type):
+def build_results(model_name, cohort, test_df, predicted_heights, split_type, inference_elapsed_seconds):
     observed_heights = test_df["elev_percentile_95th"].values
     predicted_heights = np.asarray(predicted_heights, dtype=float)
     residuals = observed_heights - predicted_heights
@@ -154,6 +163,11 @@ def build_results(model_name, cohort, test_df, predicted_heights, split_type):
     })
 
     metrics = compute_metrics(observed_heights, predicted_heights, age=test_df["Age"].values)
+    # Timed for a runtime-comparison chart -- see evaluate_dnn_noenv.py's identical comment.
+    # Passed in by the caller (right around its own predict_X() call) rather than timed in
+    # here, since "in here" is after the prediction already happened.
+    metrics["inference_seconds_total"] = inference_elapsed_seconds
+    metrics["inference_ms_per_plot"] = (inference_elapsed_seconds / len(test_df)) * 1000
 
     results_dir = output_dir(model_name, cohort, split_type=split_type)
     results_dir.mkdir(parents=True, exist_ok=True)

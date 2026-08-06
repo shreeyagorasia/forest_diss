@@ -32,16 +32,20 @@ FEATURE_PROVENANCE = {
         "variance identity Var = E[X^2] - E[X]^2 (scipy.ndimage.uniform_filter, much faster than "
         "a literal per-cell std loop)"
     ),
-    "tpi_250m": (
-        "own calculation (data_processing/add_environmental_candidates.py, 2026-08-04): elevation "
-        "minus an 11x11-cell square moving-window mean, same OS Terrain 50 tiles and method "
-        "as the existing `tpi` (100m window) above -- a genuinely different spatial scale, not a "
-        "duplicate. Read `tpi` and `tpi_250m`/`tpi_500m` together as a multiscale check, not three "
-        "independent measurements of different things."
-    ),
+    # tpi_250m deliberately NOT in this dict (removed 2026-08-06, was briefly included
+    # 2026-08-04) -- Avenue 2's own correlation_screen.py measured it directly: ρ=0.841 with the
+    # existing `tpi` (100m window), ρ=0.879 with `tpi_500m` below -- genuinely redundant with its
+    # two multiscale neighbours, unlike `tpi`/`tpi_500m` themselves (only ρ=0.619 apart, real
+    # distinct extremes worth keeping both). Never used by any DNN/PINN model (not in any
+    # ENV_TERRAIN_FEATURE_SETS entry in torch_data.py), so removing it here doesn't invalidate
+    # any existing model result -- only this notebook's own multiscale-terrain analysis is
+    # affected. See documentation/variable_registry_av1_av2.csv for the full cross-avenue check.
     "tpi_500m": (
-        "own calculation (data_processing/add_environmental_candidates.py, 2026-08-04): same "
-        "method as tpi_250m, using a 21x21-cell square window."
+        "own calculation (data_processing/add_environmental_candidates.py, 2026-08-04): elevation "
+        "minus a 21x21-cell square moving-window mean, same OS Terrain 50 tiles and method as the "
+        "existing `tpi` (100m window) above. Kept alongside `tpi` (not `tpi_250m`, see the removal "
+        "note above) as a genuinely distinct scale -- ρ=0.619 vs native `tpi`, confirmed via "
+        "Avenue 2's correlation_screen.py, not a redundant intermediate step."
     ),
     "local_relief_500m": (
         "own calculation (data_processing/add_environmental_candidates.py, 2026-08-04): maximum "

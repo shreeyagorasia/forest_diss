@@ -3,7 +3,7 @@
 # Run on the ICF cluster from the project root:
 #
 #   cd ~/forest_diss
-#   sbatch jobs/pinn_env_terrain_k/run_pinn_env_terrain_k.sh [cohort] [max_epochs] [patience] [split_type] [physics_weight] [trajectory_weight] [run_name] [seed] [batch_size] [feature_set] [dropout_rate] [split_seed] [n_folds] [fold_index] [freeze_y_max]
+#   sbatch jobs/pinn_env_terrain_k/run_pinn_env_terrain_k.sh [cohort] [max_epochs] [patience] [split_type] [physics_weight] [trajectory_weight] [run_name] [seed] [batch_size] [feature_set] [dropout_rate] [split_seed] [n_folds] [fold_index] [freeze_y_max] [learning_rate] [hidden_layer_sizes]
 #
 # Examples:
 #   sbatch jobs/pinn_env_terrain_k/run_pinn_env_terrain_k.sh 4survey 5 3
@@ -43,6 +43,10 @@
 #   freeze_y_max       Pass "true" to run the council's freeze-one-vary-other ablation (pins
 #                      y_max to the global CR constant, only k is a free per-plot parameter).
 #                      Blank/anything else = full two-parameter model (default).
+#   learning_rate      Adam/SGD starting learning rate. Defaults to 0.0001, never swept for this
+#                      model before 2026-08-06.
+#   hidden_layer_sizes Comma-separated hidden layer sizes, e.g. "64,32". Blank/default: the
+#                      original 3x128 network, unchanged.
 #
 # Logs:
 #   stdout -> logs/pinn_env_terrain_k/pinn_env_terrain_k_<jobid>.out
@@ -91,6 +95,8 @@ SPLIT_SEED=${12:-42}
 N_FOLDS=${13:-5}
 FOLD_INDEX=${14:-0}
 FREEZE_Y_MAX=${15:-}
+LEARNING_RATE=${16:-0.0001}
+HIDDEN_LAYER_SIZES=${17:-}
 
 echo "--- PINN env_terrain_k job start ---"
 echo "Node: $(hostname)"
@@ -108,6 +114,8 @@ echo "Dropout rate: ${DROPOUT_RATE}"
 echo "Split seed: ${SPLIT_SEED}"
 echo "K-fold: ${FOLD_INDEX}/${N_FOLDS}"
 echo "Freeze y_max: ${FREEZE_Y_MAX:-false}"
+echo "Learning rate: ${LEARNING_RATE}"
+echo "Hidden layer sizes: ${HIDDEN_LAYER_SIZES:-(default 3x128)}"
 
 RUN_NAME_ARGS=()
 if [ -n "${RUN_NAME}" ]; then
@@ -117,6 +125,11 @@ fi
 FREEZE_Y_MAX_ARGS=()
 if [ "${FREEZE_Y_MAX}" = "true" ]; then
   FREEZE_Y_MAX_ARGS=(--freeze-y-max)
+fi
+
+HIDDEN_LAYER_SIZES_ARGS=()
+if [ -n "${HIDDEN_LAYER_SIZES}" ]; then
+  HIDDEN_LAYER_SIZES_ARGS=(--hidden-layer-sizes "${HIDDEN_LAYER_SIZES}")
 fi
 
 python -u -m models.pinn_env_terrain_k.run_pinn_env_terrain_k \
@@ -134,7 +147,9 @@ python -u -m models.pinn_env_terrain_k.run_pinn_env_terrain_k \
   --split-seed "${SPLIT_SEED}" \
   --n-folds "${N_FOLDS}" \
   --fold-index "${FOLD_INDEX}" \
+  --learning-rate "${LEARNING_RATE}" \
   "${RUN_NAME_ARGS[@]}" \
-  "${FREEZE_Y_MAX_ARGS[@]}"
+  "${FREEZE_Y_MAX_ARGS[@]}" \
+  "${HIDDEN_LAYER_SIZES_ARGS[@]}"
 
 echo "--- PINN env_terrain_k job end ---"

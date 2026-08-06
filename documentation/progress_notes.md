@@ -6,6 +6,58 @@ chapter-by-chapter plan — this is the informal working log.
 
 ***
 
+## Current dissertation direction (6 August 2026)
+
+The dissertation now has **two connected analytical avenues**. They answer different questions,
+use different targets, and should be written up as complementary rather than as two versions of
+the same experiment.
+
+- **Avenue 1: spatial descriptive attribution against a shared reference curve.**
+  This asks: **which environmental and management conditions are associated with plots being
+  consistently taller or shorter than the shared Aberfoyle Chapman-Richards reference curve?**
+  The target is a plot's persistent deviation from that pooled reference (for example
+  `mean_cr_residual`), so the emphasis is on **between-plot spatial pattern**, not temporal
+  forecasting. This is the avenue where environmental and management covariates are most directly
+  interpretable. Current reading: `4survey` contains a meaningful held-out spatial signal, while
+  `6survey` is weaker and should be framed as underpowered/inconclusive rather than as evidence of
+  no effect.
+
+- **Avenue 2: per-plot growth-curve deviation attribution.**
+  This asks: **why do some plots follow growth trajectories whose fitted local asymptote differs
+  from the yield-class-implied expectation?** The target here is the per-plot growth-curve
+  deviation measure (currently `local_y_max_difference`), so the emphasis is on **persistent
+  plot-level departure from expected growth behaviour**, not on the same residual target used in
+  Avenue 1. Under the current data shape, the strongest AV2 environmental result remains the
+  static terrain/wind story; adding the currently available temporal-wind summaries does not
+  materially improve held-out performance for this target.
+
+These avenues are **connected in logic** even though they do not need one identical feature set or
+one identical target. Both ask how far forest growth heterogeneity can be explained once we move
+past a single pooled yield/growth expectation:
+
+- Avenue 1 does this at the level of **shared spatial departures from a common reference**.
+- Avenue 2 does this at the level of **plot-specific departures from expected curve shape or
+  asymptote**.
+
+Together, they answer the broader dissertation question:
+
+> **How much of the observed heterogeneity in Aberfoyle forest growth can be explained by stable
+> environmental and management context, and at what level does that explanation operate most
+> convincingly: population-wide spatial pattern, or persistent plot-specific growth deviation?**
+
+This also clarifies how the split designs fit the final story:
+
+- `spatial_block_split` remains the main discipline for any claim about spatial/environmental
+  generalisation.
+- The older DNN/PINN `temporal_split` work is still useful, but now reads mainly as a separate
+  methodological/generalisation strand about temporal extrapolation and the limits of the physics
+  constraint, not as the single organising frame for the whole dissertation.
+
+The write-up should therefore avoid presenting Avenue 2 as a replacement for Avenue 1, or Avenue 1
+as a side analysis. The stronger framing is that **Avenue 1 establishes whether there is a general
+spatially learnable descriptive signal at all, while Avenue 2 asks whether a more biologically
+structured plot-level deviation target reveals a related but distinct mechanism.**
+
 ## Repo structure (as of 15 July 2026)
 
 ```

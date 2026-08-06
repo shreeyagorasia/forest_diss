@@ -16,6 +16,7 @@
 
 import argparse
 import json
+import time
 
 import joblib
 import pandas as pd
@@ -85,13 +86,18 @@ def run_for_cohort(
         )
 
         # ----- Make predictions and unscale them back to real metres -----
+        # Timed for a runtime-comparison chart -- see evaluate_dnn_noenv.py's identical comment.
+        inference_start_time = time.time()
         predicted_height_test_scaled = predict(model, age_test, other_test)
+        inference_elapsed_seconds = time.time() - inference_start_time
         predicted_height_test = scaler_height.inverse_transform(
             predicted_height_test_scaled.cpu().numpy()
         ).flatten()
         observed_height_test = test_df[TARGET_COLUMN].values
 
         metrics = compute_metrics(observed_height_test, predicted_height_test, age=test_df["Age"].values)
+        metrics["inference_seconds_total"] = inference_elapsed_seconds
+        metrics["inference_ms_per_plot"] = (inference_elapsed_seconds / len(test_df)) * 1000
 
         predictions_df = pd.DataFrame({
             "identification": test_df["identification"].values,

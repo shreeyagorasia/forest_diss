@@ -14,6 +14,7 @@ import pandas as pd
 
 from models.common.metrics import compute_metrics
 from models.common.saving import model_output_dir
+from models.common.bootstrap_ci import cluster_bootstrap_ci, r2_statistic
 
 
 def load_all_folds(model_name, cohort, n_folds, split_type="spatial_block_kfold"):
@@ -60,6 +61,12 @@ def summarize_kfold(model_name, cohort, n_folds, split_type="spatial_block_kfold
 
     per_fold_r2_series = pd.Series(per_fold_r2)
 
+    # A single pooled R2 number invites over-reading ("0.42 beats 0.38") without knowing whether
+    # that gap is even distinguishable from resampling noise. Cluster-bootstrap the pooled R2
+    # itself (resampling whole compartments -- see models/common/bootstrap_ci.py for why), so
+    # every model's headline number comes with a 95% CI, not just a point estimate.
+    r2_ci = cluster_bootstrap_ci(pooled_predictions, "cpmt", r2_statistic, n_resamples=1000, seed=42)
+
     summary = {
         "model_name": model_name,
         "cohort": cohort,
@@ -67,6 +74,9 @@ def summarize_kfold(model_name, cohort, n_folds, split_type="spatial_block_kfold
         "n_plot_years": len(pooled_predictions),
         "n_plots": pooled_predictions["identification"].nunique(),
         "pooled_r2": pooled_metrics["r2"],
+        "pooled_r2_ci_low": r2_ci["ci_low"],
+        "pooled_r2_ci_high": r2_ci["ci_high"],
+        "pooled_r2_ci_n_clusters": r2_ci["n_clusters"],
         "pooled_rmse": pooled_metrics["rmse"],
         "pooled_mae": pooled_metrics["mae"],
         "pooled_bias": pooled_metrics["bias"],
@@ -104,6 +114,7 @@ def main():
         summary = summarize_kfold(args.model_name, cohort, args.n_folds, split_type=args.split_type)
         print(f"  n_plots={summary['n_plots']:,}  n_plot_years={summary['n_plot_years']:,}")
         print(f"  Pooled (whole population): R2={summary['pooled_r2']:.4f}  RMSE={summary['pooled_rmse']:.4f}  MAE={summary['pooled_mae']:.4f}  Bias={summary['pooled_bias']:+.4f}")
+        print(f"  Pooled R2 95% CI (cluster bootstrap, {summary['pooled_r2_ci_n_clusters']} compartments): [{summary['pooled_r2_ci_low']:.4f}, {summary['pooled_r2_ci_high']:.4f}]")
         print(f"  Per-fold R2: mean={summary['per_fold_r2_mean']:.4f}  std={summary['per_fold_r2_std']:.4f}  values={[round(v, 4) for v in summary['per_fold_r2_values']]}")
         if "pooled_y_max_k_correlation" in summary:
             print(f"  Pooled y_max/k correlation (all {summary['n_plots']:,} plots, one row per plot): {summary['pooled_y_max_k_correlation']:+.4f}")

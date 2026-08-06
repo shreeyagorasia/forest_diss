@@ -214,6 +214,163 @@ STAGES["E4_pinn_env_terrain_k_6survey_base"] = {
 }
 
 
+# E6: the multicollinearity-screen tier sweep (2026-08-06) -- same shape as build_kfold_stage_jobs()
+# above, generalized with `feature_set` as an extra loop axis instead of hardcoding
+# "terrain_wind_solid". Tests whether the properly-screened, staged environmental tiers built by
+# notebooks/environmental_data/multicollinearity_screen_av1.ipynb (see
+# documentation/experiment_log.md's 2026-08-06 entry) actually earn their added complexity under
+# genuine 5-fold pooling, replacing the old single-seed broad_legitimate comparison.
+#
+# stage3_terrain_wind_plus is deliberately NOT included -- the notebook found every remaining
+# category cleared its signal-strength bar this run, so stage3 and stage4 came out as the exact
+# same column list. Running both would fit the identical experiment twice for no reason.
+#
+# dnn_noenv is NOT included -- it has no ENV_TERRAIN_FEATURE_SETS input at all, so it has nothing
+# to sweep here; its existing E3_kfold numbers are still the right "no extra terrain/wind" floor.
+#
+# No baseline re-fit needed -- feature_set only changes what the neural network's terrain/wind
+# sub-network sees, never the classical Chapman-Richards fit load_cr_params() reads (that's keyed
+# on split_type/split_seed/fold_index, not run_name/feature_set). E3_baselines_kfold's existing
+# output is reused as-is.
+#
+# run_name is set to the feature_set's own name -- keeps each tier's output at
+# outputs/spatial_block_kfold/<feature_set>/<cohort>/fold_<n>/, never colliding with the primary
+# terrain_wind_solid result (which uses each model's own default output_model_name) or with each
+# other.
+def build_stage_sweep_jobs():
+    n_folds = 5
+    cohorts = ["4survey", "6survey"]
+    feature_sets = ["stage1_terrain", "stage2_terrain_wind", "stage4_all_environmental"]
+
+    fit_jobs = []
+    evaluate_commands = []
+    for feature_set in feature_sets:
+        for cohort in cohorts:
+            for fold_index in range(n_folds):
+                run_name = feature_set
+
+                # Same explicit batch_size=256 reasoning as E1/E3 above -- keeps DNN and both
+                # PINN variants on the same batch size for a controlled comparison.
+                fit_jobs.append([
+                    "jobs/dnn_env_terrain/run_dnn_env_terrain.sh", cohort, "500", "40", "spatial_block_kfold",
+                    "42", run_name, "256", feature_set, "0.0", "42", str(n_folds), str(fold_index),
+                ])
+                evaluate_commands.append([
+                    "jobs/dnn_env_terrain/evaluate_dnn_env_terrain.sh", cohort, "spatial_block_kfold", run_name,
+                    "42", str(n_folds), str(fold_index),
+                ])
+
+                fit_jobs.append([
+                    "jobs/pinn_env_terrain/run_pinn_env_terrain.sh", cohort, "500", "40", "spatial_block_kfold",
+                    "1.0", "1.0", run_name, "42", "256", feature_set, "0.0", "42", str(n_folds), str(fold_index),
+                ])
+                evaluate_commands.append([
+                    "jobs/pinn_env_terrain/evaluate_pinn_env_terrain.sh", cohort, "spatial_block_kfold", run_name,
+                    "42", str(n_folds), str(fold_index),
+                ])
+
+                fit_jobs.append([
+                    "jobs/pinn_env_terrain_k/run_pinn_env_terrain_k.sh", cohort, "500", "40", "spatial_block_kfold",
+                    "1.0", "1.0", run_name, "42", "256", feature_set, "0.0", "42", str(n_folds), str(fold_index),
+                ])
+                evaluate_commands.append([
+                    "jobs/pinn_env_terrain_k/evaluate_pinn_env_terrain_k.sh", cohort, "spatial_block_kfold", run_name,
+                    "42", str(n_folds), str(fold_index),
+                ])
+
+    return fit_jobs, evaluate_commands
+
+
+_STAGE_SWEEP_FIT_JOBS, _STAGE_SWEEP_EVALUATE_COMMANDS = build_stage_sweep_jobs()
+
+STAGES["E6_stage_sweep"] = {
+    "description": (
+        "Multicollinearity-screen tier sweep: dnn_env_terrain, pinn_env_terrain, "
+        "pinn_env_terrain_k under stage1_terrain / stage2_terrain_wind / stage4_all_environmental, "
+        "5-fold spatial_block_kfold, both cohorts (18 experiments x 5 folds = 90 fit jobs). "
+        "Requires E3_baselines_kfold to have already finished (reuses its CR anchors -- do NOT "
+        "re-run it). Once this stage's 'evaluate' step is done, pool each (model, feature_set, "
+        "cohort) combination's 5 folds with models/common/kfold_summary.py, same as E3_kfold."
+    ),
+    "fit_jobs": _STAGE_SWEEP_FIT_JOBS,
+    "evaluate_commands": _STAGE_SWEEP_EVALUATE_COMMANDS,
+}
+
+
+# E7: hyperparameter sweep for the env_terrain family (2026-08-06) -- dropout/learning-rate/
+# architecture-size were already swept for dnn_noenv/pinn_noenv (documentation/experiment_log.md's
+# 2026-08-02 entries: all three came back null results -- dropout makes val_loss monotonically
+# WORSE, neither learning-rate variant nor any of 4 architectures moved val_loss beyond noise).
+# That sweep was run manually (no sbatch support existed yet, --learning-rate/--hidden-layer-sizes
+# were only just-added CLI flags, never wired into a .sh job script) and never extended to the
+# THREE env_terrain models, which have never had ANY hyperparameter sweep at all. This stage does
+# NOT re-test architecture size (already answered for the no-env family, unlikely to differ here)
+# -- it tests dropout_rate x learning_rate specifically for dnn_env_terrain/pinn_env_terrain/
+# pinn_env_terrain_k, the genuinely untested combination.
+#
+# Deliberately single-split spatial_block, NOT spatial_block_kfold -- this is a coarse screen to
+# find whether either lever moves val_loss at all (matching the 2026-08-02 sweep's own
+# convention), not a final precision number. Re-run under k-fold only if this screen finds a real
+# effect worth confirming properly.
+#
+# feature_set is fixed at terrain_wind_solid (today's primary) for now -- if E6_stage_sweep above
+# finds a different tier should become primary, re-point this stage's feature_set before running
+# it, rather than guessing which tier will win ahead of time.
+def build_hyperparameter_sweep_jobs():
+    cohorts = ["4survey", "6survey"]
+    dropout_rates = ["0.0", "0.1"]
+    learning_rates = ["0.0001", "0.0003", "0.001"]
+
+    fit_jobs = []
+    evaluate_commands = []
+    for cohort in cohorts:
+        for dropout_rate in dropout_rates:
+            for learning_rate in learning_rates:
+                run_name = f"hp_sweep_drop{dropout_rate}_lr{learning_rate}"
+
+                fit_jobs.append([
+                    "jobs/dnn_env_terrain/run_dnn_env_terrain.sh", cohort, "500", "40", "spatial_block",
+                    "42", run_name, "256", "terrain_wind_solid", dropout_rate, "42", "5", "0", learning_rate,
+                ])
+                evaluate_commands.append([
+                    "jobs/dnn_env_terrain/evaluate_dnn_env_terrain.sh", cohort, "spatial_block", run_name,
+                ])
+
+                fit_jobs.append([
+                    "jobs/pinn_env_terrain/run_pinn_env_terrain.sh", cohort, "500", "40", "spatial_block",
+                    "1.0", "1.0", run_name, "42", "256", "terrain_wind_solid", dropout_rate, "42", "5", "0", learning_rate,
+                ])
+                evaluate_commands.append([
+                    "jobs/pinn_env_terrain/evaluate_pinn_env_terrain.sh", cohort, "spatial_block", run_name,
+                ])
+
+                fit_jobs.append([
+                    "jobs/pinn_env_terrain_k/run_pinn_env_terrain_k.sh", cohort, "500", "40", "spatial_block",
+                    "1.0", "1.0", run_name, "42", "256", "terrain_wind_solid", dropout_rate, "42", "5", "0", "",
+                    learning_rate,
+                ])
+                evaluate_commands.append([
+                    "jobs/pinn_env_terrain_k/evaluate_pinn_env_terrain_k.sh", cohort, "spatial_block", run_name,
+                ])
+
+    return fit_jobs, evaluate_commands
+
+
+_HYPERPARAMETER_SWEEP_FIT_JOBS, _HYPERPARAMETER_SWEEP_EVALUATE_COMMANDS = build_hyperparameter_sweep_jobs()
+
+STAGES["E7_hyperparameter_sweep"] = {
+    "description": (
+        "dropout_rate x learning_rate coarse screen for dnn_env_terrain/pinn_env_terrain/"
+        "pinn_env_terrain_k (2 x 3 x 3 models x 2 cohorts = 36 fit jobs), single spatial_block "
+        "split, terrain_wind_solid. Architecture size NOT re-tested -- already a null result for "
+        "the no-env family (documentation/experiment_log.md 2026-08-02). Run AFTER E6_stage_sweep "
+        "resolves which feature-set tier is primary, and re-point feature_set here if it changes."
+    ),
+    "fit_jobs": _HYPERPARAMETER_SWEEP_FIT_JOBS,
+    "evaluate_commands": _HYPERPARAMETER_SWEEP_EVALUATE_COMMANDS,
+}
+
+
 STAGES["E5_pinn_env_terrain_k_temporal"] = {
     "description": (
         "pinn_env_terrain_k has never been run under temporal or temporal_narrow_gap at all -- "

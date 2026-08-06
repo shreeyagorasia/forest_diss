@@ -3,7 +3,7 @@
 # Run on the ICF cluster from the project root:
 #
 #   cd ~/forest_diss
-#   sbatch jobs/pinn_env_terrain/run_pinn_env_terrain.sh [cohort] [max_epochs] [patience] [split_type] [physics_weight] [trajectory_weight] [run_name] [seed] [batch_size] [feature_set] [dropout_rate] [split_seed] [n_folds] [fold_index]
+#   sbatch jobs/pinn_env_terrain/run_pinn_env_terrain.sh [cohort] [max_epochs] [patience] [split_type] [physics_weight] [trajectory_weight] [run_name] [seed] [batch_size] [feature_set] [dropout_rate] [split_seed] [n_folds] [fold_index] [learning_rate] [hidden_layer_sizes]
 #
 # Examples:
 #   sbatch jobs/pinn_env_terrain/run_pinn_env_terrain.sh 4survey 5 3
@@ -37,6 +37,10 @@
 #   dropout_rate       Dropout probability in both the main network's and the y_max
 #                      sub-network's hidden layers. Defaults to 0.0 (no dropout, matching
 #                      pinn_noenv's architecture).
+#   learning_rate      Adam/SGD starting learning rate. Defaults to 0.0001, never swept for this
+#                      model before 2026-08-06.
+#   hidden_layer_sizes Comma-separated hidden layer sizes, e.g. "64,32". Blank/default: the
+#                      original 3x128 network, unchanged.
 #
 # Logs:
 #   stdout -> logs/pinn_env_terrain/pinn_env_terrain_<jobid>.out
@@ -85,6 +89,8 @@ DROPOUT_RATE=${11:-0.0}
 SPLIT_SEED=${12:-42}
 N_FOLDS=${13:-5}
 FOLD_INDEX=${14:-0}
+LEARNING_RATE=${15:-0.0001}
+HIDDEN_LAYER_SIZES=${16:-}
 
 echo "--- PINN env_terrain job start ---"
 echo "Node: $(hostname)"
@@ -101,10 +107,17 @@ echo "Feature set: ${FEATURE_SET}"
 echo "Dropout rate: ${DROPOUT_RATE}"
 echo "Split seed: ${SPLIT_SEED}"
 echo "K-fold: ${FOLD_INDEX}/${N_FOLDS}"
+echo "Learning rate: ${LEARNING_RATE}"
+echo "Hidden layer sizes: ${HIDDEN_LAYER_SIZES:-(default 3x128)}"
 
 RUN_NAME_ARGS=()
 if [ -n "${RUN_NAME}" ]; then
   RUN_NAME_ARGS=(--run-name "${RUN_NAME}")
+fi
+
+HIDDEN_LAYER_SIZES_ARGS=()
+if [ -n "${HIDDEN_LAYER_SIZES}" ]; then
+  HIDDEN_LAYER_SIZES_ARGS=(--hidden-layer-sizes "${HIDDEN_LAYER_SIZES}")
 fi
 
 python -u -m models.pinn_env_terrain.run_pinn_env_terrain \
@@ -122,6 +135,8 @@ python -u -m models.pinn_env_terrain.run_pinn_env_terrain \
   --split-seed "${SPLIT_SEED}" \
   --n-folds "${N_FOLDS}" \
   --fold-index "${FOLD_INDEX}" \
-  "${RUN_NAME_ARGS[@]}"
+  --learning-rate "${LEARNING_RATE}" \
+  "${RUN_NAME_ARGS[@]}" \
+  "${HIDDEN_LAYER_SIZES_ARGS[@]}"
 
 echo "--- PINN env_terrain job end ---"

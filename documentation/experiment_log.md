@@ -279,6 +279,88 @@ run before it, and the open question has narrowed from "is this even real" (reso
 
 ---
 
+**2026-08-06 — Q: does the pooled 5-fold `spatial_block_kfold` result (whole population, not one
+~20% slice) confirm `pinn_env_terrain_k`'s single-seed edge over `pinn_env_terrain`, and does the
+y_max/k correlation replicate across the two cohorts -- the edge shrinks to noise level, and the
+correlation does NOT replicate: it flips sign between cohorts.**
+**What I found:** Ran the full k-fold sweep (`E3_baselines_kfold`, `E3_kfold` fit+evaluate,
+`E4`/`E5` for `pinn_env_terrain_k`'s missing cells) on the cluster, synced `outputs/` back, pooled
+with `models/common/kfold_summary.py`.
+
+| Model | Cohort | Pooled R² (5-fold) | Per-fold R² mean±std | Single-slice R² (earlier) |
+|---|---|---|---|---|
+| `dnn_noenv` | 4survey | 0.6298 | 0.626±0.022 | 0.6330 |
+| `dnn_noenv` | 6survey | 0.7215 | 0.697±0.048 | 0.7496 |
+| `dnn_env_terrain` | 4survey | 0.6626 | 0.658±0.016 | 0.6247 |
+| `dnn_env_terrain` | 6survey | 0.6895 | 0.663±0.058 | 0.7415 |
+| `pinn_env_terrain` | 4survey | 0.5785 | 0.574±0.036 | 0.5823 |
+| `pinn_env_terrain` | 6survey | 0.7063 | 0.682±0.039 | 0.7329 |
+| `pinn_env_terrain_k` | 4survey | **0.5795** | 0.575±0.035 | 0.5871 |
+| `pinn_env_terrain_k` | 6survey | **0.7073** | 0.683±0.039 | (no prior result) |
+
+`pinn_env_terrain_k` still edges out `pinn_env_terrain` in both cohorts (+0.0010 on 4survey,
++0.0010 on 6survey) -- same direction as the original single-seed finding (+0.0048), but the
+margin has shrunk to noise level once measured over the whole population instead of one slice.
+DNN still beats PINN(w=1) by a real, consistent margin in both env-conditioned and no-env
+variants, both cohorts -- the long-standing "physics constraint hurts at full weight" finding
+replicates under proper k-fold pooling, not just the single-slice numbers.
+
+**The y_max/k correlation across the two cohorts:**
+
+| Cohort | Pooled y_max/k correlation (whole population) | Single-seed, single-slice (earlier) |
+|---|---|---|
+| 4survey | **-0.5748** | -0.7109 |
+| 6survey | **+0.2096** | (no prior result) |
+
+**What's working:** the pooled numbers are a real precision gain, not just a relabelling -- per-
+fold std (e.g. `dnn_env_terrain`/6survey: 0.061 across folds ranging 0.610-0.744) shows exactly
+how much a single arbitrary slice could have misled, confirming the whole reason this sweep was
+worth running. The DNN-beats-PINN(w=1) finding is now confirmed on the WHOLE population for two
+model families, not one slice each -- the strongest-evidence finding in this project just got
+stronger evidence behind it.
+**What's not working / open concern:** the y_max/k correlation does NOT replicate in sign across
+cohorts -- 4survey stays strongly negative (though less extreme pooled: -0.57 vs -0.71 single-
+seed), but 6survey is **positive** (+0.21). A fixed architectural artefact (e.g. "two identical
+sub-networks on identical terrain inputs always trade off the same way") predicts the SAME sign
+regardless of cohort -- this sign flip is real evidence AGAINST that being the whole story, and
+correspondingly more consistent with the correlation reflecting something cohort-specific (either
+genuine, different ecological relationships in the two plot populations, or a data-characteristic-
+dependent identifiability wobble, e.g. related to 6survey's much smaller sample/age range). The
+`pinn_env_terrain_k` edge over `pinn_env_terrain` being this small (+0.001) also means the whole
+"does k-conditioning help" question is now closer to "probably not distinguishably" than "yes, a
+real if modest gain" -- the single-seed 0.0048 gap looked more promising than it was.
+**What this means for what's next:** don't treat the y_max/k correlation as a single, portable
+number -- report both cohorts' values and the sign flip explicitly, since averaging or picking
+one would misrepresent what's actually a more complicated, cohort-dependent picture. The
+identifiability-artefact vs. genuine-signal question from the 2026-08-04 freeze-ablation entry is
+still open and now has a new, harder-to-explain constraint to account for (why would an
+architecture artefact flip sign by cohort?) -- worth a supervisor conversation before writing this
+up as either "confound" or "finding" in the dissertation, since neither framing cleanly fits.
+
+**Residual Moran's I, pooled across all 5 folds** (see 2026-08-05 entry for the single-slice
+version and why 6survey's variogram couldn't resolve there):
+
+| Model | Cohort | Moran's I (pooled) | Range | Moran's I (single-slice) |
+|---|---|---|---|---|
+| `dnn_noenv` | 4survey | 0.0921 | 1618m | 0.0507 |
+| `dnn_noenv` | 6survey | 0.0562 | 3491m | 0.0041 (barely resolved) |
+| `dnn_env_terrain` | 4survey | 0.0367 | 1733m | 0.0437 |
+| `dnn_env_terrain` | 6survey | 0.0434 | 3150m | n/a (didn't resolve) |
+| `pinn_env_terrain` | 4survey | 0.1182 | 1931m | 0.0537 |
+| `pinn_env_terrain` | 6survey | 0.0739 | 1619m | 0.0048 (barely resolved) |
+| `pinn_env_terrain_k` | 4survey | 0.1184 | 1969m | 0.0561 |
+| `pinn_env_terrain_k` | 6survey | 0.0729 | 1604m | (no prior result) |
+
+Pooling doesn't just add precision here -- it changes the answer qualitatively for 6survey (every
+model now shows a real, resolvable Moran's I where the single-slice version mostly couldn't
+resolve a variogram at all), confirming the single-slice 6survey numbers were genuinely
+underpowered, not just imprecise. The resolved range also shrank noticeably for every 4survey
+model (contracting to ~1600-2000m from ~3600-4100m) once pooled across the whole population --
+worth investigating further rather than assumed as a precision artefact, since it moved in a
+consistent direction across all 4 models, not randomly.
+
+---
+
 **2026-08-05 — Q: does 6survey's residual spatial pattern under `spatial_block` look anything like
 4survey's -- no, 4survey shows small-but-real spatial clustering everywhere, 6survey shows almost
 none, consistently across every model checked.**
@@ -326,6 +408,54 @@ underpowered to detect) -- but not worth deeper investigation right now given th
 size (I~0.05 is not a large clustering signal) relative to the k-fold sweep already in progress.
 Re-run this same script once `E3_kfold`'s pooled predictions land (whole-population residuals,
 not one ~20% slice) for a more precise version of this same check.
+
+---
+
+**2026-08-06 — Q: does fixing two cross-avenue divergences (drop `tpi_250m`, prefer
+`gwa_wind_speed_50m` over `10m`) resolve the wind category's multicollinearity instability found
+2026-08-04 -- no, `dist_to_road`/`gwa_wind_speed_50m` individually strengthen but the whole `wind`
+category gets WORSE (-0.267 vs -0.076), confirming the swap alone doesn't fix the underlying
+redundancy.**
+**What I found:** Cross-referenced Avenue 1's variable universe against Avenue 2's
+(`documentation/variable_registry_av1_av2.csv`, built by the other track) and found two real,
+evidence-backed divergences worth fixing in Avenue 1: (1) `tpi_250m` -- Avenue 2's
+`correlation_screen.py` measured ρ=0.841 with native `tpi`, ρ=0.879 with `tpi_500m`, genuinely
+redundant (unlike `tpi`/`tpi_500m` themselves, only ρ=0.619 apart) -- removed from
+`FEATURE_PROVENANCE`/`ALL_FEATURE_COLUMNS`/`CATEGORY_GROUPS["terrain"]`. (2) `gwa_wind_speed_10m`
+-- Avenue 2 formally resolved this to 50m (10m is a sub-canopy measurement, backwards for a
+mature-canopy target) -- swapped in `models/common/torch_data.py`'s `terrain_wind_full`/
+`broad_legitimate` feature sets. Confirmed BEFORE making the change that neither fix touches any
+existing DNN/PINN result: `tpi_250m` was never in any `ENV_TERRAIN_FEATURE_SETS` entry, and
+`terrain_wind_full`/`broad_legitimate` (the only two sets containing the 10m/50m variable) have
+never been run for any model in the current k-fold sweep or the primary `spatial_block` results
+(everything so far uses `terrain_wind_solid`, which contains neither) -- so this was a
+zero-cost fix, not a "redo the sweep" situation. Re-ran `grouped_category_importance.ipynb`
+(now `av1_grouped_category_importance.ipynb`) with both fixes applied.
+
+**Result:** `gwa_wind_speed_50m` is now the #2 individually most-impactful variable (refit
+r2_drop=+0.0754, a genuine positive effect) vs. the old `gwa_wind_speed_10m`'s wildly unstable
++0.274 (previous run) that had already been flagged as suspicious. `dist_to_road` is now #1
+(+0.1491, up from a much smaller earlier value). But the whole `wind` CATEGORY's refit r2_drop is
+**-0.2675** -- more negative than the pre-fix run's -0.0762, not less. `terrain` remains rank 1
+across every method (refit/Elastic Net/SHAP/permutation), unchanged and still the most robust
+finding in this notebook.
+**What's working:** the correction is real and worth keeping -- 10m wind was never defensible for
+a mature-canopy target, and `tpi_250m` was genuinely redundant, confirmed by real numbers, not
+assumption. `terrain`'s dominance surviving yet another feature-set change is now confirmed
+across three different notebook states (original, +12 GWA/TPI columns, GWA/TPI corrected) --
+strong evidence it's not an artefact of any specific column combination.
+**What's not working / open concern:** the wind category's instability is NOT explained by the
+10m/50m choice alone -- swapping it made the category-level number worse, not better, meaning the
+real problem is still the 9-column GWA Weibull bundle's internal redundancy (still present,
+unconsolidated). This confirms the 2026-08-04 finding's own recommendation (consolidate the GWA
+bundle to one representation, or PCA/VIF-reduce it) is still the actual fix needed -- the cheaper
+10m->50m swap was necessary but not sufficient.
+**What this means for what's next:** do not read `gwa_wind_speed_50m`'s new +0.075 individual
+score as reliable evidence on its own -- it sits inside the same unresolved multicollinear bundle
+that made `gwa_wind_speed_10m`'s +0.274 untrustworthy before. The GWA Weibull consolidation
+(deferred at the 2026-08-04 entry, and again here) is the actual remaining blocker before any
+wind-specific number from this notebook goes in the dissertation -- not attempted yet, given it
+needs a real design decision (PCA vs. single-representation vs. VIF-based drop), not just a swap.
 
 ---
 
@@ -2738,3 +2868,172 @@ still has to be resolved/decided (large bandwidth vs. tabular-only Candidate A) 
 GNNWR result either way. Concrete next steps if pursued: add residual Moran's I to
 `gnnwr_check.py`'s reported metrics, and run a compartment-level LMM/partial-pooling check as a
 cheaper intermediate test before further GNNWR cluster spend.
+
+---
+
+**2026-08-06 — Q: once GNNWR is run on the FULL training population under a real 5-fold spatial
+CV (the same fold assignment Elastic Net/XGBoost's own headline numbers are pooled across), does
+it actually beat the flat global models, and does its residual Moran's I improve on them too? --
+yes to both, reversing the earlier reference-capped-run finding.**
+**What I found:** Earlier reference-set-capped GNNWR runs (6,000/12,000/16,000 of the full 31,117
+training plots, forced by a GPU-memory workaround documented in `gnnwr_check.py`'s own module
+docstring) were at best roughly tied with Elastic Net/XGBoost, never clearly ahead, and their
+residual Moran's I (0.74-0.77) was no better than EN/XGBoost's own (~0.70-0.71) -- see the
+2026-08-05 entry above and this session's own residual-autocorrelation check
+(`models/growth_curve_attribution/residual_spatial_autocorrelation_check.py`). Once the reference
+set was widened to the full population (an 18 GiB H200 MIG slice made this fit; see
+`jobs/growth_curve_attribution/run_gnnwr.sh`) and evaluated the same way EN/XGBoost already are --
+5-fold spatial CV via `spatial_kfold_split`, pooled out-of-fold predictions across all 5 folds,
+not a single train/val/test split -- GNNWR's pooled R2 clearly beat both baselines in both scopes:
+
+| Scope | Elastic Net | XGBoost | GNNWR (full population, 5-fold pooled) |
+|---|---:|---:|---:|
+| terrain_wind (17 features) | 0.132 | 0.119 | **0.145** |
+| terrain_wind_plus_management (22 features) | 0.290 | 0.298 | **0.318** |
+
+Residual Moran's I also improved: terrain_wind's 5 folds ranged 0.68-0.74 (mean 0.70, vs
+EN/XGBoost's 0.709/0.708), and terrain_wind_plus_management's ranged 0.66-0.71 (mean 0.69, vs
+EN/XGBoost's 0.703/0.695) -- both computed with the same k=8 nearest-neighbour weights this
+project's LISA work already established, 999 permutations, all p=0.001. Pooling and Moran's I were
+both computed via `models/growth_curve_attribution/pool_gnnwr_kfold_results.py` and
+`residual_spatial_autocorrelation_check.py`, run on cluster CPU only (no GPU needed for
+evaluation) via the new `jobs/growth_curve_attribution/run_gnnwr_evaluation.sh`, reading only the
+already-saved `*_test_predictions.csv` files -- not the multi-GB model checkpoints, which stay on
+the cluster and are never rsynced back (see this session's storage-workflow fix).
+**What's working:** this is the first result in the whole growth-curve-attribution comparison
+where GNNWR unambiguously wins, not just "competitive." Both the accuracy gain and the residual-
+autocorrelation improvement point the same direction, and the evaluation is now genuinely
+apples-to-apples with EN/XGBoost (same fold assignment, same pooling convention, same population)
+rather than a reference-capped approximation. This also confirms the earlier reference-set
+workaround was a real, costly compromise, not just a theoretical caveat -- the memory-saving cap
+was leaving real accuracy on the table.
+**What's not working / interpretation limit:** per-fold variance is substantial, not a footnote --
+terrain_wind's 5 fold-level R2 values range from 0.011 to 0.253 (std 0.090), and
+terrain_wind_plus_management's range 0.235-0.394 (std 0.057), so the pooled number is doing real
+work smoothing over folds that individually look quite different from each other (this is the
+exact precision problem 5-fold CV was adopted to fix for EN/XGBoost in the first place, and it
+applies just as much to GNNWR). Residual Moran's I, while improved, is still far from the near-
+zero result the GWDNN literature comparison (2026-08-05 entry) reported for a similar architecture
+family -- 0.66-0.74 is still strong, statistically significant leftover spatial structure by any
+normal reading of Moran's I, so "GNNWR has captured the spatial structure" would overstate this;
+"GNNWR captures slightly more of it than a flat model, and predicts moderately better" is the
+accurate claim. The compartment-mixed DNN's own residual ICC (0.24-0.26 of post-environment
+variance sitting between compartments specifically, from the 2026-08-05/06 compartment-mixed-DNN
+work) is still a live reason to suspect GNNWR's continuous distance kernel is missing some
+compartment-boundary structure even as its overall numbers improve.
+**What this means for what's next:** GNNWR should now be reported as the headline model for this
+avenue, not a marginal/exploratory add-on, with the full-population 5-fold numbers (not the
+reference-capped ones) as the number actually cited. Worth a second, independent seed/fold-
+assignment check before treating 0.145/0.318 as fully stable, given the fold-to-fold variance
+observed. The compartment-mixed DNN's ICC finding and GNNWR's own per-plot local coefficients
+(already saved in the same test-prediction CSVs) remain the natural next step for explaining
+*which* variables and *where* GNNWR's spatial weighting is actually earning its improvement,
+rather than resting on the aggregate R2/Moran's I numbers alone.
+
+---
+
+**2026-08-06 — Q: was the environmental variable pool ever screened for multicollinearity in a
+systematic way, and if not, what does a corrected screening method look like and what does it
+change? -- no, screening was ad hoc and reactive; an `llm-council` review found real problems
+with the first fix attempted, and the corrected method changes several existing feature-set tiers.**
+**What I found:** Correlation was only ever checked *after* fitting a model, as interpretive
+context, not as a pre-filter. The worst offender (the GWA Weibull wind family, 9 columns) carried
+a "worth checking before treating as independent" caveat across several sessions that was never
+actually verified until a direct audit this session found `gwa_wind_speed_50m`/`gwa_weibull_a_50m`
+at rho=+1.000 and the whole 50m cluster mutually correlated at rho=0.90-1.00. A first-draft fix (a
+4-stage deterministic-duplicate/near-exact-duplicate/pairwise-cluster/VIF pipeline) was sent to an
+`llm-council` review before any code was written. The council unanimously flagged one real defect
+across all 5 advisors and reviewers: the pipeline's tie-break rule for choosing which of two
+correlated variables to keep ("prefer whichever already won in an earlier, unaudited result") was
+circular -- it would permanently reward variables for having won an ad hoc round for reasons
+unconnected to real explanatory value. Peer review also surfaced that running VIF only on
+pairwise-cluster survivors (not the full pool) can hide genuine 3+-variable collinearity, since the
+evidence is deleted before VIF ever sees it, and that a PINN being *fed* raw environmental inputs
+isn't hurt by redundant variables the way a linear coefficient or a SHAP value is -- discarding
+real variance there costs information for no established benefit.
+**What's working:** the target-circularity check (the council's "one thing to do first") passed
+for both avenues -- confirmed directly from `build_plot_level_table()`'s and the DNN/PINN target's
+own construction code, neither uses any environmental variable. The corrected method (implemented
+in `models/xgb_environmental/multicollinearity_screen.py`, applied in
+`notebooks/environmental_data/multicollinearity_screen_av1.ipynb` and the read-only
+`multicollinearity_screen_av2_reference.ipynb`) merges the old stage-3/4 into one iterative VIF
+pass on the full post-dedup pool, drops the circular tie-break in favour of external-provenance-
+then-fresh-correlation-with-target, and adds a compartment-residualized spatial-confound guard
+(flags, never auto-drops, variables that are high-VIF raw but low-VIF once each compartment's own
+mean is removed -- e.g. a variable tracking a genuine regional gradient like the elevation/
+temperature lapse rate, not a duplicate measurement). Four new staged, cumulative tiers were added
+to `ENV_TERRAIN_FEATURE_SETS` (`stage1_terrain` through `stage4_all_environmental`, 13/21/31/31
+columns, dedup-only per the council's PINN-scoping point) plus four parallel "attribution-safe"
+tiers (11/18/25/25 columns, full screen, for `xgb_environmental`'s SHAP/permutation tooling) --
+none overlap the no-env pathway, and `stage3_terrain_wind_plus` was smoke-tested end-to-end through
+`load_split_table_with_terrain()` successfully. A real bug was caught before it reached the
+cluster: `statsmodels.stats.outliers_influence.variance_inflation_factor` does not add an intercept
+automatically, and computing VIF without one inflated some values to the thousands (`groundfrost_
+mean` VIF=2558) purely from scale, not genuine collinearity -- fixed via `add_constant()`,
+after which VIF values settled into a sane 1-38 range.
+**What's not working / interpretation limit:** the Avenue 2 comparison notebook found that
+Avenue 2's own already-existing spatial-CV representation checks (`run_wind_height_swap_check.py`/
+`run_representation_cv_check.py`) kept 7 columns (`elevation`, `elevation_roughness`,
+`local_relief_500m`, `solar_radiation_index`, `topex`, `tpi`, `tpi_500m`) that this session's
+VIF/correlation screen would flag as redundant from the same candidate pool -- a genuine
+disagreement between two different validation methods (real held-out predictive performance vs.
+linear collinearity), not resolved here, and worth understanding rather than treating either
+method as automatically correct. Also, the historical 2026-08-03 finding that `broad_legitimate`
+gives DNN's largest mean improvement over no-env was built from the *uncorrected*, still-collinear
+GWA Weibull bundle -- that finding's aggregate direction may still hold, but any claim about which
+specific variable within it was doing the work should be treated as unreliable until re-run against
+`stage3_terrain_wind_plus`/`stage4_all_environmental`.
+**What this means for what's next:** the primary spatial_block DNN/PINN results (built on
+`terrain_wind_solid`) are unaffected by any of this and don't need re-running. The new staged tiers
+are ready for a k-fold spatial-CV sweep on `pinn_env_terrain_k` (and `pinn_env_terrain`/
+`dnn_env_terrain` for a fair comparison) to test whether a properly screened wider feature set
+earns its complexity under genuine 5-fold pooling, replacing the single-seed `broad_legitimate`
+comparison. The Avenue 2 disagreement (7 columns) is worth a follow-up look, but changing nothing
+in Avenue 2's own files or results, per this session's standing scope boundary.
+
+---
+
+**2026-08-06 — Q: what needs re-running given the multicollinearity work, and is this project
+tracking enough to produce dissertation-quality figures (per-unit prediction+CI charts, runtime
+comparisons)? -- three new sbatch stages built (no baseline re-fit needed), a reusable
+cluster-bootstrap CI helper wired into every model's pooled R2, inference timing added to every
+evaluate script, and a real gap found: no per-observation uncertainty exists anywhere yet.**
+**What I found:** Confirmed (not assumed) that `--feature-set` was already fully plumbed through
+every layer for `dnn_env_terrain`/`pinn_env_terrain`/`pinn_env_terrain_k`, so testing the new
+staged tiers needed zero core-pipeline changes -- only a new job-generation stage. Also found real
+prior art on hyperparameters that had been forgotten: a 2026-08-02 dropout/learning-rate/
+architecture-size sweep already ran (manually, no sbatch support existed), with null results for
+`dnn_noenv`/`pinn_noenv` (dropout makes val_loss monotonically worse; neither learning rate nor
+any of 4 architectures moved val_loss beyond noise) -- but it was never extended to the three
+env_terrain models, and never had proper job infrastructure.
+**What's working:** Added `E6_stage_sweep` (18 experiments x 5 folds = 90 fit jobs: the 3
+env_terrain models x `stage1_terrain`/`stage2_terrain_wind`/`stage4_all_environmental` x both
+cohorts, reusing `E3_baselines_kfold`'s existing CR anchors -- feature_set never touches the
+classical curve fit, so no baseline re-fit is needed) and `E7_hyperparameter_sweep` (36 fit jobs:
+dropout_rate x learning_rate for the 3 env_terrain models specifically, the genuinely untested
+combination, single spatial_block split as a coarse screen matching the 2026-08-02 sweep's own
+convention -- architecture size deliberately not re-tested, already answered). Extended
+`run_dnn_env_terrain.sh`/`run_pinn_env_terrain.sh`/`run_pinn_env_terrain_k.sh` with
+`learning_rate`/`hidden_layer_sizes` positional args (previously Python-only flags, no sbatch
+path existed). Built `models/common/bootstrap_ci.py` (cluster bootstrap, resamples whole
+compartments -- same non-independence reasoning as the existing y_max/k correlation CI) and wired
+it into `kfold_summary.py`, so every model's pooled R2 now reports a 95% CI automatically. Added
+`plot_ordered_predictions_with_ci()` to `models/common/plotting.py` (sorts by observed value
+ascending, draws prediction line + shaded CI band + target points -- the standard "unit-level
+predictions with confidence intervals" figure from the GNN/spatial-modelling literature) and
+inference-timing (`inference_seconds_total`/`inference_ms_per_plot`) to all 6 evaluate scripts
+(5 DNN/PINN + baselines), verified end-to-end against real local `chapman_richards`/
+`average_by_age`/`linear_baseline` output (values sane: ~34 microseconds/plot for the closed-form
+CR formula).
+**What's not working / open gap:** No per-OBSERVATION uncertainty exists anywhere in this
+project -- every model (DNN, PINN, XGBoost) is a point estimate. The new pooled-R2 CI is an
+interval for the whole model's aggregate score, not something that can fill a per-plot CI band.
+Getting that requires new infrastructure: MC-dropout doesn't work here (primary models use
+`dropout=0.0`, per the null 2026-08-02 finding -- nothing to sample), full bootstrap-refit is too
+expensive for DNN/PINN, leaving a multi-seed ensemble (train ~5-10 seeds, use the seed-to-seed
+spread per plot) as the realistic option -- deliberately NOT queued yet, on the user's own call,
+until E6/E7 resolve which model/tier/hyperparameters are actually worth reporting.
+**What this means for what's next:** run `E3_baselines_kfold` (if not already done) then
+`E6_stage_sweep`, then `E7_hyperparameter_sweep` (re-pointing its `feature_set` if E6 changes the
+primary tier), pool each with `kfold_summary.py`, then decide whether the multi-seed ensemble is
+worth queuing on the winning configuration for a genuine per-plot CI figure.
