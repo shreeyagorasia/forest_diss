@@ -330,7 +330,12 @@ STAGES["E6_stage_sweep"] = {
 def build_hyperparameter_sweep_jobs():
     cohorts = ["4survey", "6survey"]
     dropout_rates = ["0.0", "0.1"]
-    learning_rates = ["0.0001", "0.0003", "0.001"]
+    # 0.01 added 2026-08-07 -- a deliberately aggressive starting point (100x the model's
+    # own default of 0.0001), on the reasoning that ReduceLROnPlateau (lr_scheduler_factor=0.8,
+    # lr_scheduler_patience=15, already active on every run regardless of this sweep) will pull
+    # it back down automatically once val_loss stops improving, so starting high mainly risks
+    # early instability, not a run that's stuck too high for its whole duration.
+    learning_rates = ["0.0001", "0.0003", "0.001", "0.01"]
 
     fit_jobs = []
     evaluate_commands = []
@@ -378,8 +383,10 @@ _HYPERPARAMETER_SWEEP_FIT_JOBS, _HYPERPARAMETER_SWEEP_EVALUATE_COMMANDS = build_
 STAGES["E7_hyperparameter_sweep"] = {
     "description": (
         "dropout_rate x learning_rate coarse screen for dnn_env_terrain/pinn_env_terrain/"
-        "pinn_env_terrain_k (2 x 3 x 3 models x 2 cohorts = 36 fit jobs), single spatial_block "
-        "split, terrain_wind_solid. Architecture size NOT re-tested -- already a null result for "
+        "pinn_env_terrain_k (2 x 4 x 3 models x 2 cohorts = 48 fit jobs -- 0.01 added 2026-08-07 "
+        "as a deliberately aggressive starting LR, relying on the already-active "
+        "ReduceLROnPlateau scheduler to pull it back down), single spatial_block split, "
+        "terrain_wind_solid. Architecture size NOT re-tested -- already a null result for "
         "the no-env family (documentation/experiment_log.md 2026-08-02). Run AFTER E6_stage_sweep "
         "resolves which feature-set tier is primary, and re-point feature_set here if it changes."
     ),
