@@ -42,7 +42,17 @@ cd ~/forest_diss
 
 mkdir -p logs/growth_curve_attribution
 
-. /home/htang2/toolchain-20251006/toolchain.rc
+# Toolchain lives in a shared TA home directory under a dated folder name that gets replaced
+# periodically -- hardcoding one date breaks silently (a confusing torch/CUDA import error deep
+# inside the Python job, not an obvious "toolchain missing" message) the next time it rotates.
+# Finds whatever toolchain-* currently exists instead, picks the most recently modified one, and
+# fails loudly with a clear message immediately if none exist at all.
+TOOLCHAIN_RC=$(ls -1t /home/htang2/toolchain-*/toolchain.rc 2>/dev/null | head -1)
+if [ -z "${TOOLCHAIN_RC}" ]; then
+  echo "ERROR: no toolchain.rc found under /home/htang2/toolchain-*/ -- ask a TA if this has moved." >&2
+  exit 1
+fi
+. "${TOOLCHAIN_RC}"
 . .venv/bin/activate
 
 export PYTHONPATH="$(pwd)"
