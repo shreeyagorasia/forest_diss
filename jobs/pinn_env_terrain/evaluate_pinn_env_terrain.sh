@@ -43,20 +43,7 @@ cd ~/forest_diss
 
 mkdir -p logs/pinn_env_terrain outputs
 
-# Toolchain lives in a shared TA home directory under a dated folder name that gets replaced
-# periodically -- hardcoding one date breaks silently (a confusing torch/CUDA import error deep
-# inside the Python job, not an obvious "toolchain missing" message) the next time it rotates.
-# Finds whatever toolchain-* currently exists instead, picks the most recently modified one, and
-# fails loudly with a clear message immediately if none exist at all.
-echo "Node: $(hostname)"  # printed BEFORE the toolchain check, on purpose -- if
-# /home/htang2 isn'"'"'t mounted on this specific node, everything below dies immediately, and
-# without this line the log would never say which node was the problem.
-TOOLCHAIN_RC=$(ls -1t /home/htang2/toolchain-*/toolchain.rc 2>/dev/null | head -1)
-if [ -z "${TOOLCHAIN_RC}" ]; then
-  echo "ERROR: no toolchain.rc found under /home/htang2/toolchain-*/ on node $(hostname) -- /home/htang2 may not be mounted here. Ask a TA if this recurs on the same node." >&2
-  exit 1
-fi
-. "${TOOLCHAIN_RC}"
+. /home/htang2/toolchain-20251006/toolchain.rc
 . .venv/bin/activate
 
 export PYTHONPATH="$(pwd)"
