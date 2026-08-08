@@ -549,6 +549,88 @@ STAGES["E9_e7_winner_kfold"] = {
 }
 
 
+# E10: E6's tier sweep (stage1_terrain/stage2_terrain_wind/stage4_all_environmental) and E7's
+# hyperparameter sweep were each run as independent, one-dimensional sweeps -- E6 always used
+# default hyperparameters (dropout=0.0, lr=0.0001), E7/E9 always used the default feature_set
+# (terrain_wind_solid). Neither ever tested a non-default tier TOGETHER WITH non-default
+# hyperparameters, for any model. This stage closes that specific gap for dnn_env_terrain and
+# pinn_env_terrain_k only (not plain pinn_env_terrain) -- re-runs E6's 3 tiers, both cohorts,
+# 5-fold spatial_block_kfold, but under each (model, cohort)'s own E7-winning hyperparameters
+# instead of the default. pinn_env_terrain_k specifically motivated this: it's the one model
+# learning BOTH y_max and k per plot (a harder joint-optimization problem than the other two),
+# so E6's "tier doesn't matter" finding -- itself only ever tested at default hyperparameters --
+# is the least safe to assume still holds for this model once hyperparameters also change.
+# NOT a full cross-product (that would be 3 tiers x 8 combos x 3 models x 2 cohorts x 5 folds =
+# 720 fit jobs) -- only the single already-known-best hyperparameter combo per (model, cohort),
+# same "confirm the winner, don't redo the whole grid" logic as E9.
+#
+# Winning combos reused from E7 (outputs/spatial_block/hp_sweep_*/<cohort>/metrics.json):
+#   dnn_env_terrain      4survey  dropout=0.1  lr=0.001
+#   dnn_env_terrain      6survey  dropout=0.1  lr=0.0001
+#   pinn_env_terrain_k   4survey  dropout=0.0  lr=0.0003
+#   pinn_env_terrain_k   6survey  dropout=0.0  lr=0.001
+def build_e7_winner_tier_sweep_jobs():
+    n_folds = 5
+    feature_sets = ["stage1_terrain", "stage2_terrain_wind", "stage4_all_environmental"]
+    # (model, cohort) -> (dropout_rate, learning_rate)
+    winners = {
+        ("dnn_env_terrain", "4survey"): ("0.1", "0.001"),
+        ("dnn_env_terrain", "6survey"): ("0.1", "0.0001"),
+        ("pinn_env_terrain_k", "4survey"): ("0.0", "0.0003"),
+        ("pinn_env_terrain_k", "6survey"): ("0.0", "0.001"),
+    }
+
+    fit_jobs = []
+    evaluate_commands = []
+    for feature_set in feature_sets:
+        for cohort in ["4survey", "6survey"]:
+            for fold_index in range(n_folds):
+                dnn_dropout, dnn_lr = winners[("dnn_env_terrain", cohort)]
+                dnn_run_name = f"{feature_set}_e7winner_dnn_env_terrain"
+                fit_jobs.append([
+                    "jobs/dnn_env_terrain/run_dnn_env_terrain.sh", cohort, "500", "40", "spatial_block_kfold",
+                    "42", dnn_run_name, "256", feature_set, dnn_dropout, "42", str(n_folds), str(fold_index),
+                    dnn_lr,
+                ])
+                evaluate_commands.append([
+                    "jobs/dnn_env_terrain/evaluate_dnn_env_terrain.sh", cohort, "spatial_block_kfold", dnn_run_name,
+                    "42", str(n_folds), str(fold_index),
+                ])
+
+                pinn_k_dropout, pinn_k_lr = winners[("pinn_env_terrain_k", cohort)]
+                pinn_k_run_name = f"{feature_set}_e7winner_pinn_env_terrain_k"
+                fit_jobs.append([
+                    "jobs/pinn_env_terrain_k/run_pinn_env_terrain_k.sh", cohort, "500", "40", "spatial_block_kfold",
+                    "1.0", "1.0", pinn_k_run_name, "42", "256", feature_set, pinn_k_dropout, "42",
+                    str(n_folds), str(fold_index), "", pinn_k_lr,
+                ])
+                evaluate_commands.append([
+                    "jobs/pinn_env_terrain_k/evaluate_pinn_env_terrain_k.sh", cohort, "spatial_block_kfold", pinn_k_run_name,
+                    "42", str(n_folds), str(fold_index),
+                ])
+
+    return fit_jobs, evaluate_commands
+
+
+_E7_WINNER_TIER_SWEEP_FIT_JOBS, _E7_WINNER_TIER_SWEEP_EVALUATE_COMMANDS = build_e7_winner_tier_sweep_jobs()
+
+STAGES["E10_e7_winner_tier_sweep"] = {
+    "description": (
+        "Crosses E6's tier sweep with E7's hyperparameter winners -- a combination neither prior "
+        "stage tested (E6 used default hyperparameters, E7/E9 used the default tier). "
+        "dnn_env_terrain + pinn_env_terrain_k only (not plain pinn_env_terrain), 3 tiers x 2 "
+        "cohorts x 5 folds x 2 models = 60 fit jobs, each cohort using ITS OWN E7-winning "
+        "dropout/learning-rate for that model (not one fixed value for both cohorts). Requires "
+        "E3_baselines_kfold to have already finished. Once evaluated, pool with "
+        "models/common/kfold_summary.py and compare against E6's same-tier default-hyperparameter "
+        "cells -- label this row in any results table as 'E7-winning hyperparameters, not a fresh "
+        "sweep' so it isn't mistaken for a full tier x hyperparameter grid."
+    ),
+    "fit_jobs": _E7_WINNER_TIER_SWEEP_FIT_JOBS,
+    "evaluate_commands": _E7_WINNER_TIER_SWEEP_EVALUATE_COMMANDS,
+}
+
+
 def list_stages():
     # Just prints out what's available, without running anything -- so you can check what a
     # stage will do before actually submitting it.

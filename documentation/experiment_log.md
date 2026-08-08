@@ -3140,3 +3140,270 @@ tier that performs comparably (`stage1_terrain` or `stage2_terrain_wind`) is the
 choice of primary feature set going forward, over the largest one. This also closes out the
 open item from 2026-08-06's entry about deciding "which model/tier/hyperparameters are actually
 worth reporting" before queuing the multi-seed ensemble for per-plot uncertainty.
+
+---
+
+**2026-08-08 — Q: do E7's single-split hyperparameter winners hold up under real 5-fold CV, or
+was the screen's ranking an artefact of one arbitrary split? -- confirmed for 5 of the 6 winning
+(model, cohort) combos via a new `E9_e7_winner_kfold` stage (the 6th, `pinn_env_terrain`/4survey,
+turned out to already exist: its winner is E3_kfold's default combo); 4survey winners hold up
+within noise, but every 6survey winner's absolute R2 was inflated by 0.03-0.05 under the
+single-split screen.**
+**What I found:** E7 ranked 48 dropout x learning-rate combos on a single `spatial_block` split
+per model/cohort -- deliberately, as a coarse screen, not a precision estimate. Re-running just
+the 6 winning combos (one per model/cohort) under real 5-fold `spatial_block_kfold` and pooling
+with `kfold_summary.py` gives: `dnn_env_terrain` 4survey 0.6510 (single) -> 0.6534 [0.6216, 0.6798]
+(pooled); 6survey 0.7463 -> 0.6937 [0.6509, 0.7248]. `pinn_env_terrain` 4survey 0.5846 -> 0.5785
+[0.5463, 0.6078] (this winner is dropout=0.0/lr=0.0001 -- identical to the model's own default,
+already pooled by `E3_kfold`, so reused rather than re-run); 6survey 0.7356 -> 0.7021
+[0.6635, 0.7307]. `pinn_env_terrain_k` 4survey 0.5888 -> 0.5809 [0.5475, 0.6108]; 6survey
+0.7391 -> 0.7034 [0.6639, 0.7322]. Every 4survey delta is within +-0.008 (noise); every 6survey
+delta is a real drop of 0.03-0.05. 6survey has far fewer compartments than 4survey (47 vs. 232),
+so its one held-out `spatial_block` slice was plausibly just an easier draw by chance -- this
+doesn't mean the hyperparameter *choice* was wrong, just that E7's absolute 6survey R2 numbers
+were optimistic and shouldn't be quoted as precision estimates. This run went through
+`jobs/submit_experiments.py`'s new `E9_e7_winner_kfold` stage (25 fit jobs on the cluster, not
+the full 240 a naive "redo the whole 48-combo grid at 5-fold" would have cost) -- a local-Mac
+attempt was tried first and abandoned after fold 0 alone took 24 minutes (full PINN trajectory
+training, not the much smaller single-row-per-plot job this was originally mis-estimated against),
+making the full run ~9 hours locally vs. minutes-per-job in parallel on the cluster.
+**What's working:** all 25 fit + 25 evaluate jobs completed with zero failures; pooled cleanly
+with the same `kfold_summary.py`/`bootstrap_ci.py` pipeline as E6/E8, so these numbers are
+directly comparable to every other pooled cell on this page.
+**What's not working / open gap:** none for this stage. Not in scope: re-ranking the other 42
+non-winning E7 combos at 5-fold (the whole point of only confirming the winners was to avoid that
+cost) -- if a future need arises to check whether a different combo would have won under 5-fold,
+that's a separate, explicitly-scoped follow-up, not assumed here.
+**What this means for what's next:** E7's picks are safe to keep using for 4survey as-is. For
+6survey, the *ranking* isn't shown to be wrong, but any reported absolute R2 for the 6survey
+env_terrain family should cite the pooled E9 number, not the single-split E7 number, in the
+dissertation write-up.
+
+---
+
+**2026-08-08 — Q: what changed in the DNN/PINN pipeline and tooling this session, separate from
+any single experiment's findings? -- `plot_level` split support added end-to-end (a real gap:
+DNN/PINN had never run it before), a duplicated-code bug found and fixed along the way, and the
+Split Results Ledger artifact built out with reference tables and a single-split/pooled marker
+convention.**
+**What I found:** `plot_level` (the interpolation/easy-case split, previously baselines-only) had
+no DNN/PINN support at all -- `load_split_table()` had no branch for it, and `model_output_dir()`/
+`load_cr_params()`'s existing "no `outputs/<split_type>/` prefix" convention for `plot_level` had
+never been exercised by a DNN/PINN caller. While running the first `plot_level` batch (10 combos:
+5 models x 2 cohorts, default `terrain_wind_solid` feature set), 2 of 10 jobs failed
+(`pinn_env_terrain`, both cohorts) -- traced to `evaluate_pinn_env_terrain.py` having its own
+second, duplicated copy of the CR-anchor path construction (the first copy, in
+`models/common/saving.py`'s `load_cr_params()`, had already been fixed for `plot_level`; this
+second copy hadn't).
+**What's working:** Fixed `evaluate_pinn_env_terrain.py` to special-case `plot_level` the same way
+`load_cr_params()` does; both previously-failing jobs reran successfully (4survey R2=0.5889,
+6survey R2=0.7256). All 28 `plot_level` combos now complete with zero failures (10 default-feature-
+set + 18 tier-sweep, run locally on this machine rather than the cluster). The ledger artifact
+(`https://claude.ai/code/artifact/b0c44303-2ada-49b9-aab9-8e4cb874ad35`) was expanded across many
+publish cycles: feature-set/variable-group reference tables for both avenues (exact, source-
+verified variable lists, not retyped from memory), a run manifest (one row per distinct model/
+feature-set/hyperparameter combo), `plot_level` results for all 8 models, an "E6 extended to
+plot_level" section, the full E7 48-row grid, and a `‡` marker (one shared legend entry per
+page) consistently flagging every single-split result next to its pooled 5-fold alternative where
+one exists.
+**What's not working / open gap:** none currently open on the `plot_level` pipeline itself.
+**What this means for what's next:** `plot_level` is now a fully supported split_type for every
+DNN/PINN model, on the same footing as `spatial_block`/`spatial_block_kfold`/`temporal` -- any
+future model added to this family should wire it in from the start rather than retrofitting it
+under job-failure pressure, the way this session did.
+
+---
+
+**2026-08-08 — Q: what's new specifically in Avenue 1 since 2026-08-07's E6/E7/E8 entry? -- two
+AV1 notebooks rebuilt with the newer environmental feature-set tiers, the newer `pinn_env_terrain_k`
+model, and a corrected NLME variable-selection methodology (Avenue 2 notebooks explicitly untouched
+per instruction). E9's hyperparameter-confirmation numbers are covered in the entry directly above
+this one, not repeated here.**
+**What I found:** `av1_residual_structure_comparison.ipynb` was still on a single-split
+`spatial_block` basis and predated `pinn_env_terrain_k`'s existence. Rebuilt to
+`spatial_block_kfold`, added `pinn_env_terrain_k` to `CORE_MODELS`, and replaced the old paired-
+seed robustness cell with a genuine per-fold delta summary (`per_fold_delta_summary()`, reading
+each model's own `kfold_summary.json`'s `per_fold_r2_values`) -- also caught and fixed a hardcoded
+t-critical constant (`2.365`) that should have been (and now is) `scipy.stats.t.ppf(0.975,
+df=n_folds-1)`, computed live rather than assumed for a fixed df.
+`av1_spatial_autocorrelation_terrain.ipynb`'s Section 2 expanded from 3 to 6 models (added
+`dnn_env_terrain`/`pinn_env_terrain`/`pinn_env_terrain_k`) via a common-plot-ID-intersection
+approach, since the env_terrain models drop rows missing terrain data that the no-env models
+don't. Section 3's NLME fixed-effects list was stale -- a hardcoded 6-variable list that predated
+this session's multicollinearity-screen work -- rebuilt to fit on all 18
+`stage2_terrain_wind_attribution_safe` variables (the user's explicit choice, over a threshold- or
+top-N-based alternative). Result: 17 of 18 variables are individually significant (p<0.05);
+compartment variance explained is now 2.02%, down from the old model's 5.02%. This is NOT a
+regression -- the old 5.02% was itself computed from a model whose headline variable (`elevation`,
+coefficient -3.31, its largest by far) turns out to be an artefact: once `elevation`'s correlated
+partners (`tpi`, `tpi_500m`, `local_relief_500m`, `elevation_roughness`) are included in the same
+ablation pool, `elevation` itself is dropped by the VIF screen entirely, meaning its old "matters
+most" coefficient was absorbing signal that actually belonged to those partners.
+**What's working:** Both notebooks re-execute cleanly end to end (`nbconvert --execute`, zero
+errors), verified via the established copy-then-execute-then-replace technique so the user's live
+files were never at risk mid-edit.
+**What's not working / open gap:** none -- both notebooks are now consistent with the newest
+feature-set tiers, the newest model (`pinn_env_terrain_k`), and the newest multicollinearity
+screen.
+**What this means for what's next:** any place elsewhere in the dissertation write-up that still
+cites the old NLME's "`elevation` matters most" framing needs updating to the current 18-variable
+result: the terrain/wind relationship is real and broad (17 of 18 variables individually
+significant, not concentrated in one dominant variable) but small in aggregate (2.02% of
+compartment variance).
+
+---
+
+**2026-08-08 — Q: does GNNWR hold up on the largest Avenue 2 feature scope, are Simple DNN/
+Compartment-mixed DNN comparable to it, and is the Split Results Ledger's AV2 section actually
+correct? -- Yes to all three, but only after two real GNNWR training bugs and one stale-data bug
+were found and fixed along the way.**
+**What I found:**
+1. GNNWR had never been run on `broad_environment_plus_management` (38 raw features: terrain_wind
+   + management + climate + soil/site + edge position) -- only `terrain_wind`/
+   `terrain_wind_plus_management`. Added this scope to `gnnwr_check.py`'s `SCOPES`, routing it
+   through `broad_environmental_check.prepare_broad_table()` (cohort-suffixed climate columns +
+   one-hot-encoded soil categoricals) instead of the original `merge_environmental_features()`
+   path, which cannot handle either. The two original scopes' code path is untouched.
+2. Cluster bug 1: 2 of the first 5 fold jobs (folds 0 and 4) crashed with `ValueError: Input X
+   contains NaN` inside GNNWR's own OLS init. Cause: a few rare one-hot categories
+   (`ceh_pedotope`/`ceh_textural_composition` classes) were entirely absent from those folds' own
+   training compartments by chance, leaving the column constant (all zero) in train -- GNNWR's
+   MinMax scaling then divides by zero. Fixed by dropping any column with zero variance in that
+   fold's own train split (checked per fold, not globally, since which columns are affected varies
+   by fold -- folds 0/4 lose 6 columns, folds 1-3 lose none).
+3. Cluster bug 2 (found only after fixing bug 1, since fold 4 had never trained far enough to hit
+   it before): fold 4 crashed again, this time inside PyTorch's `BatchNorm`
+   (`Expected more than 1 value per channel when training, got input size torch.Size([1, 16384])`).
+   Cause: `gnnwr`'s own train `DataLoader` (`init_dataset_split`'s default `batch_size=32`, no
+   `drop_last`) always includes a leftover partial batch -- fold 4's 31,489-row training set has
+   `31489 % 32 == 1`, so its last batch every epoch had exactly one row. Fixed generally (not
+   special-cased to this run): bump the batch size by 1 only when this exact remainder-1 case is
+   detected, so any future cohort/scope/fold combination that happens to hit it is also covered.
+4. Simple DNN and Compartment-mixed DNN (`simple_dnn_check.py`/`compartment_mixed_dnn_check.py`)
+   had never been extended to 5-fold CV at all -- only GNNWR had been upgraded from its original
+   single split. Added the same `held_out_fold`/`k_folds` parameters (reusing
+   `build_scope_table()`'s existing k-fold support unchanged), ran all 2 models x 3 scopes x 5
+   folds locally (CPU, ~20s/run, no cluster needed for these two), and wrote
+   `pool_simple_dnn_kfold_results.py`/`pool_compartment_mixed_dnn_kfold_results.py` mirroring
+   `pool_gnnwr_kfold_results.py`'s pattern.
+5. Auditing the ledger's numbers against source data (not trusting what was already written)
+   caught two real, pre-existing errors: (a) the feature-set reference table said `broad_environment`
+   = 28 variables and `broad_environment_plus_management` = 33 -- actual counts via
+   `columns_for_groups()` are 33 and 38; (b) `outputs/growth_curve_attribution/
+   terrain_wind_management_comparison.csv` (and, checked afterward, `broad_environmental_spatial_cv_
+   4survey.csv`/`_6survey.csv`/`broad_environmental_category_checks_4survey.csv`) all have file
+   timestamps of 2026-08-04 16:04-16:08 -- three hours BEFORE the XGBoost eval-set-leak fix
+   (commit `3ffc5fc`, 2026-08-04 19:04:51). Confirmed concretely, not just by timestamp: a fresh
+   `run_scope('4survey','broad_environment_plus_management')` gives EN=0.257/XGB=0.265, not the
+   stale file's EN=0.290/XGB=0.318 -- and a fresh `run_scope('4survey','terrain_wind')` gives
+   0.132/0.119, matching the ledger's already-correct main-table numbers, not the same stale CSV's
+   0.125/0.117. This means `av2_broad_environmental_growth_curve_attribution.ipynb` (which reads
+   all of these files) is entirely built on pre-fix, leak-affected numbers -- not yet regenerated.
+**What's working:** With the corrected numbers, the final verified AV2 picture (4survey, all
+5-fold pooled, out-of-fold, whole-population) is:
+
+| Scope (n) | Elastic Net | XGBoost | Simple/Compartment-mixed DNN | GNNWR |
+|---|---|---|---|---|
+| terrain_wind (56,489) | 0.132 | 0.119 | 0.111 | **0.145** |
+| terrain_wind_plus_management (56,489) | 0.290 | 0.298 | 0.274 | **0.318** |
+| broad_environment_plus_management (56,114) | 0.257 | 0.265 | 0.203 | **0.286** |
+
+GNNWR has the highest point estimate in all three scopes (not statistically confirmed for the
+first two, per the 2026-08-06/07 significance-test entries above -- not yet tested for the third).
+Simple DNN and Compartment-mixed DNN give identical R2 in every scope, exactly as
+`compartment_mixed_dnn_check.py`'s own docstring predicts (test compartments are never seen in
+training, so the shrunk intercept is always 0 there) -- a passing sanity check, not a bug. The
+Split Results Ledger (`https://claude.ai/code/artifact/b0c44303-2ada-49b9-aab9-8e4cb874ad35`) now
+reflects all of this, including a new `broad_environment_plus_management` results table and an
+explicit callout documenting the stale-CSV finding.
+**What's not working / open gap:** `av2_broad_environmental_growth_curve_attribution.ipynb` itself
+has NOT been regenerated yet -- its own "Compact-model finding" text and category-comparison
+numbers still quote the stale, leak-affected figures. Moran's I has not been computed for
+`broad_environment_plus_management` for any model (the k=8 NN residual-autocorrelation check only
+covers `terrain_wind`/`terrain_wind_plus_management`), and has not been recomputed for Simple
+DNN/Compartment-mixed DNN's new pooled residuals at all (their ledger cells were left blank rather
+than showing a number computed under the old single-split methodology). No significance test has
+been run comparing GNNWR to EN/XGBoost on `broad_environment_plus_management`.
+**What this means for what's next:** before citing ANY number from
+`outputs/growth_curve_attribution/*.csv` with a file timestamp before 2026-08-04 19:04, rerun it
+fresh first -- the eval-set-leak fix invalidates everything generated earlier that day. Regenerating
+`av2_broad_environmental_growth_curve_attribution.ipynb` end-to-end is the concrete next step, not
+yet started. If GNNWR's `broad_environment_plus_management` lead is worth reporting with the same
+rigor as the other two scopes, it still needs its own Moran's I check and significance test.
+
+---
+
+**2026-08-08 — Q: is every number in Avenue 1's ledger and notebooks current, correctly placed, and
+clearly labeled? -- ran a 13-point audit (recompute-and-diff against source files, not just
+re-reading what's displayed); fixed 5 real staleness/disclosure issues, and found one genuine
+unresolved discrepancy that needs a re-run, not a documentation fix.**
+**What I found:** Recomputed every ledger cell directly from `outputs/*/metrics.json`/
+`kfold_summary.json`/`spatial_pattern.json` and diffed against the displayed value (not just
+re-read what was there). E6 (18 cells), E7 (48 cells), E9 (6 cells, including the reused
+`pinn_env_terrain`/4survey cell -- confirmed byte-identical to its source `E3_kfold` value), and
+`plot_level` all matched exactly. Also recounted every AV1 feature-set tier directly from
+`ENV_TERRAIN_FEATURE_SETS` (7/5/13/21/31, all correct -- no AV2-style miscount here) and confirmed
+zero drift between that hardcoded copy and `multicollinearity_screen_av1.ipynb`'s live-recomputed
+output, and between the NLME notebook's live 18-variable list and the screen notebook's own.
+Found 5 real but fixable issues: (1) the `SPLITS` array's `plot_level` entry still said
+"baselines only", contradicting the real DNN/PINN plot_level results two sections below; (2) the
+footer's provenance pointer still cited only the 2026-08-07 log entry, not E9 or the 2026-08-08
+notebook-rebuild entries; (3) the main `spatial_block_kfold` table silently mixes CI'd DNN/PINN
+cells with non-CI'd baseline cells (baselines are pooled by concatenating fold predictions
+directly, never going through `bootstrap_ci.py`) with no disclosure of the different precision
+levels; (4) `pinn_noenv`'s `spatial_block`/`temporal` cells are real, correct data but saved under
+`pinn_noenv_basecase_w1/`, not a plain `pinn_noenv/` path -- a literal file-existence check would
+wrongly call these missing; (5) the Moran's I "no_structure" note treated `dnn_env_terrain`/
+6survey as an isolated case, but all 5 models' 6survey single-slice cells share the same n=2,781
+test set and NONE resolves cleanly -- the other four just fail under a different label
+(`exceeds_window`, I=0.004-0.005, range pinned at the 5000m ceiling) rather than `no_structure`.
+Found one issue that is NOT a documentation fix: the `temporal` split's Linear and RF baseline
+numbers (both cohorts) don't match any file on this machine, including the file at their expected
+path. RF baseline uses a fixed `random_state` (`models/rf_baseline/rf_baseline.py:60`), so it's
+deterministic -- an unchanged rerun should reproduce the ledger's numbers exactly, and it doesn't.
+CR baseline's `temporal` numbers, by contrast, match the current files exactly, so this isn't a
+systemic problem with the `temporal` table -- it's isolated to Linear/RF specifically. Separately
+(not a numeric bug): `av1_residual_structure_comparison.ipynb` has `COHORT` hardcoded to
+`"4survey"` and shows no saved evidence of ever being executed for 6survey, even though I
+confirmed by direct recomputation that the ledger's 6survey baseline numbers are themselves
+correct (match the raw fold prediction files exactly) -- the notebook just doesn't document that
+derivation for the cohort it's silently missing.
+**What's working:** All 5 fixable issues corrected and republished (ledger URL unchanged). Div
+balance and both `<script>` blocks re-validated before publish.
+**What's not working / open gap:** the `temporal` Linear/RF baseline discrepancy is unresolved --
+flagged directly in the ledger's footer rather than silently left in place. `av1_residual_
+structure_comparison.ipynb`'s 6survey derivation is undocumented (numbers are verified correct,
+just not traceable to a saved notebook execution).
+**What this means for what's next:** re-run `jobs/baselines/run_baselines.sh temporal` fresh for
+both cohorts and compare the output against both the current on-disk files AND the ledger's
+numbers -- whichever the fresh run matches determines which one was actually stale. Until then,
+don't cite the temporal Linear/RF numbers as verified. Separately, if 6survey's residual-structure
+provenance needs to be independently checkable (not just independently re-verifiable, as I've now
+done), re-run the notebook with `COHORT = "6survey"` and save that execution alongside the existing
+4survey one, rather than overwriting it.
+
+---
+
+**2026-08-08 — Q: which side was stale, the `temporal` Linear/RF baseline files or the ledger? --
+re-ran `run_baselines.py --split-type temporal` fresh for both cohorts; the fresh output matches
+the LEDGER exactly, confirming the on-disk `metrics.json` files (now overwritten) were the stale
+side, not the ledger's displayed numbers.**
+**What I found:** Ran `python -m models.baselines.run_baselines --split-type temporal` (fits CR/
+average-by-age/Linear/RF for both cohorts in one call) followed by
+`models.baselines.evaluate_baselines --split-type temporal`, then compared the new
+`outputs/temporal/{linear_baseline,rf_baseline}/{4survey,6survey}/metrics.json` against both the
+pre-rerun files and the ledger. Result: Linear/4survey r2=0.2699, Linear/6survey r2=-0.4949,
+RF/4survey r2=-0.0843, RF/6survey r2=0.1501 -- every one matches the ledger's displayed number
+exactly (to the ledger's own rounding), and none matches what the old on-disk file had shown
+before this rerun. CR baseline's numbers were unchanged by the rerun (as expected, since they
+already matched before).
+**What's working:** The stale files are now overwritten with current, verified output. The
+ledger's "open question" footer note was replaced with a short resolution statement. No further
+investigation needed -- this fully closes the one open item from the prior audit entry.
+**What's not working / open gap:** none for this item. `av1_residual_structure_comparison.ipynb`'s
+undocumented 6survey execution (from the prior entry) remains open, separately, if a saved
+notebook trace of that derivation is ever needed.
+**What this means for what's next:** the root cause of how the old baseline files went stale in
+the first place (which data change, when) wasn't identified and isn't worth chasing further now
+that the fresh rerun confirms the current pipeline produces the numbers already trusted in the
+ledger -- the practical fix (rerun and overwrite) is done; a forensic one isn't necessary.
