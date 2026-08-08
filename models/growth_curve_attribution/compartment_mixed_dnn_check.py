@@ -63,7 +63,7 @@ import pandas as pd
 import torch
 
 from models.common.metrics import compute_metrics
-from models.common.splits import SPLIT_SEED
+from models.common.splits import DEFAULT_K_FOLDS, SPLIT_SEED
 from models.growth_curve_attribution.compartment_pooling_check import compute_icc_one_way
 from models.growth_curve_attribution.gnnwr_check import SCOPES, build_scope_table
 from models.growth_curve_attribution.scale_comparison_check import TARGET
@@ -107,14 +107,23 @@ def run_compartment_mixed_dnn(
     dropout: float = 0.2,
     learning_rate: float = 1e-3,
     split_seed: int = SPLIT_SEED,
+    held_out_fold: int | None = None,
+    k_folds: int = DEFAULT_K_FOLDS,
 ):
+    # held_out_fold=None (default) keeps the original single train/val/test split. Passing
+    # 0..k_folds-1 instead runs ONE fold of the same 5-fold spatial CV Elastic Net/XGBoost/GNNWR
+    # already use -- same reasoning as simple_dnn_check.py's own k-fold addition.
     torch.manual_seed(seed)
 
-    table, feature_columns = build_scope_table(cohort, scope, split_seed=split_seed)
+    table, feature_columns = build_scope_table(
+        cohort, scope, split_seed=split_seed, held_out_fold=held_out_fold, k_folds=k_folds,
+    )
     train = table[table["split"] == "train"].copy()
     val = table[table["split"] == "val"].copy()
     test = table[table["split"] == "test"].copy()
     print(f"{cohort} / {scope}: train={len(train):,}  val={len(val):,}  test={len(test):,}  features={len(feature_columns)}")
+    if held_out_fold is not None:
+        print(f"  K-fold spatial CV: fold {held_out_fold} of {k_folds} held out as test (seed={split_seed})")
 
     n_train_compartments = train["cpmt"].nunique()
     overlap_with_train = (set(val["cpmt"]) | set(test["cpmt"])) & set(train["cpmt"])
@@ -164,12 +173,13 @@ def run_compartment_mixed_dnn(
     print(f"  Final test R2 (fixed effects only, as expected for held-out compartments) = {metrics['r2']:.4f}")
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    fold_label = "" if held_out_fold is None else f"_fold{held_out_fold}of{k_folds}"
     result_table = test[["identification", "cpmt", TARGET]].copy()
     result_table["predicted"] = test_predictions
-    output_path = OUTPUT_DIR / f"compartment_mixed_dnn_{scope}_{cohort}_test_predictions.csv"
+    output_path = OUTPUT_DIR / f"compartment_mixed_dnn_{scope}_{cohort}{fold_label}_test_predictions.csv"
     result_table.to_csv(output_path, index=False)
 
-    compartment_stats_path = OUTPUT_DIR / f"compartment_mixed_dnn_{scope}_{cohort}_compartment_intercepts.csv"
+    compartment_stats_path = OUTPUT_DIR / f"compartment_mixed_dnn_{scope}_{cohort}{fold_label}_compartment_intercepts.csv"
     compartment_stats.to_csv(compartment_stats_path)
     print(f"  Saved {output_path}")
     print(f"  Saved {compartment_stats_path}")
@@ -185,6 +195,11 @@ def main():
     parser.add_argument("--patience", type=int, default=20)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--split-seed", type=int, default=SPLIT_SEED)
+    parser.add_argument(
+        "--held-out-fold", type=int, default=None,
+        help="Run ONE fold of a 5-fold spatial CV instead of the default single split -- pass 0..k_folds-1, run once per fold, then pool the resulting CSVs.",
+    )
+    parser.add_argument("--k-folds", type=int, default=DEFAULT_K_FOLDS)
     args = parser.parse_args()
 
     run_compartment_mixed_dnn(
@@ -194,6 +209,8 @@ def main():
         patience=args.patience,
         seed=args.seed,
         split_seed=args.split_seed,
+        held_out_fold=args.held_out_fold,
+        k_folds=args.k_folds,
     )
 
 

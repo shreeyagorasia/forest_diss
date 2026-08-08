@@ -31,7 +31,7 @@ import torch
 import torch.nn as nn
 
 from models.common.metrics import compute_metrics
-from models.common.splits import SPLIT_SEED
+from models.common.splits import DEFAULT_K_FOLDS, SPLIT_SEED
 from models.growth_curve_attribution.gnnwr_check import SCOPES, build_scope_table
 from models.growth_curve_attribution.scale_comparison_check import TARGET
 
@@ -130,14 +130,26 @@ def run_simple_dnn(
     dropout: float = 0.2,
     learning_rate: float = 1e-3,
     split_seed: int = SPLIT_SEED,
+    held_out_fold: int | None = None,
+    k_folds: int = DEFAULT_K_FOLDS,
 ):
+    # held_out_fold=None (default) keeps the original single train/val/test split. Passing
+    # 0..k_folds-1 instead runs ONE fold of the same 5-fold spatial CV Elastic Net/XGBoost/GNNWR
+    # already use (build_scope_table already supports this -- added for GNNWR, reused here
+    # unchanged) -- run this once per fold, then pool the 5 test-prediction CSVs for a headline
+    # number that is actually comparable to those other models' own pooled 5-fold R2, instead of
+    # this model's previous single ~20% test-slice estimate.
     torch.manual_seed(seed)
 
-    table, feature_columns = build_scope_table(cohort, scope, split_seed=split_seed)
+    table, feature_columns = build_scope_table(
+        cohort, scope, split_seed=split_seed, held_out_fold=held_out_fold, k_folds=k_folds,
+    )
     train = table[table["split"] == "train"].copy()
     val = table[table["split"] == "val"].copy()
     test = table[table["split"] == "test"].copy()
     print(f"{cohort} / {scope}: train={len(train):,}  val={len(val):,}  test={len(test):,}  features={len(feature_columns)}")
+    if held_out_fold is not None:
+        print(f"  K-fold spatial CV: fold {held_out_fold} of {k_folds} held out as test (seed={split_seed})")
 
     train_x_df, val_x_df, test_x_df = standardize_features(train, val, test, feature_columns)
     train_x, val_x, test_x = to_tensor(train_x_df), to_tensor(val_x_df), to_tensor(test_x_df)
@@ -157,7 +169,8 @@ def run_simple_dnn(
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     result_table = test[["identification", "cpmt", TARGET]].copy()
     result_table["predicted"] = test_predictions
-    output_path = OUTPUT_DIR / f"simple_dnn_{scope}_{cohort}_test_predictions.csv"
+    fold_label = "" if held_out_fold is None else f"_fold{held_out_fold}of{k_folds}"
+    output_path = OUTPUT_DIR / f"simple_dnn_{scope}_{cohort}{fold_label}_test_predictions.csv"
     result_table.to_csv(output_path, index=False)
     print(f"  Saved {output_path}")
 
@@ -172,6 +185,11 @@ def main():
     parser.add_argument("--patience", type=int, default=20)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--split-seed", type=int, default=SPLIT_SEED)
+    parser.add_argument(
+        "--held-out-fold", type=int, default=None,
+        help="Run ONE fold of a 5-fold spatial CV instead of the default single split -- pass 0..k_folds-1, run once per fold, then pool the resulting CSVs.",
+    )
+    parser.add_argument("--k-folds", type=int, default=DEFAULT_K_FOLDS)
     args = parser.parse_args()
 
     run_simple_dnn(
@@ -181,6 +199,8 @@ def main():
         patience=args.patience,
         seed=args.seed,
         split_seed=args.split_seed,
+        held_out_fold=args.held_out_fold,
+        k_folds=args.k_folds,
     )
 
 

@@ -463,6 +463,92 @@ STAGES["E5_pinn_env_terrain_k_temporal"] = {
 }
 
 
+# E9: confirms E7's winning dropout_rate/learning_rate combo per (model, cohort) under REAL
+# 5-fold spatial_block_kfold, instead of trusting E7's single-split screen alone (E7 was
+# deliberately single-split, a coarse ranking pass -- see its own comment above). Only 6 of E7's
+# 48 combos are winners (one per model x cohort, picked by highest single-split R2 in
+# outputs/spatial_block/hp_sweep_*/<cohort>/metrics.json) -- re-running the full 48-combo grid at
+# 5-fold would be 240 fit jobs for a screening exercise; this instead spends 5x compute only on
+# the 6 combos that actually matter.
+#
+# 5 configs here, NOT 6 -- pinn_env_terrain/4survey's own E7 winner (dropout=0.0, lr=0.0001) is
+# EXACTLY this model's default hyperparameters, which E3_kfold already ran and pooled at 5-fold
+# (outputs/spatial_block_kfold/pinn_env_terrain/4survey/kfold_summary.json, pooled_r2=0.5785,
+# confirmed on disk 2026-08-08) -- re-running it here would be a wasted duplicate.
+#
+# Winning combos (from outputs/spatial_block/hp_sweep_*/<cohort>/metrics.json, highest R2 of 8
+# dropout x learning_rate combos each):
+#   dnn_env_terrain      4survey  dropout=0.1  lr=0.001    (E7 R2=0.6510)
+#   dnn_env_terrain      6survey  dropout=0.1  lr=0.0001   (E7 R2=0.7463)
+#   pinn_env_terrain     6survey  dropout=0.0  lr=0.001    (E7 R2=0.7356)
+#   pinn_env_terrain_k   4survey  dropout=0.0  lr=0.0003   (E7 R2=0.5888)
+#   pinn_env_terrain_k   6survey  dropout=0.0  lr=0.001    (E7 R2=0.7391)
+def build_e7_winner_kfold_jobs():
+    n_folds = 5
+    # (model, cohort, dropout_rate, learning_rate)
+    winners = [
+        ("dnn_env_terrain", "4survey", "0.1", "0.001"),
+        ("dnn_env_terrain", "6survey", "0.1", "0.0001"),
+        ("pinn_env_terrain", "6survey", "0.0", "0.001"),
+        ("pinn_env_terrain_k", "4survey", "0.0", "0.0003"),
+        ("pinn_env_terrain_k", "6survey", "0.0", "0.001"),
+    ]
+
+    fit_jobs = []
+    evaluate_commands = []
+    for model, cohort, dropout_rate, learning_rate in winners:
+        run_name = f"e7winner_drop{dropout_rate}_lr{learning_rate}_{model}"
+        for fold_index in range(n_folds):
+            if model == "dnn_env_terrain":
+                fit_jobs.append([
+                    "jobs/dnn_env_terrain/run_dnn_env_terrain.sh", cohort, "500", "40", "spatial_block_kfold",
+                    "42", run_name, "256", "terrain_wind_solid", dropout_rate, "42", str(n_folds), str(fold_index),
+                    learning_rate,
+                ])
+                evaluate_commands.append([
+                    "jobs/dnn_env_terrain/evaluate_dnn_env_terrain.sh", cohort, "spatial_block_kfold", run_name,
+                    "42", str(n_folds), str(fold_index),
+                ])
+            elif model == "pinn_env_terrain":
+                fit_jobs.append([
+                    "jobs/pinn_env_terrain/run_pinn_env_terrain.sh", cohort, "500", "40", "spatial_block_kfold",
+                    "1.0", "1.0", run_name, "42", "256", "terrain_wind_solid", dropout_rate, "42",
+                    str(n_folds), str(fold_index), learning_rate,
+                ])
+                evaluate_commands.append([
+                    "jobs/pinn_env_terrain/evaluate_pinn_env_terrain.sh", cohort, "spatial_block_kfold", run_name,
+                    "42", str(n_folds), str(fold_index),
+                ])
+            else:  # pinn_env_terrain_k
+                fit_jobs.append([
+                    "jobs/pinn_env_terrain_k/run_pinn_env_terrain_k.sh", cohort, "500", "40", "spatial_block_kfold",
+                    "1.0", "1.0", run_name, "42", "256", "terrain_wind_solid", dropout_rate, "42",
+                    str(n_folds), str(fold_index), "", learning_rate,
+                ])
+                evaluate_commands.append([
+                    "jobs/pinn_env_terrain_k/evaluate_pinn_env_terrain_k.sh", cohort, "spatial_block_kfold", run_name,
+                    "42", str(n_folds), str(fold_index),
+                ])
+
+    return fit_jobs, evaluate_commands
+
+
+_E7_WINNER_KFOLD_FIT_JOBS, _E7_WINNER_KFOLD_EVALUATE_COMMANDS = build_e7_winner_kfold_jobs()
+
+STAGES["E9_e7_winner_kfold"] = {
+    "description": (
+        "Confirms E7's winning dropout/learning-rate combo per (model, cohort) under real 5-fold "
+        "spatial_block_kfold (5 configs x 5 folds = 25 fit jobs -- pinn_env_terrain/4survey's "
+        "winner is skipped, it's identical to E3_kfold's already-pooled default combo). Requires "
+        "E3_baselines_kfold to have already finished (reuses its CR anchors). Once evaluated, "
+        "pool each config's 5 folds with models/common/kfold_summary.py and compare against "
+        "the matching single-split R2 in outputs/spatial_block/hp_sweep_*/<cohort>/metrics.json."
+    ),
+    "fit_jobs": _E7_WINNER_KFOLD_FIT_JOBS,
+    "evaluate_commands": _E7_WINNER_KFOLD_EVALUATE_COMMANDS,
+}
+
+
 def list_stages():
     # Just prints out what's available, without running anything -- so you can check what a
     # stage will do before actually submitting it.
