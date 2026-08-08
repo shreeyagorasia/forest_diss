@@ -73,7 +73,16 @@ def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED, k_f
         # the reported "learned_y_max" column/anchor print, which a future check comparing the
         # learned y_max map against known terrain effects would rely on being correct.
         cr_name_suffix = f"_fold{held_out_fold}" if split_type == "spatial_block_kfold" else ""
-        with open(PROJECT_ROOT / "outputs" / split_type / f"chapman_richards{cr_name_suffix}" / cohort / "params.json") as f:
+        # plot_level is the one split type with no outputs/<split_type>/ prefix (see
+        # model_output_dir()'s own comment in models/common/saving.py) -- added 2026-08-08
+        # alongside DNN/PINN's first-ever plot_level run. Same fix as load_cr_params() there;
+        # this file re-reads the anchor directly instead of calling that function (see the
+        # 2026-08-01 bug-fix comment above), so it needs the same fix applied here too.
+        if split_type in ("spatial_block", "spatial_block_kfold", "temporal", "temporal_narrow_gap"):
+            cr_params_path = PROJECT_ROOT / "outputs" / split_type / f"chapman_richards{cr_name_suffix}" / cohort / "params.json"
+        else:
+            cr_params_path = PROJECT_ROOT / "outputs" / f"chapman_richards{cr_name_suffix}" / cohort / "params.json"
+        with open(cr_params_path) as f:
             global_y_max = json.load(f)["y_max"]
 
         model = load_best_model(

@@ -310,6 +310,23 @@ def run_gnnwr(
     if len(train) < full_train_size:
         print(f"  Reference set capped to {len(train):,} of {full_train_size:,} training plots (compartment-stratified) -- see module docstring, Bottleneck 1")
 
+    # Found 2026-08-08 (broad_environment_plus_management, fold 4: 31,489 train rows): gnnwr's
+    # own train DataLoader (init_dataset_split's default batch_size=32) never drops a leftover
+    # partial batch, so if the training set size mod batch_size is exactly 1, every epoch's
+    # final batch has a single row -- which crashes PyTorch's BatchNorm (needs >=2 samples to
+    # compute a batch variance; confirmed via the exact traceback: "Expected more than 1 value
+    # per channel when training, got input size torch.Size([1, ...])"). Only 1 in 32 possible
+    # remainders trigger this, so it hasn't hit any of this project's other folds by chance, but
+    # nothing stops a future cohort/scope/fold combination from landing on it too. Fixed
+    # generally (bump batch_size by 1 only in the unlucky case) rather than special-cased to this
+    # one run. A batch size of 32 vs 33 is a far smaller optimisation difference than the
+    # fold-to-fold R2 variance already documented for this project (std 0.090 across
+    # terrain_wind's 5 folds) -- a disclosed, negligible asymmetry, not a hidden one.
+    GNNWR_BATCH_SIZE = 32
+    if len(train) % GNNWR_BATCH_SIZE == 1:
+        print(f"  Training set size ({len(train):,}) leaves a final batch of exactly 1 row at batch_size={GNNWR_BATCH_SIZE} (BatchNorm cannot train on 1 sample) -- using batch_size={GNNWR_BATCH_SIZE + 1} for this run instead.")
+        GNNWR_BATCH_SIZE += 1
+
     # id_column is deliberately left at its default (None) so gnnwr auto-creates a plain integer
     # 'id' column. Passing our own id_column name (e.g. 'identification') breaks GNNWR.getCoefs(),
     # which hardcodes the literal column name 'id' when joining predictions back onto the original
@@ -321,6 +338,7 @@ def run_gnnwr(
         x_column=feature_columns,
         y_column=[TARGET],
         spatial_column=["x", "y"],
+        batch_size=GNNWR_BATCH_SIZE,
     )
 
     # Includes reference_set_size AND (when in k-fold mode) the held-out fold index in the name,
