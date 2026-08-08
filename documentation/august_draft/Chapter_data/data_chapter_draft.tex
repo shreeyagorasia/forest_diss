@@ -1,0 +1,146 @@
+%=======================================================================================
+\chapter{Data}
+\section{Forest research data}
+Data supplied by Forest Research as a GeoPackage.
+Study area around Aberfoyle.
+British National Grid, EPSG:27700.
+Repeated forest-plot polygons from 2002, 2006, 2008, 2012, 2021 and 2023.
+Each record represents a plot in one survey year.
+Plots are roughly all 20m by 20m (area field median exactly 400\,m\textsuperscript{2} across all cohort plots), with smaller irregular exceptions (down to around 250\,m\textsuperscript{2}) where a plot's sampling grid cell is clipped by a compartment or sub-compartment boundary.
+Plot and compartment are different levels of the same forestry hierarchy, not the same unit measured two ways: a compartment (\texttt{cpmt}) is a Forest Research management unit, further divided into sub-compartments (\texttt{scpt}); a plot is the individual LiDAR/Area-Based-Analysis sampling grid cell that survey statistics were computed over, and many plots sit inside one compartment.
+The full data contain 795,645 plot-year records and 230,359 plot identifiers.
+Sitka spruce was identified using \texttt{spis == "SS"}.
+The main target was the 95th-percentile LiDAR height.
+Important original variables included planting year, canopy cover, thinning information, species, yield class and windthrow hazard class.
+The height data are Airborne Laser Scanning (ALS), collected from aircraft, not drone-based LiDAR.
+%TODO: appendix: add full data dictionary or table in appendix
+
+\begin{table}[h]
+\centering
+\begin{tabular}{p{2.2cm}p{3cm}p{3cm}p{3cm}p{3.5cm}}
+\hline
+Data family & Source & Resolution or structure & Temporal representation & Main purpose \\
+\hline
+Forest plots & Forest Research & Repeated plot polygons, roughly 20m by 20m & Six survey years, 2002--2023 & Prediction and growth calculation \\
+Terrain & OS Terrain 50 & 50\,m grid & Static & Topography and exposure \\
+Climate & HadUK-Grid & 1\,km grid (149 distinct values across 71,766 plots) & Annual or multi-year cohort-averaged summaries & Temperature, frost and rainfall conditions \\
+Wind climate & Global Wind Atlas & Raster climatology (around 1,800 distinct values across the plots) & Long-term static summaries & General wind exposure \\
+Observed wind & MIDAS stations & Station observations & Survey-interval summaries & Temporal wind and storm conditions \\
+Other environment & CHELSA, CEH, SoilGrids and spatial layers & Source-dependent, 250\,m--1\,km & Mainly static & Wider environmental screening \\
+\hline
+\end{tabular}
+\end{table}
+
+\section{Data Cleaning}
+The cleaning funnel builds two balanced cohorts from the same raw layer, applied in this order: complete coverage across every survey year of the chosen cohort, only Sitka spruce (\texttt{spis == "SS"}), a valid planting year (above 0, giving \texttt{Age = survey year - plyr}), then plausible age and height sanity checks.
+In the current pipeline the age and height checks remove rows only from the four-survey cohort, and only at the planting-year step; the great majority of the attrition below comes from the completeness and species-selection stages.
+The plausibility rules themselves: planting year must be no earlier than 1850 and strictly before the survey year; \texttt{Age} (survey year minus planting year) must fall between 0 and 200 years; height (the target column, \texttt{elev\_percentile\_95th}) must be greater than 0\,m and at most 60\,m, a generous ceiling for mature Sitka spruce.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrr}
+\hline
+Stage or characteristic & Four-survey cohort & Six-survey cohort \\
+\hline
+Complete plots before species filtering & 112,782 & 18,781 \\
+Sitka spruce plots & 72,395 & 13,897 \\
+Final plots & 71,766 & 13,897 \\
+Final plot-year records & 287,064 & 83,382 \\
+Survey years & 2008, 2012, 2021, 2023 & 2002, 2006, 2008, 2012, 2021, 2023 \\
+Observations per plot & 4 & 6 \\
+Survey intervals & 4, 9 and 2 years & 4, 2, 4, 9 and 2 years \\
+Role & Main analysis & Sensitivity analysis \\
+\hline
+\end{tabular}
+\end{table}
+
+The four-survey cohort has more plots, so greater spatial coverage.
+The six-survey cohort has two more observations per plot but retained fewer than one-fifth as many plots.
+The four-survey cohort was therefore used for the main analysis; the six-survey cohort tested whether more years changed the conclusions.
+
+\section{stand terrain and environmental data}
+\subsection{stand and management}
+Canopy cover represented the observed canopy condition.
+Recorded thinning information was used to derive thinning status, time since thinning and recent-thinning indicators.
+Yield class was inspected but excluded from the main prediction features because it is derived from forest growth information and presents a leakage or circularity concern.
+Windthrow hazard class was treated as an existing forest descriptor rather than a direct observation of wind exposure, and was not included in the models until wind data were also added, since it showed a similar spatial relationship and was constant across survey years for a given plot.
+
+These stand-management variables entered the main stand-based DNN and PINN comparison as the no-environment feature set.
+Most environmental and terrain data (elevation, wind, CHELSA climatologies, soil) entered both the prediction models (\texttt{dnn\_env\_terrain}, \texttt{pinn\_env\_terrain}) and the later attribution analyses, so prediction and attribution were not fully separate questions for those variables.
+HadUK-Grid climate variables (\texttt{tas\_mean}, \texttt{groundfrost\_mean}) are the one exception: they are currently used only in the attribution-side screening (XGBoost/SHAP), because of a structural gap in the prediction pipeline's handling of cohort-specific column names, not because the variables were judged untrustworthy.
+
+\section{Terrain data}
+OS Terrain 50 provided a static representation of topography at approximately 50\,m resolution.
+
+The derived variables can be grouped by meaning: height and steepness (elevation and slope); orientation (aspect, and the northness/eastness measures derived from it); landform (terrain position index, curvature and local relief); exposure and shelter (TOPEX and related horizon measures); and local terrain heuristics (the frost-hollow flag and any investigated soil-depth proxy).
+
+The raw aspect field is a 0--360\textdegree{} compass bearing and was not used directly as a model input, since a circular bearing has a discontinuity at 0\textdegree{}/360\textdegree{} that a model would otherwise treat as a large numeric jump between two directions that are physically adjacent.
+It was instead replaced by its two continuous trigonometric components, computed from the aspect in radians ($\theta$):
+\begin{align*}
+\text{northness} &= \cos(\theta) \\
+\text{eastness} &= \sin(\theta)
+\end{align*}
+so a north-facing slope (aspect $0\textdegree$) has northness $=1$, and an east-facing slope (aspect $90\textdegree$) has eastness $=1$.
+
+Terrain is static and cannot explain changes in conditions between surveys.
+TOPEX describes topographic exposure or shelter; it is not measured wind.
+The frost-hollow flag is a project-derived indicator, not an observation of frost damage.
+Any proposed soil-depth proxy should be labelled as exploratory unless it has strong ecological support.
+
+\section{Wind data}
+Global Wind Atlas provides raster-based, long-term wind-climate summaries.
+It represents broad spatial differences in typical wind conditions and is effectively static for this analysis.
+It can support spatial attribution but cannot identify conditions during a specific survey interval.
+
+MIDAS station observations provide temporally varying weather-station measurements.
+These were summarised over the intervals between LiDAR surveys, allowing investigation of mean wind, extreme wind or storm conditions during different growth periods.
+They may not represent conditions at every forest plot equally, since station observations require spatial matching or interpolation.
+
+Global Wind Atlas variables represented long-term spatial wind climate, MIDAS variables represented observed conditions over particular periods, and TOPEX represented terrain-based exposure.
+These sources describe related but different aspects of wind exposure and were not treated as interchangeable.
+
+\section{Climate, soil and other spatial data}
+HadUK-Grid provided data at approximately 1\,km spatial resolution, used to investigate variables such as temperature, ground frost and rainfall.
+Depending on the extraction, variables represented individual years, or were averaged across each cohort's own survey years once the multi-year extraction was in place.
+The 1\,km resolution means many nearby plots share identical values.
+As a compact diagnostic example: the temperature variable contained only 149 distinct values across 71,766 plots, and showed strong spatial structure, including Moran's I $=0.941$ and a between-compartment intraclass correlation of 0.893.
+It therefore represented broad spatial climate zones more strongly than fine-scale variation between neighbouring plots.
+%METHODOLOGY, not here: the Spearman-vs-residual screening number and the reasoning for why this variable was kept despite its coarseness belong in the feature-selection part of Methodology (ahead of 4.4), alongside the same before/after Moran's I check applied to model residuals for every other candidate feature.
+
+ERA5-Land was investigated as an additional reanalysis source.
+Its temperature extraction produced only eight distinct values across the study plots, coarser than HadUK-Grid's 149.
+It was not retained in the final feature sets used for modelling.
+
+CHELSA supplied long-term (1981--2010) climatic summaries at the same nominal 1\,km grid as HadUK-Grid, but using terrain-conditioned downscaling rather than plain interpolation.
+It was retained in the final feature sets used for both the attribution screening and the environment/terrain prediction models.
+
+SoilGrids pH and the CEH soil and terrain classifications were explored as possible controls on spatial growth variation.
+These are largely static variables that may describe broad site conditions but cannot establish short-term environmental effects.
+The CEH categorical layers (pedotope, subsurface drainage, textural composition) each carry only 3 to 7 classes across the plots, so the same class is assigned to many plots.
+
+Distances to roads, watercourses and forest boundaries were explored where relevant.
+These are spatial context variables, not direct measures of growth processes.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{p{5.5cm}p{7.5cm}}
+\hline
+Limitation & Effect on interpretation \\
+\hline
+Complete-observation requirement & May favour stable plots that remained identifiable across all surveys \\
+Four or six observations per plot & Limits estimation of detailed plot-specific trajectories \\
+Unequal survey intervals & Requires annualisation and may hide within-interval changes \\
+LiDAR height is not identical to biological growth & Changes may include canopy, measurement or disturbance effects \\
+Limited acquisition metadata & Survey-year measurement differences cannot be fully separated \\
+Coarse environmental rasters & Many plots receive the same climate value (e.g.\ 149 distinct HadUK-Grid values, 8 distinct ERA5-Land values, across 71,766 plots) \\
+Static terrain and climate summaries & Describe spatial conditions more readily than temporal change \\
+Station-based wind observations & Conditions at a station may differ from conditions at individual plots \\
+Uncertain management history & Recorded thinning may not capture every intervention or disturbance \\
+Multiple correlated environmental variables & Makes individual attribution difficult and requires controlled selection \\
+Observational data & Environmental relationships indicate association, not causation \\
+\hline
+\end{tabular}
+\end{table}
+
+The environmental datasets provide several representations of climate, terrain and exposure, but their resolutions and time periods differ.
+The attribution analysis can therefore identify variables associated with departures from expected growth, but it cannot isolate causal environmental effects.

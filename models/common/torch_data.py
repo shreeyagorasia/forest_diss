@@ -144,17 +144,18 @@ ENV_TERRAIN_FEATURE_SETS = {
     # ever added to this pipeline (elasticnet_environmental.py already one-hot-encodes these
     # three, precedent exists).
     #
-    # `tas_mean`/`groundfrost_mean` also excluded (2026-08-03, found by hitting the actual
-    # error, not anticipated): these are COHORT-SPECIFIC columns in
+    # `tas_mean`/`groundfrost_mean` ADDED HERE 2026-08-08 (previously excluded 2026-08-03,
+    # found by hitting the actual error, not anticipated): these are COHORT-SPECIFIC columns in
     # plot_environmental_features.parquet (`tas_mean_4survey`/`tas_mean_6survey`, per
     # models/xgb_environmental/data.py::COHORT_SPECIFIC_COLUMNS) -- xgb_environmental's own
     # pipeline resolves the cohort-suffixed name before use; load_split_table_with_terrain()
-    # does not do that resolution, so a plain "tas_mean"/"groundfrost_mean" here fails with a
-    # KeyError. A real, structural gap in this pipeline's cohort-agnostic feature-set design,
-    # not a reason these two variables are untrustworthy -- worth fixing properly (cohort-aware
-    # column resolution in load_split_table_with_terrain()) if HadUK-Grid climate ever needs to
-    # be in an env_terrain feature set; deliberately not fixed here to stay scoped to today's
-    # actual ask.
+    # used to not do that resolution, so a plain "tas_mean"/"groundfrost_mean" here failed with
+    # a KeyError. That was a real, structural gap in this pipeline's cohort-agnostic
+    # feature-set design, not a reason these two variables are untrustworthy --
+    # _resolve_cohort_suffixed_columns() now fixes it generically for every ENV_TERRAIN_FEATURE_SETS
+    # entry, not just this one. The single existing `dnn_broad_legitimate`/4survey/spatial_block
+    # result (outputs/spatial_block/dnn_broad_legitimate/) predates this fix and needs
+    # re-running to actually include climate.
     "broad_legitimate": [
         "elevation", "slope_degrees", "northness", "eastness", "profile_curvature",
         "plan_curvature", "tpi", "elevation_roughness", "solar_radiation_index",
@@ -164,6 +165,7 @@ ENV_TERRAIN_FEATURE_SETS = {
         # Swapped 10m->50m 2026-08-06 -- same reasoning as terrain_wind_full above.
         "gwa_wind_speed_50m", "soilgrids_ph", "ceh_twi", "chelsa_bio1_celsius",
         "chelsa_gdd5_degc", "chelsa_bio12_precip_mm", "whcl",
+        "tas_mean", "groundfrost_mean",
     ],
     # Added 2026-08-06: every entry above was built ad hoc -- a variable got added whenever
     # someone had an idea, with correlation checked (if at all) AFTER fitting, as interpretive
@@ -192,24 +194,50 @@ ENV_TERRAIN_FEATURE_SETS = {
         "gwa_wind_speed_10m", "topex", "windward_topex", "whcl",
         "gwa_weibull_a_10m", "gwa_weibull_k_10m", "gwa_weibull_a_50m", "gwa_weibull_k_50m",
     ],
+    # ADDED 2026-08-08, alongside the tas_mean/groundfrost_mean fix below: stage4_all_environmental
+    # adds 12 columns at once (temperature, ground frost, 2 CHELSA, soil, 6 distance/edge), so any
+    # R2 change there can't be attributed to any ONE of them. Avenue 1's own screening
+    # (aux_data_resolution_check.ipynb) found tas_mean specifically -- not the climate CATEGORY as
+    # a whole -- as the single strongest environmental correlate in the whole project (Spearman
+    # rho~0.27-0.29 vs mean_cr_residual, ahead of every other candidate). This tier isolates that
+    # one variable's marginal contribution over terrain+wind alone, the same "attribute to a
+    # specific piece, not one more black-box feature set" discipline
+    # env_terrain_feature_engineering_instructions.md already commits to for this pipeline.
+    # Compare directly against stage2_terrain_wind (its own base) to read tas_mean's isolated
+    # effect, and against stage4_all_environmental to see how much of stage4's total movement (if
+    # any) temperature alone accounts for.
+    "stage2_terrain_wind_plus_temperature": [
+        "elevation", "slope_degrees", "northness", "eastness", "profile_curvature",
+        "plan_curvature", "tpi", "elevation_roughness", "solar_radiation_index",
+        "frost_hollow_flag", "ceh_twi", "tpi_500m", "local_relief_500m",
+        "gwa_wind_speed_10m", "topex", "windward_topex", "whcl",
+        "gwa_weibull_a_10m", "gwa_weibull_k_10m", "gwa_weibull_a_50m", "gwa_weibull_k_50m",
+        "tas_mean",
+    ],
     # stage3 and stage4 happened to come out identical this run -- every remaining category
     # (climate/soil/edge) cleared the notebook's signal-strength bar, so "the ones deemed
     # useful" and "all of them" are the same set right now. Kept as two separately named tiers
     # anyway: the filter is a real check every time this notebook is re-run (e.g. after a new
     # candidate variable is added), not something guaranteed to always produce two different lists.
-    # tas_mean/groundfrost_mean deliberately excluded from stage3/stage4 below -- same
-    # cohort-suffix resolution gap that already excludes them from broad_legitimate above
-    # (load_split_table_with_terrain() doesn't resolve tas_mean_4survey/_6survey the way
-    # xgb_environmental's own pipeline does; a plain "tas_mean" here would KeyError at run
-    # time). The notebook's OTHER output, the attribution-safe tiers (for xgb_environmental,
-    # which does resolve the cohort suffix), keeps both columns -- see the notebook itself.
+    # tas_mean/groundfrost_mean ADDED HERE 2026-08-08 (previously excluded from stage3/stage4
+    # below -- same cohort-suffix resolution gap that used to exclude them from
+    # broad_legitimate above too). _resolve_cohort_suffixed_columns() (defined above
+    # load_split_table_with_terrain()) now resolves tas_mean_4survey/_6survey generically for
+    # every tier, not just this one -- a plain "tas_mean" here no longer KeyErrors at run time.
+    # The 12 already-existing stage4_all_environmental result files (2 cohorts x 3 models
+    # [dnn_env_terrain/pinn_env_terrain/pinn_env_terrain_k] x 2 split evaluations
+    # [single spatial_block + pooled spatial_block_kfold], see documentation/experiment_log.md)
+    # predate this fix and need re-running to actually include climate; stage3_terrain_wind_plus
+    # has zero existing runs, nothing to redo there. The notebook's OTHER output, the
+    # attribution-safe tiers (for xgb_environmental, which already resolved the cohort suffix
+    # correctly before this fix), was never affected -- see the notebook itself.
     "stage3_terrain_wind_plus": [
         "elevation", "slope_degrees", "northness", "eastness", "profile_curvature",
         "plan_curvature", "tpi", "elevation_roughness", "solar_radiation_index",
         "frost_hollow_flag", "ceh_twi", "tpi_500m", "local_relief_500m",
         "gwa_wind_speed_10m", "topex", "windward_topex", "whcl",
         "gwa_weibull_a_10m", "gwa_weibull_k_10m", "gwa_weibull_a_50m", "gwa_weibull_k_50m",
-        "chelsa_gdd5_degc", "chelsa_bio12_precip_mm",
+        "tas_mean", "groundfrost_mean", "chelsa_gdd5_degc", "chelsa_bio12_precip_mm",
         "soilgrids_ph", "dist_to_watercourse", "dist_to_cpmt_boundary",
         "dist_to_forest_perimeter", "dist_to_scpt_boundary", "dist_to_block_boundary",
         "cpmt_compactness_ratio", "dist_to_road",
@@ -220,7 +248,7 @@ ENV_TERRAIN_FEATURE_SETS = {
         "frost_hollow_flag", "ceh_twi", "tpi_500m", "local_relief_500m",
         "gwa_wind_speed_10m", "topex", "windward_topex", "whcl",
         "gwa_weibull_a_10m", "gwa_weibull_k_10m", "gwa_weibull_a_50m", "gwa_weibull_k_50m",
-        "chelsa_gdd5_degc", "chelsa_bio12_precip_mm",
+        "tas_mean", "groundfrost_mean", "chelsa_gdd5_degc", "chelsa_bio12_precip_mm",
         "soilgrids_ph", "dist_to_watercourse", "dist_to_cpmt_boundary",
         "dist_to_forest_perimeter", "dist_to_scpt_boundary", "dist_to_block_boundary",
         "cpmt_compactness_ratio", "dist_to_road",
@@ -340,6 +368,31 @@ def load_split_table(cohort, split_type, split_seed=SPLIT_SEED, k_folds=DEFAULT_
     return filtered_table
 
 
+def _resolve_cohort_suffixed_columns(environmental_features, cohort, feature_columns):
+    # Some environmental columns (currently tas_mean, groundfrost_mean, rainfall_mean,
+    # sfcWind_mean, sun_mean, tasmax_mean, tasmin_mean -- every HadUK-Grid multi-year climate
+    # variable, confirmed by reading plot_environmental_features.parquet's own column names) are
+    # stored as cohort-suffixed pairs in the export (e.g. tas_mean_4survey/tas_mean_6survey)
+    # because each cohort averages over its own distinct set of real survey years --
+    # mean_cr_residual (the target, not a feature) follows the same pattern but is never passed
+    # in feature_columns here. models/xgb_environmental/data.py::load_plots_for_cohort() already
+    # resolves this suffix for Avenue 1/2's pipeline; this generic version mirrors that same
+    # resolution here (2026-08-08 fix) for ANY column in feature_columns that needs it, rather
+    # than hardcoding just tas_mean/groundfrost_mean -- the two columns already known to be
+    # requested. Previously, a plain "tas_mean" in feature_columns raised a KeyError at run time,
+    # and every ENV_TERRAIN_FEATURE_SETS tier worked around that by permanently excluding both
+    # columns instead of the loader being fixed -- see documentation/experiment_log.md's
+    # 2026-08-03 entry. Only renames a column when it's both requested AND not already present
+    # under its plain name, so this is a no-op for every feature_columns list that doesn't ask
+    # for a cohort-suffixed variable -- e.g. every terrain/wind-only tier is unaffected.
+    environmental_features = environmental_features.copy()
+    for column in feature_columns:
+        cohort_column = f"{column}_{cohort}"
+        if column not in environmental_features.columns and cohort_column in environmental_features.columns:
+            environmental_features[column] = environmental_features[cohort_column]
+    return environmental_features
+
+
 def load_split_table_with_terrain(
     cohort, split_type, feature_columns, split_seed=SPLIT_SEED, k_folds=DEFAULT_K_FOLDS, held_out_fold=0,
 ):
@@ -358,6 +411,7 @@ def load_split_table_with_terrain(
 
     split_df = load_split_table(cohort, split_type, split_seed=split_seed, k_folds=k_folds, held_out_fold=held_out_fold)
     environmental_features = pd.read_parquet(ENVIRONMENTAL_FEATURES_PATH)
+    environmental_features = _resolve_cohort_suffixed_columns(environmental_features, cohort, feature_columns)
 
     # BUG FIX (2026-08-01): model_table.parquet already carries its own "whcl" column (used
     # elsewhere in the pipeline, not by build_tensors() below), which is a DIFFERENT column from
@@ -570,12 +624,21 @@ def build_pair_tensors(pairs_df, scaler_age, scaler_other_features, scaler_heigh
     return age_earlier, other_earlier, age_later, other_later, delta_age_tensor, age_mid_tensor, observed_growth_rate_tensor
 
 
-def build_pair_terrain_tensor(pairs_df, scaler_terrain, feature_columns, device):
+def build_pair_terrain_tensor(pairs_df, scaler_terrain, feature_columns, device, cohort):
     # Terrain/wind is a STATIC, per-plot property (doesn't vary by survey year), so a trajectory
     # pair's earlier and later endpoint always share the exact same terrain values -- one tensor
     # per pair is enough, not a separate "earlier"/"later" pair the way age/no-env features need
     # (those genuinely differ between the two endpoints).
+    #
+    # cohort param ADDED 2026-08-08 (previously missing entirely): this function had the exact
+    # same cohort-suffix bug as load_split_table_with_terrain() above -- a plain "tas_mean" in
+    # feature_columns would KeyError here too, in the PINN-only trajectory-pair physics-loss
+    # path, not just the main split table. Never hit in practice only because every
+    # ENV_TERRAIN_FEATURE_SETS tier already excluded tas_mean/groundfrost_mean as a workaround
+    # for the OTHER site -- fixed here now that the root cause is fixed, not left as a second,
+    # currently-dormant copy of the same bug.
     environmental_features = pd.read_parquet(ENVIRONMENTAL_FEATURES_PATH)
+    environmental_features = _resolve_cohort_suffixed_columns(environmental_features, cohort, feature_columns)
     pairs_with_terrain = pairs_df[["identification"]].merge(
         environmental_features[["identification"] + feature_columns],
         on="identification", how="left",

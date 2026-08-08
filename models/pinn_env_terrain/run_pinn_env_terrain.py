@@ -150,7 +150,7 @@ def run_for_cohort(
         pair_tensors = build_pair_tensors(
             pairs_df, scaler_age, scaler_other_features, scaler_height, encoded_column_names, device
         )
-        terrain_pairs = build_pair_terrain_tensor(pairs_df, scaler_terrain, feature_columns, device)
+        terrain_pairs = build_pair_terrain_tensor(pairs_df, scaler_terrain, feature_columns, device, cohort)
 
         # ----- Train -----
         n_other_features = other_train.shape[1]
