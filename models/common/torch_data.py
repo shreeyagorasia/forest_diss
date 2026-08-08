@@ -22,6 +22,7 @@ from models.common.splits import (
     TEMPORAL_YEARS,
     TEMPORAL_YEARS_NARROW_GAP,
     assert_no_split_columns_in_features,
+    plot_level_split,
     spatial_block_split,
     spatial_kfold_split,
     temporal_split,
@@ -294,6 +295,16 @@ def load_split_table(cohort, split_type, split_seed=SPLIT_SEED, k_folds=DEFAULT_
             filtered_table,
             year_col="LiDAR_year",
             **TEMPORAL_YEARS_NARROW_GAP[cohort],
+        )
+    elif split_type == "plot_level":
+        # Individual plots shuffled randomly into train/val/test -- a held-out plot's nearest
+        # neighbour is usually a training plot metres away, so this is the easy interpolation
+        # case (see models/common/splits.py::plot_level_split's own docstring), not a
+        # generalisation test. Baselines have always run this split_type; DNN/PINN never did
+        # until 2026-08-08, added for ledger completeness alongside the existing baseline rows.
+        filtered_table["split"] = plot_level_split(
+            filtered_table,
+            seed=split_seed,
         )
     elif split_type == "spatial_block":
         # coordinates_df=None makes spatial_block_split() load plot

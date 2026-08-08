@@ -59,20 +59,33 @@ from models.common.splits import (
     spatial_block_split,
     spatial_kfold_split,
 )
-from models.elasticnet_environmental.elasticnet_environmental import drop_rows_with_missing_features
-from models.growth_curve_attribution.broad_environmental_check import columns_for_groups
+from models.elasticnet_environmental.elasticnet_environmental import CATEGORICAL_COLUMNS, drop_rows_with_missing_features
+from models.growth_curve_attribution.broad_environmental_check import columns_for_groups, prepare_broad_table
 from models.growth_curve_attribution.scale_comparison_check import TARGET, build_plot_level_table, merge_environmental_features
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_DIR = PROJECT_ROOT / "outputs" / "growth_curve_attribution" / "gnnwr"
 
-# Only scopes that are pure continuous terrain/wind/management columns (no categorical CEH
-# classes) are supported here -- the two scopes the council/user agreed to test first. If a
-# scope with categorical columns is needed later, it will need one-hot encoding first, the same
-# way broad_environmental_check.py does it for Elastic Net/XGBoost.
+# terrain_wind and terrain_wind_plus_management are pure continuous columns -- build_scope_table
+# below still builds them with its ORIGINAL, unchanged merge (never touched, since this project's
+# already-published, significance-tested GNNWR numbers were computed with it).
+#
+# broad_environment_plus_management (added 2026-08-08) is the one broader scope EN/XGBoost show
+# a real signal for (0.290/0.318) that GNNWR has not yet been tested on, and the only scope where
+# checking GNNWR is a genuinely open question rather than repeating an already-established null
+# (climate/soil/edge alone showed no robust improvement for either EN or XGBoost -- see
+# broad_environmental_check.py's own "Main finding"). This scope needs the SAME cohort-suffixed
+# climate-column resolution and one-hot-encoded soil categoricals (ceh_pedotope,
+# ceh_subsurface_drainage, ceh_textural_composition) that EN/XGBoost's own broader-scope numbers
+# use -- handled below by reusing broad_environmental_check.py's prepare_broad_table() rather than
+# reimplementing it, so GNNWR sees an identical feature representation to the models it is being
+# compared against.
 SCOPES = {
     "terrain_wind": ["terrain_wind"],
     "terrain_wind_plus_management": ["terrain_wind", "management"],
+    "broad_environment_plus_management": [
+        "terrain_wind", "climate", "soil_site", "edge_position", "management",
+    ],
 }
 
 
@@ -95,10 +108,20 @@ def build_scope_table(
     far, which this project's own seed-sweep work already showed has real variance (EN's 5-fold
     pooled R2 itself moves +/-0.023 across different fold-assignment seeds for 4survey).
     """
-    feature_columns = columns_for_groups(SCOPES[scope])
-    plot_table = build_plot_level_table(cohort, apply_disturbance_cleaning=True)
-    merged, available_columns = merge_environmental_features(plot_table, feature_columns=feature_columns)
-    merged = drop_rows_with_missing_features(merged, available_columns)
+    if scope in ("terrain_wind", "terrain_wind_plus_management"):
+        # ORIGINAL path, unchanged -- exactly what this project's already-published,
+        # significance-tested GNNWR numbers were computed with.
+        feature_columns = columns_for_groups(SCOPES[scope])
+        plot_table = build_plot_level_table(cohort, apply_disturbance_cleaning=True)
+        merged, available_columns = merge_environmental_features(plot_table, feature_columns=feature_columns)
+        merged = drop_rows_with_missing_features(merged, available_columns)
+    else:
+        # NEW (2026-08-08) path for scopes with cohort-suffixed climate columns and/or
+        # categorical soil columns -- reuses EN/XGBoost's own cohort-resolution/one-hot logic
+        # (prepare_broad_table) instead of merge_environmental_features, which would silently
+        # drop cohort-suffixed columns and cannot one-hot encode categoricals at all.
+        raw_columns = columns_for_groups(SCOPES[scope])
+        merged, available_columns = prepare_broad_table(cohort, raw_columns)
     if held_out_fold is None:
         merged["split"] = spatial_block_split(
             merged, block_col=SPATIAL_BLOCK_COL, buffer_distance=SPATIAL_BUFFER_METRES,

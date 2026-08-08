@@ -38,7 +38,14 @@ def load_cr_params(cohort, split_type, split_seed=SPLIT_SEED, held_out_fold=None
     name_suffix = "" if split_seed == SPLIT_SEED else f"_splitseed{split_seed}"
     if held_out_fold is not None:
         name_suffix = f"{name_suffix}_fold{held_out_fold}"
-    params_path = PROJECT_ROOT / "outputs" / split_type / f"chapman_richards{name_suffix}" / cohort / "params.json"
+    # plot_level is the one split type with no outputs/<split_type>/ prefix (see
+    # model_output_dir()'s own comment) -- added 2026-08-08 alongside DNN/PINN's first-ever
+    # plot_level run, matching that convention rather than DNN/PINN's own default of always
+    # being prefixed.
+    if split_type in ("spatial_block", "spatial_block_kfold", "temporal", "temporal_narrow_gap"):
+        params_path = PROJECT_ROOT / "outputs" / split_type / f"chapman_richards{name_suffix}" / cohort / "params.json"
+    else:
+        params_path = PROJECT_ROOT / "outputs" / f"chapman_richards{name_suffix}" / cohort / "params.json"
     with open(params_path) as f:
         params = json.load(f)
     return {"y_max": params["y_max"], "k": params["k"], "p": params["p"]}

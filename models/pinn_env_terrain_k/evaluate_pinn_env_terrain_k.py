@@ -177,7 +177,7 @@ def main():
     parser.add_argument("--cohort", choices=["4survey", "6survey"], default=None, help="Omit to run both cohorts.")
     parser.add_argument(
         "--split-type",
-        choices=["temporal", "spatial_block", "spatial_block_kfold", "temporal_narrow_gap"],
+        choices=["temporal", "spatial_block", "spatial_block_kfold", "temporal_narrow_gap", "plot_level"],
         default="temporal",
     )
     parser.add_argument(

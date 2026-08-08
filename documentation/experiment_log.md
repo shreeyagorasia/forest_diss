@@ -3091,3 +3091,52 @@ never run under the old buggy definitions, so it just needs the (already-fixed) 
 run once. This incident is a specific instance of a general risk in this repo: any notebook that
 writes to a file a *different* script later extends needs to either not be re-run out of order, or
 be made merge-safe like this fix -- worth keeping in mind before adding any new derived-data export.
+
+---
+
+**2026-08-07 — Q: are `E6_stage_sweep`, `E7_hyperparameter_sweep`, and `E8_pinn_noenv_kfold` fully
+complete and trustworthy, and what do they actually show? -- all 148 fit jobs (90 + 48 + 10) are
+now fit, evaluated, and pooled; one real bug found and fixed along the way (8 of E7's 48 jobs
+silently trained at the default learning rate instead of their intended sweep value), confirmed
+via a metadata cross-check to be the only instance across all 148.**
+**What I found:** While building the E7 best-hyperparameter comparison table, `pinn_env_terrain_k`
+on the `6survey` cohort showed *bit-identical* `training_history.csv` rows (same losses to 15
+decimal places, same elapsed times) across all 4 nominal learning rates at a given dropout, and
+`run_metadata.json`'s `learning_rate` field read `0.0001` (the model's default) for all 8 of those
+runs regardless of what their run_name said. The same sweep on `pinn_env_terrain_k`/4survey showed
+correctly distinct `learning_rate` values and real R2 variation, and `fit()`/`build_optimizer()` in
+`models/pinn_env_terrain_k/pinn_env_terrain_k.py` correctly wires `--learning-rate` through to the
+optimizer -- so the bug was isolated to how those specific 8 `sbatch` submissions were constructed
+(most likely the same terminal line-wrap/paste corruption seen earlier this session with the E6
+fold-index submissions), not a code defect. Resubmitted all 8 as single-line `sbatch` commands with
+an explicit `""` placeholder for the `freeze_y_max` slot; the rerun `run_metadata.json` now shows
+correct, distinct learning rates and correct, varying R2 (0.7169-0.7391). To confirm this was the
+only instance of the bug class, cross-checked all 148 `run_metadata.json` files (90 E6 + 48 E7 + 10
+E8) against what their directory name/fold should imply: cohort, fold_index, E7's dropout_rate/
+learning_rate, and E6's feature_set_name-to-tier mapping. Zero mismatches outside the 8 already
+fixed.
+**What's working:** All three stages are complete -- every one of 148 fit jobs has a checkpoint,
+every one has been evaluated (predictions.csv + metrics.json), E6 and E8 are pooled via
+`kfold_summary.py` (k-fold; E7 is a single `spatial_block` split, so its 48 results are compared
+directly rather than pooled). E6 pooled R2 (whole-population, 95% CI via cluster bootstrap):
+`stage1_terrain`/`stage2_terrain_wind` beat `stage4_all_environmental` for `dnn_env_terrain` on
+4survey (0.6772/0.6551 vs 0.6398) -- adding the full environmental tier does not clearly help, and
+may mildly hurt, consistent with this being a multicollinearity screen. All three tiers are close
+to indistinguishable on 6survey (0.70-0.71 for every model). E8 (`pinn_noenv`, filling the missing
+k-fold gap): 4survey R2=0.5735 [0.5416, 0.6030], 6survey R2=0.7057 [0.6683, 0.7324]. E7's best
+combo per model/cohort: `dnn_env_terrain` prefers dropout=0.1 (4survey: lr=0.001, R2=0.6510;
+6survey: lr=0.0001, R2=0.7463); both PINN variants prefer dropout=0.0 on both cohorts
+(`pinn_env_terrain` 4survey lr=0.0001 R2=0.5846, 6survey lr=0.001 R2=0.7356;
+`pinn_env_terrain_k` 4survey lr=0.0003 R2=0.5888, 6survey lr=0.001 R2=0.7391) -- dropout
+regularization doesn't clearly help the env_terrain family either, matching the existing
+`dnn_noenv`/`pinn_noenv` null result. The model's own default lr=0.0001 is never far from the best
+value found (max gap ~0.02 R2) but is rarely the actual optimum; `pinn_env_terrain_k` is
+marginally ahead of the plain y_max-only `pinn_env_terrain` at each cohort's best setting.
+**What's not working / open gap:** none outstanding for these three stages -- all previously-flagged
+gaps (E6 completeness, E7 completeness, E8's missing k-fold pooling) are now closed.
+**What this means for what's next:** the E6/E7/E8 numbers are now safe to cite. Given E6's
+finding that `stage4_all_environmental` doesn't clearly outperform the smaller tiers, the smallest
+tier that performs comparably (`stage1_terrain` or `stage2_terrain_wind`) is the more defensible
+choice of primary feature set going forward, over the largest one. This also closes out the
+open item from 2026-08-06's entry about deciding "which model/tier/hyperparameters are actually
+worth reporting" before queuing the multi-seed ensemble for per-plot uncertainty.
