@@ -133,6 +133,24 @@ def build_scope_table(
             buffer_distance=SPATIAL_BUFFER_METRES, coordinates_df=merged[["identification", "x", "y"]],
             seed=split_seed,
         )
+
+    # Found 2026-08-08 (broad_environment_plus_management, folds 0 and 4): a one-hot dummy
+    # column for a rare CEH category (e.g. ceh_pedotope=2.0) can be entirely absent from ONE
+    # fold's own training compartments purely by chance, leaving it constant (all zero) in that
+    # fold's train split. GNNWR's own MinMax scaling ((x - min) / (max - min)) then divides by
+    # zero and feeds NaN into its internal OLS init, crashing before training even starts.
+    # Checked directly against this fold's own train rows (not the whole population) -- a column
+    # can be fine in 3 of 5 folds and constant in the other 2, since which compartments land in
+    # train varies by fold. Dropped per fold rather than globally, and printed, so this is a
+    # disclosed per-fold difference, not a silent one.
+    train_rows = merged[merged["split"] == "train"]
+    zero_variance_columns = [
+        column for column in available_columns if train_rows[column].max() == train_rows[column].min()
+    ]
+    if zero_variance_columns:
+        print(f"  Dropping {len(zero_variance_columns)} column(s) constant in this fold's own training set: {zero_variance_columns}")
+        available_columns = [column for column in available_columns if column not in zero_variance_columns]
+
     return merged, available_columns
 
 
