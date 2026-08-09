@@ -6,14 +6,14 @@ Every number here traces back to a methodology §4.x definition and an experimen
 Items marked **[Appendix]** are real but secondary — full detail stays in
 `results_evaluation_current_findings.tex` and `results_evaluation_planning_notes.tex`, not repeated here.
 
-**Anchor caveat — resolved 2026-08-09.** The original Stage 2–4 DNN/PINN numbers were computed
-using the **pooled** Chapman-Richards anchor, before the split-matched anchor fix (§4.2). The
-`pinn_noenv(w=1)` comparison has since been re-run under the corrected split-matched anchor,
-across the same 5 seeds (42–46) used for DNN, on matching cluster hardware — see §5.2 for the
-clean, resolved numbers. This also resolved a second issue found while preparing that rerun: a
-single `dnn_noenv` fit (identical code, identical seed) gave R²=0.633 on one cluster node and
-R²=0.534 on another — pure GPU training non-determinism, ~0.1 R² of noise from nothing but
-hardware. That is why every comparison below now reports 5-seed mean±SD, not a single run.
+**Anchor caveat, stated once, applies to all of §5.1–5.3:** the DNN/PINN/baseline numbers below
+(Stage 2–4, 2026-07-28 to 2026-07-31) were computed using the **pooled** Chapman-Richards anchor —
+the split-matched anchor fix (§4.2) came later (2026-08-01). A leaky pooled anchor fits the training
+population more closely than a fair one would, which — if anything — makes the physics loss look
+*more* aligned with truth than a fair anchor would, i.e. biases *in favour of* the PINN. Since the
+PINN still loses under this generous condition (§5.2), the direction of that finding is not put in
+doubt by the anchor issue. The exact margins have not been re-run under the corrected anchor —
+flagged as a known gap, not a silent limitation.
 
 ### 5.1 Predictive baselines and evaluation context
 
@@ -30,24 +30,25 @@ Spatial vs. temporal difficulty, previewed here (full numbers in §5.2's table):
 
 ### 5.2 Did the PINN improve held-out prediction?
 
-**Main result — 5 seeds (42–46), matched CUDA cluster hardware, corrected split-matched anchor (resolved 2026-08-09):**
+**Main result (Stage 2, 2026-07-30, matched `batch_size=256`, physics_weight=trajectory_weight=1.0 — the untested default before this rebuild):**
 
-| Cohort | Split | DNN mean±SD | PINN(w=1) mean±SD | mean diff (DNN−W1) | paired-t p |
-|---|---|---:|---:|---:|---:|
-| 4survey | spatial_block | 0.5777±0.0290 | 0.5772±0.0018 | +0.0005 | 0.9715 |
-| 4survey | temporal | 0.3500±0.0062 | 0.2812±0.0065 | +0.0688 | 0.0001 |
-| 6survey | spatial_block | 0.7460±0.0015 | 0.7316±0.0012 | +0.0144 | 0.0001 |
-| 6survey | temporal | 0.2431±0.0258 | 0.1924±0.0212 | +0.0507 | 0.0333 |
+| Cohort | Split | DNN test R² | PINN(w=1) test R² |
+|---|---|---:|---:|
+| 4survey | spatial_block | 0.633 | 0.580 |
+| 6survey | spatial_block | 0.750 | 0.734 |
+| 4survey | temporal | 0.354 | 0.284 |
+| 6survey | temporal | 0.284 | 0.209 |
 
-**Main conclusion, corrected:** not "DNN beats PINN(w=1) in all 4 settings" — that was the old single-seed claim. With proper 5-seed evidence: **no reliable difference on 4survey/spatial_block** (the two are statistically indistinguishable, within each other's noise band), but a **real, statistically confirmed deficit for full-weight PINN in the other 3 of 4 settings**, most severe on the temporal splits. Full weight (`w=1`) causes genuine harm in most, not all, principal settings.
+DNN beats PINN(w=1) by a real, consistent margin in **all 4** cohort×split combinations. This is the fair-comparison rebuild that fixed the earlier batch-size confound (§4.2) — not a smoke test.
 
-**Does tuning the physics weight rescue it? — Also corrected, 5-seed evidence (resolved 2026-08-09).** The earlier Stage 3 single-run claim ("control beats tuned") does not survive proper seed-averaging: pairing `pw=0.1,tw=0` against the `0/0` control across the same 5 seeds shows **no significant difference in any of the 4 cohort×split cells** (all paired-t p > 0.2, most > 0.6). Reframe: tuning the weight down to near-zero does not *hurt* relative to turning physics off entirely, but it does not help either — both are indistinguishable from DNN itself on 3 of 4 cells (matching the pattern above). The one honest exception: 6survey/temporal's tuned-vs-control gap (mean diff=−0.0087) sits at paired-t p=0.069 — not significant, but the closest borderline case, worth a footnote, not a claim.
+**Main conclusion:** the full-weight PINN did not improve held-out prediction over the matched DNN in any principal evaluation setting tested.
 
-**Combined reading of both results above:** a genuine dose-response pattern, not a flat null. Full weight (`w=1`) causes real, measurable harm in most settings. Reduced-to-zero weight removes that harm and returns performance statistically indistinguishable from the plain DNN. Physics conditioning at this architecture neither helps nor reliably hurts once the weight is small — it only hurts when pushed to the untested default of 1.0.
+**Does tuning the physics weight rescue it? No.** Stage 3's grid search (4survey full 10-point sweep) found its lowest-validation-loss setting (`pw=0.1, tw=0.0`) does not translate to a held-out test win: 4survey test R²=0.6319 (tuned) vs 0.6337 (zero-physics control) — control slightly better; 6survey 0.7468 (tuned) vs 0.7483 (control) — same direction. Any `trajectory_weight ≥ 0.1` clearly hurts (validation loss 0.338-0.350 vs. the ~0.329-0.331 competitive band).
 
-**Seed variation / stability — resolved.** 5 seeds (42–46) × 3 arms (DNN, PINN tuned, PINN zero-physics, plus a dedicated 5-seed PINN(w=1) rerun) now exist for `spatial_block` and `temporal`, on matched cluster hardware. `temporal`/4survey's known train/val collapse (0% improvement from epoch 1, every seed and arm) remains excluded from the seed-averaged table — a genuine data-limitation, not a bug.
+**Seed variation / stability — [gap, not yet available].** Stage 4 (2026-07-31) ran the full seeded comparison — 5 seeds (42-46) × 3 arms (DNN, PINN tuned, PINN zero-physics) × 3 splits × 2 cohorts, 90/90 fits completed and passing early-stopping sanity checks — but **the evaluate step to produce test-set metrics from these fits was never run** (confirmed: no later log entry closes this out; `jobs/evaluate_stage4_fix.sh` exists locally, untracked, suggesting this is mid-fix, not finished). The external reviewer's suggested "eight split-seed comparison" does not match this project's design either way — 5 seeds were run, not 8, and even those 5 are unevaluated. State plainly in the dissertation: seed-level stability evidence for the no-env DNN/PINN comparison is pending, not missing by oversight.
+One exclusion already known from Stage 4: all 15 `temporal`/4survey runs (every seed and arm) show 0% validation-loss improvement from epoch 1 — a genuine train/val collapse from that cell's narrow 2-year training window, not a bug — excluded from any future seed-averaged table.
 
-**Five-fold spatial CV for the no-env comparison — still a gap.** Seed variance (above) and fold variance (different held-out compartments) are different, non-substitutable sources of uncertainty — see methodology §4.9's discussion. This comparison now has proper seed evidence; it still has never been run under 5-fold CV. Flag as the strongest remaining addition for `pinn_noenv`/`dnn_noenv` specifically.
+**Five-fold spatial CV for the no-env comparison — [gap, not yet available].** Five-fold CV was run for the env-conditioned models (§5.4) and both attribution avenues (§5.5, §5.6), but not for this core no-env DNN vs. PINN comparison — it rests on the single `spatial_block` split plus the (unevaluated) Stage 4 seeds. Flag as the strongest single addition that would strengthen §5.2 specifically.
 
 **Observed-vs-predicted plots — [Appendix / gap].** Not yet produced for the no-env comparison; instrumentation exists (per-run predictions are saved) but the plot itself hasn't been drawn.
 
@@ -66,7 +67,7 @@ Error breakdowns by age, height, survey interval, thinning/disturbance group, an
 
 1. **Did it run correctly?** Yes — 90/90 Stage 4 fits completed, all pass early-stopping sanity checks (§5.2).
 2. **Did it affect optimisation?** A robustness check (2026-07-17, loosened early-stopping patience, ~2× training) confirmed the base comparison's result wasn't a premature-stopping artefact for either model. One incidental finding: DNN/4survey shows a persistent overfitting climb that only softens, not resolves, with more training — diagnosed as a data limitation, not a tuning one. No experiment was specifically designed to isolate "does the physics loss change convergence dynamics" as its own question — this remains **not directly tested**, distinct from claim 3 below.
-3. **Did it reliably improve test prediction?** No, and more precisely than "no" — full weight (`w=1`) causes a statistically confirmed *deficit* in 3 of 4 settings (§5.2); the tuned weight is statistically indistinguishable from the zero-physics control in all 4 settings, neither helping nor hurting (§5.2). Physics conditioning here is either neutral or harmful, never beneficial, at any weight tested.
+3. **Did it reliably improve test prediction?** No — full weight hurts (§5.2); the tuned weight doesn't beat the zero-physics control either (§5.2).
 4. **Did it improve biological behaviour?** Answered separately in §5.3.3, not assumed from claims 1-3.
 
 #### 5.3.2 Optimisation and stability
@@ -87,19 +88,12 @@ Error breakdowns by age, height, survey interval, thinning/disturbance group, an
 ### 5.4 Did environmental information improve prediction or explain spatial errors?
 
 - `dnn_env_terrain` (terrain/wind concatenated into the main network) vs. `dnn_noenv`, and `pinn_env_terrain`/`pinn_env_terrain_k` (terrain/wind conditioning `y_max`/`k` only, via a side network — §4.2's two-mechanism distinction) vs. `pinn_noenv`: env-conditioned sweep results (E6/E7/E9, §4.4) — feature-tier sweep does not show `stage4_all_environmental` clearly beating smaller tiers; dropout shows no clear benefit; **4survey** E7 winners hold within noise under E9's five-fold confirmation, **6survey** winners were optimistic by 0.03-0.05 R² on the single-split E7 estimate — a real four-survey/six-survey divergence in reliability, not magnitude.
-- **Batch-size question resolved (2026-08-09) — was never actually a confound.** Checked `outputs/run_logs/` directly: every established fit behind these numbers already used `--batch-size 256` for all three env-conditioned models via explicit CLI override; `dnn_env_terrain.py`'s file-level default of 512 was never actually used in any cited comparison. Methodology §4.2/§4.4 corrected accordingly.
-- **On raw accuracy — now confirmed with proper 5-seed evidence, batch-size matched, same cluster hardware:**
-
-| Cohort | `dnn_env_terrain` mean±SD | `pinn_env_terrain` mean±SD | `pinn_env_terrain_k` mean±SD |
-|---|---:|---:|---:|
-| 4survey | 0.6361±0.0101 | 0.5829±0.0023 | 0.5832±0.0036 |
-| 6survey | 0.7372±0.0033 | 0.7296±0.0029 | 0.7307±0.0009 |
-
-Pairwise significance (paired-t, n=5 seeds): 4survey — `dnn_env_terrain` beats `pinn_env_terrain` (diff=+0.0532, p=0.0004) and `pinn_env_terrain_k` (diff=+0.0530, p=0.0002); the two PINN variants don't differ from each other (p=0.91). 6survey — same pattern, smaller margin, still significant (p=0.0158, p=0.0111); PINN vs. PINN-k again no difference (p=0.50). **`dnn_env_terrain` significantly and consistently beats both PINN-with-terrain variants in both cohorts — physics conditioning hurts accuracy in the env-conditioned family too, mirroring §5.2's no-env finding. `k`-conditioning adds nothing over `y_max`-only conditioning, in either direction.**
+- On raw accuracy, PINN variants (env-conditioned) are roughly on par with, or slightly behind, plain DNN — this comparison carries an unresolved batch-size confound (`dnn_env_terrain=512` vs `pinn_env_terrain*=256`, §4.2/§4.4) not yet controlled for, so treat as suggestive, not confirmed.
 - Residual Moran's I across the env-terrain variants: see §5.2.1 — all neural variants (env-conditioned or not) beat CR's residual autocorrelation; no env-vs-no-env split was found specifically isolated within that comparison. **[gap]**
 - Environmental subgroup error breakdowns — **[gap, not yet available]**, same status as §5.2.1's no-env breakdowns.
+- Fairness limitation: the unmatched batch size above is the one concrete, disclosed limitation on this section's model-family comparison.
 
-**Reading, corrected:** environmental conditioning's predictive value is inconsistent across cohorts, and now cleanly confirmed (not just suggestive) that PINN-with-terrain underperforms DNN-with-terrain in both cohorts — a genuine, well-powered accuracy cost from physics conditioning, not a batch-size artefact. Combined with §5.2.1's finding that meaningful spatial residual structure remains even after adding environment, this motivates asking the attribution question directly rather than continuing to search for the right predictive architecture — which is exactly what Avenue 1 and Avenue 2 do next.
+**Reading:** environmental conditioning's predictive value is inconsistent across cohorts and unconfirmed as clean evidence given the batch-size confound. Combined with §5.2.1's finding that meaningful spatial residual structure remains even after adding environment, this motivates asking the attribution question directly rather than continuing to search for the right predictive architecture — which is exactly what Avenue 1 and Avenue 2 do next.
 
 ### 5.5 Avenue 1 — which factors align with shared-curve (`mean_cr_residual`) departures?
 
@@ -177,8 +171,8 @@ Residual spatial autocorrelation stays high (Moran's I range 0.66-0.74, "~0.70")
 
 | Question | Main answer | Evidence strength |
 |---|---|---|
-| Which approach predicts height most reliably? | RF loses its plot-level advantage under spatial holdout (linear wins spatial_block among baselines); DNN beats full-weight PINN in 3 of 4 cohort×split combinations (indistinguishable on 4survey/spatial_block); `dnn_env_terrain` beats both PINN-with-terrain variants in both cohorts | Strong, 5-seed confirmed for both comparisons; baseline table incomplete (§5.1 gap) |
-| Did the CR constraint improve prediction? | Dose-response, not flat null: full weight (w=1) causes a confirmed deficit in most settings; tuned/near-zero weight is statistically indistinguishable from no physics at all, in every setting | Strong, 5-seed confirmed (§5.2); fold-CV for this comparison still pending |
+| Which approach predicts height most reliably? | RF loses its plot-level advantage under spatial holdout (linear wins spatial_block among baselines); DNN beats full-weight PINN in all 4 cohort×split combinations tested | Strong for DNN>PINN(w=1); baseline table incomplete (§5.1 gap) |
+| Did the CR constraint improve prediction? | No reliable held-out gain — full weight hurts, tuned weight doesn't beat the zero-physics control | Strong, but seed/CV evidence still pending (§5.2 gaps) |
 | Did physics improve biological behaviour? | One specific, real effect found (env-conditioned `y_max`/`k` sign-flip); broader monotonicity/plausibility checks unresolved | Narrow — do not generalise beyond the one finding |
 | Did environmental predictors improve prediction? | Inconsistent across cohorts; accuracy comparison carries an unresolved batch-size confound | Mixed / not fully confirmed |
 | What aligned with shared-curve residuals (Avenue 1)? | Environmental and especially management information — real, statistically supported for 4survey | Useful, cohort-limited |
@@ -190,10 +184,604 @@ Residual spatial autocorrelation stays high (Moran's I range 0.66-0.74, "~0.70")
 ### Known gaps carried forward (not fabricated, not silently dropped)
 
 - Baseline table incomplete: CR/`average_by_age` `spatial_block` R² not yet pulled (§5.1).
-- No-env DNN/PINN: seed variance now resolved (§5.2); no 5-fold CV run for this specific comparison still pending — seed and fold variance are different things, closing one doesn't close the other.
-- Env-conditioned family: batch-size question resolved (was never real) and 5-seed accuracy now resolved (§5.4); the `y_max`/`k` sign-flip finding (§5.3.3) is still single-run-per-cohort (pooled 5-fold, not reseeded) — a real, still-open reseed check, cheaper than the accuracy fix was, not yet done.
+- No-env DNN/PINN: seed-averaged test metrics not yet evaluated (Stage 4 fit-complete, eval pending); no 5-fold CV run for this specific comparison (§5.2).
 - Error-by-subgroup breakdowns (age, height, interval, thinning, spatial fold) not computed for either the no-env or env-conditioned comparisons (§5.2.1, §5.4).
 - Optimisation-specific diagnostics (component-loss comparison plot, convergence-dynamics test) not compiled (§5.3.2).
 - Avenue 2 target reliability figures (exclusion counts, distribution, confounding sensitivity) not consolidated (§5.6.1).
 - Avenue 2 broad-static scope table is stale pending regeneration (§5.6.2).
 - No compartment-cluster bootstrap for Avenue 1's EN/XGBoost/NLME comparisons (§5.5.3).
+
+-------
+STRUCTURE OF THIS RESULTS SECTION IDEA: 
+
+Yes. This earlier plan makes the Results and Discussion structure much clearer. The strongest approach is to mirror the four methodology questions exactly.
+
+The chapter should not be organised as “all results tables, then all evaluation.” Instead, each research question should contain its main results, diagnostics, interpretation and a short answer.
+
+# Proposed Results and Discussion plan
+
+## 5.1 Overview of the evaluation
+
+Keep this brief. Explain how to read the chapter:
+
+* The four-survey cohort is the main analysis.
+* The six-survey cohort is a sensitivity analysis.
+* Spatial holdout is the primary evaluation.
+* Temporal holdout is supporting evidence.
+* Comparisons are controlled only when the target, features, split and training settings match.
+* Main metrics are MAE, RMSE and (R^2).
+* Variation across folds or seeds is considered alongside mean performance.
+
+Do not repeat the methodology. This section only reminds the reader which evidence has priority.
+
+---
+
+## 5.2 Question 1: How accurately do the models predict top height?
+
+This answers:
+
+> How accurately do the baseline models, DNN and PINN predict top height under spatial and temporal holdout?
+
+### 5.2.1 Performance of the reference and baseline models
+
+Present the simpler models first:
+
+* pooled Chapman–Richards curve;
+* linear regression;
+* Random Forest;
+* any other retained conventional baseline.
+
+Include:
+
+* one main performance table;
+* spatial test MAE, RMSE and (R^2);
+* results for the four-survey cohort;
+* six-survey results only where they test whether the conclusion changes.
+
+Interpret:
+
+* how much improvement is obtained over the pooled CR curve;
+* whether nonlinear ML improves over the linear model;
+* whether the simpler models already capture much of the available signal;
+* which model forms the strongest baseline for the neural models.
+
+This establishes the level the DNN and PINN must beat.
+
+### 5.2.2 DNN and PINN predictive comparison
+
+Present:
+
+* DNN results;
+* matched PINN results;
+* differences across folds or split seeds;
+* variation or standard deviation;
+* observed-versus-predicted plots;
+* residual distributions.
+
+The central comparisons are:
+
+1. Does the DNN improve over CR?
+2. Does the PINN improve over CR?
+3. Does the PINN improve over the matched DNN?
+
+The third comparison is the most important test of whether adding physics helped. Avoid treating a small numerical difference as meaningful unless it is consistent across folds, seeds and cohorts.
+
+### 5.2.3 Does environmental information improve height prediction?
+
+This corresponds to the environment-conditioned prediction strand in the methodology.
+
+Compare:
+
+* stand-only DNN;
+* environment-and-terrain DNN;
+* standard PINN;
+* environment-conditioned PINN;
+* (y_{\max})-conditioned PINN;
+* (y_{\max}+k)-conditioned PINN.
+
+Present:
+
+* one compact comparison table;
+* change in performance after environmental variables are added;
+* fold or seed variation;
+* results by model type.
+
+Interpret separately:
+
+* whether environmental information improves the DNN;
+* whether it improves the PINN;
+* whether modifying the CR parameters helps more than simply supplying environmental predictors as inputs;
+* whether any improvement is large and consistent enough to matter.
+
+These are still prediction results. They should not be mixed with the later SHAP attribution results.
+
+### 5.2.4 Spatial and temporal generalisation
+
+Present:
+
+* five-fold spatial cross-validation;
+* compartment or spatial-block holdout results;
+* temporal holdout results;
+* fold-level performance;
+* residual maps;
+* residual Moran’s (I);
+* semivariograms, if informative.
+
+Discuss:
+
+* how performance changes under spatial rather than random splitting;
+* whether some spatial folds are more difficult;
+* whether residual spatial structure remains;
+* whether temporal extrapolation is harder than spatial interpolation;
+* limitations of the 60 m buffer.
+
+Temporal evaluation should remain secondary if that is how it is positioned in the methodology.
+
+### 5.2.5 Error patterns and subgroup analysis
+
+Investigate where prediction errors occur:
+
+* age groups;
+* observed height groups;
+* survey intervals;
+* spatial folds or compartments;
+* thinning status;
+* environmental conditions;
+* disturbed or declining plots, where identifiable.
+
+Use only the subgroup analyses that provide a useful explanation. You do not need a separate plot for every possible variable.
+
+This section asks whether the overall metrics hide systematic weaknesses. For example, the DNN could perform well overall but poorly for older stands or following disturbance.
+
+### Short answer to Question 1
+
+End with a concise finding, such as:
+
+> The data-driven models improved on the pooled Chapman–Richards curve under spatial holdout. However, the PINN did not consistently improve on the matched DNN, and residual spatial structure remained.
+
+Adjust this once the final results are confirmed.
+
+---
+
+## 5.3 Question 2: What effect does the Chapman–Richards physics constraint have?
+
+This answers:
+
+> Does adding Chapman–Richards physics affect prediction, training stability and predicted biological behaviour?
+
+This deserves its own section even though the headline PINN accuracy was introduced in Question 1. Question 1 establishes what happened; Question 2 investigates why.
+
+### 5.3.1 Physics-weight ablation
+
+Present:
+
+* zero-physics control;
+* derivative-only weights;
+* trajectory-only weights, if tested;
+* combined physics weights;
+* full-weight configuration;
+* results across seeds, folds and cohorts.
+
+A useful table would contain:
+
+| Physics configuration | Prediction error | Physics violation | Seed variation | Stopping epoch |
+| --------------------- | ---------------: | ----------------: | -------------: | -------------: |
+
+The essential control is:
+
+[
+\lambda_d=\lambda_t=0.
+]
+
+This shows whether the architecture without the physics constraint behaves like the equivalent DNN.
+
+Discuss:
+
+* whether stronger physics weights improve or harm prediction;
+* whether the effect is consistent;
+* whether one physics component appears more problematic;
+* whether the selected full-weight model was stable.
+
+### 5.3.2 Training and optimisation behaviour
+
+Present, where available:
+
+* training and validation data-loss curves;
+* derivative-loss curves;
+* trajectory-loss curves;
+* stopping epochs;
+* convergence failures;
+* seed-to-seed variability;
+* training time.
+
+Investigate whether:
+
+* the physics loss dominates the data loss;
+* reducing physics violation increases validation error;
+* the model stops improving unusually early;
+* results depend strongly on initialisation;
+* the PINN requires substantially more computation.
+
+Your previously identified difference in DNN and PINN seed variability belongs here as a central result.
+
+### 5.3.3 Biological behaviour and physics compliance
+
+Keep three outcomes separate:
+
+1. Was the physics loss implemented successfully?
+2. Did it reduce measured physics violation?
+3. Did reducing physics violation improve prediction?
+
+Possible evidence includes:
+
+* proportion of trajectories that remain monotonic;
+* implausible negative height changes;
+* smoothness of predicted trajectories;
+* derivative or trajectory residuals;
+* predictions outside a plausible height range;
+* example trajectories for representative plots.
+
+Do not claim that the PINN is more biologically plausible unless one of these behaviours was measured.
+
+### 5.3.4 Why might the physics constraint not help?
+
+Bring together the evidence from the preceding sections:
+
+* a pooled CR derivative may not represent every plot;
+* disturbance and thinning may produce departures from smooth growth;
+* unequal survey intervals obscure when changes occurred;
+* four or six measurements provide limited trajectory information;
+* LiDAR height differences are not identical to biological growth;
+* the physics and prediction objectives may compete;
+* the DNN may already learn the dominant age–height relationship;
+* the chosen physics weights may make optimisation unstable.
+
+Distinguish evidence from possible explanations. For example:
+
+> The higher seed variability provides evidence of optimisation instability. A mismatch between the pooled CR derivative and local growth is a possible explanation that requires comparison with observed plot-level changes.
+
+### Short answer to Question 2
+
+For example:
+
+> The Chapman–Richards constraint altered optimisation and reduced some measures of physics violation, but it did not produce a consistent predictive improvement and increased sensitivity to the training seed.
+
+Only retain the physics-violation statement if the results demonstrate it.
+
+---
+
+## 5.4 Question 3: Which conditions are associated with persistent departure from the shared CR curve?
+
+This is Avenue 1.
+
+### 5.4.1 Distribution and spatial pattern of shared-curve residuals
+
+First establish what is being explained:
+
+* distribution of plot-level mean CR residuals;
+* map of positive and negative residuals;
+* residual variation between compartments;
+* Moran’s (I);
+* semivariogram or spatial range, if useful.
+
+Explain whether departures from the pooled curve are:
+
+* substantial;
+* persistent across surveys;
+* spatially clustered;
+* large enough to justify attribution modelling.
+
+This connects the prediction results to the attribution analysis.
+
+### 5.4.2 Can the residual departures be predicted?
+
+Compare:
+
+* intercept or mean baseline;
+* Elastic Net;
+* XGBoost;
+* mixed-effects model, if retained.
+
+Present:
+
+* held-out MAE, RMSE and (R^2);
+* spatial cross-validation results;
+* fold variation;
+* observed-versus-predicted residuals.
+
+The important question is not simply whether XGBoost fits the training data. It is whether the departures are predictable in spatially held-out areas.
+
+### 5.4.3 Which variables are associated with the departures?
+
+Present:
+
+* Elastic Net coefficients;
+* XGBoost SHAP importance;
+* SHAP dependence plots for a small number of important variables;
+* grouped importance by terrain, climate, wind and management;
+* sensitivity after removing correlated or questionable variables.
+
+Interpret:
+
+* whether linear and nonlinear models identify similar variables;
+* whether directions of association are credible;
+* whether coarse variables mostly represent spatial zones;
+* whether relationships remain after spatial validation;
+* whether importance may be distributed between correlated predictors.
+
+Use associational language throughout. SHAP explains the fitted model, not the ecological cause of growth.
+
+### 5.4.4 Remaining unexplained spatial structure
+
+After attribution, compare Moran’s (I) before and after modelling.
+
+Ask:
+
+* did environmental and management variables reduce spatial clustering?
+* did substantial spatial structure remain?
+* are there identifiable areas of consistently unexplained growth?
+
+This is stronger than merely listing important SHAP variables because it tests whether the variables actually account for the spatial pattern.
+
+### Short answer to Question 3
+
+For example:
+
+> The available predictors explained part of the persistent departure from the shared CR curve, but held-out performance was limited and residual spatial structure remained. The identified variables should therefore be interpreted as spatial associations rather than causal drivers.
+
+---
+
+## 5.5 Question 4: Which conditions align with plot-specific growth-curve deviations?
+
+This is Avenue 2 and should be presented as more tentative because local curves are fitted from only four or six observations.
+
+### 5.5.1 Reliability of the plot-level curve target
+
+Before presenting attribution models, show whether (\Delta y_{\max}) is reliable enough to analyse.
+
+Include:
+
+* number of eligible plots;
+* number or proportion of failed local fits;
+* distribution of local (y_{\max});
+* frequency of implausible or boundary estimates;
+* effect of the disturbance filters;
+* comparison between four- and six-survey estimates;
+* uncertainty or fit error.
+
+This is essential. If the derived target is unstable, it directly limits every later Avenue 2 conclusion.
+
+### 5.5.2 Global attribution models
+
+Compare:
+
+* Elastic Net;
+* XGBoost;
+* simple baseline.
+
+Present:
+
+* spatially held-out performance;
+* variation between folds;
+* feature importance or coefficients;
+* comparison with Avenue 1.
+
+Ask whether environmental and management information can explain the more ambitious trajectory target, rather than only the shared-curve residual.
+
+### 5.5.3 Does allowing spatially varying relationships help?
+
+Present the GNNWR results:
+
+* performance against Elastic Net and XGBoost;
+* global versus spatially varying relationships;
+* maps of selected local coefficients;
+* stability or plausibility of those coefficients;
+* remaining residual spatial structure.
+
+Do not treat attractive coefficient maps as proof of improved attribution. First establish that GNNWR generalises adequately and produces reasonably stable relationships.
+
+### 5.5.4 Does Avenue 2 improve attribution?
+
+Compare Avenue 1 and Avenue 2 directly:
+
+| Criterion                   | Avenue 1                | Avenue 2                   |
+| --------------------------- | ----------------------- | -------------------------- |
+| Target                      | Mean shared-CR residual | Local (y_{\max}) deviation |
+| Target reliability          | Higher/lower            | Higher/lower               |
+| Held-out predictability     | Result                  | Result                     |
+| Remaining spatial structure | Result                  | Result                     |
+| Interpretability            | Result                  | Result                     |
+| Main limitation             | Result                  | Result                     |
+
+“Improve attribution” should be judged through explicit criteria, such as:
+
+* stronger held-out prediction;
+* more stable feature relationships;
+* lower residual spatial autocorrelation;
+* clearer relationship with environmental conditions;
+* acceptable target reliability.
+
+Avenue 2 should not be described as better merely because it is more locally detailed.
+
+### Short answer to Question 4
+
+For example:
+
+> Plot-specific curve deviations provided a more local description of growth, but their estimation from four or six observations introduced substantial uncertainty. The resulting attribution was therefore weaker than, or complementary to, the shared-curve residual analysis.
+
+---
+
+## 5.6 Overall synthesis
+
+This section should be short—approximately one to two pages.
+
+Bring the four questions together:
+
+1. Which model predicted height most accurately?
+2. Did adding CR physics help?
+3. Could environmental and management information explain persistent shared-curve departures?
+4. Did plot-specific trajectory modelling improve attribution?
+
+A possible overall story is:
+
+> Data-driven models captured spatial variation not represented by a pooled Chapman–Richards curve. However, imposing the selected Chapman–Richards constraints did not consistently improve prediction and increased training instability. Environmental and management variables accounted for some persistent spatial departure from the shared curve, although important spatial structure remained. The plot-specific trajectory approach provided a more local target but was limited by the small number of observations available for fitting each curve.
+
+This synthesis prepares the reader for the final Conclusion chapter. The conclusion then returns to the objectives, states the contribution and explains the broader implications without repeating every result.
+
+# Recommended balance within the chapter
+
+| Results section           | Approximate share |
+| ------------------------- | ----------------: |
+| Evaluation overview       |              3–5% |
+| Q1: Prediction comparison |            25–30% |
+| Q2: Effect of physics     |            20–25% |
+| Q3: Avenue 1 attribution  |            20–25% |
+| Q4: Avenue 2 attribution  |            15–20% |
+| Overall synthesis         |              5–8% |
+
+Give Avenue 2 less space if its target or modelling results are unreliable. Page allocation should reflect the strength of the evidence, not the amount of work required to produce it.
+
+# Important changes to the earlier plan
+
+A few parts of the Introduction and Methodology should be tightened so they map cleanly onto this Results chapter:
+
+* Rewrite the objectives as four main objectives matching the four experimental questions.
+* Include environmental prediction explicitly within Question 1, or state it as a sub-question.
+* In Question 2, change “predicted biological behaviour” into measurable outcomes such as monotonicity, physics residual or implausible trajectories.
+* Define what “improve attribution” means for Avenue 2 before evaluating it.
+* Change “GNN” to “GNNWR” in the analytical-framework table if GNNWR is the actual model.
+* State the split design, five-fold CV, seeds, buffer and cohort roles before the individual models in Methodology.
+* Ensure every model listed in Methodology appears in Results. Remove models that were explored but not retained, or clearly label them as preliminary/appendix analyses.
+* Keep descriptive dataset facts in the Data chapter. Move analytical findings such as Moran’s (I=0.941) into Results only if they are used as evidence about predictor resolution or spatial structure.
+
+The result is a clean correspondence:
+
+| Earlier chapter promise                  | Results location |
+| ---------------------------------------- | ---------------- |
+| Compare CR, baselines, DNN and PINN      | 5.2              |
+| Test spatial and temporal generalisation | 5.2.4            |
+| Test environment-conditioned prediction  | 5.2.3            |
+| Test physics weights and behaviour       | 5.3              |
+| Explain shared-curve departures          | 5.4              |
+| Explain plot-specific curve deviations   | 5.5              |
+| Compare the strength of all evidence     | 5.6              |
+
+So yes, this plan helps substantially. It gives you a defensible Results and Discussion chapter organised by sub-question, with each table followed immediately by the relevant plots, diagnostics and interpretation.
+
+
+
+
+there could be key evaluations, plots, graphs, useful things that i am yet to do (planning this will help identify the most useful plots maps, graphs etc to include to include the main point)
+
+
+
+(End of draft)
+BELOW KEEP THERE AS REFERENCE, AND UPDATE WHERE NECESSARY, WITH TIME OF WHEN YOU CORRECTED AND REASON WHY (DONT JUST SAY YOU DID UNLESS YOU DID)
+
+----- Evaluation current??? maybe needs updating, 
+## 5. Results — current findings
+
+Numbers only. The plan/rules that produced these live in the methodology chapter (§4); this states what
+happened when that plan was run. Cross-referenced from methodology by section number below.
+
+### 5.1 Predictive models
+
+- **Anchor-leak magnitude** (methodology §4.2): pooled vs. split-matched CR anchor differed by 3-11% (e.g. 4survey temporal: pooled 51.96m vs split-matched 46.48m top height).
+- **`freeze_y_max` ablation** (§4.2): learned-`k` range shrinks to ~77% of the full two-parameter model's range when `y_max` is frozen — weakens but does not eliminate the "two knobs fighting" explanation.
+- **Experiment A — physics-weight ablation** (§4.4): full weight (1.0) hurts in all 4 cohort×split combinations; `trajectory_weight ≥ 0.1` clearly hurts 4survey; nominal validation winner (`pw=0.1, tw=0.0`) does not beat the `0/0` control on held-out test (4survey: 0.6319 vs 0.6337; 6survey: 0.7468 vs 0.7483). **Verdict: no reliable predictive gain from physics.**
+- **Experiment B — env-conditioned sweeps** (§4.4): E6 (90 fits) — `stage4_all_environmental` does not clearly beat smaller tiers. E7 (36 jobs, single split) — dropout shows no clear benefit. E9 (five-fold confirmation) — 4survey E7 winners hold within noise; 6survey winners were optimistic by 0.03-0.05 R² on single-split E7. Accuracy: PINN variants roughly on par with, or slightly behind, plain DNN.
+- **`y_max`/`k` sign-flip** (§4.4): `pinn_env_terrain_k`'s learned `y_max`/`k` correlation flips sign between cohorts (-0.5748 on 4survey, +0.2096 on 6survey). **Verdict: evidence physics conditioning changes model behaviour, cohort-dependently — not proof of a clean, desirable effect.**
+- **Neighbour-height leakage evidence** (§4.5): removing `neighbour_mean_height`/`neighbour_height_differential` dropped XGBoost spatial_block test R² from 0.598→0.321 (4survey) and 0.327→−0.337 (6survey) — confirms the leak was large, not theoretical.
+- **Buffer-adequacy check** (§4.6): CR residual's own semivariogram range is ≈3,956-4,284 m — roughly two orders of magnitude larger than the 60 m training buffer.
+
+### 5.2 Avenue 1 (`mean_cr_residual`)
+
+- **NLME** (§4.7): 18 VIF-screened terrain/wind fixed effects, fit on `spatial_block` train. 17/18 individually significant (p<0.05; `tpi_500m` not, p=0.549). Largest standardised coefficients: `slope_degrees` +1.30, `topex` +0.98, `local_relief_500m` −0.96, `windward_topex` +0.70, `solar_radiation_index` +0.64. Compartment random-intercept variance explained: **2.02%** — real and broad across variables, not concentrated in one dominant driver.
+- **Scope comparison** (§4.7, 2026-08-04, pooled five-fold): 4survey `terrain_and_wind_only` EN/XGB = 0.216/0.274, `all_environmental` EN/XGB = 0.360/0.411; 6survey near-zero/inconclusive for both scopes.
+- **Paired fold-level significance** (§4.7, computed 2026-08-09): 4survey, `all_environmental` wins in 5 of 5 folds for both Elastic Net (mean Δ=+0.145, paired-t p=0.0005) and XGBoost (mean Δ=+0.139, paired-t p=0.0022) — Wilcoxon floored at p=0.0625 by n=5, but full directional agreement plus a consistent paired-t result is real, converging evidence. 6survey: direction inconsistent across folds for Elastic Net, not significant for either model. Full per-fold values: `outputs/spatial_block_kfold/cr_residual_environmental_paired_significance_folds.csv` / `_summary.csv`.
+- **Spatial autocorrelation** (§4.7): CR residual Moran's I ≈0.1223, range ≈4,284 m — highest among all six models compared (i.e. the pooled-curve target leaves the most unexplained spatial structure of any model tested).
+
+### 5.3 Avenue 2 (`local_y_max_difference`)
+
+- **Representation checks** (§4.8): local shelter terms (`topex, windward_topex, whcl`) beat GWA wind-speed/Weibull variants; `tpi_500m` beat other terrain scales.
+- **GNNWR evaluation** (§4.8, full training population, 5-fold pooled): R² ≈0.145 (`terrain_wind`), 0.318 (`terrain_wind_plus_management`), 0.286 (`broad_environment_plus_management`) — highest point estimate of the three model families tested, per scope. Earlier capped-reference-set runs (6,000-16,000 of 31,117 rows, GPU-memory workaround) were at best roughly tied with EN/XGBoost — superseded by the full-population numbers above.
+- **Broad-environmental notebook** (§4.8, stale — not final): pre-fix CSVs (2026-08-04, before 19:04) reported `terrain_wind` = 0.125/0.117 (EN/XGB); fresh, post-fix reruns give 0.132/0.119 instead. Notebook itself not yet regenerated, so the full four-scope table is not final — only the qualitative claim (management added real signal, broader environment added comparatively little) is currently defensible.
+- **Residual spatial autocorrelation** (§4.9): stays high (range 0.66-0.74, "~0.70") even for the best model (GNNWR) — real spatial structure left uncaptured by every model tested on this target.
+- **Significance** (§4.9): paired cluster-bootstrap 95% CI on GNNWR's R² difference vs. EN/XGBoost crosses zero in all 4 pairwise comparisons tested — **GNNWR's lead is not statistically confirmed.**
+
+### 5.4 Stale or superseded findings — do not cite as current
+
+- Early DNN/PINN batch-size mismatch (128 vs 512) — superseded by the matched 256/256 rebuild (2026-07-30).
+- Earlier 6-variable NLME model: 5.02% variance explained, included `elevation`, uncorrected REML variance-comparison — superseded by the 18-variable VIF-screened rebuild (2.02%, §5.2 above).
+- E7 single-split 6survey R² values — optimistic by 0.03-0.05 vs. E9's five-fold confirmation (§5.1 above).
+- Pre-fix Avenue 2 broad-environmental CSVs (2026-08-04, before 19:04) — `terrain_wind` = 0.125/0.117, superseded by fresh reruns (0.132/0.119); full table still not regenerated (§5.3 above).
+- Earlier capped-reference-set GNNWR runs (6,000-16,000 rows) — "at best roughly tied" with EN/XGBoost, superseded by the full-population run (§5.3 above).
+- `temporal_narrow_gap` numeric results from the retired `Top_Height99`+`yldc` pipeline (2026-07-13 to 2026-07-20) — not comparable to the current pipeline.
+
+
+--- maybe needs fixing 
+
+## 5. Results and Evaluation — planning notes only, not a draft
+
+Structure mirrors the methodology chapter (predictive / Avenue 1 / Avenue 2). Nothing here is a finished
+section — it's a checklist of what each part needs, tagged `[exists]` (already computable from current
+code/outputs, just needs the plot/table drawn) vs `[missing]` (needs new analysis code) vs `[partial]`.
+Methodology describes the plan; this describes what actually happened when the plan was run — draft
+properly later, this is a placeholder so nothing gets forgotten.
+
+### 5.1 Predictive models (baselines, DNN, PINN, env-conditioned variants)
+
+**Accuracy — does it answer the question (Q1/Q2)**
+- `[exists]` MAE/RMSE/R² per model, per split, per cohort — scattered across per-run CSVs and `run_logs/`; needs one consolidated comparison table/plot, doesn't exist as a single artifact yet.
+- `[exists]` Physics-weight ablation curve (accuracy vs. `physics_weight`/`trajectory_weight`) — numbers are in the experiment log; not yet plotted.
+- `[missing]` A single "does physics help" summary figure (e.g. paired bars: DNN vs PINN vs zero-physics-control, per split) — the numbers exist, the figure doesn't.
+
+**Capacity / training / overfitting**
+- `[partial]` Per-epoch train/val loss is logged per run; a robustness check (loosened early stopping, ~2x training) exists for the no-env comparison and found DNN/4survey has a persistent overfitting climb that only softens with more training. Not yet compiled into a cross-model overfitting comparison plot (train-val gap vs. epoch, one line per model).
+- `[missing]` Learning-curve analysis (accuracy vs. training-set size) — not found anywhere in the codebase; would need new runs, so this is training, not just re-evaluation — check before assuming it's "quick."
+
+**Variance / error**
+- `[partial]` Seed variation exists for the no-env physics-weight sweep (multiple seeds per setting) — not yet turned into a box/violin plot of R² across seeds per model.
+- `[missing]` No seed-variation runs found for the env-conditioned models (E6/E7/E9) beyond the 5 CV folds themselves.
+
+**Residual analysis — did the model work, outliers, does the next stage still see the same signal**
+- `[exists]` Global Moran's I + LISA on CR-residual and on DNN/PINN/env-terrain residuals, cross-model comparison table already computed (`av1_spatial_autocorrelation_terrain.ipynb`) — CR residual has the *highest* spatial autocorrelation of all 6 models (I≈0.1223, range≈4,284m). This is the direct answer to "does the unexplained residual carry forward" for the predictive stage → Avenue 1's starting point. Needs the actual map/plot drawn (residuals plotted spatially, coloured by LISA cluster type), not just the summary numbers.
+- `[missing]` No outlier-flagging analysis found for the predictive models specifically (as opposed to Avenue 2's disturbance-based exclusion, which is a different pipeline). Worth deciding: define "outlier" as top-N residual magnitude, or a formal threshold (e.g. >2-3 std)?
+- `[missing]` Residual-vs-covariate plots (residual vs. age, vs. height, vs. survey interval, vs. management group) — not found; standard diagnostic, currently absent.
+
+**Architecture diagrams** — described in methodology §4.2 (no-env DNN/PINN, `dnn_env_terrain`, `pinn_env_terrain`/`pinn_env_terrain_k`); actual figures still to be drawn from that text.
+
+### 5.2 Avenue 1 (pooled CR residual attribution, `mean_cr_residual`)
+
+- `[exists]` NLME variance-explained (compartment random intercept) — a real, if small, quantification of "how much of the residual is systematically explained" once terrain/wind fixed effects are added.
+- `[exists]` Moran's I/LISA on `mean_cr_residual` itself (see 5.1) — this IS the "did the model work" residual check for the pooled CR curve.
+- `[exists]` Paired fold-level significance test for `terrain_and_wind_only` vs `all_environmental` (computed 2026-08-09, in experiment log + `outputs/spatial_block_kfold/cr_residual_environmental_paired_significance_*.csv`).
+- `[missing]` Outlier plot/list: which plots or compartments have the most extreme `mean_cr_residual`? Not yet produced.
+- `[missing]` "Residual of the residual" check: after Elastic Net/XGBoost/NLME fit `mean_cr_residual`, does *their* residual still show spatial structure? Not found in the code search — this is the direct Avenue-1 analogue of the Avenue-2 check in 5.3, and is currently a real gap, not just an undrafted plot.
+- `[missing]` Overfitting/variance for the attribution models themselves (EN/XGBoost train vs. test gap per fold, XGBoost early-stopping behaviour) — fold-level R² exists; a training-curve or train-vs-test-gap view does not.
+
+### 5.3 Avenue 2 (per-plot growth-curve deviation, `local_y_max_difference`)
+
+**Does it answer the question / accuracy**
+- `[exists]` Pooled five-fold R² for EN/XGBoost/GNNWR across all four static scopes (log + CSVs).
+- `[exists]` Paired significance test (Wilcoxon/t-test) and cluster-bootstrap CI, GNNWR vs. EN/XGBoost — already found the lead is not statistically confirmed (§4.8/§4.9 of the methodology chapter cite this).
+
+**Capacity / training / overfitting**
+- `[missing]` No training-curve or overfitting diagnostic found specifically for GNNWR (it's a gradient-trained neural model, so this applies) — worth checking whether `gnnwr_check.py` logs per-epoch loss at all.
+- `[exists]` XGBoost/EN don't have a meaningful "overfitting" curve in the neural-network sense, but train-vs-test R² gap per fold is a direct analogue — computable from existing per-fold outputs, not yet compiled into a table.
+
+**Variance / error**
+- `[exists]` Per-fold R² spread already reported (e.g. terrain_wind fold R² range 0.011-0.253) — flagged in the log as "not a footnote," i.e. already recognised as important; needs a box-plot rendering.
+- `[missing]` Repeated-seed CV (more fold-assignment seeds) for tighter significance — identified as the fix for the n=5 power problem (methodology §4.9), not run; would need new compute, so flag as future work, not a quick re-evaluation.
+
+**Residual analysis — did the model work, outliers, carry-forward**
+- `[exists]` Disturbance-based exclusion (`clearfell_like`, `measurement_inconsistent`) — this *is* the primary outlier-handling step for Avenue 2, done before fitting, not after.
+- `[exists]` Residual spatial autocorrelation across all 5 models including GNNWR (KNN k=8, Moran's I) — found residual Moran's I stays high (~0.66-0.74) even for the best model (GNNWR) — the direct, already-computed answer to "does unexplained structure carry forward," stronger evidence than Avenue 1 currently has for the same question. Needs the spatial map drawn, not just the summary statistic.
+- `[exists]` SHAP (`explain_signal.py`) and gain-based feature-importance rank stability across folds — both already computed, need figures (SHAP summary plot, rank-stability table/plot).
+- `[missing]` Outlier plot for `local_y_max_difference` itself (beyond the disturbance-flag exclusion) — e.g. which retained, non-excluded plots still have extreme target values, and do they cluster spatially or by species/yield class?
+
+### 5.4 Cross-cutting, not yet assigned to a subsection
+
+- `[missing]` A single figure/table making the "three separate claims" framework (methodology §4.9) visually concrete: implementation-ran-correctly vs. behaviour-changed vs. prediction-improved, side by side per model — currently only stated as prose.
+- `[missing]` Compute/runtime comparison across models — mentioned as "report only if measured consistently" in the evaluation rules; not confirmed whether wall-clock time was logged consistently enough to use.
+ 
