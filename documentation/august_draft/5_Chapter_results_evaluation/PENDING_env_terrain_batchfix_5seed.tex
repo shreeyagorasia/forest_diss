@@ -1,4 +1,10 @@
-## Pending update: env-conditioned 5-seed robustness check (NOT a batch-size fix)
+## RESOLVED 2026-08-09 — env-conditioned 5-seed robustness check (NOT a batch-size fix)
+
+Done and folded into `results_chapter_draft.tex` §5.4. `dnn_env_terrain` significantly beats both
+PINN-with-terrain variants in both cohorts (p<0.02 every case); `pinn_env_terrain` vs.
+`pinn_env_terrain_k` show no difference. Numbers: see that file, or
+`outputs/spatial_block/env_terrain_batchfix_5seed_{folds,summary}.csv`. Safe to delete this file
+once the `y_max`/`k` reseed check (still open, see Known Gaps) is separately resolved or dropped.
 
 Correction (2026-08-09, same day as first drafted): the batch-size "mismatch" this was originally
 framed around is not real. Checked `outputs/run_logs/` directly — every established fit behind the

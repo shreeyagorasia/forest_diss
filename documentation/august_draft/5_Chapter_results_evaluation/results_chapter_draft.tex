@@ -6,14 +6,14 @@ Every number here traces back to a methodology §4.x definition and an experimen
 Items marked **[Appendix]** are real but secondary — full detail stays in
 `results_evaluation_current_findings.tex` and `results_evaluation_planning_notes.tex`, not repeated here.
 
-**Anchor caveat, stated once, applies to all of §5.1–5.3:** the DNN/PINN/baseline numbers below
-(Stage 2–4, 2026-07-28 to 2026-07-31) were computed using the **pooled** Chapman-Richards anchor —
-the split-matched anchor fix (§4.2) came later (2026-08-01). A leaky pooled anchor fits the training
-population more closely than a fair one would, which — if anything — makes the physics loss look
-*more* aligned with truth than a fair anchor would, i.e. biases *in favour of* the PINN. Since the
-PINN still loses under this generous condition (§5.2), the direction of that finding is not put in
-doubt by the anchor issue. The exact margins have not been re-run under the corrected anchor —
-flagged as a known gap, not a silent limitation.
+**Anchor caveat — resolved 2026-08-09.** The original Stage 2–4 DNN/PINN numbers were computed
+using the **pooled** Chapman-Richards anchor, before the split-matched anchor fix (§4.2). The
+`pinn_noenv(w=1)` comparison has since been re-run under the corrected split-matched anchor,
+across the same 5 seeds (42–46) used for DNN, on matching cluster hardware — see §5.2 for the
+clean, resolved numbers. This also resolved a second issue found while preparing that rerun: a
+single `dnn_noenv` fit (identical code, identical seed) gave R²=0.633 on one cluster node and
+R²=0.534 on another — pure GPU training non-determinism, ~0.1 R² of noise from nothing but
+hardware. That is why every comparison below now reports 5-seed mean±SD, not a single run.
 
 ### 5.1 Predictive baselines and evaluation context
 
@@ -30,25 +30,24 @@ Spatial vs. temporal difficulty, previewed here (full numbers in §5.2's table):
 
 ### 5.2 Did the PINN improve held-out prediction?
 
-**Main result (Stage 2, 2026-07-30, matched `batch_size=256`, physics_weight=trajectory_weight=1.0 — the untested default before this rebuild):**
+**Main result — 5 seeds (42–46), matched CUDA cluster hardware, corrected split-matched anchor (resolved 2026-08-09):**
 
-| Cohort | Split | DNN test R² | PINN(w=1) test R² |
-|---|---|---:|---:|
-| 4survey | spatial_block | 0.633 | 0.580 |
-| 6survey | spatial_block | 0.750 | 0.734 |
-| 4survey | temporal | 0.354 | 0.284 |
-| 6survey | temporal | 0.284 | 0.209 |
+| Cohort | Split | DNN mean±SD | PINN(w=1) mean±SD | mean diff (DNN−W1) | paired-t p |
+|---|---|---:|---:|---:|---:|
+| 4survey | spatial_block | 0.5777±0.0290 | 0.5772±0.0018 | +0.0005 | 0.9715 |
+| 4survey | temporal | 0.3500±0.0062 | 0.2812±0.0065 | +0.0688 | 0.0001 |
+| 6survey | spatial_block | 0.7460±0.0015 | 0.7316±0.0012 | +0.0144 | 0.0001 |
+| 6survey | temporal | 0.2431±0.0258 | 0.1924±0.0212 | +0.0507 | 0.0333 |
 
-DNN beats PINN(w=1) by a real, consistent margin in **all 4** cohort×split combinations. This is the fair-comparison rebuild that fixed the earlier batch-size confound (§4.2) — not a smoke test.
+**Main conclusion, corrected:** not "DNN beats PINN(w=1) in all 4 settings" — that was the old single-seed claim. With proper 5-seed evidence: **no reliable difference on 4survey/spatial_block** (the two are statistically indistinguishable, within each other's noise band), but a **real, statistically confirmed deficit for full-weight PINN in the other 3 of 4 settings**, most severe on the temporal splits. Full weight (`w=1`) causes genuine harm in most, not all, principal settings.
 
-**Main conclusion:** the full-weight PINN did not improve held-out prediction over the matched DNN in any principal evaluation setting tested.
+**Does tuning the physics weight rescue it? — Also corrected, 5-seed evidence (resolved 2026-08-09).** The earlier Stage 3 single-run claim ("control beats tuned") does not survive proper seed-averaging: pairing `pw=0.1,tw=0` against the `0/0` control across the same 5 seeds shows **no significant difference in any of the 4 cohort×split cells** (all paired-t p > 0.2, most > 0.6). Reframe: tuning the weight down to near-zero does not *hurt* relative to turning physics off entirely, but it does not help either — both are indistinguishable from DNN itself on 3 of 4 cells (matching the pattern above). The one honest exception: 6survey/temporal's tuned-vs-control gap (mean diff=−0.0087) sits at paired-t p=0.069 — not significant, but the closest borderline case, worth a footnote, not a claim.
 
-**Does tuning the physics weight rescue it? No.** Stage 3's grid search (4survey full 10-point sweep) found its lowest-validation-loss setting (`pw=0.1, tw=0.0`) does not translate to a held-out test win: 4survey test R²=0.6319 (tuned) vs 0.6337 (zero-physics control) — control slightly better; 6survey 0.7468 (tuned) vs 0.7483 (control) — same direction. Any `trajectory_weight ≥ 0.1` clearly hurts (validation loss 0.338-0.350 vs. the ~0.329-0.331 competitive band).
+**Combined reading of both results above:** a genuine dose-response pattern, not a flat null. Full weight (`w=1`) causes real, measurable harm in most settings. Reduced-to-zero weight removes that harm and returns performance statistically indistinguishable from the plain DNN. Physics conditioning at this architecture neither helps nor reliably hurts once the weight is small — it only hurts when pushed to the untested default of 1.0.
 
-**Seed variation / stability — [gap, not yet available].** Stage 4 (2026-07-31) ran the full seeded comparison — 5 seeds (42-46) × 3 arms (DNN, PINN tuned, PINN zero-physics) × 3 splits × 2 cohorts, 90/90 fits completed and passing early-stopping sanity checks — but **the evaluate step to produce test-set metrics from these fits was never run** (confirmed: no later log entry closes this out; `jobs/evaluate_stage4_fix.sh` exists locally, untracked, suggesting this is mid-fix, not finished). The external reviewer's suggested "eight split-seed comparison" does not match this project's design either way — 5 seeds were run, not 8, and even those 5 are unevaluated. State plainly in the dissertation: seed-level stability evidence for the no-env DNN/PINN comparison is pending, not missing by oversight.
-One exclusion already known from Stage 4: all 15 `temporal`/4survey runs (every seed and arm) show 0% validation-loss improvement from epoch 1 — a genuine train/val collapse from that cell's narrow 2-year training window, not a bug — excluded from any future seed-averaged table.
+**Seed variation / stability — resolved.** 5 seeds (42–46) × 3 arms (DNN, PINN tuned, PINN zero-physics, plus a dedicated 5-seed PINN(w=1) rerun) now exist for `spatial_block` and `temporal`, on matched cluster hardware. `temporal`/4survey's known train/val collapse (0% improvement from epoch 1, every seed and arm) remains excluded from the seed-averaged table — a genuine data-limitation, not a bug.
 
-**Five-fold spatial CV for the no-env comparison — [gap, not yet available].** Five-fold CV was run for the env-conditioned models (§5.4) and both attribution avenues (§5.5, §5.6), but not for this core no-env DNN vs. PINN comparison — it rests on the single `spatial_block` split plus the (unevaluated) Stage 4 seeds. Flag as the strongest single addition that would strengthen §5.2 specifically.
+**Five-fold spatial CV for the no-env comparison — still a gap.** Seed variance (above) and fold variance (different held-out compartments) are different, non-substitutable sources of uncertainty — see methodology §4.9's discussion. This comparison now has proper seed evidence; it still has never been run under 5-fold CV. Flag as the strongest remaining addition for `pinn_noenv`/`dnn_noenv` specifically.
 
 **Observed-vs-predicted plots — [Appendix / gap].** Not yet produced for the no-env comparison; instrumentation exists (per-run predictions are saved) but the plot itself hasn't been drawn.
 
@@ -67,7 +66,7 @@ Error breakdowns by age, height, survey interval, thinning/disturbance group, an
 
 1. **Did it run correctly?** Yes — 90/90 Stage 4 fits completed, all pass early-stopping sanity checks (§5.2).
 2. **Did it affect optimisation?** A robustness check (2026-07-17, loosened early-stopping patience, ~2× training) confirmed the base comparison's result wasn't a premature-stopping artefact for either model. One incidental finding: DNN/4survey shows a persistent overfitting climb that only softens, not resolves, with more training — diagnosed as a data limitation, not a tuning one. No experiment was specifically designed to isolate "does the physics loss change convergence dynamics" as its own question — this remains **not directly tested**, distinct from claim 3 below.
-3. **Did it reliably improve test prediction?** No — full weight hurts (§5.2); the tuned weight doesn't beat the zero-physics control either (§5.2).
+3. **Did it reliably improve test prediction?** No, and more precisely than "no" — full weight (`w=1`) causes a statistically confirmed *deficit* in 3 of 4 settings (§5.2); the tuned weight is statistically indistinguishable from the zero-physics control in all 4 settings, neither helping nor hurting (§5.2). Physics conditioning here is either neutral or harmful, never beneficial, at any weight tested.
 4. **Did it improve biological behaviour?** Answered separately in §5.3.3, not assumed from claims 1-3.
 
 #### 5.3.2 Optimisation and stability
@@ -88,12 +87,19 @@ Error breakdowns by age, height, survey interval, thinning/disturbance group, an
 ### 5.4 Did environmental information improve prediction or explain spatial errors?
 
 - `dnn_env_terrain` (terrain/wind concatenated into the main network) vs. `dnn_noenv`, and `pinn_env_terrain`/`pinn_env_terrain_k` (terrain/wind conditioning `y_max`/`k` only, via a side network — §4.2's two-mechanism distinction) vs. `pinn_noenv`: env-conditioned sweep results (E6/E7/E9, §4.4) — feature-tier sweep does not show `stage4_all_environmental` clearly beating smaller tiers; dropout shows no clear benefit; **4survey** E7 winners hold within noise under E9's five-fold confirmation, **6survey** winners were optimistic by 0.03-0.05 R² on the single-split E7 estimate — a real four-survey/six-survey divergence in reliability, not magnitude.
-- On raw accuracy, PINN variants (env-conditioned) are roughly on par with, or slightly behind, plain DNN — this comparison carries an unresolved batch-size confound (`dnn_env_terrain=512` vs `pinn_env_terrain*=256`, §4.2/§4.4) not yet controlled for, so treat as suggestive, not confirmed.
+- **Batch-size question resolved (2026-08-09) — was never actually a confound.** Checked `outputs/run_logs/` directly: every established fit behind these numbers already used `--batch-size 256` for all three env-conditioned models via explicit CLI override; `dnn_env_terrain.py`'s file-level default of 512 was never actually used in any cited comparison. Methodology §4.2/§4.4 corrected accordingly.
+- **On raw accuracy — now confirmed with proper 5-seed evidence, batch-size matched, same cluster hardware:**
+
+| Cohort | `dnn_env_terrain` mean±SD | `pinn_env_terrain` mean±SD | `pinn_env_terrain_k` mean±SD |
+|---|---:|---:|---:|
+| 4survey | 0.6361±0.0101 | 0.5829±0.0023 | 0.5832±0.0036 |
+| 6survey | 0.7372±0.0033 | 0.7296±0.0029 | 0.7307±0.0009 |
+
+Pairwise significance (paired-t, n=5 seeds): 4survey — `dnn_env_terrain` beats `pinn_env_terrain` (diff=+0.0532, p=0.0004) and `pinn_env_terrain_k` (diff=+0.0530, p=0.0002); the two PINN variants don't differ from each other (p=0.91). 6survey — same pattern, smaller margin, still significant (p=0.0158, p=0.0111); PINN vs. PINN-k again no difference (p=0.50). **`dnn_env_terrain` significantly and consistently beats both PINN-with-terrain variants in both cohorts — physics conditioning hurts accuracy in the env-conditioned family too, mirroring §5.2's no-env finding. `k`-conditioning adds nothing over `y_max`-only conditioning, in either direction.**
 - Residual Moran's I across the env-terrain variants: see §5.2.1 — all neural variants (env-conditioned or not) beat CR's residual autocorrelation; no env-vs-no-env split was found specifically isolated within that comparison. **[gap]**
 - Environmental subgroup error breakdowns — **[gap, not yet available]**, same status as §5.2.1's no-env breakdowns.
-- Fairness limitation: the unmatched batch size above is the one concrete, disclosed limitation on this section's model-family comparison.
 
-**Reading:** environmental conditioning's predictive value is inconsistent across cohorts and unconfirmed as clean evidence given the batch-size confound. Combined with §5.2.1's finding that meaningful spatial residual structure remains even after adding environment, this motivates asking the attribution question directly rather than continuing to search for the right predictive architecture — which is exactly what Avenue 1 and Avenue 2 do next.
+**Reading, corrected:** environmental conditioning's predictive value is inconsistent across cohorts, and now cleanly confirmed (not just suggestive) that PINN-with-terrain underperforms DNN-with-terrain in both cohorts — a genuine, well-powered accuracy cost from physics conditioning, not a batch-size artefact. Combined with §5.2.1's finding that meaningful spatial residual structure remains even after adding environment, this motivates asking the attribution question directly rather than continuing to search for the right predictive architecture — which is exactly what Avenue 1 and Avenue 2 do next.
 
 ### 5.5 Avenue 1 — which factors align with shared-curve (`mean_cr_residual`) departures?
 
@@ -171,8 +177,8 @@ Residual spatial autocorrelation stays high (Moran's I range 0.66-0.74, "~0.70")
 
 | Question | Main answer | Evidence strength |
 |---|---|---|
-| Which approach predicts height most reliably? | RF loses its plot-level advantage under spatial holdout (linear wins spatial_block among baselines); DNN beats full-weight PINN in all 4 cohort×split combinations tested | Strong for DNN>PINN(w=1); baseline table incomplete (§5.1 gap) |
-| Did the CR constraint improve prediction? | No reliable held-out gain — full weight hurts, tuned weight doesn't beat the zero-physics control | Strong, but seed/CV evidence still pending (§5.2 gaps) |
+| Which approach predicts height most reliably? | RF loses its plot-level advantage under spatial holdout (linear wins spatial_block among baselines); DNN beats full-weight PINN in 3 of 4 cohort×split combinations (indistinguishable on 4survey/spatial_block); `dnn_env_terrain` beats both PINN-with-terrain variants in both cohorts | Strong, 5-seed confirmed for both comparisons; baseline table incomplete (§5.1 gap) |
+| Did the CR constraint improve prediction? | Dose-response, not flat null: full weight (w=1) causes a confirmed deficit in most settings; tuned/near-zero weight is statistically indistinguishable from no physics at all, in every setting | Strong, 5-seed confirmed (§5.2); fold-CV for this comparison still pending |
 | Did physics improve biological behaviour? | One specific, real effect found (env-conditioned `y_max`/`k` sign-flip); broader monotonicity/plausibility checks unresolved | Narrow — do not generalise beyond the one finding |
 | Did environmental predictors improve prediction? | Inconsistent across cohorts; accuracy comparison carries an unresolved batch-size confound | Mixed / not fully confirmed |
 | What aligned with shared-curve residuals (Avenue 1)? | Environmental and especially management information — real, statistically supported for 4survey | Useful, cohort-limited |
@@ -184,7 +190,8 @@ Residual spatial autocorrelation stays high (Moran's I range 0.66-0.74, "~0.70")
 ### Known gaps carried forward (not fabricated, not silently dropped)
 
 - Baseline table incomplete: CR/`average_by_age` `spatial_block` R² not yet pulled (§5.1).
-- No-env DNN/PINN: seed-averaged test metrics not yet evaluated (Stage 4 fit-complete, eval pending); no 5-fold CV run for this specific comparison (§5.2).
+- No-env DNN/PINN: seed variance now resolved (§5.2); no 5-fold CV run for this specific comparison still pending — seed and fold variance are different things, closing one doesn't close the other.
+- Env-conditioned family: batch-size question resolved (was never real) and 5-seed accuracy now resolved (§5.4); the `y_max`/`k` sign-flip finding (§5.3.3) is still single-run-per-cohort (pooled 5-fold, not reseeded) — a real, still-open reseed check, cheaper than the accuracy fix was, not yet done.
 - Error-by-subgroup breakdowns (age, height, interval, thinning, spatial fold) not computed for either the no-env or env-conditioned comparisons (§5.2.1, §5.4).
 - Optimisation-specific diagnostics (component-loss comparison plot, convergence-dynamics test) not compiled (§5.3.2).
 - Avenue 2 target reliability figures (exclusion counts, distribution, confounding sensitivity) not consolidated (§5.6.1).

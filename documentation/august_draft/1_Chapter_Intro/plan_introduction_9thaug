@@ -1,0 +1,60 @@
+Order is intro -> related work -> Data --> Methodology --> Results --> Conclusion
+
+date indicates when i made the file, or date of the version
+
+%=======================================================================================
+\chapter{Introduction}
+\section{Motivation}
+
+\paragraph{Digital twin work and aim for forestry}
+why forest are important 
+overall goal on digital twin and what that is useful for, (get inspo from diss about trees irfran) 
+- Why modelling forest growth matters. 
+- Why Sitka spruce is relevant to UK forestry. 
+- Why repeated LiDAR and environmental data may be useful. 
+
+\paragraph{Current method of mapping growth in scotland - static lookup tables}
+- The broad limitation of conventional growth curves. (Interpretable but limited local flexibility, and one value cant describe every area, they are average numbers, typically based on other records, from average stats from across the UK and europe.) 
+- Mention that top height is used to calculate volume and yldc = productivy of an area, converts into financial decision and management decisions (all possibly based on a static number that doesn't reflect the site or area) 
+%TODO: Juan: ask what is currently being used (static number from where) 
+
+\paragraph{Rough recap of previous works on pinns}  to bridge the gap between ecological theory and real life observations based on data, good in between. 
+- Explain how DNN dont always work (pros and cons)
+- the benefits of pinns (flexibility and CR guidance as its a know ecological equation that describes the general relationship (more general to forestry has proved useful)) 
+- The central uncertainty: whether adding Chapman–Richards information improves prediction under spatially honest evaluation 
+%TODO: cite-general: cite work on the PRELES, and 3pg-lstm, and 
+
+\paragraph{Current research gap} Pinns havent been used for forest growth commonly (check if this is true), and in this type of forest (releatively small, cite other example where it was bigger and more data). working with spatial data needs special consideration to not inflate results) 
+Random splits may exaggerate performance with spatial data
+Pooled prediction alone does not explain persistent differences between plots
+
+%NOTE:  do not assume complex model superiority, Copy tree-species report: explain forestry problem before technical model detail
+
+%------------------------------------------------
+\section{Objectives}
+The general concepts: growth curves, PINNs, residual attribution and spatially varying models
+%TODO: writing: plan how this fits into intro, but it should explain roughly the questions we are looking at in the method, and thus shape the objectives of the dissertation
+This study first compared statistical, machine-learning and physics-informed models for predicting Sitka spruce top height. It then investigated whether terrain, wind, climate and management information helped account for spatial variation not represented by a common growth relationship. Two complementary attribution approaches were used. The first examined persistent residuals around a shared Chapman–Richards curve, while the second examined differences between locally fitted and expected plot-level growth trajectories. (%TODO:writing? maybe but the earlier sentences are likely already above, so this section, or sentence or paragraph short is a summary of the different things we did (the 4 questions we answered in the methodology) 
+
+%------------------------------------------------
+\paragraph{Numbered objectives list, clear}
+- curate data set, clean and check for errors 
+- add and look at useful environmental variables and online datasets 
+- Compare CR, conventional ML, DNN and PINN prediction
+
+- Test spatial generalisation; temporal extrapolation as supporting analysis
+
+- Test physics-loss strength, including zero-physics control
+
+Avenue 1: identify spatially learnable departures from a pooled CR curve, highlight areas of unexplained growth, attribution, explainable AI (shap), 
+
+Avenue 2: test whether environment/management align with local curve deviation, trajectory analysis per area, attribution, explaianble AI(shap)
+
+%TODO: writing: ==== redo objectives at the end based on what gets talked about in results and evaluations, redo the plain or different objectives (they can be big objectives, with subobjectives for bits we spent more time on), different models etc. (mozambique example) 
+
+
+%------------------------------------------------
+\section{Main result}
+If there is space and it fits, explain the main results, (strong results, other findings, PINN not outperforming DNN and why, other results that are general and could apply to new studies, without being specific with method or data set up, but could outline data issues general here, CR constraint. 
+End with contributions and chapter map (or rough outline of report) like forest dissertation. 
+
