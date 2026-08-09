@@ -3666,3 +3666,70 @@ converging evidence -- weaker than a bootstrap CI, but real. Do not claim 6surve
 pattern. If a stronger claim is needed later, the next step is a compartment-cluster bootstrap
 matching Avenue 2's method, once per-compartment predictions exist on disk.
 and a more precise one to write down.
+
+---
+
+**2026-08-09 — Q: `pinn_noenv(w=1)` and the env-conditioned family's accuracy comparison both
+rested on single, unreplicated runs -- do either finding survive proper 5-seed evidence, and does
+fixing the (suspected) env-conditioned batch-size mismatch change anything?**
+
+**What I found, part 1 (batch size):** the suspected `dnn_env_terrain=512` vs
+`pinn_env_terrain*=256` mismatch is not real. Checked `outputs/run_logs/` directly for the actual
+established fits -- every one already used `--batch-size 256` via explicit CLI override;
+`dnn_env_terrain.py`'s file-level default of 512 was never used in any cited comparison. No code
+changed. Methodology §4.2/§4.4 corrected to state this plainly.
+
+**What I found, part 2 (seed noise is real and large):** while preparing the `pinn_noenv(w=1)`
+rerun, found that `dnn_noenv` fit twice with identical code, identical seed (42), on two different
+cluster nodes (`opencast` vs `saxa`) gave R²=0.633 vs R²=0.534 -- a ~0.1 R² swing from GPU training
+non-determinism alone, nothing else different. This means every single-run comparison in the
+no-env and env-conditioned families up to this point was a noisy point estimate, not a stable
+result.
+
+**What I found, part 3 (results, 5 seeds each, matched hardware):**
+
+`pinn_noenv(w=1)` vs `dnn_noenv` (seeds 42-46, corrected split-matched anchor):
+| Cohort | Split | DNN mean±SD | PINN(w=1) mean±SD | paired-t p |
+|---|---|---:|---:|---:|
+| 4survey | spatial_block | 0.5777±0.0290 | 0.5772±0.0018 | 0.9715 (no difference) |
+| 4survey | temporal | 0.3500±0.0062 | 0.2812±0.0065 | 0.0001 (real deficit) |
+| 6survey | spatial_block | 0.7460±0.0015 | 0.7316±0.0012 | 0.0001 (real deficit) |
+| 6survey | temporal | 0.2431±0.0258 | 0.1924±0.0212 | 0.0333 (real deficit) |
+
+Same 5 seeds also resolved the tuned (`pw=0.1`) vs zero-physics (`0/0` control) comparison, which
+had never been evaluated before this session: no significant difference between tuned, control, or
+DNN in any of the 4 cells (all paired-t p > 0.2, most > 0.6) -- the earlier Stage 3 single-run
+claim ("control beats tuned") does not survive seed-averaging.
+
+Env-conditioned family, batch-size-matched, 5 seeds each, `spatial_block`:
+| Cohort | `dnn_env_terrain` | `pinn_env_terrain` | `pinn_env_terrain_k` |
+|---|---:|---:|---:|
+| 4survey | 0.6361±0.0101 | 0.5829±0.0023 | 0.5832±0.0036 |
+| 6survey | 0.7372±0.0033 | 0.7296±0.0029 | 0.7307±0.0009 |
+
+`dnn_env_terrain` beats both PINN-with-terrain variants in both cohorts (4survey: p=0.0004,
+p=0.0002; 6survey: p=0.0158, p=0.0111). `pinn_env_terrain` vs `pinn_env_terrain_k`: no difference
+in either cohort (p=0.91, p=0.50).
+
+Raw data: `outputs/spatial_block/dnn_pinn_w1_anchorfix_5seed_{folds,summary}.csv`,
+`outputs/spatial_block/env_terrain_batchfix_5seed_{folds,summary}.csv`.
+
+**What's working:** a clean, well-powered dose-response story now replaces two separate
+single-run claims. Full-weight physics (`w=1`) causes a real, confirmed deficit in most (not all)
+settings; reduced-to-zero weight removes that harm entirely, landing statistically indistinguishable
+from plain DNN. The env-conditioned family shows the same qualitative pattern -- physics
+conditioning costs accuracy, `k`-conditioning adds nothing extra either way -- now with real
+significance behind it instead of a suggestive, batch-size-confounded comparison.
+
+**What's not working / open gap:** the `y_max`/`k` sign-flip finding (`pinn_env_terrain_k`,
+biological-behaviour claim) is still single-run-per-cohort (pooled 5-fold, not reseeded) -- same
+risk category just demonstrated as real elsewhere in this project, not yet checked here. Fold
+variance (5-fold CV) for the no-env `pinn_noenv`/`dnn_noenv` comparison is still not done -- seed
+variance and fold variance are different, non-substitutable things; this session closed the former,
+not the latter.
+
+**What this means for what's next:** `results_chapter_draft.tex` §5.2 and §5.4 updated in place
+with the corrected tables and conclusions. `PENDING_pinn_w1_5seed_update.tex` and
+`PENDING_env_terrain_batchfix_5seed.tex` marked resolved, safe to delete. If further seed-noise
+checks are worth the compute, the `y_max`/`k` reseed is the next highest-value target -- it is a
+currently-cited claim, not just an undrafted gap.

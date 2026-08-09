@@ -33,7 +33,7 @@ THINNING_STATUS_CATEGORIES = [
 ]
 
 
-def encode_features(df, encoded_column_names=None):
+def encode_features(df, feature_columns=None, encoded_column_names=None):
     # Turn thinning_status (a category like "never_thinned") into separate
     # 0/1 columns a linear model can use.
     #
@@ -55,7 +55,15 @@ def encode_features(df, encoded_column_names=None):
     # column of 0s here (fill_value=0), and a category not seen during
     # training is simply dropped, so the model never sees an unexpected
     # column at prediction time.
-    encoded = df[FEATURE_COLUMNS].copy()
+    #
+    # feature_columns defaults to the plain FEATURE_COLUMNS (Age + management only), matching
+    # every existing baseline result exactly. Pass an extended list (e.g. FEATURE_COLUMNS +
+    # terrain/wind columns) to test whether adding the same environmental information the
+    # neural models see closes any of their gap over this baseline -- added 2026-08-09 for that
+    # specific check, see models/baselines/run_baselines_env.py.
+    if feature_columns is None:
+        feature_columns = FEATURE_COLUMNS
+    encoded = df[feature_columns].copy()
     encoded["thinning_status"] = pd.Categorical(encoded["thinning_status"], categories=THINNING_STATUS_CATEGORIES)
     # time_since_thinning is NaN for plots that have never been thinned (time_since_thinning_missing
     # is True for those rows) -- LinearRegression can't handle NaN directly, so fill it with 0 here,
@@ -69,8 +77,9 @@ def encode_features(df, encoded_column_names=None):
     return encoded
 
 
-def fit(train_df, target_col="elev_percentile_95th"):
-    encoded_train = encode_features(train_df)
+def fit(train_df, target_col="elev_percentile_95th", extra_feature_columns=None):
+    feature_columns = FEATURE_COLUMNS + list(extra_feature_columns or [])
+    encoded_train = encode_features(train_df, feature_columns=feature_columns)
 
     model = LinearRegression()
     model.fit(encoded_train, train_df[target_col])
@@ -83,6 +92,7 @@ def fit(train_df, target_col="elev_percentile_95th"):
     return {
         "intercept": float(model.intercept_),
         "coefficients": coefficients,
+        "feature_columns": feature_columns,
         "encoded_column_names": list(encoded_train.columns),
     }
 
@@ -93,7 +103,13 @@ def predict(df, params):
     # linear model's saved output as simple as Chapman-Richards' params.json
     # or average-by-age's lookup.json, since linear regression has nothing
     # else worth checkpointing.
-    encoded = encode_features(df, encoded_column_names=params["encoded_column_names"])
+    #
+    # feature_columns falls back to plain FEATURE_COLUMNS for params saved before this key
+    # existed (2026-08-09) -- keeps every existing saved params.json loadable unchanged.
+    encoded = encode_features(
+        df, feature_columns=params.get("feature_columns", FEATURE_COLUMNS),
+        encoded_column_names=params["encoded_column_names"],
+    )
 
     predicted = pd.Series(params["intercept"], index=encoded.index)
     for column_name, coefficient in params["coefficients"].items():
@@ -109,6 +125,7 @@ def save_params(params, cohort, n_rows_fit, output_path):
     result = {
         "intercept": params["intercept"],
         "coefficients": params["coefficients"],
+        "feature_columns": params.get("feature_columns", FEATURE_COLUMNS),
         "encoded_column_names": params["encoded_column_names"],
         "cohort": cohort,
         "n_rows_fit": n_rows_fit,

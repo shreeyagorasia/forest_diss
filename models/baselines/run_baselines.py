@@ -310,9 +310,12 @@ def fit_rf_baseline_logged(cohort, split_type, split_assignment, split_seed=SEED
     )
     try:
         rf_train_df = load_train_rows(cohort, "rf_baseline", split_assignment, maturity_age_min=maturity_age_min)
-        rf_model, rf_encoded_column_names = fit_rf_baseline(rf_train_df)
+        rf_model, rf_encoded_column_names, rf_feature_columns = fit_rf_baseline(rf_train_df)
         rf_output_dir = output_dir(f"rf_baseline{name_suffix}", cohort, split_type=split_type)
-        rf_model_path = save_rf_model(rf_model, rf_encoded_column_names, cohort, len(rf_train_df), rf_output_dir)
+        rf_model_path = save_rf_model(
+            rf_model, rf_encoded_column_names, cohort, len(rf_train_df), rf_output_dir,
+            feature_columns=rf_feature_columns,
+        )
         print(f"  RF baseline model saved -> {rf_model_path}")
 
         write_run_log(

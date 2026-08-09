@@ -28,13 +28,20 @@ CATEGORICAL_COLUMNS = ["thinning_status"]
 assert_no_split_columns_in_features(FEATURE_COLUMNS, "rf_baseline")
 
 
-def prepare_features(df, encoded_column_names=None):
+def prepare_features(df, feature_columns=None, encoded_column_names=None):
     # time_since_thinning is NaN for plots that have never been thinned
     # (time_since_thinning_missing is True for those rows). A random forest
     # cannot handle NaN directly, so fill it with 0 here — the missing flag
     # is what actually tells the model "this plot was never thinned",
     # the filled 0 is just a placeholder value the tree splits can ignore.
-    features = df[FEATURE_COLUMNS].copy()
+    #
+    # feature_columns defaults to plain FEATURE_COLUMNS (Age + management only) -- pass an
+    # extended list (e.g. + terrain/wind columns) to give this baseline the same environmental
+    # information the neural models see. Added 2026-08-09, see
+    # models/baselines/run_baselines_env.py.
+    if feature_columns is None:
+        feature_columns = FEATURE_COLUMNS
+    features = df[feature_columns].copy()
     features["time_since_thinning"] = features["time_since_thinning"].fillna(0)
 
     # thinning_status is a category (like "never_thinned"), not a number -- one-hot encode it
@@ -52,23 +59,24 @@ def prepare_features(df, encoded_column_names=None):
     return features
 
 
-def fit(train_df, target_col="elev_percentile_95th", n_estimators=100, seed=42):
+def fit(train_df, target_col="elev_percentile_95th", n_estimators=100, seed=42, extra_feature_columns=None):
     # sklearn defaults otherwise (no tuning yet) -- this is a baseline
     # reference point, not a tuned model.
-    features_train = prepare_features(train_df)
+    feature_columns = FEATURE_COLUMNS + list(extra_feature_columns or [])
+    features_train = prepare_features(train_df, feature_columns=feature_columns)
 
     model = RandomForestRegressor(n_estimators=n_estimators, random_state=seed)
     model.fit(features_train, train_df[target_col])
 
-    return model, list(features_train.columns)
+    return model, list(features_train.columns), feature_columns
 
 
-def predict(df, model, encoded_column_names):
-    features = prepare_features(df, encoded_column_names=encoded_column_names)
+def predict(df, model, encoded_column_names, feature_columns=None):
+    features = prepare_features(df, feature_columns=feature_columns, encoded_column_names=encoded_column_names)
     return model.predict(features)
 
 
-def save_model(model, encoded_column_names, cohort, n_rows_fit, output_dir):
+def save_model(model, encoded_column_names, cohort, n_rows_fit, output_dir, feature_columns=None):
     # Unlike Chapman-Richards, average-by-age, and linear regression, a
     # fitted forest is hundreds of decision trees -- there is no small set
     # of numbers that can rebuild it, so the actual fitted model is saved
@@ -92,7 +100,7 @@ def save_model(model, encoded_column_names, cohort, n_rows_fit, output_dir):
     metadata = {
         "n_estimators": model.n_estimators,
         "joblib_compress": 3,
-        "feature_columns": FEATURE_COLUMNS,
+        "feature_columns": feature_columns if feature_columns is not None else FEATURE_COLUMNS,
         # The one-hot encoded column names actually seen at fit time (thinning_status expands
         # into several columns, one dropped) -- predict() needs this exact list to align a new
         # dataset's columns, the same reason linear_baseline saves encoded_column_names.

@@ -1,0 +1,44 @@
+%=======================================================================================
+\chapter{Related Work and Background}
+
+\section{Forest Growth and Chapman richards equation}
+- top height, age (being main driver), yield class and stand development;
+- biotic vs abiotic factors effecting growth (cause cocnsitent changes to growth, or deviations, trees do recover however and jump back to normal growth, or completely stagnate and enter a different growth trajectory) 
+- why lidar data could be useful 
+- broad influences of climate, terrain and management (satellite data);
+%NOTE: question: are the envirnomental data sources mostly lidar or others?
+- Chapman–Richards curve and parameters; (sigmoidal growth, say the equation and what the parameters are ymax: asymptote; k: growth rate; p: shape.
+- connection to yield class and site index curves? biological interpretation of its shape, volume connection 
+- strengths of CR, biolically plausible general form, 
+- Cons of this model, pooled curve hides local heterogeneity, parameter uncertainty and ymaxk trade off? 
+- why its relevant 
+
+
+%------------------------------------------------
+\section{Data driven and physics guided}
+- Previous machine-learning approaches to forest prediction.
+- Evidence comparing ML with conventional models.
+- Physics-informed and hybrid approaches.
+- Whether physical constraints improve prediction or mainly improve consistency.
+- Importance of comparing a PINN with a physics-disabled DNN.
+- How this literature motivates your CR–DNN–PINN comparison.
+
+
+%------------------------------------------------
+\section{Spatial evaluation and growth attribution}
+- Why spatial dependence can make random validation optimistic.
+- Previous use of spatial validation and Moran’s I.
+- Previous work relating growth variation to environmental and management factors.
+- Local or geographically weighted approaches relevant to GNNWR.
+- How this motivates your spatial evaluation and two attribution avenues.
+
+
+%------------------------------------------------
+\section{Research gap and study position}
+A short synthesis:
+- What previous studies establish.
+- What remains uncertain.
+- What your experiments test differently.
+
+
+ 
