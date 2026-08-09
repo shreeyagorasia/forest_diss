@@ -3407,3 +3407,262 @@ notebook trace of that derivation is ever needed.
 the first place (which data change, when) wasn't identified and isn't worth chasing further now
 that the fresh rerun confirms the current pipeline produces the numbers already trusted in the
 ledger -- the practical fix (rerun and overwrite) is done; a forensic one isn't necessary.
+
+---
+
+**2026-08-08/09 — Q: `tas_mean`/`groundfrost_mean` (HadUK-Grid climate) were permanently excluded
+from every `dnn_env_terrain`/`pinn_env_terrain`/`pinn_env_terrain_k` feature-set tier since
+2026-08-03 as a workaround for a cohort-suffix resolution bug -- fixed properly, verified, and the
+`stage4_all_environmental` tier re-run for real.**
+**What I found:** `load_split_table_with_terrain()` and `build_pair_terrain_tensor()` (the second
+site, used only by the PINN variants' trajectory-pair physics-loss term, not previously documented
+as affected) in `models/common/torch_data.py` both did a raw, unsuffixed column lookup against the
+environmental export, which stores HadUK-Grid climate as cohort-suffixed pairs
+(`tas_mean_4survey`/`_6survey`). A plain `"tas_mean"` in `feature_columns` KeyErrored, so every
+tier permanently excluded it instead of the loader being fixed. Avenue 1
+(`xgb_environmental/data.py`) and Avenue 2 (`growth_curve_attribution/broad_environmental_check.py`)
+each have their own, separate loader that already resolved this correctly -- confirmed by direct
+code read, never affected.
+**What's working:** Added `_resolve_cohort_suffixed_columns()`, a generic helper (resolves ANY
+column with a cohort-suffixed counterpart, not hardcoded to the 2 known names -- a grep of the
+export found 5 more latent cohort-suffixed columns: `rainfall_mean`, `sfcWind_mean`, `sun_mean`,
+`tasmax_mean`, `tasmin_mean`, none currently used but now safe if they ever are). Wired into both
+bug sites. Added `tas_mean`/`groundfrost_mean` to `stage3_terrain_wind_plus`, `stage4_all_
+environmental` (31->33 cols), and `broad_legitimate` (27->29 cols, legacy tier). Verification, in
+order: (1) exact-match value diff of the resolved columns against Avenue 1's already-trusted
+`load_plots_for_cohort()` values, per cohort -- zero mismatches across ~57,682 (4survey) and
+~13,769 (6survey) plots; (2) same diff repeated against the actual unscaled tensor values inside
+`build_pair_terrain_tensor()`'s output (not just its shape) -- matched to floating-point precision
+(~5e-8, pure round-trip scaling error); (3) two 2-epoch smoke-test trainings (`dnn_env_terrain`,
+`pinn_env_terrain_k`, `stage4_all_environmental`) -- clean; (4) one extended 40-epoch confirmation
+run (`pinn_env_terrain_k`, the model touching the newly-parameterized `build_pair_terrain_tensor`)
+-- stable convergence, no instability (`val_loss` 0.4006->0.385 best, `physics_loss`/`trajectory_
+loss` both decreasing smoothly, no blow-up). Then re-ran the real 30-job `stage4_all_environmental`
+fit+evaluate (`jobs/rerun_stage4_fix.sh`, `jobs/evaluate_stage4_fix.sh`, both generated directly
+from `submit_experiments.py::build_stage_sweep_jobs()` to guarantee exact argument match) and
+pooled with `kfold_summary.py`. New, real, corrected pooled 5-fold `spatial_block_kfold` numbers:
+
+| Model | 4survey R2 [95% CI] | 6survey R2 [95% CI] |
+|---|---|---|
+| dnn_env_terrain | 0.6524 [0.6177, 0.6823] | 0.6532 [0.5946, 0.6948] |
+| pinn_env_terrain | 0.5780 [0.5475, 0.6083] | 0.7071 [0.6682, 0.7345] |
+| pinn_env_terrain_k | 0.5802 [0.5490, 0.6107] | 0.7082 [0.6710, 0.7343] |
+
+Sanity check against `stage2_terrain_wind` (terrain+wind only, never affected by the bug, already
+correct): `stage4_all_environmental`'s corrected numbers do NOT clearly beat `stage2_terrain_wind`
+for any model/cohort -- `dnn_env_terrain`/6survey is notably lower (0.6532 vs stage2's 0.7125, a
+real ~0.06 drop, CIs barely overlapping), the rest are flat-to-marginally-lower. Adding the full
+climate/soil/edge bundle, now that climate is genuinely present in it, still does not outperform
+terrain+wind alone -- a real finding, not an artefact of the bug (this is what the corrected,
+verified data actually shows), consistent with E6's own framing question ("does multicollinearity
+start hurting past a point").
+**What's not working / open gap:** `E10_e7_winner_tier_sweep`'s `stage4_all_environmental` portion
+(20 of its 60 jobs -- `dnn_env_terrain`+`pinn_env_terrain_k` only, both cohorts, 5-fold, run names
+suffixed `_e7winner_`) was run BEFORE this fix, timestamped ~2026-08-08 22:13-22:17 -- those
+checkpoints/metrics are stale (pre-fix, missing climate) and are NOT being re-run. E10 as a whole
+has been dropped from the dissertation plan (hyperparameter-tuning content excluded for time), so
+this stale slice is left in place, unused, rather than deleted or redone -- flagged here so it
+isn't mistaken for a valid result if anyone finds it later. `stage3_terrain_wind_plus` (0 prior
+runs) and the plot_level extension of the tier-sweep table remain un-rerun -- not requested this
+round.
+**What this means for what's next:** the ledger artifact's `E6_stage_sweep` table and its top
+feature-set summary table need updating with the corrected numbers above (in progress). The
+`stage4_all_environmental`-vs-`stage2_terrain_wind` non-improvement is worth a sentence in the
+Results/Discussion chapter, not just a table update -- it's the actual finding once the bug is
+fixed, not a null result to omit.
+
+---
+
+**2026-08-09 — Q: of the four questions this project is actually asking, which ones does the
+Split Results Ledger artifact answer, and where does each answer actually live? -- a reading
+guide, not a restructuring of the ledger itself (deliberately left alone; see reasoning below).**
+**What I found:** The four questions, and what currently answers each:
+1. *Which model predicts height best under fair held-out evaluation?* -- the ledger's
+   `spatial_block_kfold` table (the main test) plus its `plot_level`/`spatial_block`/`temporal`
+   variants, and the `E6_stage_sweep`/`E7_hyperparameter_sweep`/`E9_e7_winner_kfold`/
+   `E10_e7_winner_tier_sweep` sections (same question, different feature-set tiers/hyperparameters).
+   Answer as of the latest corrected numbers: no model wins outright across the board --
+   `dnn_env_terrain` and `pinn_env_terrain_k` trade the lead depending on cohort and feature-set
+   tier, and the corrected `stage4_all_environmental` numbers do not clearly beat
+   `stage2_terrain_wind` for any model/cohort (see this file's own entry directly above).
+2. *Does adding physics change optimisation, biological behaviour, or held-out prediction?* -- the
+   ledger's two Moran's I tables and the y_max/k correlation `icc-note`. Answer: not on raw
+   accuracy (PINN variants are roughly on par with or slightly behind plain DNN across every
+   split), but on behaviour, yes -- `pinn_env_terrain_k`'s learned y_max/k correlation flips sign
+   between cohorts (-0.5748 on 4survey, +0.2096 on 6survey), which is evidence against a fixed
+   architectural artefact (a real artefact would predict the same sign regardless of cohort) and
+   toward the correlation reflecting something real, if cohort-dependent, about how the two
+   physics-conditioned quantities trade off.
+3. *Avenue 1: what explains persistent spatial departure from a shared reference curve?* --
+   **not on the ledger at all.** This is the `mean_cr_residual`/NLME question, answered entirely in
+   `notebooks/spatial_analysis/av1_spatial_autocorrelation_terrain.ipynb`'s Section 3: 17 of 18
+   VIF-screened terrain/wind variables are individually significant, but the aggregate effect is
+   small (2.02% of compartment variance explained) -- real and broad, not concentrated in one
+   dominant variable, but not a large effect. No amount of re-labelling the ledger's tables would
+   make this question answerable there; it needs the notebook.
+4. *Avenue 2: what explains plot-level deviation from expected growth trajectory?* -- the ledger's
+   three Avenue 2 scope tables (`terrain_wind`, `terrain_wind_plus_management`,
+   `broad_environment_plus_management`). Answer: terrain/wind alone gives a modest, real R² (EN
+   ~0.13, XGBoost ~0.12, GNNWR ~0.14), improving further with management added (GNNWR ~0.32) --
+   but GNNWR's lead over Elastic Net/XGBoost is not statistically confirmed (a paired cluster
+   bootstrap's 95% CI on the R2 difference crosses zero in all 4 pairwise comparisons tested), and
+   residual Moran's I stays high (~0.70) even for the best model, meaning real spatial structure
+   is still left uncaptured by every model tested on this target.
+**What's working:** questions 1, 2, and 4 are each fully answerable from artifacts that already
+exist (the ledger for 1/2/4, the notebook for 3) -- nothing new needed to be computed for this
+entry, it's a pointer, not new analysis.
+**What's not working / open gap:** question 3 has no representation on the ledger, and after
+weighing it directly, that's being left as-is rather than force-fitted -- the ledger's own
+structure (organized by split-type/sweep, not by research question) is a genuine, working
+methodological reference for questions 1/2/4; bending it to also carry question 3, or to badge
+every table by which of the four questions it answers, was considered and rejected as adding a
+second, overlapping organisational axis on top of the toggle-based one just added, for a benefit
+(one-click navigation by question) that a dated log entry like this one already provides more
+honestly, including the "not answered here" case a forced badge system would have to either omit
+or fabricate a home for.
+**What this means for what's next:** if question 3 needs a persistent home to be cited alongside
+1/2/4, the right unit of work is a short, dedicated write-up of the NLME finding (or a pointer
+entry like this one, once that notebook's own results are next revisited), not a ledger edit.
+
+---
+
+**2026-08-09 — Q: is the second LLM-council's action list (re: the HadUK-Grid fix, 2026-08-08/09
+entry above) actually complete now, or still owed anything before the fix is trusted?**
+**What I found:** re-checked each item the council's chairman verdict named against what was
+actually done. (1) "Close the site-2 value gap, not just shape" -- done: the unscaled tensor
+values out of `build_pair_terrain_tensor()` were diffed against Avenue 1's trusted values directly
+(not just checking the tensor's column count), zero mismatch. (2) "Run one extended, not full-
+scale, confirmation on the highest-risk model before the 60-job sweep" -- done: 40-epoch
+`pinn_env_terrain_k`/`stage4_all_environmental` run, stable convergence, no instability. (3) "Keep
+the new temperature-isolation tier separate from the bug-fix submission" -- superseded, not just
+satisfied: the tier was dropped from the plan entirely (user's call, time constraint), so there's
+no bundling risk to manage. (4) "The one thing to do first" (wait for the extended run, check
+stability) -- done, and acted on: the real 30-job `stage4_all_environmental` fit+evaluate followed
+immediately after, not a separate future step.
+**What's working:** every item the council's chairman explicitly named is closed. Two residual
+items only peer review raised (not the chairman's core recommendation, so lower-priority, but
+worth recording as known-not-done rather than silently dropped): whether Avenue 1 itself (the
+"trusted source" every diff check compares against) has ever been independently re-validated --
+it hasn't been, this round; and pinning the exact git commit before the 30-job submission, so the
+smoke-tested code is provably what ran -- also not done (no commit was made before submission).
+**What's not working / open gap:** the two peer-review-only items above remain genuinely open, not
+resolved, not blocking. `E10`'s stale stage4 slice (flagged in the 2026-08-08/09 entry above)
+also remains as-is, by design, not an oversight.
+**What this means for what's next:** the council's own action list is fully discharged. If Avenue
+1's own correctness is ever in question later (e.g. from an unrelated future finding), that's a
+new, separate verification task, not a loose end from this one.
+
+---
+
+**2026-08-09 — Q: is the published results-ledger artifact itself (not just the underlying data)
+now correct -- number transcription, stale cross-references, colour/formatting logic? A council
+review plus direct mechanical checks.**
+**What I found:** direct grep/read checks (not guessing) caught 4 real issues before the council
+even ran: (1) all 6 corrected stage4 R2/RMSE/MAE/Bias/CI cells matched the source terminal output
+exactly -- verified, not a bug; (2) 3 sentences ("stage4 predates the fix" / "pending re-run") were
+stale relative to the just-completed 30-job re-run and were corrected; (3) a "1 bug found" stat-
+strip counter was stale (2 documented bugs now exist on the page) and was corrected to 2; (4) the
+top feature-set summary table's "Set 3c" row (a temperature-isolation tier that was coded but then
+explicitly dropped from the dissertation plan) had no indication it was abandoned -- a reader would
+assume results were coming. Ran a 5-advisor council on what a mechanical pass wouldn't catch;
+unanimous convergence (skipped the peer-review round given how clear the signal already was --
+cost/time tradeoff, not a shortcut on rigor): (a) the Set 3c row needed an explicit "CODED, NOT
+RUN -- dropped from plan" annotation, not deletion (erases a real, defensible scope decision) and
+not silence (misleads); (b) "verified" so far means source-text-correct, not render-correct --
+nobody has loaded the live page in a browser, so a JS-computed "best in column" highlight
+(`Math.max` per cohort column) or a two-session concurrent-edit artefact (orphaned tag, broken
+anchor) could still be wrong in ways grep can't see.
+**What's working:** all 4 mechanically-found issues fixed and republished. Set 3c annotated per
+the council's unanimous recommendation. Grepped specifically for any OTHER place on the page that
+might still cite the old (pre-fix) stage4 R2 values inline (e.g. a derived delta, a correlation
+callout) -- clean, none found; the one numeric coincidence (`0.5798`) belongs to `pinn_noenv`, an
+unrelated model.
+**What's not working / open gap:** no visual/browser render check has been done -- everything
+verified is HTML source text, not the rendered DOM. The council's own Contrarian/Outsider/Executor
+all independently flagged this as a real, not hypothetical, gap.
+**What this means for what's next:** load the published ledger URL in an actual browser (light and
+dark mode) and scroll the two edited tables plus the Set 3c row once, before treating this as
+fully closed -- everything else the council raised has either been checked directly or was
+confirmed clean.
+
+---
+
+**2026-08-09 — Q: re-audited the ledger's own prose for calibration in BOTH directions
+(overclaiming AND underclaiming), not just overclaiming -- found one real instance of each, fixed
+both, and ran a real significance test that had been skipped in favour of a weaker eyeballed one.**
+**What I found (overclaiming):** the HadUK-Grid fix callout had 3 defects: (1) a single 40-epoch
+extended-run check (`pinn_env_terrain_k`, 4survey only) was described as if it validated all 6
+model/cohort combinations, not just the one tested; (2) the stage4-vs-stage2 comparison paragraph
+escalated from properly hedged language ("does NOT clearly beat") to an unhedged one ("a real
+finding") within the same paragraph, even though only 1 of 6 comparisons actually moved
+meaningfully; (3) a leftover cross-reference elsewhere on the page still described the dropped
+`Set 3c` temperature-isolation tier as if it were being actively pursued, contradicting the
+"dropped, not run" annotation added earlier the same session.
+**What I found (underclaiming/miscalibration the other way):** calling `dnn_env_terrain`/6survey's
+stage4-vs-stage2 drop a "genuine regression" based on eyeballing that the two point estimates' own
+individual CIs barely overlapped was actually the WRONG kind of claim for this page's own
+standards -- this project already has an established, stricter method for exactly this comparison
+(paired cluster-bootstrap on the difference itself, same resample scoring both models each
+iteration, used for the Avenue 2 GNNWR-vs-baseline comparison via
+`models/common/bootstrap_ci.py`). Ran that proper test instead of leaving the claim as an
+eyeballed impression: merged `stage4_all_environmental_dnn_env_terrain` and
+`stage2_terrain_wind_dnn_env_terrain`'s pooled 6survey predictions on `identification` +
+`LiDAR_year` (validated 1:1, 82,614 rows -- first merge attempt on `identification` alone silently
+cartesian-blew-up to 495,684 rows from the six-survey-years-per-plot structure, caught by checking
+the row count against the known population size before trusting the result). R2 difference
+(stage4 minus stage2) = -0.0593, 95% CI [-0.0991, -0.0260], 2000 resamples over 47 compartments --
+the CI excludes zero, so this is a properly statistically confirmed regression, not a suggestive
+overlap. The informal eyeball had the right direction but the wrong justification.
+**What's working:** all 4 issues (3 overclaim, 1 under-justified claim now properly proven) fixed
+and republished. The artifact now states a stronger, more precise claim than before ("statistically
+confirmed regression" with a real CI on the difference) while everywhere else being more
+conservative about what's actually established (the single extended-run's scope, the other 5
+comparisons being untested rather than assumed null).
+**What's not working / open gap:** the same rigorous paired-bootstrap test hasn't been run for the
+other 5 model/cohort comparisons (deliberately -- their point estimates don't move enough to
+suggest it would find anything, so this is a scoping choice, not an oversight, but it does mean
+"indistinguishable from no effect" for those 5 is based on point-estimate movement only, not its
+own confirmed null result).
+**What this means for what's next:** if the DNN/6survey regression goes into the dissertation
+Discussion section, cite the confirmed difference and CI directly (-0.059 [-0.099, -0.026]), not
+the earlier eyeballed "CIs barely overlap" framing -- the real number is both stronger evidence
+and a more precise one to write down.
+
+---
+
+**2026-08-09 — Q: Avenue 1's `terrain_and_wind_only` vs `all_environmental` comparison
+(`cr_residual_environmental_spatial_cv.csv`, 2026-08-04) had a pooled OOF R2 gap but no
+significance test -- is the gap real or fold noise, using only what's already on disk (no
+retraining)?**
+**What I found:** a compartment-cluster bootstrap (Avenue 2's standard, `models/common/
+bootstrap_ci.py`) needs raw per-compartment predictions; none were saved for this run and no
+fitted model artifacts exist to rescore, so a bootstrap isn't possible without retraining, which
+was explicitly out of scope this session. What the existing CSV does have is the 5 fold-level R2
+values per scope/model (`per_fold_r2_values` column) -- enough for the weaker paired fold-level
+test (Wilcoxon signed-rank + paired t-test) this project already uses elsewhere (Avenue 2's
+GNNWR-vs-baseline check). Ran that.
+| Cohort | Model | Mean diff (all_env − terrain_wind) | Folds favouring all_env | Wilcoxon p | Paired-t p |
+|---|---|---:|---:|---:|---:|
+| 4survey | elastic_net | +0.145 | 5/5 | 0.0625 | 0.00045 |
+| 4survey | xgboost | +0.139 | 5/5 | 0.0625 | 0.00217 |
+| 6survey | elastic_net | +0.065 | 4/5 | 0.4375 | 0.43373 |
+| 6survey | xgboost | +0.049 | 4/5 | 0.1250 | 0.03648 |
+Saved to `outputs/spatial_block_kfold/cr_residual_environmental_paired_significance_folds.csv`
+(per-fold values) and `..._summary.csv` (per cohort/model summary above).
+**What's working:** 4survey shows full 5/5 directional agreement for both models, and the paired-t
+p-values are small and consistent (0.00045, 0.00217) despite Wilcoxon being floored at 0.0625 by
+n=5 -- convergent evidence the `all_environmental` gain is real for 4survey, not a fold-noise
+artefact. 6survey is not significant by either test and one fold flips sign for elastic_net --
+matches the cohort's existing null/underpowered framing, not a new finding.
+**What's not working / open gap:** this is a fold-level test, not a compartment-cluster bootstrap
+-- weaker evidence than Avenue 2's standard, because it treats the 5 fold R2 values as the unit of
+resampling rather than resampling compartments directly. A proper bootstrap would need the
+underlying per-compartment predictions re-saved, which requires rerunning evaluation (not
+necessarily retraining, if predict-only reruns from the same fitted hyperparameters are cheap
+enough) -- not done here by explicit scope decision (no more compute this session).
+**What this means for what's next:** cite the paired-t result (p=0.00045/0.00217, 5/5 folds) for
+4survey's `all_environmental` vs `terrain_and_wind_only` gap in the dissertation as real,
+converging evidence -- weaker than a bootstrap CI, but real. Do not claim 6survey shows the same
+pattern. If a stronger claim is needed later, the next step is a compartment-cluster bootstrap
+matching Avenue 2's method, once per-compartment predictions exist on disk.
+and a more precise one to write down.

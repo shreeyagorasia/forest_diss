@@ -1,0 +1,73 @@
+## Pending update: pinn_noenv(w=1) 5-seed rerun
+
+Status as of 2026-08-09: jobs written (`jobs/rerun_pinn_w1_anchorfix.sh`, `jobs/evaluate_pinn_w1_anchorfix.sh`),
+not yet run. Run on cluster, rsync `outputs/` back, then follow this checklist exactly. Delete this
+file once done and folded into the main results files.
+
+### Step 1 — extract the numbers (run after rsync)
+
+```python
+import json, statistics
+from pathlib import Path
+from scipy import stats
+
+root = Path("outputs")
+seeds = [42,43,44,45,46]
+
+def load_r2(split, run_name, cohort):
+    p = root / split / run_name / cohort / "metrics.json"
+    return json.loads(p.read_text())["r2"] if p.exists() else None
+
+# DNN's 5-seed values are already known (Stage 4, run_name=final_dnn_seed{seed}) -- reuse, don't rerun.
+for cohort in ["4survey", "6survey"]:
+    for split in ["spatial_block", "temporal"]:
+        dnn = [load_r2(split, f"final_dnn_seed{s}", cohort) for s in seeds]
+        w1 = [load_r2(split, f"final_pinn_w1_anchorfix_seed{s}", cohort) for s in seeds]
+        print(cohort, split)
+        print("DNN:", dnn, "mean", statistics.mean(dnn), "sd", statistics.stdev(dnn))
+        print("W1: ", w1, "mean", statistics.mean(w1), "sd", statistics.stdev(w1))
+        diffs = [d-w for d,w in zip(dnn,w1)]
+        print("mean_diff(DNN-W1)=", statistics.mean(diffs),
+              "wilcoxon_p=", stats.wilcoxon(dnn, w1).pvalue,
+              "paired_t_p=", stats.ttest_rel(dnn, w1).pvalue)
+```
+
+### Step 2 — exactly what to edit, and how
+
+**`results_chapter_draft.tex`, §5.2, the 4-row "Main result (Stage 2...)" table:**
+- **EDIT existing table** (same 4 rows, same shape) — replace `DNN test R²` / `PINN(w=1) test R²` single
+  values with `DNN mean±SD (n=5)` / `PINN(w=1) mean±SD (n=5)`. Rename column headers accordingly.
+  This is a value/header swap, not a new table.
+- **ADD a new small table right after it** (this does not exist yet) — paired significance, one row
+  per cohort×split: `mean_diff`, `wilcoxon_p`, `paired_t_p`. Model it exactly on the Avenue 1 paired
+  fold-level test table already in §5.5.2 / the tuned-vs-control table already resolved in §5.2.
+- **REWRITE the "Main conclusion" sentence** immediately below both tables — cannot be pre-written,
+  depends on the outcome:
+  - If no cell is significant → conclusion becomes "no reliable difference from DNN detected at any
+    physics weight tested, once seed variance is accounted for" (aligns with the tuned/control finding,
+    makes the whole physics-weight story internally consistent: no weight tested shows a confirmed effect).
+  - If some/all cells remain significant → conclusion becomes "a real deficit persists at full weight
+    in cells [list], but not [list]" — a genuine dose-response claim, properly powered this time.
+- **EDIT the top-of-§5 anchor caveat** — remove "the exact margins have not been re-run under the
+  corrected anchor" for the w=1 case specifically (now resolved, matching CUDA hardware, 5 seeds);
+  keep the general anchor-fix explanation as historical context.
+- **EDIT §5.7's synthesis table**, row "Which approach predicts height most reliably?" — evidence
+  strength and wording depend on the Step 1 outcome.
+- **REMOVE** from "Known gaps carried forward": the seed-variation gap for w=1 (now closed). **ADD**:
+  fold-variance (5-fold CV) for the no-env comparison is still not done — seed variance and fold
+  variance are different things (see the seed-vs-fold discussion this session); closing this gap
+  does not close that one.
+
+**`results_evaluation_current_findings.tex`, §5.1, "Experiment A — physics-weight ablation" bullet:**
+- **REPLACE** the single-run Stage 2 numbers and "full weight hurts in all 4 combinations" verdict
+  with the 5-seed mean±SD + significance outcome from Step 1.
+
+### Separately, still outstanding regardless of this cluster job
+
+The **tuned (pw=0.1) vs zero-physics (0/0) control** comparison already has clean, complete 5-seed
+CUDA-cluster evidence sitting in `outputs/` right now (from the Stage 4 evaluate run completed
+2026-08-09) — this does NOT depend on the pending cluster job above and could be written up
+immediately: no significant difference between tuned/control/DNN in any of the 4 cohort×split
+cells (see this session's paired-test output, not yet transcribed into either results file).
+Same table/rewrite locations as above, just for the tuned-vs-control row instead of the w=1 row.
+Do this whenever convenient — it's already computed, just not yet written into the artifact.

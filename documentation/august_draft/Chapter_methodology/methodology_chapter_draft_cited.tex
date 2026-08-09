@@ -1,0 +1,192 @@
+## 4. Methodology
+
+### 4.1 Experimental questions and overall design
+
+Four questions:
+1. Which model predicts held-out top height best?
+2. Does adding Chapman-Richards physics improve biological behaviour or held-out prediction? (two separate sub-claims — see §4.3/§4.4: each is answered by a *different* experiment, with different statistical power.)
+3. Which environmental/management conditions align with persistent spatial departure from a shared reference curve? (Avenue 1)
+4. Which conditions align with plot-level deviation from expected growth trajectory? (Avenue 2)
+
+Pipeline: rebuilt `elev_percentile_95th` target, `yldc` removed from the predictive pathway. `Top_Height99`/`yldc`-dependent work: exploratory, retired.
+
+Primary split: `spatial_block` (compartment-held-out). 60 m train buffer. Temporal splits: secondary only.
+Validation: tuning. Test: held back, single final comparison. Stronger confirmation: pooled five-fold compartment-held-out spatial CV.
+
+Terminology note: "environmental PINN" is not a third avenue. It refers to `pinn_env_terrain`/`pinn_env_terrain_k` — terrain/wind-conditioned predictive models, §4.2. Avenue 1 and Avenue 2 are the only attribution avenues.
+
+Outcomes of running this plan (accuracy numbers, ablation verdicts, significance results) are not in this chapter — see `Chapter_results_evaluation/results_evaluation_current_findings.tex` (§5).
+
+### 4.2 Predictive models
+
+**Classical baselines**, each a distinct floor, not tuned against each other:
+- `average_by_age`: lookup table, mean training-set height per rounded integer age; unseen ages fall back to overall training mean. No parametric form — floor for "does any model beat a naive age lookup."
+- `linear_baseline`: OLS on `Age, CanopyCover, Thin, time_since_thinning, time_since_thinning_missing, recent_thinning_5yr, thinning_status` (one-hot, `drop_first`, reference category `never_thinned`). Tests whether nonlinear capacity is needed at all.
+- Pooled Chapman-Richards curve — the mechanistic/physics floor itself (formula below).
+- `rf_baseline`: `RandomForestRegressor(n_estimators=100, random_state=42)`, sklearn defaults, explicitly untuned in code — reference point, not a competitive model.
+- All baselines guarded against split-column leakage (`cpmt`/`blk`/`scpt` never enter as features).
+
+**Chapman-Richards functional form** (as implemented, no `y0` term):
+`height = y_max * (1 - exp(-k * age))^p`
+Fit via `scipy.optimize.curve_fit`, 5 random initial-value restarts, lowest-SSE retained. Bounds: `y_max ∈ [1.001×max_obs, 5×max_obs]`, `k ∈ [0.0001, 2.0]`, `p ∈ [0.01, 15.0]`.
+Analytical derivative (used in PINN physics loss):
+`dheight/dage = y_max * p * k * (1-exp(-k*age))^(p-1) * exp(-k*age)`
+
+**Anchor leakage — fixed for the predictive pathway.** Pooled anchor (fit once, "plot_level" 60/40 random split) originally reused across every downstream split; that overlaps whichever plots a given split later calls test. Fix: CR refit per split_type, train-partition only (`spatial_block`/`temporal`/`temporal_narrow_gap` each get their own anchor), loaded back by split_type. All PINN physics-loss anchors now split-matched. (Measured size of the leak: Results §5.1.)
+Confirmatory step (2026-08-09): the Stage 2 `pinn_noenv(w=1)` vs. `dnn_noenv` comparison (§4.4, Experiment A) was rerun for all 4 cohort×split cells using this corrected split-matched anchor, replacing the original pooled-anchor fits, to check whether the anchor issue affects the comparison's direction. (Outcome: Results §5.1/§5.2.)
+Separate, still-open issue (not the leak fix): CR fit pools repeat-survey rows per plot as independent observations — no plot-level random effect in the curve fit itself.
+
+**Main neural models**: `dnn_noenv`, `pinn_noenv`, `dnn_env_terrain`, `pinn_env_terrain`, `pinn_env_terrain_k`.
+Shared base architecture (`NoEnvNetwork`): 3 hidden layers, 128 neurons, LeakyReLU, Adam (lr=1e-4, weight_decay=1e-5), gradient clip (max_norm=1.0), `ReduceLROnPlateau` (factor 0.8, patience 15), early stop on 5-epoch smoothed validation loss.
+
+`dnn_noenv` loss: `MSE(pred, target) + L1_penalty (coef 1e-5)`. No physics term.
+
+**Environment conditioning — two different mechanisms, not one.**
+- `dnn_env_terrain`: terrain/wind features concatenated directly into the main network's input (same architecture as `dnn_noenv`) — deliberate, so DNN sees the same information the PINN gets through physics, for a fair "does physics help" test.
+- `pinn_env_terrain`: main age network unchanged; terrain/wind reach the model only through a small side network (`YMaxSubNetwork`: 1 hidden layer, 16 units, LeakyReLU) producing an *additive* adjustment to the frozen anchor: `y_max_row = global_y_max + Δ_subnet(terrain)`. Design rationale (cited in code, Socha et al. 2021 ADA/GADA): environment sets the growth *ceiling*, not the trajectory shape.
+- `pinn_env_terrain_k`: adds a second, separate sub-network conditioning `k` *multiplicatively in log-space* to keep it positive: `k_row = global_k * exp(Δ_subnet(terrain))`. `p` stays global/frozen in every variant (metabolic-scaling-theory justification in code). Code explicitly flags the two sub-networks could become confounded (both driven by the same terrain inputs) — `freeze_y_max` ablation tests this directly (finding: Results §5.1).
+
+**Architecture diagrams (to be drawn; described here so a figure can be produced from this text alone).**
+- *Diagram 1 — `dnn_noenv`/`pinn_noenv`.* One box: input (age, +stand/management features) → 3 hidden layers × 128 units, LeakyReLU → output (height). For the PINN version only, add two side branches, both dashed (loss-only, not forward-prediction paths): (a) an arrow looping from the output back to the age input labelled "∂height/∂age (autograd)", feeding into a comparison node against a small "CR derivative (frozen y_max,k,p)" box — this is the derivative loss; (b) two copies of the same main box run at `age₁` and `age₂` (same plot, consecutive surveys), their outputs differenced and divided by `Δage`, compared against the same CR-derivative box evaluated at the midpoint age — this is the trajectory loss.
+- *Diagram 2 — `dnn_env_terrain`.* Same single-box network as Diagram 1, but the input layer is wider: age and terrain/wind features enter together, merged before layer 1. No side branches (no physics loss).
+- *Diagram 3 — `pinn_env_terrain`/`pinn_env_terrain_k`.* Main box is architecturally identical to Diagram 1's PINN (age only in, height out) and is drawn with **no connecting arrow** from terrain/wind — this absence is the key visual point. Terrain/wind features instead feed a small separate box (`YMaxSubNetwork`: 1 hidden layer, 16 units) producing `Δy_max`, which adds to a frozen constant to give `y_max_row`. For `pinn_env_terrain_k`, a second identical small box produces `Δk` (log-space), multiplying a frozen constant to give `k_row`. Both `y_max_row`(, `k_row`) feed only into the dashed CR-reference-curve box used by the derivative/trajectory loss branches from Diagram 1 — never into the main network's input. Net visual message: environment reshapes the *training target*, not the *prediction pathway*.
+
+**Batch size.** No-env rebuild: matched at 256/256 for the fair `dnn_noenv` vs `pinn_noenv` comparison (fixing an earlier 512 vs 128 mismatch). Environment-conditioned models: `dnn_env_terrain.py`'s file-level default is 512 (kept equal to `dnn_noenv.py`'s own default on purpose, for isolating the terrain-feature effect within the DNN family) but every actual fit behind the reported `dnn_env_terrain` vs `pinn_env_terrain`/`pinn_env_terrain_k` comparisons explicitly overrides it to `--batch-size 256`, confirmed matched (checked directly against `outputs/run_logs/`) — not an open confound.
+
+### 4.3 PINN formulation and training rules
+
+Three loss terms, all computed on real forward passes (no synthetic collocation points):
+- Data loss: `MSE(pred_height, target_height)`.
+- Derivative loss: `MSE(∂pred_height/∂age [autograd], CR_derivative(age; frozen y_max,k,p))`.
+- Trajectory loss: `MSE((pred_later - pred_earlier)/Δage, CR_derivative(age_mid))`, built only from real consecutive-survey pairs.
+- Combined: `data_loss + physics_weight·derivative_loss + trajectory_weight·trajectory_loss + L1_penalty`.
+- Validation loss: data term only, in every PINN variant (early stopping tracks predictive accuracy, not physics agreement).
+
+Leakage rule for trajectory pairs: a pair is used only if **both** endpoints are labelled train under the active split. Verified in code to hold for spatial and temporal splits alike; no val/test row ever enters a trajectory pair.
+
+CR anchor: split-matched frozen `y_max, k, p` (§4.2) inside the physics terms for every final PINN comparison. Pooled anchor used earlier; superseded once the leak was identified.
+
+Note on Q2 (§4.1): the physics-weight ablation run on this no-env architecture (§4.4, Experiment A) is one of two separate experiments bearing on "does physics help" — it is the one with a proper zero-physics control, and it is designed to answer the held-out-prediction sub-claim. The biological-behaviour sub-claim is addressed by a different model family (§4.4, Experiment B) with no such control. Do not read the two as one unified ablation.
+
+### 4.4 Hyperparameters and ablations
+
+No-env DNN/PINN: `physics_weight`, `trajectory_weight`, `batch_size`, `pairs_batch_size`, split type, seed.
+Env-conditioned DNN/PINN: feature-set tier, `dropout_rate`, `learning_rate`, `hidden_layer_sizes`, split seed, fold index, `freeze_y_max` (`pinn_env_terrain_k` only).
+
+**Experiment (A) — no-env physics-weight ablation, has a zero-physics control.** Grid: `(physics_weight=0, trajectory_weight=0)` control, reduced, full (1.0), derivative-dominant, trajectory-dominant, evaluated on held-out test. Designed to answer the held-out-prediction sub-claim of Q2 (§4.1); the sweep is retained in the method as evidence of where the hyperparameter space is competitive vs. clearly degraded, not as a search for one final "winning" weight. (Outcome: Results §5.1.)
+
+**Experiment (B) — env-conditioned model-family comparison (`dnn_env_terrain` vs `pinn_env_terrain` vs `pinn_env_terrain_k`), no zero-physics control exists for this family.** Sweeps: E6 = feature-tier sweep (90 fits). E7 = dropout × learning-rate sweep (36 jobs, single split). E9 = five-fold confirmation of E7's winners. E10 (further tier sweep): dropped from the dissertation plan, left stale — not cited for results. This family's accuracy comparison is weaker evidence than (A) for the prediction sub-claim, since it is architecture-vs-architecture, not a controlled weight dial (batch size itself is confirmed matched at 256 across all three models in the actual fits behind these numbers, §4.2 — checked directly against run logs, not a confound). (Outcomes: Results §5.1.)
+Designed to answer the biological-behaviour sub-claim of Q2 via `pinn_env_terrain_k`'s learned `y_max`/`k` correlation, checked for a sign-flip across cohorts — a fixed architectural artefact would predict the same sign regardless of cohort, so a flip (if found) would be evidence the correlation reflects something real, cohort-dependent, rather than an artefact. This is a within-model, cross-cohort comparison (both cohorts trained at the same batch_size=256) — the batch-size mismatch above does not apply to it. (Outcome: Results §5.1.)
+
+### 4.5 Feature construction and selection: evidence of method, and where it diverges
+
+Candidate pool shared across predictive, Avenue 1 and Avenue 2 work; **selection procedure is not identical across them** — stated explicitly rather than implied uniform.
+
+**Named tiers actually in code** (`ENV_TERRAIN_FEATURE_SETS`): `terrain_wind_solid` (5 vars: `ceh_twi, eastness, elevation, northness, topex`), `terrain_wind_extended` (+`whcl, plan_curvature`), `stage1_terrain` (13 terrain-only vars incl. multiscale TPI), `stage2_terrain_wind` (stage1 + 8 wind vars), `stage3_terrain_wind_plus` and `stage4_all_environmental` (stage2 + climate/soil/edge-position vars) — **these two tiers currently resolve to the identical variable list**, a documented fact of the current code ("every remaining category cleared the notebook's signal-strength bar"), not a bug — flagged so it is not mistaken for one.
+
+**Predictive/Avenue-1 screening (VIF-based, `multicollinearity_screen.py`), 3 stages** (an earlier 4-stage design was collapsed 2026-08-06):
+1. Drop deterministic duplicates (exact closed-form relationships, e.g. `inverse_slope_proxy = -slope_degrees`).
+2. Near-exact duplicate screen: Spearman `|ρ| ≥ 0.95`; tie-break prefers externally-measured over derived, then higher `|ρ|` with target.
+3. Iterative VIF reduction, threshold 5.0 (Dormann et al. 2013): drop single worst offender, recompute VIF from scratch, repeat (max 50 iterations).
+Non-dropping diagnostic pass: raw VIF vs. compartment-demeaned VIF flags spatial confounds without removing variables.
+
+**Avenue-2 screening (`correlation_screen.py`, `feature_representation_check.py`)** — a different method, model-fit-based rather than a fixed statistical cutoff: candidate representations (e.g. GWA wind vs. local shelter terms; TPI at 250m/500m vs. local relief) are each added to a fixed base set, Elastic Net + XGBoost refit, and the representation with the larger held-out R² gain over baseline is kept. No hard correlation threshold is coded here (Spearman is computed and reported, but the decision rule is the R² comparison). This disagreement in method between Avenue 1's VIF-first screen and Avenue 2's R²-swap screen is a real, disclosed methodological limit, not resolved — both procedures produced defensible but not identical variable choices for overlapping terrain/wind candidates. (Which representations won: Results §5.3.)
+
+**Leakage exclusions:**
+- `Age` excluded from Avenue 1 — circular, it is the CR curve's only input and `mean_cr_residual`'s sole construction variable.
+- Neighbour-height variables (`neighbour_mean_height`, `neighbour_height_differential`) removed after confirming they leak test-set ground truth (built from other plots' real heights within 75m, pre-split; 95.9% of a test plot's neighbours are themselves test-set plots). Measured effect of removing them: Results §5.1.
+
+Management kept as its own category throughout (`stand_structure`: `CanopyCover, Thin, time_since_thinning, time_since_thinning_missing, recent_thinning_5yr`), never folded into "environmental."
+
+### 4.6 Primary predictive evaluation
+
+Same split, buffer, and target across matched model families. Metrics: MAE, RMSE, R². Also inspected: loss curves, early stopping behaviour, failed/collapsed runs, seed variation.
+
+Split naming correction: the code's literal split_type is `"temporal"` (train=[2008,2012], val=2021, test=2023 for 4survey), not `"temporal_wide_gap"` — that is a descriptive label, not a coded identifier. `temporal_narrow_gap` is real (train=[2012,2021], val=2008, test=2023 for 4survey) — val deliberately set to the *earliest* available year so 2021 stays in train (narrows the train→test gap to 2 years) and no middle year is starved from the trajectory-pair sampler; an earlier draft of this split gave 0% pairable plots and was corrected.
+
+Buffer-adequacy limitation (disclosed in code, worth stating plainly in the write-up): 60 m is set from plot spacing (~3× the 20 m grid cell), not from a measured autocorrelation range, which is measured to be far larger (Results §5.1). 60 m protects against sub-canopy pixel-level leakage; it is not, by itself, sufficient to rule out longer-range spatial leakage. Whole-compartment holdout, not the buffer, is what does that work; the buffer is a secondary control.
+
+### 4.7 Avenue 1: pooled Chapman-Richards residual attribution
+
+Target construction: `mean_cr_residual = mean_over_survey_years(observed_height [elev_percentile_95th] − CR_prediction(Age))`, aggregated per plot (`identification`). CR anchor here is the **pooled** anchor (fit once, on the `plot_level`-split train partition, ~60% of rows) applied uniformly to every plot-year regardless of downstream split — a deliberate design choice distinct from the split-matched anchor used in the PINN physics loss: `mean_cr_residual` is the fixed shared yardstick that defines the attribution target itself, not a model input, so its purpose is a single consistent reference curve rather than per-split leakage control. Distinguished explicitly in code (a sibling model's own comment: "not the pooled one `mean_cr_residual` still reads").
+
+**Attribution models: Elastic Net, XGBoost, and NLME** (mixed-effects; previously omitted from this chapter entirely).
+- NLME is a two-stage approximation, not a true nonlinear mixed-effects fit: Stage 1 is the fixed pooled CR curve; Stage 2 is a **linear** mixed model (`statsmodels MixedLM`) on the resulting residual, standardized fixed effects, **random intercept per compartment only** (no random slope). Coefficients reported under REML; variance-explained comparisons (null vs. full model) deliberately refit under ML, since REML likelihoods are not comparable across differing fixed-effects structures (Pinheiro & Bates).
+- An earlier NLME version used fewer variables, included a variable later dropped by VIF screening, and an uncorrected REML variance-comparison; superseded by the current 18-variable VIF-screened rebuild. (Both versions' numbers: Results §5.2/§5.4.)
+
+Evaluation: five-fold compartment-held-out spatial CV, same 60 m buffer, separate validation fold.
+
+Feature-set naming correction: the maintained comparison is **`terrain_and_wind_only` vs. `all_environmental`** — `all_environmental` already includes the management/stand-structure variables; there is no separate `"all_environmental_plus_management"` tier in code. (Scope-comparison numbers: Results §5.2.)
+
+Statistical confirmation: paired fold-level test (Wilcoxon signed-rank + paired t-test on the 5 fold-level R² values, same method used elsewhere in this chapter) comparing `all_environmental` against `terrain_and_wind_only`. This is a compartment-independent cluster bootstrap's weaker cousin, not a substitute for one: it uses only the fold-level R² summaries already on disk, not raw per-compartment predictions, because no fitted model artifacts were saved and retraining was out of scope for this check. (Result: Results §5.2.)
+
+Spatial autocorrelation of the CR residual: global Moran's I via `esda`/`libpysal`, `DistanceBand` weights with threshold set from the fitted semivariogram range (not guessed), 999 permutations. Local Moran's I (LISA) via KNN weights (k=20 and k=50 as a sensitivity pair), Benjamini-Hochberg FDR correction on the permutation p-values (not a flat p<0.05 per plot). (Result, and how it compares to the other five models: Results §5.2.)
+
+### 4.8 Avenue 2: per-plot growth-curve deviation attribution
+
+Target construction — corrected detail. Per-plot `y_max` is fit with shape parameters `(p4, p5)` held fixed per plot; because `height = y_max × (1-exp(-p4·Age))^p5` is linear in `y_max` given fixed shape, the fit is closed-form least-squares regression through the origin (`y_max_fit = Σ(height·shape_term) / Σ(shape_term²)`), not iterative curve_fit — and, unlike Avenue 1's pooled anchor, uses only that plot's own rows, so there is no cross-plot self-influence pathway analogous to §4.7's.
+`yldc`-implied `y_max` is **derived analytically**, not looked up: rearranging the Forestry Commission's own `GYCspec95` formula, `y_max_yldc = yldc·p2 + p1 + p3·2`, using each plot's own recorded `(p1..p5)` tuple (7 distinct value-sets in the data), not one universal species constant.
+Target: `local_y_max_difference = y_max_fit − y_max_yldc`. CR used only to build the target, never inside the attribution-model loss.
+
+**Disturbance-cleaning rules** (interval-level, on consecutive-survey drops in height/canopy/volume):
+- `height_collapse`: `height_drop_frac ≥ 0.25`.
+- `clearfell_like`: `height_collapse` & `canopy_drop_frac ≥ 0.70` & `volume_drop_frac ≥ 0.70`.
+- `measurement_inconsistent`: `height_collapse` & `canopy_drop_frac ≤ 0.10` & `volume_drop_frac ≤ 0`.
+- `ambiguous_disturbance`: `height_collapse` but neither of the above — retained in the modelling population (could reflect the environmental mechanism of interest, e.g. partial windthrow, not pure noise).
+- Exclusion rule: a plot with **any** `clearfell_like` or `measurement_inconsistent` interval is dropped entirely from curve fitting (the fit uses all of a plot's rows jointly).
+
+**Feature-selection evidence**: `correlation_screen.py` computes Spearman correlation among candidate terrain/slope representations (no hard cutoff coded — reported, not thresholded); `feature_representation_check.py` makes the actual decision by refitting Elastic Net + XGBoost with each representation swapped in and comparing held-out R² against a no-that-feature baseline. This is a model-performance-based selection method, distinct from Avenue 1's VIF-based one (§4.5) — the two avenues' representation checks did not always agree on borderline variables (e.g. `tpi_250m`), reported as a limitation, not resolved by fiat. (Which representations won: Results §5.3.)
+
+**Attribution models: Elastic Net, XGBoost, and GNNWR** (Geographically Neural Network Weighted Regression, Du et al. 2020; third-party `gnnwr` package, not reimplemented). Mechanism: a spatial-weighting sub-network takes each plot's distance-to-reference-point vector and produces spatially-varying coefficients on the fixed feature set, in contrast to EN/XGBoost's single global relationship. Current evaluation trains on the full training population via pooled five-fold spatial CV, the same fold assignment and pooling convention as EN/XGBoost — a fully apples-to-apples comparison. An earlier phase capped the reference set via compartment-stratified subsampling as a GPU-memory workaround; superseded by the full-population run (both versions' numbers: Results §5.3/§5.4). A patched diagnostics routine skips the O(n²) "hat matrix" above 2,000 rows; this affects only AIC/AICc/F-test-style diagnostics, not the reported R²/RMSE (computed independently of the hat matrix).
+
+**Architecture diagram (to be drawn) — GNNWR.** One box per query plot: its own feature vector, plus a distance vector from that plot to every reference-set plot, both feed the spatial-weighting sub-network (SWNN). SWNN outputs a plot-specific coefficient vector (one weight per feature, unique to that plot's location). These coefficients combine linearly with the query plot's own feature vector to give the prediction. Contrast box alongside it, for EN/XGBoost: one fixed coefficient vector (EN) or one fixed tree ensemble (XGBoost) applied identically to every plot regardless of location — no distance input at all. The single visual difference to convey: GNNWR's arrow into the coefficient stage comes from *location*; EN/XGBoost's does not.
+
+Evaluation: five-fold compartment-held-out spatial CV, same 60 m buffer, across static scopes `terrain_wind`, `broad_environment`, `terrain_wind_plus_management`, `broad_environment_plus_management` (`broad_environmental_check.py`; groups: terrain_wind 17 vars, climate 5, soil_site 5, edge_position 6, management 5). (Outcome, and its statistical-confirmation status: Results §5.3.)
+
+**Broad-environmental notebook status: stale, do not cite numerically.** CSVs generated 2026-08-04, before an XGBoost evaluation-set-leak fix (commit `3ffc5fc`) the same day. The notebook itself has not been regenerated post-fix. Only defensible claim from this scope until regenerated: qualitative — management added real signal, broader environmental variables beyond terrain/wind added comparatively little — not the specific R² values. (Pre-fix vs. post-fix numbers: Results §5.3/§5.4.)
+
+`env_deviation` (a smaller, earlier module) is a predecessor/sibling to this pipeline, not a formally retired one: it predicts row-level residual of either a split-matched-anchor CR curve or `dnn_noenv`'s own prediction using terrain-only XGBoost, with no physics loss and no joint training. Still referenced in current code (`phase0_checks.py`, `saving.py`); described here as a parallel earlier approach, not folded into or superseded by the per-plot `local_y_max_difference` pipeline.
+
+### 4.9 Diagnostics, interpretability, and uncertainty
+
+Not limited to point accuracy. By method:
+
+**Spatial autocorrelation (Avenue 2)**: same `esda`/`libpysal` stack as Avenue 1, but KNN weights (k=8, chosen because a fixed distance band gives wildly uneven neighbour counts, 681-7,141, in this data), Moran's I with 999 permutations. Run across GNNWR, Simple DNN, compartment-mixed DNN, Elastic Net, and XGBoost, on `terrain_wind` and `terrain_wind_plus_management` scopes. (Result: Results §5.3.)
+
+**Interpretability (SHAP, Avenue 2 only)**: `explain_signal.py` fits XGBoost (`n_estimators=500, max_depth=4, learning_rate=0.04`) on `local_y_max_difference` over the **full population, no held-out split** — explicitly an interpretation-only fit, not a performance evaluation — then `shap.TreeExplainer`, reporting mean |SHAP value| per feature (17 features). A plain Spearman-correlation pass is computed first as a cheap sanity check before SHAP.
+
+**Statistical significance and uncertainty (Avenue 2)**: paired fold-level tests (Wilcoxon signed-rank and paired t-test across the 5 spatial folds) comparing GNNWR against EN/XGBoost. Both tests are underpowered at n=5: Wilcoxon's smallest possible p-value at n=5 is 0.0625 regardless of effect size, and the paired t-test's normality assumption on only 5 differences is not well justified either — both are read as descriptive of direction, not strict significance claims. Cluster bootstrap (resampling whole **compartments**, not rows, n=2,000) for both the paired GNNWR-vs-baseline R² difference (95% CI + P(GNNWR better)) and single-model R² confidence intervals. Models are fit once on the standard split; only the R² estimate's sampling uncertainty on the fixed test set is bootstrapped, not retraining variability. A previously-existing bug (bootstrapping over validation rows that had leaked into XGBoost's early stopping) was found and fixed to sample only untouched test rows. (Result: Results §5.3.) The real fix for the n=5 power problem is not more folds (5-fold compartment CV is set by the spatial-blocking logic, not by test power, and the compartment pool doesn't support many more folds without shrinking each holdout too far) — it is repeated-seed CV: rerunning the same five-fold spatial split under several different compartment-to-fold random seeds to get many more paired R² differences than 5. Not run here (retraining EN/XGBoost/GNNWR per seed is a real compute cost); flagged as the concrete next step if stronger significance evidence is needed.
+
+For Avenue 1, a paired fold-level test (same method, using the fold-level R² values already saved) is reported in §4.7. Neither avenue currently has a compartment-cluster bootstrap for its Elastic Net/XGBoost/NLME comparisons; Avenue 2 alone has one (this section), and it applies only to the GNNWR-vs-baseline comparison.
+
+**Feature-importance stability (Avenue 2)**: XGBoost's built-in gain-based importances (not SHAP, for cost) ranked within each of the 5 spatial folds; mean/std/min/max rank per variable reported — a variable consistently top-5 across folds is more trustworthy than one moving from #2 to #14.
+
+**Biological/training behaviour (both predictive and attribution)**: monotonicity and plausible-range checks on predicted trajectories, observed-vs-predicted plots, early stopping and collapsed-run tracking, seed variation. The one concrete, cited biological-behaviour result to date is the `pinn_env_terrain_k` `y_max`/`k` sign-flip check (§4.4; finding: Results §5.1) — general monotonicity/plausibility checks exist as instrumentation but have not yet produced an equally specific, cross-model finding.
+
+Three claims kept explicitly separate, never treated as interchangeable evidence: (1) implementation ran as intended; (2) physics/attribution changed biological behaviour or residual structure; (3) held-out prediction improved. Q2 (§4.1) is the concrete illustration of why this separation matters: it decomposes into two sub-claims, each answered by a different experiment with different statistical power, and conflating them would overstate what either result shows.
+
+### 4.10 Methodological inspiration
+
+Census GNN report: multiple complementary tests so failure is interpretable.
+Vision-transformer report: zero-control plus multiple loss-weight ablations as central experiments.
+Credit-risk report: fair tuning, report variation, not just best runs.
+Borehole report: evaluate accuracy, physics behaviour, stability, and cost as separate axes.
+
+### 4.11 Approaches tried and later superseded
+
+Procedural history — what changed and why. Specific superseded numbers are in Results §5.4, not here.
+
+- Retired `Top_Height99` + `yldc` pipeline (historical context only).
+- Early DNN/PINN runs with mismatched batch size, before the 2026-07-30 rebuild.
+- Pooled-anchor PINN physics-loss comparisons, before split-matched freezing (2026-08-01).
+- Avenue 2 broad-environmental CSVs generated 2026-08-04 before the same-day evaluation-leak fix; notebook not yet regenerated.
+- Earlier, smaller NLME model, superseded by the 18-variable VIF-screened rebuild (2026-08-08).
+- E7 single-split 6survey R² values, superseded by E9's five-fold confirmation.
+- E10 feature-tier sweep — dropped from the dissertation plan.
+- `temporal_narrow_gap` numeric results from the retired `Top_Height99`+`yldc` pipeline (2026-07-13 to 2026-07-20) — not comparable to the current pipeline's limited, smoke-tested runs.
+
+Open, not stale — unanswered rather than superseded, so should not be silently dropped from the write-up:
+- Compartment-cluster bootstrap for Avenue 1's Elastic Net/XGBoost/NLME comparisons — only a paired fold-level test exists (§4.7); Avenue 2 has the fuller cluster-bootstrap treatment (§4.9).
+- Repeated-seed spatial CV for Avenue 2's GNNWR-vs-baseline significance test — the current n=5 paired test is underpowered; more fold-assignment seeds, not more folds, is the identified fix (§4.9), not yet run.
+
+These stages still informed hyperparameter exploration and failure diagnosis; none are treated as final results.
