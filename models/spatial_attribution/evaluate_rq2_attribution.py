@@ -12,6 +12,7 @@ import json
 
 import joblib
 import pandas as pd
+import xgboost as xgb
 
 from models.common.metrics import compute_metrics
 from models.common.run_logging import RunTimer, format_error, write_run_log, write_started_marker
@@ -57,7 +58,12 @@ def evaluate_one_set(
         with open(output_dir / "feature_columns.json") as f:
             feature_columns = json.load(f)
         en_fitted = joblib.load(output_dir / "elastic_net_model.joblib")
-        xgb_model = joblib.load(output_dir / "xgboost_model.joblib")
+
+        # Loaded via XGBoost's own native load_model(), not joblib -- see run_rq2_attribution.py's
+        # matching comment for why (joblib-pickling across the cluster/local boundary silently
+        # gave a badly degraded model, confirmed by smoke-testing 2026-08-10).
+        xgb_model = xgb.XGBRegressor()
+        xgb_model.load_model(str(output_dir / "xgboost_model.json"))
 
         plots_df = load_plots_for_cohort(cohort).copy()
         if split_type == "spatial_block_kfold":

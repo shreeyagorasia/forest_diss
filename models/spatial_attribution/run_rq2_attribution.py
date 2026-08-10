@@ -103,8 +103,14 @@ def fit_one_set(
         en_fitted = en_fit_with_columns(train_df, feature_columns, target_col=TARGET_COLUMN)
         joblib.dump(en_fitted, output_dir / "elastic_net_model.joblib")
 
+        # XGBoost model saved via its OWN native format (save_model), not joblib -- confirmed by
+        # smoke-testing across the cluster/local boundary (2026-08-10): joblib-pickling a raw
+        # XGBRegressor and reloading it on a different machine/XGBoost version triggers XGBoost's
+        # own documented cross-version-pickle warning and silently gave a badly degraded R2
+        # (0.15 instead of the correct ~0.24) -- not an error, just a quietly wrong model. Elastic
+        # Net (plain sklearn) had no such issue in the same test, so only XGBoost needs this.
         xgb_model = xgb_fit_with_columns(train_df, feature_columns, target_col=TARGET_COLUMN, n_jobs=1)
-        joblib.dump(xgb_model, output_dir / "xgboost_model.joblib")
+        xgb_model.save_model(str(output_dir / "xgboost_model.json"))
 
         with open(output_dir / "feature_columns.json", "w") as f:
             json.dump(feature_columns, f, indent=2)
