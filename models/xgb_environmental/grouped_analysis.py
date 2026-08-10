@@ -69,6 +69,33 @@ CATEGORY_GROUPS = {
 # ALL_FEATURE_COLUMNS entirely now, not just excluded from this one dict.
 
 
+def expand_category_groups_for_columns(category_groups, model_columns):
+    # CATEGORY_GROUPS only ever lists BARE column names (e.g. "ceh_textural_composition"), since
+    # it was built against ALL_FEATURE_COLUMNS, which never contains one-hot dummies. RQ3's
+    # Set4/Set5 raw-column lists (see documentation/env_feature_sets_manifest.csv) DO contain
+    # specific dummy names in "category=value" form (e.g. "ceh_textural_composition=5.0") --
+    # passed as-is to grouped_permutation_importance()/category_morans_i_before_after(), those
+    # dummy columns would silently match nothing (exact-match against the bare name only) and
+    # vanish from every category instead of erroring, understating soil_site's real column count.
+    #
+    # Fixes this by expanding, not by changing either function's own matching logic -- keeps both
+    # functions exact-match (so a caller-supplied category_groups dict always behaves
+    # predictably) and instead builds a NEW category_groups dict, resolved against the columns a
+    # specific fitted model actually uses. A continuous column matches itself unchanged; a bare
+    # categorical name picks up every one of its realized "name=value" dummy columns present in
+    # model_columns.
+    expanded = {}
+    for category, bare_columns in category_groups.items():
+        matched_columns = []
+        for bare_column in bare_columns:
+            matched_columns.extend(
+                column for column in model_columns
+                if column == bare_column or column.startswith(f"{bare_column}=")
+            )
+        expanded[category] = matched_columns
+    return expanded
+
+
 def check_category_groups_complete():
     # Runs at import time so a forgotten new variable (e.g. a future addition to
     # FEATURE_PROVENANCE) is caught immediately, not silently missing from every

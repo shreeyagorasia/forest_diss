@@ -10,13 +10,13 @@
 # already produces the pooled result.
 #
 # Examples:
-#   sbatch jobs/growth_curve_attribution/run_rq3_en_xgb.sh 4survey nested_set2_top5
-#   sbatch jobs/growth_curve_attribution/run_rq3_en_xgb.sh 6survey nested_set3_gated_terrain_wind
+#   sbatch jobs/growth_curve_attribution/run_rq3_en_xgb.sh 4survey nested_set2_top10
+#   sbatch jobs/growth_curve_attribution/run_rq3_en_xgb.sh 6survey nested_set3_gated_terrain_wind_vif
 #
 # Arguments:
 #   cohort     4survey or 6survey.
-#   set_name   nested_set2_top5 / nested_set3_gated_terrain_wind / nested_set4_gated_all /
-#              nested_set5_all_ungated. RQ3's Elastic Net here is deliberately NOT VIF-screened
+#   set_name   nested_set2_top10 / nested_set3_gated_terrain_wind_vif / nested_set4_gated_all_vif /
+#              nested_set5_all_ungated_vif. RQ3's Elastic Net here is deliberately NOT VIF-screened
 #              (see documentation/experiment_log.md's 2026-08-10 entry) -- same raw sets as
 #              XGBoost/GNNWR.
 #   k_folds    Defaults to 5.
@@ -39,7 +39,7 @@ mkdir -p logs/rq123_methodology outputs
 export PYTHONPATH="$(pwd)"
 
 COHORT=${1:-4survey}
-SET_NAME=${2:-nested_set2_top5}
+SET_NAME=${2:-nested_set2_top10}
 K_FOLDS=${3:-5}
 SEED=${4:-42}
 

@@ -1,0 +1,134 @@
+## TEMP holding note — RQ3 category-level attribution, first real run (2026-08-10)
+
+Not yet added to the main results artifact. This is a diagnostic/interpretability run, not the
+RQ3 headline accuracy comparison (that's `run_rq3_en_xgb.py`'s pooled 5-fold R2, a separate
+script and a separate number — see the caution at the bottom). Sets used here are the
+PRE-VIF `nested_set*` manifest tiers; a VIF-screened replacement set is expected shortly and will
+likely change which experiments still make sense to run — see "What this changes" below. Delete
+this file once folded into the real results artifact.
+
+### How these numbers were generated
+
+**New code, both real-tested end to end (not just import-checked) before this run:**
+
+1. `models/xgb_environmental/grouped_analysis.py` — added `expand_category_groups_for_columns()`.
+   `CATEGORY_GROUPS` only ever lists bare column names (e.g. `ceh_textural_composition`), but
+   RQ3's Set4/Set5 raw-column lists contain specific one-hot dummy names
+   (`ceh_textural_composition=5.0`). Without this fix, those dummy columns would silently match
+   nothing against `CATEGORY_GROUPS` and vanish from every category instead of erroring. Fix
+   expands a bare-name category dict against the actual columns a fitted model uses — a
+   NEW function, `grouped_permutation_importance()`/`category_morans_i_before_after()`'s own
+   exact-match logic is untouched.
+2. `models/growth_curve_attribution/run_rq3_category_attribution.py` — new driver script. Only
+   wiring; the actual category-attribution statistics (`grouped_permutation_importance`,
+   `category_morans_i_before_after`) are the SAME functions already used and validated in
+   `notebooks/growth_curve_attribution/av2_local_growth_curve_grouped_importance.ipynb` — no new
+   statistical logic written.
+
+**Exact command run:**
+```bash
+.venv/bin/python -m models.growth_curve_attribution.run_rq3_category_attribution --cohort 4survey
+```
+
+**Inputs:**
+- Feature set: `nested_set4_gated_all` for `RSQ3`, loaded via
+  `load_feature_set("RSQ3", "nested_set4_gated_all")` from
+  `documentation/env_feature_sets_manifest.csv` — 25 columns (4 baseline stand-structure +
+  21 environmental, including 6 one-hot soil dummies). **Set4 only** — Set2/Set3 don't have a
+  column from every category (Set2 has no soil_site/climate; Set3 "gated_terrain_wind" has no
+  soil_site/climate/edge_effects at all), so a category breakdown on either would report those
+  categories as ~0% for the trivial reason that no candidate from them was ever in the model.
+- Target: `local_y_max_difference` (RQ3's target — per-plot fixed-shape fitted `y_max` minus the
+  yield-class-implied `y_max`).
+- Cohort: `4survey` only (this run; `6survey` not yet run).
+- Split: single `spatial_block_split()`, seed 42 (matches the notebook's own precedent — NOT the
+  5-fold spatial CV `run_rq3_en_xgb.py` uses for the headline R2). Train=30,949 rows, test=11,513
+  rows, after the same disturbance-cleaning/complete-case filtering `broad_environmental_check.py`
+  already applies (287,064 raw rows -> 232,448 after Age/yield-class filtering -> 56,526 plots
+  after disturbance cleaning -> 56,114 after dropping incomplete Set4 feature rows -> buffered
+  train/test split).
+- Model: XGBoost only (`fit_with_columns`, `n_estimators=500, max_depth=4, learning_rate=0.04`) —
+  same hyperparameters `run_spatial_cv()`/`run_columns()` use elsewhere in this project. Elastic
+  Net not run in this pass.
+
+**Functions called (all pre-existing except the new wiring above):**
+- `grouped_permutation_importance(model, eval_df, feature_columns, group_columns, predict_fn, target_col=...)`
+  — shuffles every column in one category TOGETHER (preserves within-category correlation
+  structure), 10 repeats, reports mean/SD R2 drop vs. the already-fitted model's baseline. No
+  refitting.
+- `category_morans_i_before_after(train_df, eval_df, fit_fn, predict_fn, all_columns, category_groups, target_col=...)`
+  — refits XGBoost 7 times (full model, then once per category removed), computes each refit's
+  test R2 and the spatial autocorrelation (Moran's I) of its residuals via
+  `models/spatial_attribution/spatial_autocorrelation.py`.
+
+**Output saved to** `outputs/spatial_block/rq3_category_attribution/4survey/`:
+`category_permutation_importance.csv`, `category_morans_i_before_after.csv`,
+`category_groups_used.json` (the actual expanded per-category column lists used, for audit).
+
+### Results
+
+**Category matching sanity check** (confirms the dummy-expansion fix worked): `soil_site` matched
+7 columns (`soilgrids_ph` + 3 `ceh_textural_composition=` dummies + 1 `ceh_pedotope=` dummy + 2
+`ceh_subsurface_drainage=` dummies) — before the fix this would have been 0. `terrain`=7,
+`wind`=2, `climate`=3, `spatial_position_edge_effects`=2, `stand_structure`=4. Total 25, matches
+Set4's full column count exactly.
+
+**Permutation importance by category** (mean R2 drop when that category's columns are shuffled
+together, 10 repeats, on the already-fitted full model):
+
+| category | n_columns | mean R2 drop | SD |
+|---|---:|---:|---:|
+| stand_structure | 4 | 0.3072 | 0.0096 |
+| terrain | 7 | 0.1176 | 0.0030 |
+| spatial_position_edge_effects | 2 | 0.0360 | 0.0022 |
+| wind | 2 | 0.0334 | 0.0020 |
+| climate | 3 | 0.0297 | 0.0026 |
+| soil_site | 7 | 0.0020 | 0.0003 |
+
+**Moran's I before/after removing each category and refitting** (baseline = full 25-column
+model; each other row = that category's columns removed, XGBoost refit on the remaining 21-24
+columns, evaluated on the same held-out test split):
+
+| category removed | test R2 | Moran's I | p |
+|---|---:|---:|---:|
+| (none — full model) | 0.1210 | 0.2445 | 0.001 |
+| terrain | 0.1542 | 0.0358 | 0.001 |
+| wind | 0.1410 | 0.0282 | 0.001 |
+| soil_site | 0.1323 | 0.0271 | 0.001 |
+| climate | 0.1867 | 0.2035 | 0.001 |
+| spatial_position_edge_effects | 0.1265 | 0.0394 | 0.001 |
+| stand_structure | **-0.0368** | 0.0180 | 0.001 |
+
+### Headline finding
+
+`stand_structure` (CanopyCover + thinning history — 4 columns) dominates: ~3x the next-largest
+category's permutation R2 drop, and removing it entirely is the only category removal that
+collapses test R2 below zero (worse than predicting the mean). Every OTHER single-category
+removal actually *increases* test R2 above the full-model baseline (0.121 -> 0.13-0.19 depending
+which one) — on this split, the environmental categories (terrain/wind/soil/climate/edge)
+collectively contribute little net signal once stand structure is doing the real work, and some
+may be closer to noise than signal for this target. `soil_site`'s near-zero contribution (0.002)
+is a real reading, not a matching artifact — its 7 matched columns are confirmed correct above.
+
+**This supports running fewer environment-focused RQ3 experiments**, not more — initial testing
+suggests environmental information doesn't uniformly help (and on this split, actively hurts test
+R2 relative to a stand-structure-only model), which is itself a citable finding rather than a
+reason to expand the sweep.
+
+### What this changes / not yet resolved
+
+- **VIF-screened replacement sets are coming.** These numbers use the pre-VIF `nested_set4_gated_all`
+  membership — once the VIF-screened sets are supplied, Set4's exact column list (and therefore
+  every number in this note) will change. This note documents the PRE-VIF result as a snapshot,
+  not a number to carry forward unchanged.
+- **Single spatial_block split, not pooled 5-fold** — matches the notebook's own precedent, but
+  is a noisier estimate than the headline `run_rq3_en_xgb.py` pooled-CV R2 (which is why
+  `run_spatial_cv()` moved to 5-fold pooling in the first place elsewhere in this project). Don't
+  cite this run's R2 numbers (0.121 baseline, etc.) as equivalent to the headline metrics.csv
+  values for the same set/cohort.
+- **CanopyCover circularity/confound check not yet done.** `stand_structure`'s outsized
+  contribution is plausible (a real forestry mechanism — canopy density affects light competition
+  and growth) but hasn't been checked against how CanopyCover is actually derived (same-survey
+  LiDAR canopy return vs. an independent inventory source) — flagged, not yet investigated,
+  before this gets cited as "environment doesn't help, stand structure does."
+- 6survey cohort not yet run for this diagnostic.

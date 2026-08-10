@@ -216,7 +216,12 @@ def run_columns(cohort: str, raw_columns: list[str], k: int = 5, seed: int = 42)
     if missing_dummies:
         raise KeyError(f"Requested dummy columns not found after encoding: {missing_dummies}")
 
-    predictions, fold_counts = run_spatial_cv(table, model_columns, k=k, seed=seed)
+    # collect_fold_models=True here (only caller of this function is RQ3's attribution driver,
+    # run_rq3_en_xgb.py -- unlike run_scope()/run_comparison() above, which are pooled-R2-only
+    # comparisons and stay on the cheap default) -- RQ3's whole point is "which variable matters",
+    # so the fitted models themselves (for coefficients/SHAP) are the actual output, not a
+    # side-effect. EN/XGBoost fit in seconds, so keeping the fitted objects around costs nothing.
+    predictions, fold_counts, fold_models = run_spatial_cv(table, model_columns, k=k, seed=seed, collect_fold_models=True)
 
     rows = []
     for prediction_column, method in [
@@ -236,7 +241,7 @@ def run_columns(cohort: str, raw_columns: list[str], k: int = 5, seed: int = 42)
                 **summary,
             }
         )
-    return pd.DataFrame(rows), predictions, fold_counts
+    return pd.DataFrame(rows), predictions, fold_counts, fold_models
 
 
 def run_comparison(

@@ -37,11 +37,18 @@ from models.xgb_environmental.xgb_environmental import predict_with_columns as x
 def run_spatial_cv(
     table, feature_columns, k=DEFAULT_K_FOLDS, seed=SPLIT_SEED,
     buffer_distance=SPATIAL_BUFFER_METRES, target_col=TARGET,
+    collect_fold_models=False,
 ):
     # Returns one row per (plot, fold-it-was-held-out-in) with both models' out-of-fold
     # predictions -- every plot appears exactly once, always predicted by a model that never saw
     # its own compartment during training. Pooling these across all K folds afterwards gives an
     # R2 computed over the WHOLE population, not one ~17% slice of it.
+    #
+    # collect_fold_models=False by default -- every one of this function's ~10 existing callers
+    # unpacks its return as a fixed 2-tuple, so the default return shape can never change. Set
+    # True (e.g. for RQ3's attribution use, where the fitted models' coefficients/SHAP values are
+    # the actual point of the run, not just pooled R2) to get a 3rd return value: a list of the
+    # per-fold fitted Elastic Net/XGBoost model objects, one dict per fold.
     fold_assignment, fold_row_counts = assign_spatial_folds(table, k=k, seed=seed)
     table = table.copy()
     table["fold"] = fold_assignment
@@ -49,6 +56,7 @@ def run_spatial_cv(
     coordinates = table[["identification", "x", "y"]]
 
     out_of_fold_rows = []
+    fold_models = []
     for held_out_fold in range(k):
         val_fold = (held_out_fold + 1) % k
         # apply_spatial_buffer()'s own default only protects against "train" plots sitting near
@@ -76,9 +84,19 @@ def run_spatial_cv(
 
         held_out["fold"] = held_out_fold
         held_out["n_train"] = len(train)
-        out_of_fold_rows.append(held_out[["identification", "cpmt", "fold", "n_train", target_col, "elastic_net_predicted", "xgboost_predicted"]])
+        # x/y added here (2026-08-10) -- already sitting on held_out (came from table, which
+        # coordinates was built from) so this is a free column addition, not a new join. Every
+        # existing caller unpacks a 2-tuple and simply ignores these extra columns; nothing that
+        # only ever asked for identification/cpmt/fold/target/predictions breaks.
+        out_of_fold_rows.append(
+            held_out[["identification", "cpmt", "x", "y", "fold", "n_train", target_col, "elastic_net_predicted", "xgboost_predicted"]]
+        )
+        if collect_fold_models:
+            fold_models.append({"fold": held_out_fold, "elastic_net_model": elastic, "xgboost_model": tree})
 
     out_of_fold_predictions = pd.concat(out_of_fold_rows, ignore_index=True)
+    if collect_fold_models:
+        return out_of_fold_predictions, fold_row_counts, fold_models
     return out_of_fold_predictions, fold_row_counts
 
 

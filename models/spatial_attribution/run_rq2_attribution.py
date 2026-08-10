@@ -1,5 +1,5 @@
-# Run as: python -m models.spatial_attribution.run_rq2_attribution --cohort 4survey --set-name nested_set2_top5
-#     or: python -m models.spatial_attribution.run_rq2_attribution --cohort 4survey --set-name nested_set2_top5 --split-type spatial_block_kfold --fold-index 0
+# Run as: python -m models.spatial_attribution.run_rq2_attribution --cohort 4survey --set-name nested_set2_top10
+#     or: python -m models.spatial_attribution.run_rq2_attribution --cohort 4survey --set-name nested_set2_top10 --split-type spatial_block_kfold --fold-index 0
 #
 # RQ2's FIT step -- deliberately separate from evaluate_rq2_attribution.py, matching this
 # project's dnn_noenv/pinn_noenv convention (fit on the cluster, evaluate locally afterwards),
@@ -34,6 +34,7 @@ from models.common.splits import (
     spatial_kfold_split,
 )
 from models.elasticnet_environmental.elasticnet_environmental import fit_with_columns as en_fit_with_columns
+from models.elasticnet_environmental.elasticnet_environmental import get_coefficients_table
 from models.spatial_attribution.nlme import (
     check_residual_normality,
     fit_nlme,
@@ -102,6 +103,11 @@ def fit_one_set(
         # ---- Elastic Net + XGBoost: fit and save the checkpoint, evaluate script scores later ----
         en_fitted = en_fit_with_columns(train_df, feature_columns, target_col=TARGET_COLUMN)
         joblib.dump(en_fitted, output_dir / "elastic_net_model.joblib")
+        # Coefficients extracted and saved as their own readable CSV too, not just left buried
+        # inside the joblib blob -- this is the "which variable matters" table a later plotting
+        # script (e.g. a coefficient forest plot) would otherwise have to reload the whole model
+        # object just to get.
+        get_coefficients_table(en_fitted).to_csv(output_dir / "elastic_net_coefficients.csv", header=True)
 
         # XGBoost model saved via its OWN native format (save_model), not joblib -- confirmed by
         # smoke-testing across the cluster/local boundary (2026-08-10): joblib-pickling a raw
@@ -138,8 +144,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--cohort", default="4survey", choices=["4survey", "6survey"])
     parser.add_argument(
-        "--set-name", default="nested_set2_top5",
-        choices=["nested_set2_top5", "nested_set3_gated_terrain_wind_vif", "nested_set4_gated_all_vif", "nested_set5_all_ungated_vif"],
+        "--set-name", default="nested_set2_top10",
+        choices=["nested_set2_top10", "nested_set3_gated_terrain_wind_vif", "nested_set4_gated_all_vif", "nested_set5_all_ungated_vif"],
     )
     parser.add_argument("--split-type", default="spatial_block", choices=["spatial_block", "spatial_block_kfold"])
     parser.add_argument("--split-seed", type=int, default=SPLIT_SEED)

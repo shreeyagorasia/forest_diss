@@ -270,12 +270,20 @@ ENV_TERRAIN_FEATURE_SETS = {
     # OLD tiers above (`terrain_wind_solid` etc., historically labelled "Set 2" in the results
     # ledger) are NOT the same variables as these `nested_set*` entries, despite similar-sounding
     # names -- e.g. old "Set 2" = terrain_wind_solid (5 vars: ceh_twi/eastness/elevation/
-    # northness/topex); `nested_set2_top5` here is a different 5-variable set (only `elevation`
+    # northness/topex); `nested_set2_top10` here is a different, 10-variable set (only `elevation`
     # overlaps). Always use the full `nested_set{N}_...` key, never a bare "Set N", to keep the
     # two apart.
-    "nested_set2_top5": load_feature_set("RSQ1", "nested_set2_top5"),
-    "nested_set3_gated_terrain_wind": load_feature_set("RSQ1", "nested_set3_gated_terrain_wind"),
-    "nested_set4_gated_all": load_feature_set("RSQ1", "nested_set4_gated_all"),
+    #
+    # RENAMED 2026-08-10 (same day, later in the session): Set2 widened from top-5 to top-10
+    # (more headroom before a collinear pair like dist_to_scpt_boundary/dist_to_cpmt_boundary
+    # crowds out everything else); Set3/Set4 gained the "_vif" suffix once VIF was extended from
+    # RSQ2-only to all three RSQs (feature_set_builder.py's run_vif_pass). The manifest's
+    # set_name values changed to match -- these three lookups must use the CURRENT manifest
+    # names, not the ones this dict used earlier today, or load_feature_set() raises a
+    # ValueError (hit exactly that after the manifest was regenerated under the new names).
+    "nested_set2_top10": load_feature_set("RSQ1", "nested_set2_top10"),
+    "nested_set3_gated_terrain_wind_vif": load_feature_set("RSQ1", "nested_set3_gated_terrain_wind_vif"),
+    "nested_set4_gated_all_vif": load_feature_set("RSQ1", "nested_set4_gated_all_vif"),
 }
 DEFAULT_ENV_TERRAIN_FEATURE_SET = "terrain_wind_solid"
 

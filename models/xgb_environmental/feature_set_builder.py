@@ -117,6 +117,34 @@ def dedup_candidates(df, candidate_columns, feature_provenance, target_column, n
     return kept, drop_log_rows
 
 
+def drop_reference_level_per_category(columns, category_prefixes):
+    """RSQ3 only: prepare_broad_table() one-hot encodes each categorical (ceh_pedotope,
+    ceh_subsurface_drainage, ceh_textural_composition) keeping EVERY level, no level dropped --
+    correct for the tree/local models it was originally built for (XGBoost/GNNWR don't need a
+    reference level), but wrong for VIF/linear-regression purposes: with every level present, one
+    categorical's own dummies structurally sum to a constant, perfectly collinear with the
+    intercept VIF's own add_constant() adds -- confirmed directly: RSQ3's Set5 showed VIF=inf for
+    multiple ceh_* dummy columns, an encoding artifact, not evidence of real redundancy between
+    meaningful variables.
+
+    Drops exactly one level per categorical (the alphabetically/numerically first, for
+    determinism) from `columns`, BEFORE dedup/ranking/VIF ever run -- not just at VIF time, so
+    every signal (Spearman, permutation, ablation, VIF) sees the same k-1-per-categorical
+    representation, standard practice for a design matrix that includes an intercept. Only
+    affects this Set1-5 pipeline's own candidate pool -- prepare_broad_table() itself, and every
+    OTHER caller of it (the existing SCOPE_GROUPS system), is untouched.
+
+    category_prefixes: e.g. ["ceh_pedotope=", "ceh_subsurface_drainage=", "ceh_textural_composition="].
+    Non-categorical columns (no prefix match) pass through unchanged.
+    """
+    kept = list(columns)
+    for prefix in category_prefixes:
+        levels = sorted(column for column in kept if column.startswith(prefix))
+        if len(levels) >= 2:
+            kept.remove(levels[0])
+    return kept
+
+
 def rank_by_target_correlation(df, candidate_columns, target_column):
     """Univariate |Spearman rho| of every candidate column against target_column, sorted
     strongest first.
@@ -314,16 +342,48 @@ def gate_columns_by_combined_rank(combined_table, candidate_columns, top_fractio
     return passed, category_table
 
 
-def build_set2(ranked_table, baseline_columns, top_n=5):
-    """Set2 = baseline + top N deduplicated candidates by importance rank.
+def build_set2(df, ranked_table, baseline_columns, top_n=10, vif_threshold=5.0):
+    """Set2 = baseline + top N candidates by importance rank, VIF-screened WITH backfill.
 
-    Takes any already-sorted table with a "variable" column, most-important-first -- in practice
-    combine_importance_ranks()'s combined table (Spearman + permutation + drop-column ablation),
-    not a single method's own ranking, so the notebook only ever ranks each RSQ's candidate pool
-    once and every Set2/Set3/Set4 downstream reads off the same combined ranking.
+    Walks down ranked_table (combine_importance_ranks()'s combined table, most-important-first)
+    in order. A candidate is added only if its OWN VIF -- computed against baseline + every
+    candidate already kept -- stays at or below vif_threshold; a candidate that would push VIF
+    over the threshold is skipped, and the NEXT-ranked candidate is tried instead, so Set2 still
+    ends up with top_n members (unless the ranked list runs out first).
+
+    Fixes a real gap found in review: the earlier top_n=10 fix (2026-08-10) widened Set2 but
+    never VIF-checked it -- dist_to_scpt_boundary/dist_to_cpmt_boundary (mutually VIF~9.14) both
+    stayed in RSQ1's Set2 regardless. Checked at ADD TIME (skip and try the next candidate), not
+    after the fact like Set3/4/5's run_vif_pass (which only ever shrinks a fixed set, no
+    backfill) -- Set2's whole point is being a fixed-size "top N" list, so shrinking it silently
+    would defeat that.
+
+    Returns (set2_columns, skip_log) -- skip_log records every candidate passed over because its
+    VIF would have exceeded the threshold, and what its VIF would have been, so a human can see
+    what got skipped and why, not just the final list.
     """
-    top_columns = ranked_table.head(top_n)["variable"].tolist()
-    return list(baseline_columns) + top_columns
+    kept_candidates = []
+    skip_log = []
+    for _, row in ranked_table.iterrows():
+        if len(kept_candidates) >= top_n:
+            break
+        column = row["variable"]
+        trial_columns = list(baseline_columns) + kept_candidates + [column]
+        if len(trial_columns) < 3:
+            # VIF needs at least 2 OTHER columns to regress against -- nothing to compare yet,
+            # so the first couple of candidates are accepted automatically.
+            kept_candidates.append(column)
+            continue
+        vif_table = compute_vif_table(df, trial_columns)
+        candidate_vif = vif_table.loc[vif_table["column"] == column, "vif"].iloc[0]
+        if candidate_vif > vif_threshold:
+            skip_log.append({
+                "column": column, "vif_if_added": round(float(candidate_vif), 2),
+                "reason": f"VIF={candidate_vif:.2f} > {vif_threshold} against baseline + already-kept Set2 candidates",
+            })
+            continue
+        kept_candidates.append(column)
+    return list(baseline_columns) + kept_candidates, skip_log
 
 
 def build_set3(terrain_wind_gated_columns, baseline_columns):
@@ -344,14 +404,21 @@ def build_set5(dedup_survivors, baseline_columns):
     return list(baseline_columns) + list(dedup_survivors)
 
 
-def run_rsq2_vif_pass(df, set_columns, protected_columns=None, threshold=5.0, max_iterations=50):
-    """RSQ2-only extra step: iterative VIF reduction on top of the dedup+gate result.
+def run_vif_pass(df, set_columns, protected_columns=None, threshold=5.0, max_iterations=50):
+    """Iterative VIF reduction on top of the dedup+gate result, for all three RSQs.
 
-    Elastic Net/NLME coefficients and SHAP are collinearity-sensitive in a way RSQ1's neural nets
-    (which can absorb correlated raw inputs without their collinearity corrupting what gets
-    reported) and RSQ3's whole-category scopes (a different question -- "does adding a category
-    help", not a per-coefficient attribution) are not -- see the notebook's own markdown for the
-    full reasoning.
+    Originally RSQ2-only (Elastic Net/NLME coefficients and SHAP are collinearity-sensitive).
+    Extended to RSQ1 and RSQ3 after two pieces of evidence, not just principle: (1) this
+    project's own earlier E6 tier sweep found dnn_env_terrain's held-out R2 actually DEGRADED as
+    tiers widened with more redundant columns -- an empirical, project-specific reason for RSQ1
+    beyond the generic "NNs tolerate collinearity" argument; RSQ1's exported Set2 was independently
+    checked and found 4-of-5 columns with VIF>=5 (dist_to_scpt_boundary/dist_to_cpmt_boundary
+    mutually ~9.1, geometrically expected but redundant). (2) RSQ3 feeds Elastic Net AND GNNWR --
+    both linear-coefficient models, same vulnerability as RSQ2's Elastic Net/NLME (GNNWR arguably
+    worse, fewer effective rows per local fit); RSQ3's Set3 independently checked and found 5-of-9
+    non-baseline columns with VIF>=5 even before counting the categorical dummy-trap artifact
+    (see drop_reference_level_per_category below, a required prerequisite for RSQ3's VIF numbers
+    to mean anything).
 
     NOT a plain call to multicollinearity_screen.py's own iterative_vif_reduction() -- that
     function treats every column symmetrically and will happily drop a Set1 baseline column if

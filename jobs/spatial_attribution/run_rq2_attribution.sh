@@ -10,17 +10,17 @@
 # evaluation stays local" convention -- consistency over marginal speed here.
 #
 # Examples:
-#   sbatch jobs/spatial_attribution/run_rq2_attribution.sh 4survey nested_set2_top5 spatial_block_kfold 0
-#   sbatch jobs/spatial_attribution/run_rq2_attribution.sh 4survey nested_set2_top5 spatial_block_kfold 1
-#   sbatch jobs/spatial_attribution/run_rq2_attribution.sh 4survey nested_set2_top5 spatial_block_kfold 2
-#   sbatch jobs/spatial_attribution/run_rq2_attribution.sh 4survey nested_set2_top5 spatial_block_kfold 3
-#   sbatch jobs/spatial_attribution/run_rq2_attribution.sh 4survey nested_set2_top5 spatial_block_kfold 4
+#   sbatch jobs/spatial_attribution/run_rq2_attribution.sh 4survey nested_set2_top10 spatial_block_kfold 0
+#   sbatch jobs/spatial_attribution/run_rq2_attribution.sh 4survey nested_set2_top10 spatial_block_kfold 1
+#   sbatch jobs/spatial_attribution/run_rq2_attribution.sh 4survey nested_set2_top10 spatial_block_kfold 2
+#   sbatch jobs/spatial_attribution/run_rq2_attribution.sh 4survey nested_set2_top10 spatial_block_kfold 3
+#   sbatch jobs/spatial_attribution/run_rq2_attribution.sh 4survey nested_set2_top10 spatial_block_kfold 4
 #
 # Arguments:
 #   cohort       4survey or 6survey. RQ2 is 4survey only by design (see
 #                documentation/experiment_log.md's cohort-justification entry) -- defaults to
 #                4survey but isn't hardcoded, in case that decision ever needs revisiting.
-#   set_name     nested_set2_top5 / nested_set3_gated_terrain_wind_vif /
+#   set_name     nested_set2_top10 / nested_set3_gated_terrain_wind_vif /
 #                nested_set4_gated_all_vif / nested_set5_all_ungated_vif.
 #   split_type   spatial_block (single split) or spatial_block_kfold (one fold of 5).
 #   fold_index   Which fold to hold out, 0..n_folds-1. Only used for spatial_block_kfold.
@@ -44,7 +44,7 @@ mkdir -p logs/rq123_methodology outputs
 export PYTHONPATH="$(pwd)"
 
 COHORT=${1:-4survey}
-SET_NAME=${2:-nested_set2_top5}
+SET_NAME=${2:-nested_set2_top10}
 SPLIT_TYPE=${3:-spatial_block_kfold}
 FOLD_INDEX=${4:-0}
 N_FOLDS=${5:-5}

@@ -1,5 +1,5 @@
 # Run as (cluster only, see jobs/growth_curve_attribution/run_rq3_gnnwr.sh):
-#   python -m models.growth_curve_attribution.run_rq3_gnnwr --cohort 4survey --set-name nested_set2_top5 --use-gpu
+#   python -m models.growth_curve_attribution.run_rq3_gnnwr --cohort 4survey --set-name nested_set2_top10 --use-gpu
 #
 # RQ3's GNNWR driver for the new rank-aggregate environmental-feature methodology -- calls
 # gnnwr_check.py's run_gnnwr() with raw_columns loaded from
@@ -22,8 +22,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--cohort", default="4survey", choices=["4survey", "6survey"])
     parser.add_argument(
-        "--set-name", default="nested_set2_top5",
-        choices=["nested_set2_top5", "nested_set3_gated_terrain_wind", "nested_set4_gated_all", "nested_set5_all_ungated"],
+        "--set-name", default="nested_set2_top10",
+        choices=["nested_set2_top10", "nested_set3_gated_terrain_wind_vif", "nested_set4_gated_all_vif", "nested_set5_all_ungated_vif"],
     )
     parser.add_argument("--max-epoch", type=int, default=200)
     parser.add_argument("--early-stop", type=int, default=20)

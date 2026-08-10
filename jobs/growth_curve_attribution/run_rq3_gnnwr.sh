@@ -10,17 +10,17 @@
 # documentation/env_feature_sets_manifest.csv) instead of gnnwr_check.py's --scope CLI directly.
 #
 # Examples:
-#   sbatch jobs/growth_curve_attribution/run_rq3_gnnwr.sh 4survey nested_set2_top5
+#   sbatch jobs/growth_curve_attribution/run_rq3_gnnwr.sh 4survey nested_set2_top10
 #   # 5-fold spatial CV (submit once per fold):
-#   sbatch jobs/growth_curve_attribution/run_rq3_gnnwr.sh 4survey nested_set2_top5 200 20 0 42 0 5
-#   sbatch jobs/growth_curve_attribution/run_rq3_gnnwr.sh 4survey nested_set2_top5 200 20 0 42 1 5
-#   sbatch jobs/growth_curve_attribution/run_rq3_gnnwr.sh 4survey nested_set2_top5 200 20 0 42 2 5
-#   sbatch jobs/growth_curve_attribution/run_rq3_gnnwr.sh 4survey nested_set2_top5 200 20 0 42 3 5
-#   sbatch jobs/growth_curve_attribution/run_rq3_gnnwr.sh 4survey nested_set2_top5 200 20 0 42 4 5
+#   sbatch jobs/growth_curve_attribution/run_rq3_gnnwr.sh 4survey nested_set2_top10 200 20 0 42 0 5
+#   sbatch jobs/growth_curve_attribution/run_rq3_gnnwr.sh 4survey nested_set2_top10 200 20 0 42 1 5
+#   sbatch jobs/growth_curve_attribution/run_rq3_gnnwr.sh 4survey nested_set2_top10 200 20 0 42 2 5
+#   sbatch jobs/growth_curve_attribution/run_rq3_gnnwr.sh 4survey nested_set2_top10 200 20 0 42 3 5
+#   sbatch jobs/growth_curve_attribution/run_rq3_gnnwr.sh 4survey nested_set2_top10 200 20 0 42 4 5
 #
 # Arguments: same meaning as run_gnnwr.sh's own (see that file's header comment for the full
-# reasoning behind each default) -- set_name replaces scope, one of nested_set2_top5 /
-# nested_set3_gated_terrain_wind / nested_set4_gated_all / nested_set5_all_ungated.
+# reasoning behind each default) -- set_name replaces scope, one of nested_set2_top10 /
+# nested_set3_gated_terrain_wind_vif / nested_set4_gated_all_vif / nested_set5_all_ungated_vif.
 
 #SBATCH --job-name=rq3_gnnwr
 #SBATCH --output=logs/rq123_methodology/%x_%j.out
@@ -40,7 +40,7 @@ mkdir -p logs/rq123_methodology outputs/growth_curve_attribution/gnnwr
 export PYTHONPATH="$(pwd)"
 
 COHORT=${1:-4survey}
-SET_NAME=${2:-nested_set2_top5}
+SET_NAME=${2:-nested_set2_top10}
 MAX_EPOCH=${3:-200}
 EARLY_STOP=${4:-20}
 REFERENCE_SET_SIZE=${5:-0}

@@ -130,8 +130,16 @@ def compute_vif_table(df, columns):
     # origin, which inflates VIF hugely and unpredictably for columns that aren't already
     # centred near zero (elevation in the hundreds vs. a -1..1 index, say). add_constant() adds
     # that intercept column so VIF measures genuine collinearity, not an artefact of scale.
+    #
+    # .astype(float) is required, not cosmetic: some tables store a binary flag as bool (e.g.
+    # time_since_thinning_missing/recent_thinning_5yr in the row-level model_table.parquet --
+    # the same columns are float 0/1 fractions in the plot-level environmental export, which is
+    # why this was never hit there). A DataFrame mixing bool and float64 columns can produce an
+    # object-dtype array from .to_numpy(), which statsmodels' add_constant() cannot handle
+    # ("ufunc 'isfinite' not supported for the input types") -- confirmed by hitting exactly this
+    # running VIF on a row-level table for the first time.
     clean_df = df[columns].dropna()
-    design_matrix = add_constant(clean_df.to_numpy(), has_constant="add")
+    design_matrix = add_constant(clean_df.to_numpy().astype(float), has_constant="add")
     rows = []
     for i, column in enumerate(columns):
         # Index i+1, not i -- add_constant() puts the new constant column first (index 0).
