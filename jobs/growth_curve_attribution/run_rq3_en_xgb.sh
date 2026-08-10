@@ -24,14 +24,14 @@
 
 #SBATCH -p Teaching
 #SBATCH --job-name=rq3_en_xgb
-#SBATCH --output=logs/growth_curve_attribution/%x_%j.out
-#SBATCH --error=logs/growth_curve_attribution/%x_%j.err
+#SBATCH --output=logs/rq123_methodology/%x_%j.out
+#SBATCH --error=logs/rq123_methodology/%x_%j.err
 #SBATCH --time=00:30:00
 #SBATCH --mem=16G
 
 cd ~/forest_diss
 
-mkdir -p logs/growth_curve_attribution outputs
+mkdir -p logs/rq123_methodology outputs
 
 . /home/htang2/toolchain-20251006/toolchain.rc
 . .venv/bin/activate

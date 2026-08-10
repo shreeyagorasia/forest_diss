@@ -23,8 +23,8 @@
 # nested_set3_gated_terrain_wind / nested_set4_gated_all / nested_set5_all_ungated.
 
 #SBATCH --job-name=rq3_gnnwr
-#SBATCH --output=logs/growth_curve_attribution/%x_%j.out
-#SBATCH --error=logs/growth_curve_attribution/%x_%j.err
+#SBATCH --output=logs/rq123_methodology/%x_%j.out
+#SBATCH --error=logs/rq123_methodology/%x_%j.err
 #SBATCH --time=04:00:00
 #SBATCH --partition=Teaching
 #SBATCH --gres=gpu:h200_1g.18gb:1
@@ -32,7 +32,7 @@
 
 cd ~/forest_diss
 
-mkdir -p logs/growth_curve_attribution outputs/growth_curve_attribution/gnnwr
+mkdir -p logs/rq123_methodology outputs/growth_curve_attribution/gnnwr
 
 . /home/htang2/toolchain-20251006/toolchain.rc
 . .venv/bin/activate
