@@ -14,6 +14,7 @@ import torch
 from sklearn.preprocessing import StandardScaler
 
 from models.common.data import filter_data, load_model_table
+from models.xgb_environmental.feature_set_builder import load_feature_set
 from models.common.splits import (
     DEFAULT_K_FOLDS,
     SPATIAL_BLOCK_COL,
@@ -253,6 +254,28 @@ ENV_TERRAIN_FEATURE_SETS = {
         "dist_to_forest_perimeter", "dist_to_scpt_boundary", "dist_to_block_boundary",
         "cpmt_compactness_ratio", "dist_to_road",
     ],
+    # Added 2026-08-10: RQ1's tiers from the NEW environmental-feature methodology (rank-aggregate
+    # of Spearman/XGBoost-permutation/XGBoost-drop-column signals, see
+    # models/xgb_environmental/feature_set_builder.py) -- a DIFFERENT construction method from
+    # every tier above, not a replacement for them. Read live from
+    # documentation/env_feature_sets_manifest.csv (the single already-computed source of truth for
+    # every RSQ1/RSQ2/RSQ3 Set1-5) via load_feature_set(), not hand-copied here -- so these three
+    # entries can never silently drift from what the manifest actually says. RSQ1's manifest rows
+    # already exclude baseline (RQ1's baseline/Age is fed through the separate no-env pathway, see
+    # assert_env_terrain_features_disjoint_from_noenv() below), so no strip_baseline_for_export()
+    # call is needed here. Set5 deliberately not wired in yet -- cut from the 2026-08-17 deadline's
+    # essential scope, see documentation/experiment_log.md's 2026-08-10 entry.
+    #
+    # NAMING NOTE, read before reusing "Set 2"/"Set 3"/"Set 4" anywhere near these three: the
+    # OLD tiers above (`terrain_wind_solid` etc., historically labelled "Set 2" in the results
+    # ledger) are NOT the same variables as these `nested_set*` entries, despite similar-sounding
+    # names -- e.g. old "Set 2" = terrain_wind_solid (5 vars: ceh_twi/eastness/elevation/
+    # northness/topex); `nested_set2_top5` here is a different 5-variable set (only `elevation`
+    # overlaps). Always use the full `nested_set{N}_...` key, never a bare "Set N", to keep the
+    # two apart.
+    "nested_set2_top5": load_feature_set("RSQ1", "nested_set2_top5"),
+    "nested_set3_gated_terrain_wind": load_feature_set("RSQ1", "nested_set3_gated_terrain_wind"),
+    "nested_set4_gated_all": load_feature_set("RSQ1", "nested_set4_gated_all"),
 }
 DEFAULT_ENV_TERRAIN_FEATURE_SET = "terrain_wind_solid"
 

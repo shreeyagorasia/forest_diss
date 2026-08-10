@@ -29,6 +29,8 @@ same shared module Avenue 2's own screening notebook already imports from. This 
 the layer on top: ranking, per-column gating, and Set1-5 assembly.
 """
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
@@ -399,6 +401,31 @@ def run_rsq2_vif_pass(df, set_columns, protected_columns=None, threshold=5.0, ma
         })
 
     return remaining_columns, drop_log_rows
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+MANIFEST_PATH = PROJECT_ROOT / "documentation" / "env_feature_sets_manifest.csv"
+
+
+def load_feature_set(rsq, set_name, manifest_path=MANIFEST_PATH):
+    """Reads one (rsq, set_name) column list straight out of
+    documentation/env_feature_sets_manifest.csv -- the single already-computed source of truth
+    for every RSQ1/RSQ2/RSQ3 Set1-5, so nothing that fits a model ever has to re-derive or
+    hand-copy a variable list (and risk it silently drifting from what the manifest says).
+
+    Confirmed directly against the manifest, not assumed: each row's "column" is already the
+    FULL, ready-to-use list for that (rsq, set_name) -- e.g. RSQ1/nested_set4_gated_all's 17 rows
+    already include RSQ1/nested_set3_gated_terrain_wind's 11, which already include none of
+    RSQ1's baseline (RSQ1's baseline is fed through a separate pathway -- see
+    strip_baseline_for_export() below); RSQ2/RSQ3's manifest rows DO include their own baseline
+    columns directly, since those two RSQs have no second pathway for it. No union/nesting logic
+    needed here -- just filter and return.
+    """
+    manifest = pd.read_csv(manifest_path)
+    matching_rows = manifest[(manifest["rsq"] == rsq) & (manifest["set_name"] == set_name)]
+    if matching_rows.empty:
+        raise ValueError(f"No rows found in {manifest_path} for rsq={rsq!r}, set_name={set_name!r}")
+    return matching_rows["column"].tolist()
 
 
 def strip_baseline_for_export(full_columns, baseline_columns):

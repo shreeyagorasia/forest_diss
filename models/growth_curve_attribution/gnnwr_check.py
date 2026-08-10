@@ -154,6 +154,75 @@ def build_scope_table(
     return merged, available_columns
 
 
+def build_table_from_columns(
+    cohort: str,
+    raw_columns: list[str],
+    split_seed: int = SPLIT_SEED,
+    held_out_fold: int | None = None,
+    k_folds: int = DEFAULT_K_FOLDS,
+):
+    """Raw-column-list sibling of build_scope_table() -- same cohort-suffix resolution, one-hot
+    encoding, fold-aware split, and zero-variance-column dropping, but takes an explicit column
+    list directly instead of a named scope resolved through SCOPES. Built for the new
+    rank-aggregate environmental-feature methodology (see
+    models/xgb_environmental/feature_set_builder.py) -- a new function, not a parameter added to
+    build_scope_table() itself, so no existing named-scope caller's behaviour can change.
+
+    raw_columns can mix plain continuous names with SPECIFIC one-hot dummy names already in
+    "category=value" form (e.g. "ceh_textural_composition=5.0") -- exactly what
+    documentation/env_feature_sets_manifest.csv stores for RSQ3's Set4/Set5. Same unpack/filter
+    approach as broad_environmental_check.py's own run_columns() sibling, reused here rather than
+    duplicated, since prepare_broad_table() (called below, same as build_scope_table()'s own
+    broader-scope path) only knows how to expand a BARE categorical name to every one of its
+    dummies, not a specific requested value.
+    """
+    bare_columns = []
+    requested_dummy_columns = []
+    for column in raw_columns:
+        if "=" in column:
+            bare_category = column.split("=")[0]
+            if bare_category not in bare_columns:
+                bare_columns.append(bare_category)
+            requested_dummy_columns.append(column)
+        else:
+            bare_columns.append(column)
+
+    merged, all_available_columns = prepare_broad_table(cohort, bare_columns)
+
+    continuous_requested = [column for column in raw_columns if "=" not in column]
+    available_columns = continuous_requested + [
+        column for column in requested_dummy_columns if column in all_available_columns
+    ]
+    missing_dummies = [column for column in requested_dummy_columns if column not in all_available_columns]
+    if missing_dummies:
+        raise KeyError(f"Requested dummy columns not found after encoding: {missing_dummies}")
+
+    if held_out_fold is None:
+        merged["split"] = spatial_block_split(
+            merged, block_col=SPATIAL_BLOCK_COL, buffer_distance=SPATIAL_BUFFER_METRES,
+            coordinates_df=merged[["identification", "x", "y"]], seed=split_seed,
+        )
+    else:
+        merged["split"] = spatial_kfold_split(
+            merged, block_col=SPATIAL_BLOCK_COL, k=k_folds, held_out_fold=held_out_fold,
+            buffer_distance=SPATIAL_BUFFER_METRES, coordinates_df=merged[["identification", "x", "y"]],
+            seed=split_seed,
+        )
+
+    # Same per-fold zero-variance guard as build_scope_table() -- a rare dummy category can be
+    # entirely absent from one fold's own training compartments by chance (see that function's
+    # own comment for the full MinMax-divide-by-zero mechanism this protects against).
+    train_rows = merged[merged["split"] == "train"]
+    zero_variance_columns = [
+        column for column in available_columns if train_rows[column].max() == train_rows[column].min()
+    ]
+    if zero_variance_columns:
+        print(f"  Dropping {len(zero_variance_columns)} column(s) constant in this fold's own training set: {zero_variance_columns}")
+        available_columns = [column for column in available_columns if column not in zero_variance_columns]
+
+    return merged, available_columns
+
+
 # Default reference-set cap -- see module docstring, "Bottleneck 1". Sized against the SAME cost
 # model that predicted the real observed crash at the full 31,117 rows almost exactly (est. 12.9
 # GB vs the actual "10.51 GiB in use" OOM on the 10.57 GiB generic GPU) -- so this number is
@@ -199,6 +268,7 @@ def run_gnnwr(
     split_seed: int = SPLIT_SEED,
     held_out_fold: int | None = None,
     k_folds: int = DEFAULT_K_FOLDS,
+    raw_columns: list[str] | None = None,
 ):
     # Imported here, not at module level -- gnnwr pulls in torch, and this module's
     # build_scope_table()/subsample_reference_set() are useful even where torch isn't installed
@@ -294,9 +364,20 @@ def run_gnnwr(
     # every DIAGNOSIS(...) call made from inside that module from now on.
     _gnnwr_models.DIAGNOSIS = _FastDiagnosis
 
-    table, feature_columns = build_scope_table(
-        cohort, scope, split_seed=split_seed, held_out_fold=held_out_fold, k_folds=k_folds,
-    )
+    # raw_columns (added 2026-08-10, for the new rank-aggregate environmental-feature
+    # methodology): when given, resolves the table via build_table_from_columns() instead of the
+    # named-scope build_scope_table() -- everything below this point (training loop, GPU
+    # workarounds, output saving) is completely unchanged either way, since both paths return the
+    # identical (table, feature_columns) shape. Default None preserves this function's exact
+    # existing behaviour for every current named-scope caller.
+    if raw_columns is not None:
+        table, feature_columns = build_table_from_columns(
+            cohort, raw_columns, split_seed=split_seed, held_out_fold=held_out_fold, k_folds=k_folds,
+        )
+    else:
+        table, feature_columns = build_scope_table(
+            cohort, scope, split_seed=split_seed, held_out_fold=held_out_fold, k_folds=k_folds,
+        )
     if held_out_fold is not None:
         print(f"  K-fold spatial CV: fold {held_out_fold} of {k_folds} held out as test (seed={split_seed})")
 

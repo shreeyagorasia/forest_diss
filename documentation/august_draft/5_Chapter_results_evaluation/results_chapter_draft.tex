@@ -192,486 +192,160 @@ Residual spatial autocorrelation stays high (Moran's I range 0.66-0.74, "~0.70")
 - No compartment-cluster bootstrap for Avenue 1's EN/XGBoost/NLME comparisons (§5.5.3).
 
 -------
-STRUCTURE OF THIS RESULTS SECTION IDEA: 
+\chapter{Results and Discussion}
+Thi section will go through each result, its evaluation per question outlined in the above methodology. (change this sentence to a how this chapter work, rough outline of it)
 
-Yes. This earlier plan makes the Results and Discussion structure much clearer. The strongest approach is to mirror the four methodology questions exactly.
+%------------------------------------------------
+\section{Research Question 1: How well do the main models predict Top Height}
 
-The chapter should not be organised as “all results tables, then all evaluation.” Instead, each research question should contain its main results, diagnostics, interpretation and a short answer.
+\subsection{Result} (just keep spatial\_block split and not plot level)
+- main table (mean and variation across folds or seeds)
+- observed vs predicted plots 
+- differences between models 
+the results table for all key metrics, numbers in this section (RQ1)  (not covering RQ2, maybe slight overlap, but as long as that isnt the focus)
 
-# Proposed Results and Discussion plan
 
-## 5.1 Overview of the evaluation
+\subsection{Discussion}
+- does neural model improve on baselines CR, does pINN and DNN improve, (when and where, under which specific example, which set of features)
 
-Keep this brief. Explain how to read the chapter:
+\subsubsection{Spatial generalisation}
+- five-fold spatial CV results; fold-level performance; residual maps; residual Moran’s I.
+- limitations of the spatial buffer
+- discuss where the models generalise poorly and whether spatial residual structure remains.
+- compare to plot level split (will be in appendix) 
+\subsubsection{Temporal generalisation}
+- five-fold spatial CV results; fold-level performance; 
+- temporal hold out results, compare to spatila preformance, phenomena of 4 and 6 survey. (likely mean all other sub question below will just be on the 4 survey as we rule and find major weaknesses of the 6 survey) 
+- discuss results, what was shown, what this indicates, errors, why it didnt work etc. (limitations of extrapolating to later surveys.) 
+\subsubsection{Subgroup error analysis}
+matched DNN–PINN comparison;zero-physics control;tested physics weights;data and physics losses;seed variation;
+stopping epochs;training time;physics violation;measurable biological behaviour, if evaluated.
+Then explain whether the overall metric hides systematic weaknesses.what this model did show, what were its weaknesses, 
+- Was the constraint implemented and active?, Did it reduce measured physics violation? Did it improve held-out prediction?
+\subsection{environment conditioned prediction}
+- compare stand only dnn, evironmental dnn, standard pinn, environmental pinn varians, envirnomental condtions CR parameters if retained, Does environmental information improve held-out prediction?
+Does it benefit the DNN and PINN equally?
+Does conditioning CR parameters help more than adding predictors as inputs?
+Are changes consistent across folds and cohorts? 
 
-* The four-survey cohort is the main analysis.
-* The six-survey cohort is a sensitivity analysis.
-* Spatial holdout is the primary evaluation.
-* Temporal holdout is supporting evidence.
-* Comparisons are controlled only when the target, features, split and training settings match.
-* Main metrics are MAE, RMSE and (R^2).
-* Variation across folds or seeds is considered alongside mean performance.
+make sure in include anomalies  in the above right subsection (5.2.6 Error patterns
 
-Do not repeat the methodology. This section only reminds the reader which evidence has priority.
+NOTE: Analyse only the groups that reveal useful differences: age;observed height; thinning or disturbance; spatial fold; survey interval; selected environmental conditions.
 
----
+Then end Section 5.2 with a short direct answer to RQ1.
+%------------------------------------------------
+\section{Research Question 2: What is associated with departure from the shared CR relationship?} 
+\subsection{Result}
+- (find which results best sit in this section) (may need to do further evlautions and analysis based on the models) 
 
-## 5.2 Question 1: How accurately do the models predict top height?
+- distribution of CR residuals;
+- mean residual per plot, if this was calculated;
+- consistency of residual direction across surveys;
+- plots persistently above or below the shared curve;
+- spatial distribution of those departures.
+- Moran’s I (before and after each model, or cahnge) 
+- differences between compartments.
+- for each experiment year, 
+the results table for all key metrics, numbers in this section (RQ2) 
 
-This answers:
+Where do the models succeed or fail, and what conditions align with those departures?
+sentence on why 4 survey is only used here (disregard 6 survey for this qustion, give good evidence why) 
 
-> How accurately do the baseline models, DNN and PINN predict top height under spatial and temporal holdout?
+\subsubsection{Size and persistence of shared-curve departures}
+Establish the pattern being investigated: analysis on 
+- distribution of CR residuals;
+- mean residual per plot, if this was calculated;
+- consistency of residual direction across surveys;
+- plots persistently above or below the shared curve;
+- spatial distribution of those departures.
 
-### 5.2.1 Performance of the reference and baseline models
+\subsection{How the prediction models handle these departures}
+Compare the same CR, DNN and PINN predictions, but focus on the residual pattern rather than headline accuracy:
+whether DNN and PINN reduce large CR residuals;
+whether they improve prediction for plots far above or below the shared curve;
+whether some models mainly improve the centre of the distribution;
+whether environmental variants reduce systematic errors;
+whether the PINN pulls predictions towards the shared CR relationship.
 
-Present the simpler models first:
+This last point may be especially useful. A physics constraint could reduce flexibility and make it harder for the PINN to represent genuine local departures.
 
-* pooled Chapman–Richards curve;
-* linear regression;
-* Random Forest;
-* any other retained conventional baseline.
+\subsection{Environmental and management patterns}
+Assess prediction errors or persistent departures against:
+terrain;
+climate;
+wind exposure;
+thinning or disturbance;
+stand age;
+spatial location;
+other retained environmental variables.
 
-Include:
+The exact method should match what you ran. This might involve:
 
-* one main performance table;
-* spatial test MAE, RMSE and (R^2);
-* results for the four-survey cohort;
-* six-survey results only where they test whether the conclusion changes.
+grouped residual summaries;
+partial or conditional plots;
+model-specific feature effects;
+SHAP results, if SHAP was applied to these prediction models;
+comparison of errors across environmental groups.
 
-Interpret:
+These results describe associations. They do not establish that a variable caused the departure.
+Compare residual spatial structure between the models:
 
-* how much improvement is obtained over the pooled CR curve;
-* whether nonlinear ML improves over the linear model;
-* whether the simpler models already capture much of the available signal;
-* which model forms the strongest baseline for the neural models.
+residual maps;Moran’s I;semivariograms, if useful;
+clusters of persistent overprediction and underprediction.
 
-This establishes the level the DNN and PINN must beat.
+This asks whether the DNN, PINN or environmental variants account for spatial departures that the shared CR curve misses.
+\subsection{Link to the physics result}
 
-### 5.2.2 DNN and PINN predictive comparison
+Bring the RQ1 and RQ2 evidence together:
 
-Present:
+Did the physics constraint make the PINN adhere more closely to the shared curve?
+Did this reduce or increase errors for plots with atypical trajectories?
+Did environmental conditioning help the model represent local variation?
+Were persistent residuals concentrated in particular conditions?
 
-* DNN results;
-* matched PINN results;
-* differences across folds or split seeds;
-* variation or standard deviation;
-* observed-versus-predicted plots;
-* residual distributions.
+End with a short answer to RQ2.
 
-The central comparisons are:
+-- i want all the relevant results and metrics all in the results table at the top of the section (RQ2), but maps and plots graphs can go in relevant subsection. 
 
-1. Does the DNN improve over CR?
-2. Does the PINN improve over CR?
-3. Does the PINN improve over the matched DNN?
+\section{Research Question 3: What is associated with plot-specific curve deviation?}
+quick explaiantion of the method here, separate from earlier. 
+the results table for all key metrics, numbers in this section (RQ3) 
 
-The third comparison is the most important test of whether adding physics helped. Avoid treating a small numerical difference as meaningful unless it is consistent across folds, seeds and cohorts.
+\subsection{Reliability of the per-plot target}
 
-### 5.2.3 Does environmental information improve height prediction?
-
-This corresponds to the environment-conditioned prediction strand in the methodology.
-
-Compare:
-
-* stand-only DNN;
-* environment-and-terrain DNN;
-* standard PINN;
-* environment-conditioned PINN;
-* (y_{\max})-conditioned PINN;
-* (y_{\max}+k)-conditioned PINN.
-
-Present:
-
-* one compact comparison table;
-* change in performance after environmental variables are added;
-* fold or seed variation;
-* results by model type.
-
-Interpret separately:
-
-* whether environmental information improves the DNN;
-* whether it improves the PINN;
-* whether modifying the CR parameters helps more than simply supplying environmental predictors as inputs;
-* whether any improvement is large and consistent enough to matter.
-
-These are still prediction results. They should not be mixed with the later SHAP attribution results.
-
-### 5.2.4 Spatial and temporal generalisation
-
-Present:
-
-* five-fold spatial cross-validation;
-* compartment or spatial-block holdout results;
-* temporal holdout results;
-* fold-level performance;
-* residual maps;
-* residual Moran’s (I);
-* semivariograms, if informative.
-
-Discuss:
-
-* how performance changes under spatial rather than random splitting;
-* whether some spatial folds are more difficult;
-* whether residual spatial structure remains;
-* whether temporal extrapolation is harder than spatial interpolation;
-* limitations of the 60 m buffer.
-
-Temporal evaluation should remain secondary if that is how it is positioned in the methodology.
-
-### 5.2.5 Error patterns and subgroup analysis
-
-Investigate where prediction errors occur:
-
-* age groups;
-* observed height groups;
-* survey intervals;
-* spatial folds or compartments;
-* thinning status;
-* environmental conditions;
-* disturbed or declining plots, where identifiable.
-
-Use only the subgroup analyses that provide a useful explanation. You do not need a separate plot for every possible variable.
-
-This section asks whether the overall metrics hide systematic weaknesses. For example, the DNN could perform well overall but poorly for older stands or following disturbance.
-
-### Short answer to Question 1
-
-End with a concise finding, such as:
-
-> The data-driven models improved on the pooled Chapman–Richards curve under spatial holdout. However, the PINN did not consistently improve on the matched DNN, and residual spatial structure remained.
-
-Adjust this once the final results are confirmed.
-
----
-
-## 5.3 Question 2: What effect does the Chapman–Richards physics constraint have?
-
-This answers:
-
-> Does adding Chapman–Richards physics affect prediction, training stability and predicted biological behaviour?
-
-This deserves its own section even though the headline PINN accuracy was introduced in Question 1. Question 1 establishes what happened; Question 2 investigates why.
-
-### 5.3.1 Physics-weight ablation
+Report:
+successful and failed curve fits;
+implausible or boundary estimates;
+distribution of local ymax
+fitting error or uncertainty;
+four- versus six-survey consistency;
+sensitivity to filtering decisions.
+5.4.2 Elastic Net attribution
 
 Present:
 
-* zero-physics control;
-* derivative-only weights;
-* trajectory-only weights, if tested;
-* combined physics weights;
-* full-weight configuration;
-* results across seeds, folds and cohorts.
+spatially held-out performance;
+selected coefficients;
+coefficient direction and stability;
+effects of correlated predictors;
+variation between folds.
 
-A useful table would contain:
+Elastic Net is useful as the simpler and more interpretable per-plot attribution model.
 
-| Physics configuration | Prediction error | Physics violation | Seed variation | Stopping epoch |
-| --------------------- | ---------------: | ----------------: | -------------: | -------------: |
+\subsection{Nonlinear and spatially varying attribution}
 
-The essential control is:
+Then present whichever additional models were actually retained:
 
-[
-\lambda_d=\lambda_t=0.
-]
+XGBoost;
+GNNWR;
+feature importance or SHAP;
+local coefficient maps;
+spatially held-out performance;
+remaining residual spatial structure.
+- other remaining evlation metrrics that are useful 
 
-This shows whether the architecture without the physics constraint behaves like the equivalent DNN.
 
-Discuss:
-
-* whether stronger physics weights improve or harm prediction;
-* whether the effect is consistent;
-* whether one physics component appears more problematic;
-* whether the selected full-weight model was stable.
-
-### 5.3.2 Training and optimisation behaviour
-
-Present, where available:
-
-* training and validation data-loss curves;
-* derivative-loss curves;
-* trajectory-loss curves;
-* stopping epochs;
-* convergence failures;
-* seed-to-seed variability;
-* training time.
-
-Investigate whether:
-
-* the physics loss dominates the data loss;
-* reducing physics violation increases validation error;
-* the model stops improving unusually early;
-* results depend strongly on initialisation;
-* the PINN requires substantially more computation.
-
-Your previously identified difference in DNN and PINN seed variability belongs here as a central result.
-
-### 5.3.3 Biological behaviour and physics compliance
-
-Keep three outcomes separate:
-
-1. Was the physics loss implemented successfully?
-2. Did it reduce measured physics violation?
-3. Did reducing physics violation improve prediction?
-
-Possible evidence includes:
-
-* proportion of trajectories that remain monotonic;
-* implausible negative height changes;
-* smoothness of predicted trajectories;
-* derivative or trajectory residuals;
-* predictions outside a plausible height range;
-* example trajectories for representative plots.
-
-Do not claim that the PINN is more biologically plausible unless one of these behaviours was measured.
-
-### 5.3.4 Why might the physics constraint not help?
-
-Bring together the evidence from the preceding sections:
-
-* a pooled CR derivative may not represent every plot;
-* disturbance and thinning may produce departures from smooth growth;
-* unequal survey intervals obscure when changes occurred;
-* four or six measurements provide limited trajectory information;
-* LiDAR height differences are not identical to biological growth;
-* the physics and prediction objectives may compete;
-* the DNN may already learn the dominant age–height relationship;
-* the chosen physics weights may make optimisation unstable.
-
-Distinguish evidence from possible explanations. For example:
-
-> The higher seed variability provides evidence of optimisation instability. A mismatch between the pooled CR derivative and local growth is a possible explanation that requires comparison with observed plot-level changes.
-
-### Short answer to Question 2
-
-For example:
-
-> The Chapman–Richards constraint altered optimisation and reduced some measures of physics violation, but it did not produce a consistent predictive improvement and increased sensitivity to the training seed.
-
-Only retain the physics-violation statement if the results demonstrate it.
-
----
-
-## 5.4 Question 3: Which conditions are associated with persistent departure from the shared CR curve?
-
-This is Avenue 1.
-
-### 5.4.1 Distribution and spatial pattern of shared-curve residuals
-
-First establish what is being explained:
-
-* distribution of plot-level mean CR residuals;
-* map of positive and negative residuals;
-* residual variation between compartments;
-* Moran’s (I);
-* semivariogram or spatial range, if useful.
-
-Explain whether departures from the pooled curve are:
-
-* substantial;
-* persistent across surveys;
-* spatially clustered;
-* large enough to justify attribution modelling.
-
-This connects the prediction results to the attribution analysis.
-
-### 5.4.2 Can the residual departures be predicted?
-
-Compare:
-
-* intercept or mean baseline;
-* Elastic Net;
-* XGBoost;
-* mixed-effects model, if retained.
-
-Present:
-
-* held-out MAE, RMSE and (R^2);
-* spatial cross-validation results;
-* fold variation;
-* observed-versus-predicted residuals.
-
-The important question is not simply whether XGBoost fits the training data. It is whether the departures are predictable in spatially held-out areas.
-
-### 5.4.3 Which variables are associated with the departures?
-
-Present:
-
-* Elastic Net coefficients;
-* XGBoost SHAP importance;
-* SHAP dependence plots for a small number of important variables;
-* grouped importance by terrain, climate, wind and management;
-* sensitivity after removing correlated or questionable variables.
-
-Interpret:
-
-* whether linear and nonlinear models identify similar variables;
-* whether directions of association are credible;
-* whether coarse variables mostly represent spatial zones;
-* whether relationships remain after spatial validation;
-* whether importance may be distributed between correlated predictors.
-
-Use associational language throughout. SHAP explains the fitted model, not the ecological cause of growth.
-
-### 5.4.4 Remaining unexplained spatial structure
-
-After attribution, compare Moran’s (I) before and after modelling.
-
-Ask:
-
-* did environmental and management variables reduce spatial clustering?
-* did substantial spatial structure remain?
-* are there identifiable areas of consistently unexplained growth?
-
-This is stronger than merely listing important SHAP variables because it tests whether the variables actually account for the spatial pattern.
-
-### Short answer to Question 3
-
-For example:
-
-> The available predictors explained part of the persistent departure from the shared CR curve, but held-out performance was limited and residual spatial structure remained. The identified variables should therefore be interpreted as spatial associations rather than causal drivers.
-
----
-
-## 5.5 Question 4: Which conditions align with plot-specific growth-curve deviations?
-
-This is Avenue 2 and should be presented as more tentative because local curves are fitted from only four or six observations.
-
-### 5.5.1 Reliability of the plot-level curve target
-
-Before presenting attribution models, show whether (\Delta y_{\max}) is reliable enough to analyse.
-
-Include:
-
-* number of eligible plots;
-* number or proportion of failed local fits;
-* distribution of local (y_{\max});
-* frequency of implausible or boundary estimates;
-* effect of the disturbance filters;
-* comparison between four- and six-survey estimates;
-* uncertainty or fit error.
-
-This is essential. If the derived target is unstable, it directly limits every later Avenue 2 conclusion.
-
-### 5.5.2 Global attribution models
-
-Compare:
-
-* Elastic Net;
-* XGBoost;
-* simple baseline.
-
-Present:
-
-* spatially held-out performance;
-* variation between folds;
-* feature importance or coefficients;
-* comparison with Avenue 1.
-
-Ask whether environmental and management information can explain the more ambitious trajectory target, rather than only the shared-curve residual.
-
-### 5.5.3 Does allowing spatially varying relationships help?
-
-Present the GNNWR results:
-
-* performance against Elastic Net and XGBoost;
-* global versus spatially varying relationships;
-* maps of selected local coefficients;
-* stability or plausibility of those coefficients;
-* remaining residual spatial structure.
-
-Do not treat attractive coefficient maps as proof of improved attribution. First establish that GNNWR generalises adequately and produces reasonably stable relationships.
-
-### 5.5.4 Does Avenue 2 improve attribution?
-
-Compare Avenue 1 and Avenue 2 directly:
-
-| Criterion                   | Avenue 1                | Avenue 2                   |
-| --------------------------- | ----------------------- | -------------------------- |
-| Target                      | Mean shared-CR residual | Local (y_{\max}) deviation |
-| Target reliability          | Higher/lower            | Higher/lower               |
-| Held-out predictability     | Result                  | Result                     |
-| Remaining spatial structure | Result                  | Result                     |
-| Interpretability            | Result                  | Result                     |
-| Main limitation             | Result                  | Result                     |
-
-“Improve attribution” should be judged through explicit criteria, such as:
-
-* stronger held-out prediction;
-* more stable feature relationships;
-* lower residual spatial autocorrelation;
-* clearer relationship with environmental conditions;
-* acceptable target reliability.
-
-Avenue 2 should not be described as better merely because it is more locally detailed.
-
-### Short answer to Question 4
-
-For example:
-
-> Plot-specific curve deviations provided a more local description of growth, but their estimation from four or six observations introduced substantial uncertainty. The resulting attribution was therefore weaker than, or complementary to, the shared-curve residual analysis.
-
----
-
-## 5.6 Overall synthesis
-
-This section should be short—approximately one to two pages.
-
-Bring the four questions together:
-
-1. Which model predicted height most accurately?
-2. Did adding CR physics help?
-3. Could environmental and management information explain persistent shared-curve departures?
-4. Did plot-specific trajectory modelling improve attribution?
-
-A possible overall story is:
-
-> Data-driven models captured spatial variation not represented by a pooled Chapman–Richards curve. However, imposing the selected Chapman–Richards constraints did not consistently improve prediction and increased training instability. Environmental and management variables accounted for some persistent spatial departure from the shared curve, although important spatial structure remained. The plot-specific trajectory approach provided a more local target but was limited by the small number of observations available for fitting each curve.
-
-This synthesis prepares the reader for the final Conclusion chapter. The conclusion then returns to the objectives, states the contribution and explains the broader implications without repeating every result.
-
-# Recommended balance within the chapter
-
-| Results section           | Approximate share |
-| ------------------------- | ----------------: |
-| Evaluation overview       |              3–5% |
-| Q1: Prediction comparison |            25–30% |
-| Q2: Effect of physics     |            20–25% |
-| Q3: Avenue 1 attribution  |            20–25% |
-| Q4: Avenue 2 attribution  |            15–20% |
-| Overall synthesis         |              5–8% |
-
-Give Avenue 2 less space if its target or modelling results are unreliable. Page allocation should reflect the strength of the evidence, not the amount of work required to produce it.
-
-# Important changes to the earlier plan
-
-A few parts of the Introduction and Methodology should be tightened so they map cleanly onto this Results chapter:
-
-* Rewrite the objectives as four main objectives matching the four experimental questions.
-* Include environmental prediction explicitly within Question 1, or state it as a sub-question.
-* In Question 2, change “predicted biological behaviour” into measurable outcomes such as monotonicity, physics residual or implausible trajectories.
-* Define what “improve attribution” means for Avenue 2 before evaluating it.
-* Change “GNN” to “GNNWR” in the analytical-framework table if GNNWR is the actual model.
-* State the split design, five-fold CV, seeds, buffer and cohort roles before the individual models in Methodology.
-* Ensure every model listed in Methodology appears in Results. Remove models that were explored but not retained, or clearly label them as preliminary/appendix analyses.
-* Keep descriptive dataset facts in the Data chapter. Move analytical findings such as Moran’s (I=0.941) into Results only if they are used as evidence about predictor resolution or spatial structure.
-
-The result is a clean correspondence:
-
-| Earlier chapter promise                  | Results location |
-| ---------------------------------------- | ---------------- |
-| Compare CR, baselines, DNN and PINN      | 5.2              |
-| Test spatial and temporal generalisation | 5.2.4            |
-| Test environment-conditioned prediction  | 5.2.3            |
-| Test physics weights and behaviour       | 5.3              |
-| Explain shared-curve departures          | 5.4              |
-| Explain plot-specific curve deviations   | 5.5              |
-| Compare the strength of all evidence     | 5.6              |
-
-So yes, this plan helps substantially. It gives you a defensible Results and Discussion chapter organised by sub-question, with each table followed immediately by the relevant plots, diagnostics and interpretation.
-
-
-
-
-there could be key evaluations, plots, graphs, useful things that i am yet to do (planning this will help identify the most useful plots maps, graphs etc to include to include the main point)
+compare to RQ2: Compare the evidence, not necessarily the raw performance metrics, because the targets differ.
 
 
 

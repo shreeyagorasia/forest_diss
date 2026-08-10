@@ -179,6 +179,66 @@ def run_scope(cohort: str, scope: str, k: int = 5, seed: int = 42):
     return pd.DataFrame(rows), predictions, fold_counts
 
 
+def run_columns(cohort: str, raw_columns: list[str], k: int = 5, seed: int = 42):
+    """Raw-column-list sibling of run_scope() -- same spatial CV, but takes an explicit column
+    list directly instead of a named scope resolved through SCOPE_GROUPS. Built for the new
+    rank-aggregate environmental-feature methodology (see
+    models/xgb_environmental/feature_set_builder.py), whose Set2-5 membership isn't a named
+    SCOPE_GROUPS entry -- a new function, not a parameter added to run_scope() itself, so no
+    existing named-scope caller's behaviour can change.
+
+    raw_columns can mix plain continuous column names with SPECIFIC one-hot dummy names already
+    in "category=value" form (e.g. "ceh_textural_composition=5.0") -- exactly what
+    documentation/env_feature_sets_manifest.csv stores for RSQ3's Set4/Set5, which rank
+    individual dummy values, not whole categories. prepare_broad_table() only knows how to take a
+    BARE categorical name and expand it to EVERY one of its dummies, so this function unpacks the
+    specific-dummy entries back to their bare category name for that call, then filters
+    prepare_broad_table's output back down to just the requested continuous columns + requested
+    specific dummies -- never every dummy of a category unless every one of them was actually
+    requested.
+    """
+    bare_columns = []
+    requested_dummy_columns = []
+    for column in raw_columns:
+        if "=" in column:
+            bare_category = column.split("=")[0]
+            if bare_category not in bare_columns:
+                bare_columns.append(bare_category)
+            requested_dummy_columns.append(column)
+        else:
+            bare_columns.append(column)
+
+    table, all_model_columns = prepare_broad_table(cohort, bare_columns)
+
+    continuous_requested = [column for column in raw_columns if "=" not in column]
+    model_columns = continuous_requested + [column for column in requested_dummy_columns if column in all_model_columns]
+    missing_dummies = [column for column in requested_dummy_columns if column not in all_model_columns]
+    if missing_dummies:
+        raise KeyError(f"Requested dummy columns not found after encoding: {missing_dummies}")
+
+    predictions, fold_counts = run_spatial_cv(table, model_columns, k=k, seed=seed)
+
+    rows = []
+    for prediction_column, method in [
+        ("elastic_net_predicted", "Elastic Net"),
+        ("xgboost_predicted", "XGBoost"),
+    ]:
+        summary = summarize_spatial_cv(predictions, prediction_column)
+        rows.append(
+            {
+                "cohort": cohort,
+                "scope": "raw_columns",
+                "method": method,
+                "n_raw_features": len(raw_columns),
+                "n_model_columns": len(model_columns),
+                "k": k,
+                "seed": seed,
+                **summary,
+            }
+        )
+    return pd.DataFrame(rows), predictions, fold_counts
+
+
 def run_comparison(
     cohorts=("4survey", "6survey"),
     scopes=("terrain_wind", "broad_environment", "broad_environment_plus_management"),

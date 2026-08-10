@@ -3881,3 +3881,16 @@ solid, and not yet in the main artifact -- fold it in once the user gives the go
 waiting on their separate artifact review); (3) the `y_max`/`k` reseed and no-env fold-CV gaps
 remain the two biggest open robustness questions in the project; (4) the live-artifact incident is
 outside any chat session's ability to fix -- flag it, don't attempt to resolve it in-thread.
+
+---
+
+**2026-08-10 — Naming collision: new `nested_set2/3/4/5` tiers (RQ1/RQ2/RQ3's new environmental
+feature methodology) are NOT the same variables as the old ledger's "Set 2"/etc.**
+The old Split Results Ledger already used "Set 2" to mean `terrain_wind_solid`
+(`ENV_TERRAIN_FEATURE_SETS`, 5 vars: `ceh_twi`/`eastness`/`elevation`/`northness`/`topex`). The
+new methodology's `nested_set2_top5` (also 5 vars for RQ1) is a *different* set built by a
+different procedure (rank-aggregate of Spearman/permutation/drop-column signals against RQ1's own
+target) — only `elevation` overlaps between the two. Always use the full `nested_set{N}_...` key
+when referring to the new tiers; a bare "Set 2" is now ambiguous between two real, different
+variable lists. See `models/xgb_environmental/feature_set_builder.py` and
+`documentation/env_feature_sets_manifest.csv` for the new tiers' exact membership per RQ.
