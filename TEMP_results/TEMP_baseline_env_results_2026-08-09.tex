@@ -1,0 +1,75 @@
+## TEMP holding note — baseline-with-environment results (2026-08-09)
+
+Not yet added to the main results artifact — user is separately evaluating that artifact,
+will ask for this to be folded in afterward. Delete this file once folded in.
+
+### How these were generated
+
+Run **locally** (not via sbatch/cluster), using the local loop script below. An equivalent
+cluster job also exists (`jobs/rerun_baselines_env_grid.sh` -> `jobs/baselines/run_baselines_env.sh`,
+36 `sbatch` submissions) but was **not** what produced these specific numbers -- noting this
+explicitly so the two are never conflated later.
+
+Local commands actually run (via `models/baselines/run_baselines_env.py`):
+```bash
+source .venv/bin/activate
+export PYTHONPATH="$(pwd)"
+
+for cohort in 4survey 6survey; do
+  for feature_set in stage1_terrain stage2_terrain_wind stage4_all_environmental; do
+    python3 -u -m models.baselines.run_baselines_env \
+      --cohort "$cohort" --split-type plot_level --feature-set "$feature_set"
+
+    for fold in 0 1 2 3 4; do
+      python3 -u -m models.baselines.run_baselines_env \
+        --cohort "$cohort" --split-type spatial_block_kfold --feature-set "$feature_set" \
+        --split-seed 42 --n-folds 5 --fold-index "$fold"
+    done
+  done
+done
+```
+36 job-units total (3 tiers x 2 cohorts x [1 plot_level + 5 spatial_block_kfold folds]), each
+fitting `linear_baseline_env`, `rf_baseline_env`, `xgb_baseline_env` in one pass. All 108 model
+fits completed successfully (0 failures). Code: `models/linear_baseline/linear_baseline.py` and
+`models/rf_baseline/rf_baseline.py` extended (backward-compatible) to accept environmental
+features; new `models/xgb_baseline/xgb_baseline.py` added as a third baseline (XGBoost
+`n_jobs=1` -- works around a macOS ARM64 segfault found this session, harmless on the cluster).
+
+### Results
+
+**`plot_level` (easy split, single run):**
+
+| Cohort | Tier | Linear | RF | XGBoost |
+|---|---|---:|---:|---:|
+| 4survey | stage1_terrain | 0.604 | 0.850 | 0.821 |
+| 4survey | stage2_terrain_wind | 0.607 | 0.859 | 0.836 |
+| 4survey | stage4_all_environmental | 0.617 | 0.873 | 0.843 |
+| 6survey | stage1_terrain | 0.634 | 0.871 | 0.860 |
+| 6survey | stage2_terrain_wind | 0.655 | 0.877 | 0.868 |
+| 6survey | stage4_all_environmental | 0.661 | 0.892 | 0.876 |
+
+**`spatial_block_kfold` (harder, primary comparison — mean±SD across 5 folds):**
+
+| Cohort | Tier | Linear | RF | XGBoost |
+|---|---|---:|---:|---:|
+| 4survey | stage1_terrain | 0.586±0.024 | 0.627±0.020 | 0.630±0.024 |
+| 4survey | stage2_terrain_wind | 0.577±0.023 | 0.628±0.034 | 0.635±0.034 |
+| 4survey | stage4_all_environmental | 0.578±0.020 | 0.626±0.027 | 0.619±0.028 |
+| 6survey | stage1_terrain | 0.549±0.049 | 0.660±0.019 | 0.639±0.021 |
+| 6survey | stage2_terrain_wind | 0.579±0.057 | 0.657±0.050 | 0.645±0.039 |
+| 6survey | stage4_all_environmental | 0.539±0.068 | 0.660±0.043 | 0.654±0.030 |
+
+### Headline finding
+
+Cross-referencing against this session's earlier E6/E3 neural-model numbers
+(`pinn_env_terrain`/`pinn_env_terrain_k` ≈ 0.58 for 4survey, `dnn_env_terrain` ≈ 0.64-0.66,
+`spatial_block_kfold`): **RF and XGBoost, given the identical terrain features, score at or above
+both PINN-with-terrain variants on 4survey** (RF/XGBoost ≈ 0.62-0.64 vs. PINN ≈ 0.58).
+`dnn_env_terrain` still edges out the baselines. On 6survey the gap closes (baselines ≈ 0.65-0.66,
+neural models ≈ 0.69-0.74) -- **this finding is 4survey-specific, not universal.**
+
+**Not yet independently re-verified**: the neural-model comparison numbers above are recalled
+from earlier in this session, not freshly re-pulled from `outputs/` for this exact note --
+re-check against the actual `E6_stage_sweep`/`E3_kfold` output files before citing the
+head-to-head comparison in the dissertation, even though the baseline numbers themselves
+(this note's own table) are freshly generated and confirmed.

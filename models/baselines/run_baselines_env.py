@@ -30,12 +30,12 @@ from models.rf_baseline.rf_baseline import fit as fit_rf_baseline
 from models.rf_baseline.rf_baseline import predict as predict_rf_baseline
 from models.xgb_baseline.xgb_baseline import fit as fit_xgb_baseline
 from models.xgb_baseline.xgb_baseline import predict as predict_xgb_baseline
-from models.xgb_environmental.data import load_environmental_features
+from models.xgb_environmental.data import COHORT_SPECIFIC_COLUMNS, load_environmental_features
 
 TARGET_COL = "elev_percentile_95th"
 
 
-def merge_environmental_features(filtered_df, feature_columns):
+def merge_environmental_features(filtered_df, feature_columns, cohort):
     # model_table.parquet can already carry a stray column of the same name as an environmental
     # feature (found: 'whcl', unclear provenance, possibly unrelated to the canonical value) --
     # drop any such pre-existing column first so the merge always uses
@@ -47,7 +47,17 @@ def merge_environmental_features(filtered_df, feature_columns):
               f"(using plot_environmental_features.parquet as the canonical source instead).")
         filtered_df = filtered_df.drop(columns=already_present)
 
-    env_df = load_environmental_features()[["identification"] + feature_columns].copy()
+    # A handful of features (tas_mean, groundfrost_mean -- COHORT_SPECIFIC_COLUMNS, see
+    # xgb_environmental/data.py) are stored per-cohort in the raw export (tas_mean_4survey /
+    # tas_mean_6survey), not as one shared column -- rename this cohort's version to the plain
+    # name before selecting, same pattern xgb_environmental's load_plots_for_cohort() uses
+    # (not reused directly here since that function also does an unrelated mean_cr_residual
+    # dropna this script has no use for).
+    raw_env_df = load_environmental_features()
+    rename_map = {f"{base}_{cohort}": base for base in COHORT_SPECIFIC_COLUMNS if f"{base}_{cohort}" in raw_env_df.columns}
+    raw_env_df = raw_env_df.rename(columns=rename_map)
+
+    env_df = raw_env_df[["identification"] + feature_columns].copy()
     n_before = len(filtered_df)
     merged = filtered_df.merge(env_df, on="identification", how="left")
     n_missing = int(merged[feature_columns].isna().any(axis=1).sum())
@@ -115,7 +125,7 @@ def run_for_cohort(cohort, split_type, feature_set, split_seed=SEED, k_folds=5, 
         name_suffix=name_suffix, k_folds=k_folds, held_out_fold=held_out_fold,
     )
     filtered_df = load_full_rows_with_split(cohort, split_assignment)
-    filtered_df = merge_environmental_features(filtered_df, feature_columns)
+    filtered_df = merge_environmental_features(filtered_df, feature_columns, cohort)
 
     train_df = filtered_df[filtered_df["split"] == "train"]
     test_df = filtered_df[filtered_df["split"] == "test"]

@@ -1,0 +1,254 @@
+Loaded 2097 successful run_logs entries.
+
+=== Main RESULTS grid (RQ1) ===
+split_type / model / cohort -> status
+[FLAG] plot_level/chapman_richards/4survey -- seed_n=n/a (single seed), last_evaluated=2026-07-30T14:53:09.992818+00:00
+    - MTIME MISMATCH: metrics.json is 40.4h OLDER than the newest matching run_logs entry -- file may have been overwritten by an older sync
+[FLAG] plot_level/chapman_richards/6survey -- seed_n=n/a (single seed), last_evaluated=2026-07-30T14:53:15.311972+00:00
+    - MTIME MISMATCH: metrics.json is 40.4h OLDER than the newest matching run_logs entry -- file may have been overwritten by an older sync
+[FLAG] plot_level/linear_baseline/4survey -- seed_n=n/a (single seed), last_evaluated=2026-07-30T14:53:10.757531+00:00
+    - MTIME MISMATCH: metrics.json is 40.4h OLDER than the newest matching run_logs entry -- file may have been overwritten by an older sync
+[FLAG] plot_level/linear_baseline/6survey -- seed_n=n/a (single seed), last_evaluated=2026-07-30T14:53:15.612877+00:00
+    - MTIME MISMATCH: metrics.json is 40.4h OLDER than the newest matching run_logs entry -- file may have been overwritten by an older sync
+[FLAG] plot_level/rf_baseline/4survey -- seed_n=n/a (single seed), last_evaluated=2026-07-30T14:53:15.164086+00:00
+    - MTIME MISMATCH: metrics.json is 40.4h OLDER than the newest matching run_logs entry -- file may have been overwritten by an older sync
+[FLAG] plot_level/rf_baseline/6survey -- seed_n=n/a (single seed), last_evaluated=2026-07-30T14:53:17.439667+00:00
+    - MTIME MISMATCH: metrics.json is 40.4h OLDER than the newest matching run_logs entry -- file may have been overwritten by an older sync
+[OK] plot_level/dnn_noenv/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T11:09:29.130680+00:00
+[OK] plot_level/dnn_noenv/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T11:12:31.089893+00:00
+[OK] plot_level/pinn_noenv/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T11:21:34.078531+00:00
+[OK] plot_level/pinn_noenv/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T11:25:21.319251+00:00
+[OK] plot_level/dnn_env_terrain/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T11:33:32.221420+00:00
+[OK] plot_level/dnn_env_terrain/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T11:35:24.737270+00:00
+[OK] plot_level/pinn_env_terrain/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T11:55:47.745914+00:00
+[OK] plot_level/pinn_env_terrain/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T11:55:50.734254+00:00
+[OK] plot_level/pinn_env_terrain_k/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T11:50:38.523890+00:00
+[OK] plot_level/pinn_env_terrain_k/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T11:54:45.690237+00:00
+[FLAG] spatial_block/chapman_richards/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-06T19:28:19.230611+00:00
+    - MTIME MISMATCH: metrics.json is 213.0h OLDER than the newest matching run_logs entry -- file may have been overwritten by an older sync
+[FLAG] spatial_block/chapman_richards/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-06T19:28:22.753766+00:00
+    - MTIME MISMATCH: metrics.json is 213.0h OLDER than the newest matching run_logs entry -- file may have been overwritten by an older sync
+[FLAG] spatial_block/linear_baseline/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-06T19:28:19.920792+00:00
+    - MTIME MISMATCH: metrics.json is 213.0h OLDER than the newest matching run_logs entry -- file may have been overwritten by an older sync
+[FLAG] spatial_block/linear_baseline/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-06T19:28:23.047060+00:00
+    - MTIME MISMATCH: metrics.json is 213.0h OLDER than the newest matching run_logs entry -- file may have been overwritten by an older sync
+[FLAG] spatial_block/rf_baseline/4survey -- seed_n=n/a (single seed), last_evaluated=2026-07-30T14:53:26.345248+00:00
+    - MTIME MISMATCH: metrics.json is 40.4h OLDER than the newest matching run_logs entry -- file may have been overwritten by an older sync
+[FLAG] spatial_block/rf_baseline/6survey -- seed_n=n/a (single seed), last_evaluated=2026-07-30T14:53:28.190325+00:00
+    - MTIME MISMATCH: metrics.json is 40.4h OLDER than the newest matching run_logs entry -- file may have been overwritten by an older sync
+[OK] spatial_block/dnn_noenv/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T14:16:44.077777+00:00
+[OK] spatial_block/dnn_noenv/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T14:19:02.350106+00:00
+[OK] spatial_block/pinn_noenv/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T19:04:52.804666+00:00
+[OK] spatial_block/pinn_noenv/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T19:05:22.275812+00:00
+[OK] spatial_block/dnn_noenv/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T14:16:52.817367+00:00
+[OK] spatial_block/dnn_noenv/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T14:19:09.286540+00:00
+[OK] spatial_block/pinn_noenv/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T19:04:55.662563+00:00
+[OK] spatial_block/pinn_noenv/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T19:05:24.179291+00:00
+[OK] spatial_block/dnn_noenv/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T14:17:00.911899+00:00
+[OK] spatial_block/dnn_noenv/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T14:19:15.889280+00:00
+[OK] spatial_block/pinn_noenv/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T19:04:58.400197+00:00
+[OK] spatial_block/pinn_noenv/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T19:05:26.082680+00:00
+[OK] spatial_block/dnn_noenv/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T14:17:09.582026+00:00
+[OK] spatial_block/dnn_noenv/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T14:19:22.598926+00:00
+[OK] spatial_block/pinn_noenv/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T19:05:01.125838+00:00
+[OK] spatial_block/pinn_noenv/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T19:05:28.115753+00:00
+[OK] spatial_block/dnn_noenv/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T14:17:19.619853+00:00
+[OK] spatial_block/dnn_noenv/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T14:19:28.807341+00:00
+[OK] spatial_block/pinn_noenv/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T19:05:03.885599+00:00
+[OK] spatial_block/pinn_noenv/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T19:05:30.115622+00:00
+[OK] spatial_block/dnn_env_terrain/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-02T14:48:02.067961+00:00
+[OK] spatial_block/dnn_env_terrain/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-01T13:44:47.898918+00:00
+[OK] spatial_block/pinn_env_terrain/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-02T14:48:06.153422+00:00
+[OK] spatial_block/pinn_env_terrain/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-01T14:07:21.362114+00:00
+[OK] spatial_block/pinn_env_terrain_k/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-04T09:37:43.230265+00:00
+[OK] spatial_block/pinn_env_terrain_k/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-05T23:41:26.524662+00:00
+[FLAG] spatial_block_kfold/chapman_richards/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-05T21:16:52.042900+00:00
+    - fold2: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T16:21:39.125959+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:16:52.042900+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+[FLAG] spatial_block_kfold/chapman_richards/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-05T21:17:28.471994+00:00
+    - fold0: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T16:20:26.506429+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:17:27.274151+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold3: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T16:22:58.443327+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:17:26.923284+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold4: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T16:23:46.054631+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:17:28.471994+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+[FLAG] spatial_block_kfold/linear_baseline/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-05T21:16:55.180893+00:00
+    - fold2: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T16:21:39.350967+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:16:55.180893+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+[FLAG] spatial_block_kfold/linear_baseline/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-05T21:17:29.088285+00:00
+    - fold0: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T16:20:26.629831+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:17:27.879483+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold2: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T16:22:08.343195+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:17:28.928160+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold4: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T16:23:46.176449+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:17:29.088285+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+[FLAG] spatial_block_kfold/rf_baseline/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-05T21:17:27.517558+00:00
+    - fold0: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T16:20:25.884292+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:17:26.331615+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold3: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T16:22:57.727191+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:17:25.986123+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold4: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T16:23:45.368214+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:17:27.517558+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+[FLAG] spatial_block_kfold/rf_baseline/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-05T21:17:40.605000+00:00
+    - fold1: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T16:21:25.832114+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:17:40.605000+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold3: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T16:23:06.858368+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:17:38.330678+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+[FLAG] spatial_block_kfold/dnn_noenv/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-05T22:37:08.843713+00:00
+    - fold0: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T11:39:56.516188+00:00 (commit a19e7d939e) AND a cluster FIT @ 2026-08-05T21:23:57.424344+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold1: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T11:40:36.088992+00:00 (commit a19e7d939e) AND a cluster FIT @ 2026-08-05T21:23:33.890412+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold2: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T11:41:39.505997+00:00 (commit a19e7d939e) AND a cluster FIT @ 2026-08-05T21:24:15.958440+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold3: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T11:43:01.517261+00:00 (commit a19e7d939e) AND a cluster FIT @ 2026-08-05T21:26:25.781745+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold4: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T11:44:43.107610+00:00 (commit a19e7d939e) AND a cluster FIT @ 2026-08-05T21:29:02.752546+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+[FLAG] spatial_block_kfold/dnn_noenv/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-05T22:37:17.996004+00:00
+    - fold0: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T11:45:44.051793+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:31:09.223687+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold1: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T11:46:17.495708+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:32:43.705030+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold2: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T11:46:43.152838+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:36:49.254896+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold3: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T11:47:02.244052+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:38:52.163383+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold4: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T11:47:22.012302+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:40:59.060964+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+[OK] spatial_block_kfold/pinn_noenv/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-07T15:00:50.766399+00:00
+[OK] spatial_block_kfold/pinn_noenv/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-07T15:01:07.230701+00:00
+[FLAG] spatial_block_kfold/dnn_env_terrain/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-05T22:37:09.112421+00:00
+    - fold0: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T11:47:54.432661+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:24:21.897445+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold1: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T11:48:20.587539+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:24:22.362471+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold2: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T11:48:47.914286+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:24:31.376957+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold3: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T11:49:16.399377+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:27:22.403196+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold4: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T11:49:43.946868+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:29:26.513877+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+[FLAG] spatial_block_kfold/dnn_env_terrain/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-05T22:37:18.003096+00:00
+    - fold0: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T11:49:57.667352+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:30:59.606465+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold1: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T11:50:12.697619+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:34:18.592476+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold2: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T11:50:27.970044+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:38:12.709381+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold3: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T11:50:41.878604+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:39:36.912650+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold4: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T11:50:55.001474+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:42:01.111416+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+[FLAG] spatial_block_kfold/pinn_env_terrain/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-05T21:42:36.548305+00:00
+    - fold0: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T11:52:43.303454+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:42:36.548305+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold1: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T11:54:33.120967+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:34:53.901257+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold2: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T12:00:20.875425+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:35:52.553803+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold3: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T12:05:46.131922+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:36:36.319246+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold4: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T12:09:12.865992+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:41:47.426099+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+[FLAG] spatial_block_kfold/pinn_env_terrain/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-05T22:37:24.213432+00:00
+    - fold0: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T12:12:03.403715+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:36:54.010303+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold1: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T12:14:36.037016+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:42:21.177096+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold2: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T12:16:24.454629+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:42:40.337651+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold3: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T12:17:45.794770+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:42:14.680713+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold4: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T12:20:17.001195+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:44:14.319754+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+[FLAG] spatial_block_kfold/pinn_env_terrain_k/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-05T22:37:18.368494+00:00
+    - fold0: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T12:27:43.282413+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:53:52.060803+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold1: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T12:30:11.365833+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:31:10.374579+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold2: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T12:34:23.676639+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:37:46.133582+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold3: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T12:39:09.471004+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:40:45.885743+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold4: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T12:43:19.002575+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:45:37.490752+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+[FLAG] spatial_block_kfold/pinn_env_terrain_k/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-05T22:37:24.155242+00:00
+    - fold0: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T12:45:03.337639+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:38:54.454700+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold1: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T12:46:06.680245+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:43:24.182036+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold2: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T12:47:03.549676+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:43:43.635213+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold3: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T12:49:08.358812+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:42:46.082649+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+    - fold4: LOCAL/CLUSTER FIT CONFLICT: a local FIT @ 2026-08-04T12:50:37.325278+00:00 (commit 73dd26677c) AND a cluster FIT @ 2026-08-05T21:45:52.419362+00:00 (commit 5fee2e80e1) both wrote to this exact folder -- whichever synced down LAST is what's on disk now, not necessarily the newer or more-correct one
+[FLAG] temporal/chapman_richards/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T19:04:02.485797+00:00
+    - MTIME MISMATCH: metrics.json is 260.2h OLDER than the newest matching run_logs entry -- file may have been overwritten by an older sync
+[FLAG] temporal/chapman_richards/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T19:04:06.526150+00:00
+    - MTIME MISMATCH: metrics.json is 260.2h OLDER than the newest matching run_logs entry -- file may have been overwritten by an older sync
+[FLAG] temporal/linear_baseline/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T19:04:03.195477+00:00
+    - MTIME MISMATCH: metrics.json is 260.2h OLDER than the newest matching run_logs entry -- file may have been overwritten by an older sync
+[FLAG] temporal/linear_baseline/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T19:04:06.780539+00:00
+    - MTIME MISMATCH: metrics.json is 260.2h OLDER than the newest matching run_logs entry -- file may have been overwritten by an older sync
+[FLAG] temporal/rf_baseline/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T19:04:06.400210+00:00
+    - MTIME MISMATCH: metrics.json is 260.2h OLDER than the newest matching run_logs entry -- file may have been overwritten by an older sync
+[FLAG] temporal/rf_baseline/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T19:04:07.931185+00:00
+    - MTIME MISMATCH: metrics.json is 260.2h OLDER than the newest matching run_logs entry -- file may have been overwritten by an older sync
+[OK] temporal/dnn_noenv/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T14:17:29.727990+00:00
+[OK] temporal/dnn_noenv/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T14:19:35.163801+00:00
+[OK] temporal/pinn_noenv/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T19:05:07.382628+00:00
+[OK] temporal/pinn_noenv/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T19:05:32.018448+00:00
+[OK] temporal/dnn_noenv/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T14:17:39.925764+00:00
+[OK] temporal/dnn_noenv/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T14:19:41.795121+00:00
+[OK] temporal/pinn_noenv/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T19:05:10.327666+00:00
+[OK] temporal/pinn_noenv/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T19:05:33.995206+00:00
+[OK] temporal/dnn_noenv/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T14:17:50.681903+00:00
+[OK] temporal/dnn_noenv/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T14:19:48.405369+00:00
+[OK] temporal/pinn_noenv/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T19:05:13.088720+00:00
+[OK] temporal/pinn_noenv/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T19:05:35.991649+00:00
+[OK] temporal/dnn_noenv/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T14:18:00.016236+00:00
+[OK] temporal/dnn_noenv/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T14:19:54.687000+00:00
+[OK] temporal/pinn_noenv/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T19:05:16.870773+00:00
+[OK] temporal/pinn_noenv/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T19:05:37.922526+00:00
+[OK] temporal/dnn_noenv/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T14:18:09.043085+00:00
+[OK] temporal/dnn_noenv/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T14:20:01.065718+00:00
+[OK] temporal/pinn_noenv/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T19:05:19.727644+00:00
+[OK] temporal/pinn_noenv/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-09T19:05:39.756388+00:00
+[OK] temporal/dnn_env_terrain/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-01T14:06:20.642017+00:00
+[OK] temporal/dnn_env_terrain/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-01T14:06:20.877688+00:00
+[OK] temporal/pinn_env_terrain/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-01T14:12:24.240476+00:00
+[OK] temporal/pinn_env_terrain/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-01T14:12:24.646594+00:00
+[OK] temporal/pinn_env_terrain_k/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-05T23:41:54.725548+00:00
+[OK] temporal/pinn_env_terrain_k/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-05T23:41:54.485851+00:00
+
+=== E6 tier sweep, spatial_block_kfold (RQ1, env-conditioned prediction) ===
+[OK] stage1_terrain_dnn_env_terrain/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-07T14:43:10.134025+00:00
+[OK] stage1_terrain_dnn_env_terrain/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-07T14:43:28.736967+00:00
+[FLAG] stage1_terrain_pinn_env_terrain/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-07T14:47:07.310653+00:00
+    - fold3: MTIME MISMATCH: metrics.json is 2.1h OLDER than the newest matching run_logs entry -- file may have been overwritten by an older sync
+    - fold4: MTIME MISMATCH: metrics.json is 2.2h OLDER than the newest matching run_logs entry -- file may have been overwritten by an older sync
+[OK] stage1_terrain_pinn_env_terrain/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-07T14:47:25.013902+00:00
+[FLAG] stage1_terrain_pinn_env_terrain_k/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-07T14:57:24.478137+00:00
+    - fold2: MTIME MISMATCH: metrics.json is 2.1h OLDER than the newest matching run_logs entry -- file may have been overwritten by an older sync
+    - fold3: MTIME MISMATCH: metrics.json is 2.2h OLDER than the newest matching run_logs entry -- file may have been overwritten by an older sync
+    - fold4: MTIME MISMATCH: metrics.json is 2.2h OLDER than the newest matching run_logs entry -- file may have been overwritten by an older sync
+[OK] stage1_terrain_pinn_env_terrain_k/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-07T14:57:48.732317+00:00
+[OK] stage2_terrain_wind_dnn_env_terrain/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-07T14:43:51.341355+00:00
+[OK] stage2_terrain_wind_dnn_env_terrain/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-07T14:44:07.128799+00:00
+[OK] stage2_terrain_wind_pinn_env_terrain/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-07T14:47:51.594028+00:00
+[OK] stage2_terrain_wind_pinn_env_terrain/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-07T14:48:08.342369+00:00
+[OK] stage2_terrain_wind_pinn_env_terrain_k/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-07T14:58:13.405393+00:00
+[OK] stage2_terrain_wind_pinn_env_terrain_k/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-07T14:58:30.346991+00:00
+[OK] stage4_all_environmental_dnn_env_terrain/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T23:38:49.029006+00:00
+[FLAG] stage4_all_environmental_dnn_env_terrain/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T23:39:39.883861+00:00
+    - fold4: MTIME MISMATCH: metrics.json is 32.4h OLDER than the newest matching run_logs entry -- file may have been overwritten by an older sync
+[OK] stage4_all_environmental_pinn_env_terrain/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T23:38:53.125724+00:00
+[FLAG] stage4_all_environmental_pinn_env_terrain/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T23:39:43.468990+00:00
+    - fold4: MTIME MISMATCH: metrics.json is 36.0h OLDER than the newest matching run_logs entry -- file may have been overwritten by an older sync
+[OK] stage4_all_environmental_pinn_env_terrain_k/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T23:38:58.867156+00:00
+[FLAG] stage4_all_environmental_pinn_env_terrain_k/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T23:39:46.878211+00:00
+    - fold4: MTIME MISMATCH: metrics.json is 32.3h OLDER than the newest matching run_logs entry -- file may have been overwritten by an older sync
+
+=== E6 tier sweep, plot_level extension (appendix) ===
+[OK] stage1_terrain_dnn_env_terrain/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T12:01:50.537307+00:00
+[OK] stage1_terrain_dnn_env_terrain/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T12:03:28.668197+00:00
+[OK] stage1_terrain_pinn_env_terrain/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T12:08:40.685875+00:00
+[OK] stage1_terrain_pinn_env_terrain/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T12:10:54.773678+00:00
+[OK] stage1_terrain_pinn_env_terrain_k/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T12:16:55.970335+00:00
+[OK] stage1_terrain_pinn_env_terrain_k/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T12:23:16.379315+00:00
+[OK] stage2_terrain_wind_dnn_env_terrain/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T12:29:28.685710+00:00
+[OK] stage2_terrain_wind_dnn_env_terrain/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T12:30:45.680271+00:00
+[OK] stage2_terrain_wind_pinn_env_terrain/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T12:36:00.696534+00:00
+[OK] stage2_terrain_wind_pinn_env_terrain/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T12:39:47.560221+00:00
+[OK] stage2_terrain_wind_pinn_env_terrain_k/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T12:45:48.301952+00:00
+[OK] stage2_terrain_wind_pinn_env_terrain_k/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T12:52:14.464888+00:00
+[FLAG] stage4_all_environmental_dnn_env_terrain/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T12:55:56.446982+00:00
+    - trained 2026-08-08T12:55:56.446982+00:00, BEFORE the b8884a4 fix (2026-08-08T23:04:44+00:00) -- HadUK-Grid tas_mean/groundfrost_mean cohort-suffix fix (stage4_all_environmental tier only)
+[FLAG] stage4_all_environmental_dnn_env_terrain/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T12:56:43.851732+00:00
+    - trained 2026-08-08T12:56:43.851732+00:00, BEFORE the b8884a4 fix (2026-08-08T23:04:44+00:00) -- HadUK-Grid tas_mean/groundfrost_mean cohort-suffix fix (stage4_all_environmental tier only)
+[FLAG] stage4_all_environmental_pinn_env_terrain/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T13:05:14.665000+00:00
+    - trained 2026-08-08T13:05:14.665000+00:00, BEFORE the b8884a4 fix (2026-08-08T23:04:44+00:00) -- HadUK-Grid tas_mean/groundfrost_mean cohort-suffix fix (stage4_all_environmental tier only)
+[FLAG] stage4_all_environmental_pinn_env_terrain/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T13:09:06.306793+00:00
+    - trained 2026-08-08T13:09:06.306793+00:00, BEFORE the b8884a4 fix (2026-08-08T23:04:44+00:00) -- HadUK-Grid tas_mean/groundfrost_mean cohort-suffix fix (stage4_all_environmental tier only)
+[FLAG] stage4_all_environmental_pinn_env_terrain_k/4survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T13:19:48.172156+00:00
+    - trained 2026-08-08T13:19:48.172156+00:00, BEFORE the b8884a4 fix (2026-08-08T23:04:44+00:00) -- HadUK-Grid tas_mean/groundfrost_mean cohort-suffix fix (stage4_all_environmental tier only)
+[FLAG] stage4_all_environmental_pinn_env_terrain_k/6survey -- seed_n=n/a (single seed), last_evaluated=2026-08-08T13:22:27.976149+00:00
+    - trained 2026-08-08T13:22:27.976149+00:00, BEFORE the b8884a4 fix (2026-08-08T23:04:44+00:00) -- HadUK-Grid tas_mean/groundfrost_mean cohort-suffix fix (stage4_all_environmental tier only)
+
+=== AV2 Elastic Net / XGBoost (RQ3) -- via run_logs ===
+These use models/growth_curve_attribution/broad_environmental_check.py's own pipeline,
+which writes to outputs/growth_curve_attribution/*.csv rather than a per-model folder --
+checking git_commit of the LATEST matching run_logs entry against the XGBoost leak fix only.
+[FLAG] elasticnet_environmental_terrain_and_wind_only -- seed_n=n/a (single seed), last_evaluated=2026-08-04T16:24:57.017841+00:00
+    - trained 2026-08-04T16:24:57.017841+00:00, BEFORE the 3ffc5fc fix (2026-08-04T18:04:51+00:00) -- XGBoost eval-set leak fix in growth-curve spatial CV/bootstrap checks
+[FLAG] elasticnet_environmental_all_environmental_no_neighbour -- seed_n=n/a (single seed), last_evaluated=2026-07-30T17:12:52.763088+00:00
+    - trained 2026-07-30T17:12:52.763088+00:00, BEFORE the 3ffc5fc fix (2026-08-04T18:04:51+00:00) -- XGBoost eval-set leak fix in growth-curve spatial CV/bootstrap checks
+[FLAG] elasticnet_environmental_all_environmental -- seed_n=n/a (single seed), last_evaluated=2026-08-04T16:24:56.589703+00:00
+    - trained 2026-08-04T16:24:56.589703+00:00, BEFORE the 3ffc5fc fix (2026-08-04T18:04:51+00:00) -- XGBoost eval-set leak fix in growth-curve spatial CV/bootstrap checks
+[FLAG] xgb_environmental_terrain_and_wind_only -- seed_n=n/a (single seed), last_evaluated=2026-08-04T16:24:33.161069+00:00
+    - trained 2026-08-04T16:24:33.161069+00:00, BEFORE the 3ffc5fc fix (2026-08-04T18:04:51+00:00) -- XGBoost eval-set leak fix in growth-curve spatial CV/bootstrap checks
+[FLAG] xgb_environmental_all_environmental_no_neighbour -- seed_n=n/a (single seed), last_evaluated=2026-07-30T17:12:29.092559+00:00
+    - trained 2026-07-30T17:12:29.092559+00:00, BEFORE the 3ffc5fc fix (2026-08-04T18:04:51+00:00) -- XGBoost eval-set leak fix in growth-curve spatial CV/bootstrap checks
+[FLAG] xgb_environmental_all_environmental -- seed_n=n/a (single seed), last_evaluated=2026-08-04T16:24:32.819561+00:00
+    - trained 2026-08-04T16:24:32.819561+00:00, BEFORE the 3ffc5fc fix (2026-08-04T18:04:51+00:00) -- XGBoost eval-set leak fix in growth-curve spatial CV/bootstrap checks
+
+=== AV2 GNNWR / Simple DNN / Compartment-mixed DNN (RQ3) -- NO run_logs coverage ===
+These three don't call write_run_log() at all (confirmed by grep) -- there is no
+git_commit/hostname/seed record for them, only the output CSV files' own mtimes.
+This is a real provenance gap worth noting in the report, not something this audit can
+verify the same way as everything else.
+[NO PROVENANCE LOG (mtime only)] gnnwr -- seed_n=n/a (single seed), last_evaluated=2026-08-08T17:08:33.076516+01:00
+    - 3 pooled summary file(s) found, newest mtime 2026-08-08T17:08:33.076516+01:00
+[NO PROVENANCE LOG (mtime only)] simple_dnn -- seed_n=n/a (single seed), last_evaluated=2026-08-08T15:39:59.124076+01:00
+    - 3 pooled summary file(s) found, newest mtime 2026-08-08T15:39:59.124076+01:00
+[NO PROVENANCE LOG (mtime only)] compartment_mixed_dnn -- seed_n=n/a (single seed), last_evaluated=2026-08-08T15:40:02.475852+01:00
+    - 3 pooled summary file(s) found, newest mtime 2026-08-08T15:40:02.475852+01:00
