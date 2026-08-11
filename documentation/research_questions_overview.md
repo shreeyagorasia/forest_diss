@@ -28,16 +28,18 @@ see `TEMP_results/TEMP_rq1_sweep_results_2026-08-11.tex`. Headline: DNN wins on 
 variants win on 6survey — no universal winner yet, a real decision needed before committing
 cluster time to the 5-seed reseed. Winner not yet chosen.
 
-**Planned addition — physics-weight ablation, scoped down (2026-08-11)**: DNN has no physics
-loss or `y_max` sub-network at all, so it can't itself be "ablated" — the useful 3-way comparison
-is DNN (no physics architecture) vs. PINN at `physics_weight=0` (architecture present, not
-constrained) vs. PINN at `physics_weight=1` (already have this from the sweep), separating "does
-the `y_max` sub-network structure help" from "does the physics loss itself help." Recommended to
-run on ONE shared set (Set3 — the strongest/most consistent performer across all three models and
-the RQ2a/RQ2b/RQ3-winning set too), both cohorts, so feature richness isn't confounded with
-physics weight. 20 new jobs (`pinn_env_terrain`/`pinn_env_terrain_k` at `physics_weight=0`, Set3,
-2 cohorts, 5 folds — `physics_weight=1` already exists). No new code needed, both job scripts
-already accept `--physics-weight` as an argument. Not yet run.
+**Physics-weight ablation — done and answered (2026-08-11)**:
+`TEMP_results/TEMP_rq1_physicsablation_results_2026-08-11.tex`. Ran on Set3 (both cohorts), two
+tiers: cheap single-split exploratory pass across `physics_weight` ∈ {0, 1, 2}, plus a rigorous
+5-fold pass at `physics_weight=0` directly comparable to the existing `physics_weight=1` numbers.
+**Finding**: R2 decreases monotonically as physics weight increases, every model, every cohort,
+no exceptions — the physics loss is actively counterproductive at this project's data scale, not
+just neutral (w=0 beats w=1 by +0.05 R2 on 4survey, a real margin outside both configurations'
+CIs). This directly answers why PINN doesn't beat DNN: removing the physics loss closes most of
+the gap on 4survey and nearly all of it on 6survey. **But** it comes with a real
+accuracy-vs-interpretability tradeoff: PINN_k's `y_max`/`k` parameters become far less
+identifiable without the constraint (correlation -0.93 at w=0 vs. -0.45 at w=1 on 4survey,
+sign-flipped on 6survey) — worth stating both sides, not just "physics hurts, remove it."
 
 **Split-type integrity check — plot_level vs. spatial_block_kfold (found 2026-08-11, not yet
 current-methodology)**: real data already exists showing the "easy" split badly overstates
@@ -60,12 +62,13 @@ pursued further as an active research question, for two different reasons depend
   unique plot IDs, zero year-varying columns. There is no temporal axis in either RQ's data at
   all, so a temporal train/test split is undefinable for them, not just untested. No further
   discussion needed beyond stating this once.
-- **RQ1**: genuinely could be tested further (uses the row-level `model_table.parquet`, real
-  per-year height/age observations) — kept as background/motivating evidence only, not pursued as
-  an active line. Old base-case evidence (pre-VIF tiers) already shows temporal R2 roughly HALVING
-  relative to `spatial_block_kfold`'s (DNN: 0.633 → 0.354 on 4survey) — cite this as the reason
-  `spatial_block_kfold` was chosen as the primary split, without re-running it under the current
-  methodology. Re-checking under current tiers is explicitly future work, not a current gap.
+- **RQ1**: **now confirmed under the current methodology too** (`TEMP_results/TEMP_rq1_temporalcheck_results_2026-08-11.tex`,
+  Set3, all 3 models, both cohorts, single-split `spatial_block` vs `temporal`) — the old-tier
+  evidence undersold it. Current tier: every model, both cohorts, shows a large spatial→temporal
+  drop, no exceptions — PINN loses more than 3/4 of its R2 on 6survey (0.73 → 0.16-0.19). This is
+  sufficient, current-methodology, directly citable evidence for choosing `spatial_block_kfold` as
+  the primary split — the scope decision is fully closed, not just motivated by old background
+  evidence anymore. Further temporal work (e.g. multi-seed, other sets) remains future work.
 
 ## RQ2a — does environmental conditioning shrink the departure from the shared growth curve?
 

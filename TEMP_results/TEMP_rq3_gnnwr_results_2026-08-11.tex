@@ -1,0 +1,62 @@
+## TEMP holding note — RQ3 GNNWR pooled results (2026-08-11)
+
+**Cluster fit+evaluate ran**: 2026-08-10/11 (`step2_rq3_gnnwr.sh`, 30 jobs — 3 sets x 2 cohorts x
+5 folds, VIF-screened `nested_set2_top10`/`nested_set3_gated_terrain_wind_vif`/
+`nested_set4_gated_all_vif`). All 30/30 completed, zero `FAILED` entries. Synced via
+`step2_sync_results.sh`. **Pooling script never existed for the new tiers until today** — a
+pre-existing script (`models/growth_curve_attribution/pool_gnnwr_kfold_results.py`, originally
+built for the old named `SCOPES` system) turned out to already work unmodified for the new tiers,
+since `--scope` is only ever used as a bare filename-pattern string, never validated against
+`SCOPES` internally. Only the CLI's `choices=` list needed widening (additive, same pattern as
+`run_baselines_env.py`'s earlier fix) — no logic changes.
+
+### How these numbers were generated
+
+- GNNWR fit+evaluate are combined in one cluster call per fold (the model is too large to sync
+  down and reload locally, so evaluation happens on the cluster by design) — only each fold's
+  `*_test_predictions.csv` comes back.
+- `pool_gnnwr_kfold_results.py`: concatenates all 5 folds' test predictions per (set, cohort),
+  computes ONE pooled R2 over the whole population (same "every plot's out-of-fold prediction,
+  all folds concatenated" convention as `spatial_cv_check.py`'s EN/XGBoost pooling and RQ1's
+  `kfold_summary`), plus per-fold R2 mean/SD for the precision comparison.
+- Command: `python -m models.growth_curve_attribution.pool_gnnwr_kfold_results --cohort <cohort> --scope <set_name> --reference-set-size 0 --k-folds 5`
+  (`--reference-set-size 0` = full population, matching how these jobs were actually run).
+
+### Results — pooled + per-fold R2, all 6 (set x cohort) combinations
+
+| Set | Cohort | n plots | n compartments | Pooled R2 | Per-fold R2 (mean±SD) |
+|---|---|---:|---:|---:|---|
+| Set2 | 4survey | 56,135 | 231 | 0.320 | 0.307±0.084 |
+| Set2 | 6survey | 13,335 | 47 | -0.044 | -0.074±0.174 |
+| Set3 | 4survey | 56,526 | 231 | 0.319 | 0.306±0.065 |
+| Set3 | 6survey | 13,335 | 47 | 0.058 | 0.013±0.082 |
+| Set4 | 4survey | 56,114 | 231 | 0.294 | 0.277±0.076 |
+| Set4 | 6survey | 13,335 | 47 | -0.075 | -0.113±0.224 |
+
+### Headline finding — the actual RQ3 question, now answerable
+
+**Does GNNWR's spatially-varying fit beat global EN/XGBoost?** Comparing against
+`TEMP_rq3_en_xgb_results_2026-08-11.tex`'s pooled R2:
+
+| Set | EN (4survey) | XGB (4survey) | GNNWR (4survey) | EN (6survey) | XGB (6survey) | GNNWR (6survey) |
+|---|---:|---:|---:|---:|---:|---:|
+| Set2 | 0.286 | 0.266 | **0.320** | 0.057 | 0.031 | -0.044 |
+| Set3 | 0.274 | 0.281 | **0.319** | 0.031 | 0.086 | 0.058 |
+| Set4 | 0.240 | 0.250 | **0.294** | 0.056 | 0.015 | -0.075 |
+
+**Yes on 4survey, no on 6survey — a clean, sample-size-dependent split.** GNNWR beats both
+global models on EVERY set for 4survey (by 0.03-0.05 R2, a real and consistent margin, not
+noise-level given the fold SDs are ~0.07-0.08). On 6survey, GNNWR is worse than at least one
+global model on every set, and outright negative for Set2/Set4 — consistent with GNNWR's local/
+spatially-varying coefficients needing more data than 6survey's 47 compartments can support to
+estimate reliably, rather than spatial non-stationarity simply not existing on 6survey (EN/XGBoost
+also struggle there, just less catastrophically). This directly supports keeping 4survey as the
+primary cohort for RQ3's headline attribution claims, with 6survey framed as underpowered rather
+than as evidence against spatial non-stationarity.
+
+### Not yet done
+
+Local-coefficient maps (per-row `coef_*` columns already in each `test_predictions.csv`, not yet
+plotted), Set4x6survey's known 17-vs-20-column parity gap (flagged 2026-08-11, may partly explain
+why Set4 is GNNWR's worst 6survey result), cross-referencing GNNWR's local coefficients against
+EN's global coefficients/XGBoost's SHAP values for the same variables.

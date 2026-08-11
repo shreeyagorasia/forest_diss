@@ -68,7 +68,16 @@ def summarize_gnnwr_kfold(pooled: pd.DataFrame) -> dict:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cohort", choices=["4survey", "6survey"], default="4survey")
-    parser.add_argument("--scope", choices=list(SCOPES), default="terrain_wind")
+    parser.add_argument(
+        "--scope", default="terrain_wind",
+        choices=list(SCOPES) + [
+            # Added 2026-08-11: the new nested_set* tiers (documentation/methodlogy_env_setpick.md)
+            # aren't SCOPES entries -- scope is only ever used as a bare filename-pattern string
+            # in load_fold_predictions()/the output path, never validated against SCOPES itself,
+            # so widening this list is the only change needed to pool the new tiers' results too.
+            "nested_set2_top10", "nested_set3_gated_terrain_wind_vif", "nested_set4_gated_all_vif",
+        ],
+    )
     parser.add_argument("--reference-set-size", type=int, default=16000, help="Pass 0 for the full-population runs.")
     parser.add_argument("--k-folds", type=int, default=DEFAULT_K_FOLDS)
     args = parser.parse_args()

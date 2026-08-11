@@ -1,0 +1,45 @@
+## TEMP holding note — RQ1 temporal vs. spatial_block integrity check, current tier (2026-08-11)
+
+**Cluster fit ran + evaluated locally**: 2026-08-11 (`jobs/rq123_methodology/rq1_temporalcheck_fit.sh`,
+12 jobs — DNN/PINN/PINN_k x Set3 (`nested_set3_gated_terrain_wind_vif`) x 2 cohorts x
+{`spatial_block`, `temporal`}, single split each, seed 42). All 12/12 completed, zero `FAILED`
+entries. This supersedes the old-tier evidence (`terrain_wind_solid`, 2026-08-08) referenced in
+`documentation/research_questions_overview.md` — this is now a directly citable current-tier
+result, not just background.
+
+### How these numbers were generated
+
+Same fit scripts as the main RQ1 sweep, just `--split-type spatial_block`/`temporal` (single
+split, not `spatial_block_kfold`) — matches the comparison shape of the existing old-tier
+evidence (`dnn_pinn_basecase_2026-07-30`) so the new number is directly comparable to it.
+Evaluated locally with each model's own `evaluate_*` script, same run_name across both split
+types (the split-type folder itself is what distinguishes them, e.g.
+`outputs/spatial_block/rq1_temporalcheck_dnn_env_terrain_..._seed42/` vs
+`outputs/temporal/rq1_temporalcheck_dnn_env_terrain_..._seed42/`).
+
+### Results
+
+| Model | Cohort | spatial_block R2 | temporal R2 | Gap |
+|---|---|---:|---:|---:|
+| DNN | 4survey | 0.634 | 0.544 | 0.090 |
+| PINN | 4survey | 0.584 | 0.290 | **0.294** |
+| PINN_k | 4survey | 0.588 | 0.289 | **0.299** |
+| DNN | 6survey | 0.722 | 0.317 | **0.405** |
+| PINN | 6survey | 0.731 | 0.161 | **0.570** |
+| PINN_k | 6survey | 0.730 | 0.190 | **0.540** |
+
+### Headline finding
+
+**Every model, both cohorts, shows a large drop from spatial_block to temporal — no exceptions,
+and the drop is far bigger than the old-tier evidence suggested.** On 6survey specifically, PINN
+variants lose more than 3/4 of their spatial_block R2 when asked to forecast forward in time
+(0.73 -> 0.16-0.19). DNN's temporal drop is real but comparatively smaller on 4survey (0.634 ->
+0.544, a 0.09 gap) than on 6survey (0.722 -> 0.317, a 0.41 gap) — consistent with 6survey's
+smaller, noisier population making any harder split (temporal or plot_level-vs-spatial) hit worse
+than on 4survey, a pattern already seen elsewhere in this project (RQ3's EN/XGBoost/GNNWR all
+struggle more on 6survey too).
+
+**This is now sufficient, current-methodology evidence to formally close the temporal scope
+question** (see `documentation/research_questions_overview.md`'s "Scope decision — temporal
+split" section) — `spatial_block_kfold` as the primary split choice for RQ1 is directly justified
+by this table, not just old-tier background evidence.

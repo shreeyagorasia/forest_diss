@@ -1,0 +1,63 @@
+## TEMP holding note — RQ1 physics-weight ablation (2026-08-11)
+
+**Fit ran on cluster, evaluated locally**: 2026-08-11
+(`jobs/rq123_methodology/rq1_physicsablation_fit.sh`, 32 jobs — see that file's own header for
+the full design rationale). All 32/32 completed, zero `FAILED` entries. Two tiers: a cheap
+single-split exploratory pass across `physics_weight`/`trajectory_weight` ∈ {0, 1, 2}, and a
+rigorous 5-fold `spatial_block_kfold` pass at `physics_weight=0` only (comparable directly to the
+existing `physics_weight=1` kfold numbers already in `TEMP_rq1_sweep_results_2026-08-11.tex`).
+DNN is not included — it has no physics loss or `y_max`/`k` sub-network at all, so it isn't
+something this ablation can vary; its own numbers from the main sweep are the implicit
+zero-architecture reference point.
+
+### How these numbers were generated
+
+- Single-split tier: `run_pinn_env_terrain.py`/`run_pinn_env_terrain_k.py`,
+  `--split-type spatial_block`, `--physics-weight`/`--trajectory-weight` set together to 0.0/1.0/2.0,
+  Set3 (`nested_set3_gated_terrain_wind_vif`), both cohorts. Evaluated with each model's own
+  `evaluate_*` script.
+- 5-fold tier: same models, `--split-type spatial_block_kfold`, `physics_weight=trajectory_weight=0.0`
+  only (the `w=1` kfold numbers already existed from the main sweep). Pooled with
+  `models.common.kfold_summary`, same convention as the main sweep (pooled R2 over the whole
+  population + bootstrap CI + per-fold mean/SD).
+
+### Results — single-split exploratory tier (weights 0/1/2)
+
+| Model | Cohort | w=0 R2 | w=1 R2 | w=2 R2 |
+|---|---|---:|---:|---:|
+| PINN | 4survey | 0.630 | 0.584 | 0.561 |
+| PINN_k | 4survey | 0.632 | 0.587 | 0.574 |
+| PINN | 6survey | 0.747 | 0.731 | 0.723 |
+| PINN_k | 6survey | 0.747 | 0.725 | 0.720 |
+
+### Results — 5-fold rigorous tier (w=0 vs. the existing w=1 kfold numbers)
+
+| Model | Cohort | w=0 pooled R2 [95% CI] | w=1 pooled R2 [95% CI] | Δ (w0 − w1) |
+|---|---|---|---|---:|
+| PINN | 4survey | 0.6295 [0.600, 0.653] | 0.5775 [0.545, 0.607] | **+0.052** |
+| PINN | 6survey | 0.7199 [0.685, 0.744] | 0.7097 [0.671, 0.736] | +0.010 |
+| PINN_k | 4survey | 0.6288 [0.599, 0.653] | 0.5788 [0.547, 0.608] | **+0.050** |
+| PINN_k | 6survey | 0.7187 [0.686, 0.741] | 0.7083 [0.671, 0.735] | +0.010 |
+
+### Headline finding
+
+**Monotonic, no exceptions: R2 decreases as physics_weight increases, across both tiers, both
+models, both cohorts.** The single-split exploratory tier (0/1/2) shows a smooth monotonic
+decline; the rigorous 5-fold tier confirms w=0 beats w=1 by a real margin on 4survey (+0.05,
+comfortably outside both configurations' 95% CIs — not noise) and a smaller but still positive
+margin on 6survey (+0.01, within the wider 6survey CIs — real direction, not a strong claim on
+6survey specifically). **This directly answers "why doesn't PINN improve over DNN"**: it's not
+that the `y_max`/`k` sub-network architecture is useless — it's that the physics LOSS specifically
+is actively counterproductive at this project's data scale, not just neutral. DNN's own numbers
+(no architecture, no physics loss at all) still beat every PINN configuration including w=0 on
+4survey (DNN Set3 = 0.659 vs. PINN w=0 = 0.630) — so removing the physics loss closes most, but
+not all, of the DNN-PINN gap on 4survey; on 6survey PINN w=0 (0.720/0.719) essentially closes the
+gap with DNN entirely (DNN Set3 6survey = 0.707).
+
+**Secondary finding, PINN_k's y_max/k correlation gets WORSE without the physics constraint** —
+at w=1 (main sweep): 4survey=-0.449, 6survey=-0.057. At w=0: 4survey=**-0.935** (near-perfect
+anti-correlation, the two learned parameters become almost interchangeable), 6survey=**+0.430**
+(flips sign entirely). This is a real accuracy-vs-identifiability tradeoff, not a clean win for
+removing the physics constraint: w=0 gives better raw R2 but a substantially less interpretable
+model, since y_max and k become much harder to attribute independently once nothing is pulling
+them toward physically-consistent, separable values.
