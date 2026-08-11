@@ -1,5 +1,10 @@
 # RQ1/RQ2/RQ3 essential experiment matrix — roadmap
 
+**This file is operational (run order, job counts, machine labels) only.** For what each
+research question actually asks and the current state of its results, see
+`documentation/research_questions_overview.md` — a living reference, not fixed, updated as more
+metrics/evaluations/sets get added.
+
 DEADLINE: 2026-08-17. Everything here is scoped to the **essential** rows from this session's
 methodology review — Set5 (every RQ) is cut entirely, not "if time permits" (see the plan file
 for the full reasoning). All four smoke tests passed (one real bug found and fixed along the

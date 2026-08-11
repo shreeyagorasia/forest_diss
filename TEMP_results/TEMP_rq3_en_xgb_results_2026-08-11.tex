@@ -126,7 +126,39 @@ as Set2/Set3 (EN 0.056/XGB 0.015 pooled, fold means near zero or negative) — t
 special case caused by the dummy-column bug, it's the same underlying small-sample problem every
 other 6survey cell already showed.
 
+### SHAP values — added 2026-08-11, real-tested against Set4/4survey
+
+New: `models/growth_curve_attribution/compute_rq3_shap.py` + a raw-column sibling of
+`compute_shap_values()` (`compute_shap_values_for_columns()` in `xgb_environmental.py`). Unlike
+every other number in this note, SHAP is PER-PLOT (one value per plot per feature, not one
+number averaged over the whole population) — the only thing in RQ3's current toolkit that can
+answer "why is *this specific plot's* prediction what it is," which is what per-plot outlier
+diagnosis actually needs, not just "which variable matters on average."
+
+**Refits the 5 per-fold XGBoost models** rather than loading a saved checkpoint —
+`run_columns()`'s underlying `run_spatial_cv()` never persisted per-fold XGBoost models to disk
+(confirmed by listing the actual output folder: no `xgboost_model.json` there, only the
+already-extracted coefficient/importance summaries). Refitting is deterministic given the same
+seed, so this reproduces the exact same models already behind this note's coefficient/importance
+tables — not a new experiment. Purely local, no cluster time, no new sync needed.
+
+**Sanity check (Set4, 4survey, mean |SHAP| across all 56,114 held-out plot-fold rows)**:
+`CanopyCover` 3.278, `chelsa_bio12_precip_mm` 1.427, `windward_topex` 0.818,
+`cpmt_compactness_ratio` 0.706, `slope_degrees` 0.641, `tas_mean` 0.575, `dist_to_road` 0.558,
+`topex` 0.379, `tpi_500m` 0.313, `gwa_wind_speed_50m` 0.215, `soilgrids_ph` 0.210,
+`dist_to_forest_perimeter` 0.193, `recent_thinning_5yr` 0.183, `time_since_thinning_missing`
+0.101, `northness` 0.098, `time_since_thinning` 0.068, `ceh_subsurface_drainage=2.0` 0.003,
+`ceh_pedotope=2.0`/`ceh_pedotope=8.0`/`ceh_textural_composition=2.0` ≈0.000. **This ranking
+closely matches the gain-importance ranking above** (same top 2, same variables clustering near
+zero) — a real correctness check, not assumed. Saved to
+`outputs/spatial_block_kfold/rq3_en_xgb_nested_set4_gated_all_vif/4survey/xgboost_shap_values.csv`
+(one row per plot per fold, one column per feature) — only Set4/4survey run so far; not yet run
+for Set2/Set3 or 6survey, and not yet used for an actual outlier-diagnosis pass (pulling the
+worst-residual plots and reading their individual SHAP breakdown) — that's the next step, not
+done in this note.
+
 **Not yet done**: GNNWR (Set4x6survey's 5 folds can now be submitted too, since the same
 zero-fill fix applies there — not yet done since GNNWR needs the cluster), coordinate-map
 plotting (x/y already in `predictions.csv`, not yet plotted), cross-model
-coefficient-vs-gain-importance comparison (data is here, table not built).
+coefficient-vs-gain-importance comparison (data is here, table not built), SHAP for Set2/Set3/
+6survey, and the actual per-plot outlier-diagnosis pass SHAP was built to enable.

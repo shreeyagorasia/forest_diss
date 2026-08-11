@@ -92,7 +92,15 @@ def run_spatial_cv(
             held_out[["identification", "cpmt", "x", "y", "fold", "n_train", target_col, "elastic_net_predicted", "xgboost_predicted"]]
         )
         if collect_fold_models:
-            fold_models.append({"fold": held_out_fold, "elastic_net_model": elastic, "xgboost_model": tree})
+            # held_out_features captured here (identification + the raw feature columns, BEFORE
+            # the elastic_net_predicted/xgboost_predicted columns above) -- SHAP needs the actual
+            # feature values a fold's model was scored against, not just its predictions. Cheap:
+            # held_out already has every column at this point, this is a column selection, not a
+            # new computation or join.
+            fold_models.append({
+                "fold": held_out_fold, "elastic_net_model": elastic, "xgboost_model": tree,
+                "held_out_features": held_out[["identification"] + feature_columns].copy(),
+            })
 
     out_of_fold_predictions = pd.concat(out_of_fold_rows, ignore_index=True)
     if collect_fold_models:

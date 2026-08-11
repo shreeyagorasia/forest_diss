@@ -421,3 +421,19 @@ def compute_shap_values(model, df, feature_set_name):
     shap_df = pd.DataFrame(shap_values, columns=feature_columns, index=features.index)
     shap_df.insert(0, "identification", df["identification"].values)
     return shap_df
+
+
+def compute_shap_values_for_columns(model, df, feature_columns):
+    # Raw-column-list sibling of compute_shap_values() -- same TreeExplainer call, but takes an
+    # explicit column list directly instead of a name looked up in FEATURE_SETS. Built for RQ3's
+    # nested_set* tiers, which aren't named FEATURE_SETS entries -- a new function, not a
+    # parameter added to compute_shap_values() itself, so that function's one existing caller
+    # can't have its behaviour change.
+    features = df[feature_columns]
+
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer.shap_values(features)
+
+    shap_df = pd.DataFrame(shap_values, columns=feature_columns, index=features.index)
+    shap_df.insert(0, "identification", df["identification"].values)
+    return shap_df
