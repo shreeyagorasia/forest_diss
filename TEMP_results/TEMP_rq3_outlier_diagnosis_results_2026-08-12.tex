@@ -1,0 +1,51 @@
+## TEMP holding note — RQ3 outlier diagnosis, the actual point of building SHAP (2026-08-12)
+
+**New**: `models/growth_curve_attribution/rq3_outlier_diagnosis.py` — pulls the N largest-residual
+plots and shows, per plot, which features' SHAP contributions drove that specific prediction.
+Purely local, reads only already-saved `predictions.csv` + `xgboost_shap_values.csv`, no fitting.
+Run for real: `--cohort 4survey --set-name nested_set4_gated_all_vif --top-n 5`.
+
+### Results — top 5 worst XGBoost residuals, Set4/4survey
+
+| identification | cpmt | observed | predicted | residual | Top SHAP driver |
+|---|---|---:|---:|---:|---|
+| 353952 | 2232 | 59.12 | 2.78 | +56.34 | `CanopyCover` -3.95, `tas_mean` +1.32, `chelsa_bio12_precip_mm` +1.24 |
+| 77185 | 1135 | -52.71 | 3.36 | -56.07 | `CanopyCover` -6.08, `chelsa_bio12_precip_mm` +2.87 |
+| 356411 | 2217 | 60.66 | 6.00 | +54.66 | `chelsa_bio12_precip_mm` +3.41, `cpmt_compactness_ratio` -1.27 |
+| 362556 | 2173 | 56.87 | 3.80 | +53.08 | `chelsa_bio12_precip_mm` +0.82, `slope_degrees` +0.56 |
+| 370819 | 2176 | 58.20 | 5.70 | +52.50 | `chelsa_bio12_precip_mm` +1.96, `topex` +0.49 |
+
+### Headline finding — these are not unexplained environmental signal, they're almost certainly data-quality/disturbance artifacts
+
+**Every one of the 5 worst plots has an observed `local_y_max_difference` beyond 50 in magnitude**
+— against this target's overall mean of 3.94 and SD of 10.49 (RQ3 EN/XGBoost note), these sit
+**5+ standard deviations from the mean**. No smooth environmental gradient plausibly explains a
+single-plot deviation of this size from the shared curve.
+
+**4 of 5 are spatially clustered** — x/y within a few km of each other, compartments 2232, 2217,
+2173, 2176 all adjacent (2100s-2200s range), only compartment 1135 separate. Clustered extreme
+errors, not independent random noise, strongly suggest a shared cause — a disturbance event, a
+measurement-year data issue, or a shared extraction problem for that specific area.
+
+**Every one of the 5 shows a large `chelsa_bio12_precip_mm` SHAP push (+0.82 to +3.41) and the
+model still can't get anywhere near the observed value** (predictions all land at 2.8-6.0, nowhere
+close to 50-60) — this is not the model "missing the right variable," it's the model hitting a
+real ceiling. No environmental variable in Set4 is capable of explaining a deviation this
+extreme, which is exactly what you'd expect if these plots are disturbance/reset/data-quality
+cases rather than genuine environmental attribution targets.
+
+**Direct next step, not yet done**: cross-reference these specific `identification` values
+against the existing compartment-classification/curve-quality-gate work
+(`notebooks/growth_curve_attribution/av2_local_growth_curve_grouped_importance.ipynb`'s
+`residual_range` flag and `any_ambiguous_disturbance` classification) — if these plots are
+already flagged there, it directly validates both pieces of work independently arriving at the
+same conclusion, and gives a principled basis for excluding or separately reporting these outliers
+in RQ3's headline attribution numbers rather than letting them inflate the "unexplained residual"
+story.
+
+### Not yet done
+
+This was only run for Set4/4survey — not yet run for the other 5 (set, cohort) combinations now
+that SHAP exists for all of them; the disturbance cross-reference above; extending this pattern
+check to see whether the SAME identification numbers are also outliers in the EN/GNNWR
+predictions (would confirm the outlier-ness is about the plots, not specific to XGBoost).

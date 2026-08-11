@@ -1,0 +1,65 @@
+## TEMP holding note — RQ3 category attribution, RERUN on current VIF-screened Set4 (2026-08-11)
+
+**Supersedes** `TEMP_rq3_category_attribution_results_2026-08-10.tex` (built on the pre-VIF
+`nested_set4_gated_all`, 25 columns — kept as historical record, not deleted). This rerun uses
+the current, VIF-screened `nested_set4_gated_all_vif` (20 columns) — same script
+(`run_rq3_category_attribution.py`), same method (`grouped_permutation_importance` +
+`category_morans_i_before_after`), single spatial_block split, 4survey only. Ran locally
+2026-08-11.
+
+### Results — permutation importance by category
+
+| Category | n columns | mean R2 drop (shuffled) | 2026-08-10 (pre-VIF) equivalent |
+|---|--:|---:|---:|
+| stand_structure | 4 | 0.2949 | 0.3072 |
+| terrain | 3 | 0.0894 | 0.1176 |
+| climate | 2 | **0.0640** | 0.0297 |
+| spatial_position_edge_effects | 3 | 0.0579 | 0.0360 |
+| wind | 3 | 0.0534 | 0.0334 |
+| soil_site | 5 | **-0.0007** | 0.0020 |
+
+### Results — Moran's I before/after removing each category (baseline full-model R2 = 0.1501, Moran's I = 0.1525)
+
+| Category removed | R2 | Moran's I |
+|---|---:|---:|
+| terrain | 0.0968 | 0.0417 |
+| wind | 0.1478 | 0.1382 |
+| soil_site | 0.1250 | 0.0245 |
+| climate | 0.1292 | 0.1236 |
+| spatial_position_edge_effects | 0.1485 | 0.0422 |
+| stand_structure | 0.0025 | 0.0220 |
+
+### Headline finding — a real update, not just a refresh
+
+**`stand_structure` still dominates by a wide margin** (0.295, ~3.3x the next-largest category) —
+this part of the earlier finding holds up under VIF screening.
+
+**But the earlier "every other category removal IMPROVES R2" pattern is GONE.** On the pre-VIF
+Set4 (2026-08-10), removing terrain/wind/soil/climate/edge each *increased* R2 above the
+full-model baseline — the interpretation then was that most environmental columns were adding
+noise, not signal, on that single split. On the VIF-screened Set4, removing terrain/soil/climate
+now *decreases* R2 (0.150 → 0.097/0.125/0.129), and removing wind/edge barely changes it (0.150 →
+0.148/0.148) — **no category removal improves the model anymore**. This is consistent with VIF
+screening doing exactly its intended job: the pre-VIF "noise" was likely collinear/redundant
+columns competing with each other and adding variance without adding independent signal; removing
+that collinearity lets terrain/climate/soil contribute real, if still secondary, predictive value.
+
+**`soil_site` remains the weakest category, now indistinguishable from pure noise** (-0.0007,
+essentially zero, on 5 columns) — consistent across both the pre-VIF and VIF-screened versions,
+the one part of the original finding that hasn't changed at all.
+
+**Climate's contribution roughly doubled** (0.030 → 0.064) — worth citing as real, not an
+artifact, since VIF screening specifically removed collinear climate-adjacent columns that were
+previously diluting its apparent individual contribution.
+
+**Moran's I pattern still doesn't cleanly fit the "removing a real category raises spatial
+clustering" framework** the check was designed around — removing terrain, the category with the
+largest real R2 contribution besides stand_structure, actually *lowers* residual spatial
+clustering (0.153 → 0.042) rather than raising it. This was true in the pre-VIF version too and
+remains unexplained — flagged as a genuine open question, not resolved by this rerun, rather than
+force-fit an interpretation.
+
+### Still applies from the original note
+
+The confound/circularity check on `CanopyCover` (how it's actually derived) is still not done —
+`stand_structure`'s dominance should still be read with that caveat pending.

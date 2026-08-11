@@ -150,15 +150,38 @@ tables — not a new experiment. Purely local, no cluster time, no new sync need
 0.101, `northness` 0.098, `time_since_thinning` 0.068, `ceh_subsurface_drainage=2.0` 0.003,
 `ceh_pedotope=2.0`/`ceh_pedotope=8.0`/`ceh_textural_composition=2.0` ≈0.000. **This ranking
 closely matches the gain-importance ranking above** (same top 2, same variables clustering near
-zero) — a real correctness check, not assumed. Saved to
-`outputs/spatial_block_kfold/rq3_en_xgb_nested_set4_gated_all_vif/4survey/xgboost_shap_values.csv`
-(one row per plot per fold, one column per feature) — only Set4/4survey run so far; not yet run
-for Set2/Set3 or 6survey, and not yet used for an actual outlier-diagnosis pass (pulling the
-worst-residual plots and reading their individual SHAP breakdown) — that's the next step, not
-done in this note.
+zero) — a real correctness check, not assumed.
+
+### SHAP expansion — all 6 (set × cohort) combinations, added 2026-08-11
+
+Top 5 features by mean |SHAP|, each combination:
+
+| Set | Cohort | #1 | #2 | #3 | #4 | #5 |
+|---|---|---|---|---|---|---|
+| Set2 | 4survey | CanopyCover (3.267) | elevation (1.560) | cpmt_compactness_ratio (0.869) | slope_degrees (0.699) | windward_topex (0.545) |
+| Set2 | 6survey | **cpmt_compactness_ratio (1.180)** | CanopyCover (0.801) | time_since_thinning_missing (0.595) | windward_topex (0.556) | slope_degrees (0.540) |
+| Set3 | 4survey | CanopyCover (3.307) | elevation (2.206) | slope_degrees (0.891) | windward_topex (0.814) | topex (0.517) |
+| Set3 | 6survey | **windward_topex (1.028)** | CanopyCover (0.859) | time_since_thinning_missing (0.602) | slope_degrees (0.543) | time_since_thinning (0.487) |
+| Set4 | 4survey | CanopyCover (3.278) | chelsa_bio12_precip_mm (1.427) | windward_topex (0.818) | cpmt_compactness_ratio (0.706) | slope_degrees (0.641) |
+| Set4 | 6survey | **cpmt_compactness_ratio (1.061)** | CanopyCover (0.641) | tas_mean (0.577) | slope_degrees (0.469) | time_since_thinning_missing (0.391) |
+
+**The `CanopyCover` dominance found everywhere else in this project (RQ2b, RQ3's gain-importance
+table, all of 4survey here) does NOT hold on 6survey.** On every one of the 3 sets, `CanopyCover`
+is knocked out of first place on 6survey — by `cpmt_compactness_ratio` (Set2, Set4) or
+`windward_topex` (Set3). This is a genuinely new finding, not visible in the gain-importance
+table alone (which only reports 4survey) — worth flagging as a real cohort-dependent result
+before writing "CanopyCover is the dominant variable" as a blanket claim anywhere in the
+dissertation. Whether this reflects a real different growth-driver on 6survey or is a
+consequence of 6survey's much smaller, noisier sample (consistent with 6survey's generally
+weaker/less stable results throughout this project) is not yet determined.
+
+Saved to `outputs/spatial_block_kfold/rq3_en_xgb_<set_name>/<cohort>/xgboost_shap_values.csv` for
+all 6 combinations (one row per plot per fold, one column per feature).
 
 **Not yet done**: GNNWR (Set4x6survey's 5 folds can now be submitted too, since the same
 zero-fill fix applies there — not yet done since GNNWR needs the cluster), coordinate-map
 plotting (x/y already in `predictions.csv`, not yet plotted), cross-model
-coefficient-vs-gain-importance comparison (data is here, table not built), SHAP for Set2/Set3/
-6survey, and the actual per-plot outlier-diagnosis pass SHAP was built to enable.
+coefficient-vs-gain-importance comparison (data is here, table not built), and — the actual point
+of building SHAP — the per-plot outlier-diagnosis pass (pulling the worst-residual plots and
+reading their individual SHAP breakdown), still not done despite SHAP now covering every
+combination.

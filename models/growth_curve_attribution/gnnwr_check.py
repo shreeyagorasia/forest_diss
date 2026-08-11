@@ -427,9 +427,16 @@ def run_gnnwr(
     # Includes reference_set_size AND (when in k-fold mode) the held-out fold index in the name,
     # so different reference-set-size runs and different folds all get their own model checkpoint
     # and CSV output instead of silently overwriting each other's results.
+    #
+    # split_seed label added 2026-08-12: caught before ever being run on the cluster -- run_name
+    # never included split_seed at all, so a reseed at a different split_seed (same scope/cohort/
+    # fold) would have silently overwritten the original seed's output with an identical filename.
+    # Only appended when split_seed differs from the project default (SPLIT_SEED=42), so every
+    # already-existing seed-42 run's filename is completely unchanged -- purely additive.
     reference_set_label = "full" if reference_set_size is None else str(reference_set_size)
     fold_label = "" if held_out_fold is None else f"_fold{held_out_fold}of{k_folds}"
-    run_name = f"gnnwr_{scope}_{cohort}_ref{reference_set_label}{fold_label}"
+    seed_label = "" if split_seed == SPLIT_SEED else f"_seed{split_seed}"
+    run_name = f"gnnwr_{scope}_{cohort}_ref{reference_set_label}{fold_label}{seed_label}"
     model = GNNWR(
         train_dataset,
         valid_dataset,

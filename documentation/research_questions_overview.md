@@ -76,6 +76,17 @@ pursued further as an active research question, for two different reasons depend
   the primary split — the scope decision is fully closed, not just motivated by old background
   evidence anymore. Further temporal work (e.g. multi-seed, other sets) remains future work.
 
+  **Why the drop is this large, not just that it happens (added 2026-08-12)**: confirmed directly
+  against the methodology doc — RQ1's environmental conditioning (`nested_set2/3/4`, the entire
+  point of this methodology) is drawn from the same static, one-row-per-plot export as RQ2b/RQ3's,
+  and is explicitly documented as "static per plot (do not vary by survey year)". Only the target
+  itself, `Age`, and the 4 row-level baseline stand-structure columns actually vary temporally in
+  RQ1's input. A model conditioned mostly on time-invariant covariates has little to draw on for
+  temporal extrapolation beyond `Age` and thinning history — this is a structural reason the drop
+  is expected to be large, complementing (not replacing) the empirical finding above. Distinct
+  from RQ2b/RQ3's case: there the split was *undefinable* (no temporal axis in the data at all);
+  here it was well-posed and worth actually running, which is why it was run.
+
 ## RQ2a — does environmental conditioning shrink the departure from the shared growth curve?
 
 **Question**: does giving a DNN/PINN environmental information reduce its residual from the

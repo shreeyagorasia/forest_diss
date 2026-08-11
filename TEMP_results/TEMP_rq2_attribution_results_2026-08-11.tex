@@ -109,6 +109,29 @@ be read as "not reliably different from zero across folds," not as settled findi
 consistent with the earlier finding that Set3's category composition is terrain-heavy with thin
 wind representation and zero soil/climate coverage.
 
-**Not yet done**: XGBoost SHAP values (deferred, needs the raw-column `compute_shap_values()`
-variant), cross-method agreement heatmap (NLME vs. EN vs. XGBoost), 5-seed reseed (no seed
-sweep has been run for RQ2 at all — this note only ever reflects split seed 42).
+### XGBoost SHAP — added 2026-08-12, all 3 sets, 4survey
+
+New: `models/spatial_attribution/compute_rq2_shap.py` — cheaper than RQ3's SHAP script since
+RQ2's fit step already saves `xgboost_model.json` per fold; this is a pure reload + compute, no
+refitting at all. Reuses the same generic `compute_shap_values_for_columns()` built for RQ3, no
+new SHAP code. Ran for all 3 sets x 5 folds x 4survey = 15 combos, all succeeded.
+
+**Mean |SHAP| across all 5 folds, top 6 per set**:
+
+| Set2 | Set3 | Set4 |
+|---|---|---|
+| CanopyCover 1.474 | CanopyCover 1.448 | CanopyCover 1.481 |
+| dist_to_road 1.220 | whcl 0.861 | dist_to_road 1.099 |
+| chelsa_bio12_precip_mm 0.955 | slope_degrees 0.817 | chelsa_bio12_precip_mm 0.932 |
+| slope_degrees 0.681 | gwa_weibull_a_50m 0.618 | slope_degrees 0.733 |
+| chelsa_gdd5_degc 0.547 | gwa_weibull_k_50m 0.613 | whcl 0.452 |
+| tas_mean 0.416 | local_relief_500m 0.593 | topex 0.431 |
+
+**`CanopyCover` is #1 by mean |SHAP| in every set** — matches the NLME/EN coefficient ranking
+above (a real correctness check, not assumed) and confirms this is the single most consistent
+finding across every attribution method tried on this target so far, not an artifact of any one
+model family.
+
+**Not yet done**: cross-method agreement heatmap (NLME vs. EN vs. XGBoost SHAP — all three now
+exist, table not built), 5-seed reseed (no seed sweep has been run for RQ2 at all — this note
+only ever reflects split seed 42), SHAP beeswarm plot (data ready, not plotted).
