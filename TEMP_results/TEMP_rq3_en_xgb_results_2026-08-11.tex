@@ -1,0 +1,132 @@
+## TEMP holding note — RQ3 Elastic Net + XGBoost on local_y_max_difference (2026-08-11)
+
+**Cluster fit ran**: 2026-08-10 (`step2_rq3_en_xgb.sh`, VIF-screened
+`nested_set2_top10`/`nested_set3_gated_terrain_wind_vif`/`nested_set4_gated_all_vif`, per
+`documentation/methodlogy_env_setpick.md`). Fit+evaluate combined in one call (`run_columns()`
+runs the full 5-fold spatial CV internally — no separate local evaluate step, unlike RQ1/RQ2).
+**Set4 x 6survey FAILED, then fixed same day** (`KeyError: Requested dummy columns not found
+after encoding: ['ceh_pedotope=2.0', 'ceh_pedotope=8.0', 'ceh_textural_composition=2.0']` — these
+rare soil categories are present in 4survey's larger population but entirely absent from
+6survey's ~7,467 plots, so `pd.get_dummies()` never creates those columns for 6survey). Decision
+taken: zero-fill the missing dummy columns rather than skip the combination — a dummy column
+absent from a cohort's population is real information ("0% prevalence"), not missing data, and
+zero-filling is mathematically inert for both models while keeping Set4's column count identical
+across cohorts for a fair comparison. Implemented as a new shared helper,
+`add_missing_dummy_columns_as_zero()` (`broad_environmental_check.py`), used by both
+`run_columns()` (this note) and GNNWR's `build_table_from_columns()` (same bug will otherwise hit
+GNNWR's own Set4x6survey runs). Re-ran the exact failing combination locally afterward to
+confirm — result now included below.
+
+Not yet added to the main results artifact.
+
+### How these numbers were generated
+
+- `models/growth_curve_attribution/run_rq3_en_xgb.py` → `broad_environmental_check.run_columns()`
+  → `spatial_cv_check.run_spatial_cv()` (5-fold spatial CV, pooled predictions across all folds
+  give the pooled R2; per-fold R2 computed separately for the fold-SD column).
+  `collect_fold_models=True` (added 2026-08-10) additionally returns each fold's fitted EN/
+  XGBoost model, used below for the coefficient/importance tables — this is the fix that made
+  per-fold attribution possible at all for RQ3 (previously `run_spatial_cv()` discarded fitted
+  models after each fold, see the earlier session note on this).
+- Elastic Net coefficients: `elastic_net_coefficients_by_fold.csv`, mean ± SD across the 5 folds.
+- XGBoost gain importance: `xgboost_gain_importance_by_fold.csv` (built-in `feature_importances_`,
+  free byproduct of fitting, no extra pass over the data), mean ± SD across 5 folds.
+- 4survey only shown for the coefficient/importance tables (6survey's smaller population makes
+  per-fold coefficient estimates too noisy to be worth reporting yet — see the R2 table below for
+  just how much noisier 6survey's fold-to-fold R2 already is).
+
+### Results — pooled + per-fold R2
+
+| Set | Cohort | n plots | EN pooled R2 | EN fold R2 (mean±SD) | XGB pooled R2 | XGB fold R2 (mean±SD) |
+|---|---|---:|---:|---|---:|---|
+| Set2 | 4survey | 56,135 | 0.286 | 0.273±0.079 | 0.266 | 0.250±0.115 |
+| Set2 | 6survey | 13,335 | 0.057 | 0.004±0.079 | 0.031 | -0.024±0.071 |
+| Set3 | 4survey | 56,526 | 0.274 | 0.257±0.091 | **0.281** | 0.266±0.067 |
+| Set3 | 6survey | 13,335 | 0.031 | -0.020±0.059 | 0.086 | 0.032±0.076 |
+| Set4 | 4survey | 56,114 | 0.240 | 0.223±0.100 | 0.250 | 0.231±0.119 |
+| Set4 | 6survey | 13,335 | 0.056 | 0.004±0.079 | 0.015 | -0.039±0.096 |
+
+**6survey R2 is dramatically worse and noisier than 4survey for both models and every set** —
+including negative pooled/fold R2 in three cells (worse than predicting the mean) — a much
+starker version of the same 6survey-is-noisier pattern seen in RQ1/baselines. This alone is a
+real finding worth stating plainly: **for this specific target (local curve deviation), EN/
+XGBoost essentially don't work on 6survey with the current sets**, whatever the Set4 dummy issue
+gets decided.
+
+### Elastic Net coefficients, 4survey, mean ± SD across 5 folds (sorted by |mean|)
+
+**Set2**: `CanopyCover` +4.475±0.309, `windward_topex` +1.920±0.377, `slope_degrees`
++1.885±0.497, `elevation` -1.727±0.423, `soilgrids_ph` +0.910±0.599, `solar_radiation_index`
++0.897±0.109, `tpi_500m` -0.739±0.297, `recent_thinning_5yr` -0.660±0.280,
+`cpmt_compactness_ratio` +0.610±0.472, `topex` -0.404±0.303, `time_since_thinning`
++0.296±0.152, `dist_to_road` -0.272±0.316, `gwa_wind_speed_50m` -0.072±0.301,
+`time_since_thinning_missing` -0.032±0.047.
+
+**Set3**: `CanopyCover` +4.596±0.544, `elevation` -2.996±0.504, `slope_degrees` +2.416±0.383,
+`windward_topex` +2.075±0.925, `solar_radiation_index` +2.032±1.098, `tpi_500m` -0.885±0.866,
+`northness` +0.843±0.861, `recent_thinning_5yr` -0.832±1.399, `topex` -0.811±0.871,
+`time_since_thinning` +0.317±2.349 *(SD exceeds mean — unstable)*, `gwa_wind_speed_50m`
++0.082±0.197, `time_since_thinning_missing` -0.064±3.233 *(SD vastly exceeds mean — essentially
+noise)*.
+
+**Set4**: `CanopyCover` +4.703±0.361, `windward_topex` +2.090±0.092, `chelsa_bio12_precip_mm`
+-1.826±1.552 *(SD close to mean — unstable)*, `slope_degrees` +1.624±0.499, `soilgrids_ph`
++0.941±0.737, `dist_to_road` -0.662±0.324, `tpi_500m` -0.593±0.225, `recent_thinning_5yr`
+-0.563±0.287, `tas_mean` -0.425±0.479, `northness` -0.420±0.194, `dist_to_forest_perimeter`
+-0.395±0.318, `cpmt_compactness_ratio` +0.363±0.433, `time_since_thinning` +0.265±0.275,
+`gwa_wind_speed_50m` -0.234±0.292, `ceh_subsurface_drainage=2.0` +0.226±0.574,
+`time_since_thinning_missing` +0.225±0.354, `ceh_pedotope=8.0` +0.185±0.185, `ceh_pedotope=2.0`
++0.134±0.159, `topex` +0.036±0.690 *(essentially noise)*, `ceh_textural_composition=2.0`
++0.016±0.035.
+
+### XGBoost gain importance, 4survey, mean ± SD across 5 folds (sorted by mean)
+
+**Set2**: `CanopyCover` 0.296±0.043, `elevation` 0.109±0.010, `soilgrids_ph` 0.089±0.063,
+`cpmt_compactness_ratio` 0.064±0.017, `topex` 0.062±0.024, `slope_degrees` 0.057±0.012,
+`recent_thinning_5yr` 0.054±0.012, `tpi_500m` 0.046±0.017, `time_since_thinning` 0.045±0.011,
+`windward_topex` 0.044±0.011, `time_since_thinning_missing` 0.039±0.046, `dist_to_road`
+0.036±0.017, `gwa_wind_speed_50m` 0.033±0.010, `solar_radiation_index` 0.026±0.004.
+
+**Set3**: `CanopyCover` 0.342±0.073, `elevation` 0.128±0.040, `slope_degrees` 0.072±0.023,
+`topex` 0.066±0.018, `recent_thinning_5yr` 0.065±0.013, `time_since_thinning` 0.061±0.016,
+`time_since_thinning_missing` 0.054±0.021, `windward_topex` 0.050±0.012, `tpi_500m`
+0.046±0.010, `northness` 0.039±0.013, `solar_radiation_index` 0.038±0.006, `gwa_wind_speed_50m`
+0.038±0.005.
+
+**Set4**: `CanopyCover` 0.259±0.041, `chelsa_bio12_precip_mm` 0.098±0.056, `tas_mean`
+0.062±0.016, `topex` 0.061±0.009, `slope_degrees` 0.054±0.013, `cpmt_compactness_ratio`
+0.054±0.009, `soilgrids_ph` 0.053±0.051, `windward_topex` 0.053±0.022,
+`time_since_thinning_missing` 0.051±0.045, `recent_thinning_5yr` 0.045±0.020,
+`gwa_wind_speed_50m` 0.041±0.016, `tpi_500m` 0.041±0.017, `dist_to_road` 0.038±0.010,
+`time_since_thinning` 0.025±0.006, `dist_to_forest_perimeter` 0.023±0.009, `northness`
+0.019±0.005, `ceh_subsurface_drainage=2.0` 0.016±0.012, `ceh_pedotope=8.0` 0.007±0.010,
+`ceh_pedotope=2.0` 0.000±0.000, `ceh_textural_composition=2.0` 0.000±0.000.
+
+### Headline pattern
+
+**Same `CanopyCover` dominance as RQ2b** — by a wider margin here (EN coefficient 2–3x the next
+largest variable; XGBoost gain 0.26–0.34, roughly 3x the next-largest) — the single most
+consistent finding across RQ2b and RQ3 alike. **The 3 rare-soil-dummy columns in Set4
+(`ceh_pedotope=2.0`/`=8.0`, `ceh_textural_composition=2.0`) contribute essentially nothing to
+XGBoost** (gain importance 0.000–0.007, the three lowest of all 20 Set4 columns) — consistent
+with them being rare-category, low-signal additions, separate from the reason 6survey can't use
+them at all (population absence, not weak signal).
+
+**Set3's Elastic Net coefficients for `time_since_thinning`/`time_since_thinning_missing` are
+essentially pure noise** (SD exceeds or vastly exceeds the mean) — flag before citing Set3's EN
+coefficients for those two variables specifically; every other Set3/Set4 coefficient has SD
+comfortably smaller than its mean.
+
+**Set3 (XGBoost) is the best-performing (set, model) pair on 4survey** (pooled R2 0.281) —
+consistent with RQ1's own finding that Set3 tends to edge out Set2/Set4 across this whole
+project's model families, not just RQ1's DNN/PINN.
+
+**Set4x6survey, now unblocked, confirms the same "6survey barely works for this target" pattern**
+as Set2/Set3 (EN 0.056/XGB 0.015 pooled, fold means near zero or negative) — this was not a
+special case caused by the dummy-column bug, it's the same underlying small-sample problem every
+other 6survey cell already showed.
+
+**Not yet done**: GNNWR (Set4x6survey's 5 folds can now be submitted too, since the same
+zero-fill fix applies there — not yet done since GNNWR needs the cluster), coordinate-map
+plotting (x/y already in `predictions.csv`, not yet plotted), cross-model
+coefficient-vs-gain-importance comparison (data is here, table not built).

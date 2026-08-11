@@ -60,7 +60,11 @@ from models.common.splits import (
     spatial_kfold_split,
 )
 from models.elasticnet_environmental.elasticnet_environmental import CATEGORICAL_COLUMNS, drop_rows_with_missing_features
-from models.growth_curve_attribution.broad_environmental_check import columns_for_groups, prepare_broad_table
+from models.growth_curve_attribution.broad_environmental_check import (
+    add_missing_dummy_columns_as_zero,
+    columns_for_groups,
+    prepare_broad_table,
+)
 from models.growth_curve_attribution.scale_comparison_check import TARGET, build_plot_level_table, merge_environmental_features
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -188,14 +192,12 @@ def build_table_from_columns(
             bare_columns.append(column)
 
     merged, all_available_columns = prepare_broad_table(cohort, bare_columns)
+    merged, zero_filled_dummies = add_missing_dummy_columns_as_zero(merged, requested_dummy_columns, all_available_columns)
+    if zero_filled_dummies:
+        print(f"  Added {len(zero_filled_dummies)} requested dummy column(s) as all-zero (absent from {cohort}'s population): {zero_filled_dummies}")
 
     continuous_requested = [column for column in raw_columns if "=" not in column]
-    available_columns = continuous_requested + [
-        column for column in requested_dummy_columns if column in all_available_columns
-    ]
-    missing_dummies = [column for column in requested_dummy_columns if column not in all_available_columns]
-    if missing_dummies:
-        raise KeyError(f"Requested dummy columns not found after encoding: {missing_dummies}")
+    available_columns = continuous_requested + requested_dummy_columns
 
     if held_out_fold is None:
         merged["split"] = spatial_block_split(

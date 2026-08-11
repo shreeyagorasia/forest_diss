@@ -179,6 +179,26 @@ def run_scope(cohort: str, scope: str, k: int = 5, seed: int = 42):
     return pd.DataFrame(rows), predictions, fold_counts
 
 
+def add_missing_dummy_columns_as_zero(table, requested_dummy_columns, available_columns):
+    # A requested one-hot dummy (e.g. "ceh_pedotope=2.0") can be entirely absent from a cohort's
+    # own pd.get_dummies() output if that cohort's population happens to have ZERO plots in that
+    # rare category -- confirmed 2026-08-11: RSQ3 Set4's `ceh_pedotope=2.0`/`=8.0`,
+    # `ceh_textural_composition=2.0` are absent from 6survey (7,467 plots) even though present in
+    # 4survey (56,000+ plots), where the manifest's rank-aggregate screening was run. This is not
+    # a data error -- "0% prevalence of this rare soil category in this cohort" is real
+    # information, not a missing value. Zero-filling here (rather than crashing, the previous
+    # behaviour, or silently dropping the column, which would make Set4's column COUNT differ
+    # between cohorts and break a fair cross-cohort comparison) is mathematically inert for both
+    # models: Elastic Net sees a constant-zero column (near-zero/undefined coefficient, no
+    # influence on other coefficients or predictions), XGBoost sees a zero-variance column
+    # (never a useful split, never chosen). Shared here (not duplicated) because both
+    # run_columns() below and gnnwr_check.py's build_table_from_columns() need the identical fix.
+    missing_columns = [column for column in requested_dummy_columns if column not in available_columns]
+    for column in missing_columns:
+        table[column] = 0.0
+    return table, missing_columns
+
+
 def run_columns(cohort: str, raw_columns: list[str], k: int = 5, seed: int = 42):
     """Raw-column-list sibling of run_scope() -- same spatial CV, but takes an explicit column
     list directly instead of a named scope resolved through SCOPE_GROUPS. Built for the new
@@ -209,12 +229,12 @@ def run_columns(cohort: str, raw_columns: list[str], k: int = 5, seed: int = 42)
             bare_columns.append(column)
 
     table, all_model_columns = prepare_broad_table(cohort, bare_columns)
+    table, zero_filled_dummies = add_missing_dummy_columns_as_zero(table, requested_dummy_columns, all_model_columns)
+    if zero_filled_dummies:
+        print(f"  Added {len(zero_filled_dummies)} requested dummy column(s) as all-zero (absent from {cohort}'s population): {zero_filled_dummies}")
 
     continuous_requested = [column for column in raw_columns if "=" not in column]
-    model_columns = continuous_requested + [column for column in requested_dummy_columns if column in all_model_columns]
-    missing_dummies = [column for column in requested_dummy_columns if column not in all_model_columns]
-    if missing_dummies:
-        raise KeyError(f"Requested dummy columns not found after encoding: {missing_dummies}")
+    model_columns = continuous_requested + requested_dummy_columns
 
     # collect_fold_models=True here (only caller of this function is RQ3's attribution driver,
     # run_rq3_en_xgb.py -- unlike run_scope()/run_comparison() above, which are pooled-R2-only

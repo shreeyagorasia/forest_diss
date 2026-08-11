@@ -1,0 +1,114 @@
+## TEMP holding note — RQ2b attribution: NLME + Elastic Net + XGBoost on mean_cr_residual (2026-08-11)
+
+**Cluster fit ran**: 2026-08-10 (`step1_rq2_fit.sh`, 15 jobs — 3 sets x 5 folds, 4survey only).
+**Note**: Set3/Set4 initially FAILED on the cluster (`ElasticNetCV` crashed on NaN input — Set2's
+10 columns happened to have zero missingness, so this wasn't caught by pre-cluster local
+smoke-testing; Set3/4 pull in columns with a small nonzero missing fraction, e.g. `soilgrids_ph`,
+the CEH layers). Fixed same day (`drop_rows_with_missing_features()` added to both
+`run_rq2_attribution.py` and `evaluate_rq2_attribution.py`, applied identically to train and test
+so NLME/EN/XGBoost all see the same rows) and the 10 affected fold-jobs resubmitted and completed
+clean. **Synced + evaluated locally**: 2026-08-11 (`step1_rq2_sync.sh` then
+`step1_rq2_evaluate.sh`). Not yet added to the main results artifact.
+
+### How these numbers were generated
+
+- **Fit** (cluster, CPU): NLME (`fit_nlme`, diagnostics saved directly, no held-out step —
+  see `run_rq2_attribution.py`'s own header for why) + Elastic Net + XGBoost, on
+  `nested_set2_top10`/`nested_set3_gated_terrain_wind_vif`/`nested_set4_gated_all_vif`
+  (VIF-screened per `documentation/methodlogy_env_setpick.md`), `spatial_block_kfold`, split
+  seed 42, 4survey only (6survey's 47 compartments too few for this — see
+  `documentation/experiment_log.md`'s cohort-justification entry).
+- **Evaluate** (local): reloads the EN (`joblib`)/XGBoost (native `save_model`/`load_model`,
+  not joblib — see the 2026-08-10 cross-version pickling fix) checkpoints, re-derives the
+  identical test split, scores both. NLME has no held-out evaluate step — its numbers below are
+  computed directly on its own training data at fit time.
+- **Pooled R2** here (unlike RQ1) is computed directly from this note's own aggregation of all 5
+  folds' `predictions.csv` (concatenated, one R2 over the whole population), since RQ2's evaluate
+  script itself only prints per-fold numbers — not from a saved `kfold_summary.json` (RQ2 doesn't
+  currently call `models.common.kfold_summary`).
+- **Coefficient tables**: mean ± SD computed across the 5 already-saved per-fold
+  `nlme_fixed_effects.json` / `elastic_net_coefficients.csv` files — this is the fold-stability
+  check flagged as a "medium tier" plot idea earlier, done here as a table instead.
+
+### Results — pooled + per-fold R2 (4survey only)
+
+| Set | n rows (pooled) | EN pooled R2 | EN fold R2 (mean±SD) | XGB pooled R2 | XGB fold R2 (mean±SD) | NLME variance explained (mean±SD) |
+|---|---:|---:|---|---:|---|---|
+| Set2 (`nested_set2_top10`) | 71,766 | 0.359 | 0.352±0.030 | 0.326 | 0.318±0.034 | 0.204±0.066 |
+| Set3 (`nested_set3_gated_terrain_wind_vif`) | 71,727 | 0.325 | 0.318±0.048 | 0.299 | 0.288±0.056 | 0.049±0.048 |
+| Set4 (`nested_set4_gated_all_vif`) | 71,330 | **0.358** | 0.350±0.040 | **0.338** | 0.329±0.041 | 0.175±0.064 |
+
+Note the row-count drop from Set2→Set4 (71,766→71,330, ~0.6%) is entirely the missing-value drop
+from the fix above, not a data problem.
+
+### NLME fixed-effect coefficients, mean ± SD across 5 folds (sorted by |mean|)
+
+**Set2**: `CanopyCover` +1.839±0.080, `dist_to_road` -1.312±0.110, `time_since_thinning`
+-1.254±0.501, `time_since_thinning_missing` -1.079±0.624, `slope_degrees` +0.999±0.202,
+`chelsa_bio12_precip_mm` -0.785±0.669, `gwa_weibull_a_50m` -0.537±0.136, `gwa_weibull_k_50m`
+-0.451±0.231, `eastness` +0.370±0.016, `recent_thinning_5yr` -0.328±0.249, `tas_mean`
++0.228±0.315, `chelsa_gdd5_degc` +0.188±0.276, `gwa_weibull_a_10m` -0.181±0.059,
+`local_relief_500m` -0.174±0.178.
+
+**Set3**: `CanopyCover` +1.854±0.073, `time_since_thinning` -1.487±0.486,
+`time_since_thinning_missing` -1.397±0.602, `topex` +1.316±0.171, `slope_degrees` +0.894±0.226,
+`local_relief_500m` -0.620±0.308, `whcl` -0.476±0.360, `recent_thinning_5yr` -0.398±0.243,
+`gwa_weibull_k_50m` -0.362±0.225, `eastness` +0.342±0.047, `gwa_wind_speed_10m` -0.126±0.065,
+`gwa_weibull_a_10m` -0.125±0.046, `ceh_twi` +0.079±0.068, `gwa_weibull_a_50m` -0.040±0.104.
+
+**Set4**: `CanopyCover` +1.863±0.071, `time_since_thinning` -1.476±0.531, `chelsa_bio12_precip_mm`
+-1.416±0.552, `time_since_thinning_missing` -1.323±0.622, `topex` +1.323±0.138, `dist_to_road`
+-1.216±0.116, `slope_degrees` +0.861±0.213, `whcl` -0.459±0.358, `recent_thinning_5yr`
+-0.404±0.255, `gwa_weibull_k_50m` -0.360±0.223, `gwa_weibull_a_50m` +0.342±0.059, `eastness`
++0.326±0.018, `dist_to_scpt_boundary` -0.145±0.064, `local_relief_500m` -0.123±0.228,
+`gwa_weibull_a_10m` -0.110±0.050, `gwa_wind_speed_10m` -0.108±0.061, `soilgrids_ph`
++0.069±0.200, `ceh_twi` +0.054±0.042, `tas_mean` +0.015±0.321.
+
+### Elastic Net coefficients, mean ± SD across 5 folds (sorted by |mean|)
+
+**Set2**: `time_since_thinning_missing` -2.751±0.223, `time_since_thinning` -1.982±0.236,
+`CanopyCover` +1.926±0.034, `dist_to_road` -1.374±0.170, `slope_degrees` +1.070±0.113,
+`chelsa_bio12_precip_mm` -0.915±0.385, `recent_thinning_5yr` -0.866±0.225, `gwa_weibull_a_50m`
+-0.719±0.252, `eastness` +0.516±0.059, `local_relief_500m` +0.348±0.068, `gwa_weibull_k_50m`
+-0.175±0.141, `tas_mean` -0.151±0.371, `gwa_weibull_a_10m` -0.097±0.086, `chelsa_gdd5_degc`
++0.003±0.296.
+
+**Set3**: `time_since_thinning_missing` -3.308±0.422, `time_since_thinning` -2.233±0.238,
+`CanopyCover` +1.869±0.023, `gwa_weibull_a_50m` -1.360±0.421, `slope_degrees` +1.230±0.243,
+`recent_thinning_5yr` -0.963±0.355, `whcl` -0.720±0.264, `eastness` +0.507±0.106,
+`gwa_weibull_k_50m` -0.278±0.145, `local_relief_500m` -0.258±0.186, `gwa_wind_speed_10m`
+-0.204±0.090, `topex` -0.175±0.166, `gwa_weibull_a_10m` -0.060±0.065, `ceh_twi` -0.049±0.174.
+
+**Set4**: `time_since_thinning_missing` -2.999±0.164, `time_since_thinning` -2.141±0.194,
+`CanopyCover` +1.943±0.034, `dist_to_road` -1.332±0.153, `slope_degrees` +0.993±0.194,
+`recent_thinning_5yr` -0.977±0.245, `chelsa_bio12_precip_mm` -0.620±0.452, `whcl` -0.594±0.204,
+`gwa_weibull_a_50m` -0.579±0.545, `eastness` +0.472±0.077, `tas_mean` -0.334±0.217,
+`dist_to_scpt_boundary` -0.299±0.093, `local_relief_500m` +0.164±0.098, `gwa_weibull_k_50m`
+-0.136±0.175, `soilgrids_ph` +0.123±0.166, `gwa_wind_speed_10m` -0.121±0.067, `gwa_weibull_a_10m`
+-0.082±0.084, `topex` +0.063±0.265, `ceh_twi` -0.038±0.156.
+
+### Headline pattern
+
+**`CanopyCover` and the two thinning-history columns (baseline, not "environmental") dominate
+every set, both models, with tight cross-fold SD relative to their mean** (e.g. EN's
+`time_since_thinning_missing`: -2.75 to -3.31 depending on set, SD always <0.5) — the single
+clearest, most stable signal in this whole table. This echoes the same pattern RQ3's category
+attribution found (`TEMP_rq3_category_attribution_results_2026-08-10.tex`, now a pre-VIF
+snapshot but the qualitative finding likely still holds): stand-structure variables carry
+disproportionate weight relative to the purely environmental candidates. **Not yet checked**:
+whether this is a genuine forestry mechanism or a confound via how `CanopyCover` is derived
+(flagged, not investigated, earlier this session).
+
+**`topex`/`windward_topex`-family wind exposure and `slope_degrees` are the most stable
+environmental (non-baseline) signals** — both NLME and EN agree on direction and magnitude across
+Set3/Set4, SD small relative to mean. **Several variables flip sign or have SD comparable to
+their mean** (`chelsa_gdd5_degc`, `tas_mean`, `topex` in EN Set4, `soilgrids_ph`) — these should
+be read as "not reliably different from zero across folds," not as settled findings.
+
+**Set3 is the weakest set here** (lowest R2 for both models, lowest NLME variance explained) —
+consistent with the earlier finding that Set3's category composition is terrain-heavy with thin
+wind representation and zero soil/climate coverage.
+
+**Not yet done**: XGBoost SHAP values (deferred, needs the raw-column `compute_shap_values()`
+variant), cross-method agreement heatmap (NLME vs. EN vs. XGBoost), 5-seed reseed (no seed
+sweep has been run for RQ2 at all — this note only ever reflects split seed 42).

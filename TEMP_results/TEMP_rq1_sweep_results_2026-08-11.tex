@@ -1,0 +1,79 @@
+## TEMP holding note — RQ1 env-conditioned DNN/PINN tier sweep (2026-08-11)
+
+**Cluster fit ran**: 2026-08-10 (`step3_rq1_sweep_fit.sh`, 90 jobs, seed 42, `nested_set2_top10`/
+`nested_set3_gated_terrain_wind_vif`/`nested_set4_gated_all_vif`, VIF-screened sets per
+`documentation/methodlogy_env_setpick.md`). **Synced + evaluated locally**: 2026-08-11
+(`step3_rq1_sweep_sync.sh` then `step3_rq1_sweep_evaluate.sh`). Not yet added to the main results
+artifact. Delete this file (or fold into the real artifact) once that happens.
+
+### How these numbers were generated
+
+- **Fit** (cluster, GPU): 3 models (`dnn_env_terrain`/`pinn_env_terrain`/`pinn_env_terrain_k`) x
+  3 sets x 2 cohorts x 5 folds (`spatial_block_kfold`, split seed 42) = 90 fits. Single seed —
+  this is the comparison sweep to pick a winner, not the final robustness-checked number (that's
+  Step 4's 5-seed reseed of the winner only, not yet run).
+- **Evaluate** (local): `models.common.kfold_summary` per run_name — pools all 5 folds' held-out
+  predictions into ONE population-level R2/RMSE/MAE/bias (not a naive average of 5 separate R2s),
+  computes a cluster-bootstrap 95% CI on the pooled R2 (resampling whole compartments, not
+  individual plots, since plots within a compartment aren't independent), and separately reports
+  the per-fold R2 mean/SD (the "if you'd only used one fold" precision comparison).
+- `pinn_env_terrain_k`'s evaluate additionally reports a pooled Spearman correlation between its
+  two learned per-plot parameters (`learned_y_max`, `learned_k`) — a model-identifiability check
+  (see `models/pinn_env_terrain_k/check_cr_identifiability.py`'s own header for why this is
+  tracked), not a predictive-accuracy metric.
+
+### Results — pooled 5-fold, all 18 (model x set x cohort) combinations
+
+| Model | Set | Cohort | n plots | Pooled R2 [95% CI] | RMSE | MAE | Bias | Per-fold R2 (mean±SD) |
+|---|---|---|---:|---|---:|---:|---:|---|
+| dnn_env_terrain | Set2 | 4survey | 58,112 | 0.6506 [0.617, 0.682] | 4.746 | 3.580 | +0.046 | 0.648±0.034 |
+| dnn_env_terrain | Set2 | 6survey | 13,769 | 0.6588 [0.575, 0.733] | 4.209 | 3.025 | +0.316 | 0.631±0.110 |
+| dnn_env_terrain | Set3 | 4survey | 58,073 | 0.6593 [0.624, 0.690] | 4.686 | 3.533 | +0.131 | 0.655±0.016 |
+| dnn_env_terrain | Set3 | 6survey | 13,769 | **0.7070** [0.658, 0.740] | 3.900 | 2.856 | -0.254 | 0.684±0.031 |
+| dnn_env_terrain | Set4 | 4survey | 58,073 | 0.6367 [0.601, 0.668] | 4.839 | 3.670 | +0.127 | 0.632±0.027 |
+| dnn_env_terrain | Set4 | 6survey | 13,769 | 0.6503 [0.579, 0.705] | 4.261 | 3.133 | +0.560 | 0.622±0.072 |
+| pinn_env_terrain | Set2 | 4survey | 58,112 | 0.5768 [0.545, 0.606] | 5.223 | 4.068 | +0.088 | 0.573±0.038 |
+| pinn_env_terrain | Set2 | 6survey | 13,769 | 0.7097 [0.672, 0.736] | 3.882 | 2.805 | -0.027 | 0.686±0.038 |
+| pinn_env_terrain | Set3 | 4survey | 58,073 | 0.5775 [0.545, 0.607] | 5.218 | 4.064 | +0.070 | 0.573±0.036 |
+| pinn_env_terrain | Set3 | 6survey | 13,769 | **0.7097** [0.671, 0.736] | 3.882 | 2.810 | -0.011 | 0.686±0.038 |
+| pinn_env_terrain | Set4 | 4survey | 58,073 | 0.5782 [0.546, 0.608] | 5.214 | 4.052 | +0.051 | 0.574±0.036 |
+| pinn_env_terrain | Set4 | 6survey | 13,769 | 0.7067 [0.669, 0.734] | 3.902 | 2.828 | -0.098 | 0.683±0.037 |
+| pinn_env_terrain_k | Set2 | 4survey | 58,112 | 0.5793 [0.547, 0.609] | 5.208 | 4.043 | +0.096 | 0.575±0.037 |
+| pinn_env_terrain_k | Set2 | 6survey | 13,769 | 0.7049 [0.667, 0.732] | 3.914 | 2.821 | -0.044 | 0.681±0.043 |
+| pinn_env_terrain_k | Set3 | 4survey | 58,073 | 0.5788 [0.547, 0.608] | 5.210 | 4.046 | +0.056 | 0.575±0.037 |
+| pinn_env_terrain_k | Set3 | 6survey | 13,769 | 0.7083 [0.671, 0.735] | 3.892 | 2.808 | -0.039 | 0.684±0.038 |
+| pinn_env_terrain_k | Set4 | 4survey | 58,073 | 0.5787 [0.546, 0.608] | 5.211 | 4.042 | +0.059 | 0.575±0.038 |
+| pinn_env_terrain_k | Set4 | 6survey | 13,769 | 0.7092 [0.672, 0.736] | 3.885 | 2.805 | -0.047 | 0.685±0.039 |
+
+**pinn_env_terrain_k's learned y_max/k correlation** (identifiability check, pooled across all
+plots — a strong correlation means the model can't cleanly separate the two learned parameters,
+weakening how confidently either can be interpreted alone):
+
+| Set | 4survey | 6survey |
+|---|---:|---:|
+| Set2 | -0.587 | +0.136 |
+| Set3 | -0.449 | -0.057 |
+| Set4 | -0.498 | -0.020 |
+
+### Headline pattern
+
+**DNN wins on 4survey, PINN variants win on 6survey — not a universal winner.** On 4survey, DNN
+beats every PINN variant by a wide margin (0.637–0.659 vs. 0.577–0.579 pooled R2) — consistent
+with this project's own earlier baseline finding (`TEMP_baseline_env_new_sets_results_2026-08-10.tex`)
+that simple RF/XGBoost baselines also beat PINN-with-terrain on 4survey specifically. On 6survey,
+the pattern flips: PINN variants (0.705–0.710) edge out DNN (0.650–0.707), though DNN's Set3
+number (0.707) is close to PINN's best. **Set3 is the best- or near-best set for every model on
+6survey**; on 4survey, DNN peaks at Set3 too, while PINN's three sets are statistically
+indistinguishable from each other (all three 95% CIs overlap almost completely: 0.545–0.608
+range for all of Set2/3/4). **Set4 does not help, and sometimes hurts** (DNN's worst 4survey and
+6survey numbers are both at Set4) — consistent with the project's standing "widening isn't
+guaranteed to help" finding.
+
+**6survey's CIs are much wider than 4survey's** (e.g. DNN Set2: 6survey CI width 0.158 vs.
+4survey CI width 0.065) — expected, given 6survey's bootstrap resamples only 47 compartments vs.
+4survey's 232, so any 6survey-only claim should be read with real caution.
+
+**Not yet done**: 5-seed reseed of the winner (Step 4, contingent on you picking DNN or a PINN
+variant as "the winner" — by pooled R2 alone this reads as cohort-dependent, worth a decision
+before committing cluster time to a reseed), zero-physics control comparison, and RQ2a's
+residual-reduction numbers (separate note, cascades from these predictions).
