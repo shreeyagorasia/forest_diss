@@ -158,9 +158,19 @@ def main():
              "spatial_block_kfold to match E6_stage_sweep's own rigor level directly.",
     )
     parser.add_argument(
-        "--feature-set", choices=["stage1_terrain", "stage2_terrain_wind", "stage4_all_environmental"],
+        "--feature-set",
+        choices=[
+            "stage1_terrain", "stage2_terrain_wind", "stage4_all_environmental",
+            # Added 2026-08-10: the new rank-aggregate, VIF-screened RQ1 tiers (see
+            # documentation/methodlogy_env_setpick.md) -- lets this script's baseline-vs-neural
+            # comparison run on the SAME feature membership as the current RQ1 DNN/PINN sweep,
+            # not just the older stage1-4 tiers. Both left in choices -- old stage-tier numbers
+            # already cited (TEMP_baseline_env_results_2026-08-09.tex) stay reproducible.
+            "nested_set2_top10", "nested_set3_gated_terrain_wind_vif", "nested_set4_gated_all_vif",
+        ],
         required=True, help="Matches E6_stage_sweep's own three tiers exactly (stage3 excluded there "
-                             "too -- identical column list to stage4).",
+                             "too -- identical column list to stage4), or the new nested_set* tiers "
+                             "for a controlled comparison against the current RQ1 sweep.",
     )
     parser.add_argument("--split-seed", type=int, default=SEED)
     parser.add_argument("--n-folds", type=int, default=5)

@@ -33,6 +33,7 @@ from models.common.splits import (
     spatial_block_split,
     spatial_kfold_split,
 )
+from models.elasticnet_environmental.elasticnet_environmental import drop_rows_with_missing_features
 from models.elasticnet_environmental.elasticnet_environmental import fit_with_columns as en_fit_with_columns
 from models.elasticnet_environmental.elasticnet_environmental import get_coefficients_table
 from models.spatial_attribution.nlme import (
@@ -79,7 +80,16 @@ def fit_one_set(
             plots_df["split"] = spatial_block_split(
                 plots_df, block_col=SPATIAL_BLOCK_COL, buffer_distance=SPATIAL_BUFFER_METRES, seed=split_seed,
             )
+        # Set2 (10 columns, all zero-missingness in this project's export) never hit this, which is
+        # why it was the only set this driver got real-tested against before the cluster run --
+        # Set3/Set4 pull in columns with a small but nonzero missing fraction (soilgrids_ph,
+        # the CEH layers -- see documentation/methodlogy_env_setpick.md's data-source tables),
+        # which crashed ElasticNetCV outright (sklearn has no native NaN handling). Dropped here,
+        # once, BEFORE any of the three models fit, so NLME/EN/XGBoost all train on the exact same
+        # rows -- not just patching EN's crash while leaving NLME/XGBoost silently trained on a
+        # different, larger row set.
         train_df = plots_df[plots_df["split"] == "train"]
+        train_df = drop_rows_with_missing_features(train_df, feature_columns)
         print(f"  train rows: {len(train_df):,}  features: {len(feature_columns)}")
 
         if split_type == "spatial_block_kfold":

@@ -25,6 +25,7 @@ from models.common.splits import (
     spatial_block_split,
     spatial_kfold_split,
 )
+from models.elasticnet_environmental.elasticnet_environmental import drop_rows_with_missing_features
 from models.elasticnet_environmental.elasticnet_environmental import predict_with_columns as en_predict_with_columns
 from models.xgb_environmental.data import load_plots_for_cohort
 from models.xgb_environmental.xgb_environmental import predict_with_columns as xgb_predict_with_columns
@@ -75,7 +76,11 @@ def evaluate_one_set(
             plots_df["split"] = spatial_block_split(
                 plots_df, block_col=SPATIAL_BLOCK_COL, buffer_distance=SPATIAL_BUFFER_METRES, seed=split_seed,
             )
+        # Same drop as the fit side (run_rq2_attribution.py, 2026-08-10 fix) -- must match exactly,
+        # or the test population here could differ from whatever the fit step actually trained
+        # against.
         test_df = plots_df[plots_df["split"] == "test"]
+        test_df = drop_rows_with_missing_features(test_df, feature_columns)
         print(f"  test rows: {len(test_df):,}  features: {len(feature_columns)}")
 
         en_predictions = en_predict_with_columns(test_df, en_fitted, feature_columns)

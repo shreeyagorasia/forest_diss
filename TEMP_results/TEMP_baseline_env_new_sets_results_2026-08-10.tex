@@ -1,0 +1,106 @@
+## TEMP holding note — baseline-with-environment, NEW VIF-screened sets (2026-08-10)
+
+Not yet added to the main results artifact. This is the controlled-comparison companion to
+`TEMP_baseline_env_results_2026-08-09.tex` (which used the OLD stage1/stage2/stage4 tiers) --
+that note's numbers are NOT stale/wrong, just not directly comparable to the current RQ1 sweep,
+since RQ1 now runs on the new rank-aggregate, VIF-screened `nested_set2/3/4` tiers
+(`documentation/methodlogy_env_setpick.md`). This note reruns the SAME baseline models
+(Linear/RF/XGBoost) on those same new tiers, so a real apples-to-apples comparison against RQ1's
+DNN/PINN sweep becomes possible once that sweep's results sync down. Delete this file (or merge
+into the main artifact) once that comparison is actually made.
+
+### How these were generated
+
+**Code change**: `models/baselines/run_baselines_env.py`'s `--feature-set` argparse `choices=`
+widened to also accept `nested_set2_top10` / `nested_set3_gated_terrain_wind_vif` /
+`nested_set4_gated_all_vif`, alongside the existing `stage1_terrain`/`stage2_terrain_wind`/
+`stage4_all_environmental` (both left in -- additive, not a replacement, so the 2026-08-09 note's
+numbers stay reproducible). No other code change needed: the script already reads feature
+columns from `models.common.torch_data.ENV_TERRAIN_FEATURE_SETS`, the same dict RQ1's DNN/PINN
+already use, and that dict already had the new set names wired in earlier this session.
+
+**Run locally** (not cluster -- same as the 2026-08-09 note; these models fit in seconds to ~2
+minutes each, no reason to use cluster time):
+```bash
+source .venv/bin/activate
+export PYTHONPATH="$(pwd)"
+
+for cohort in 4survey 6survey; do
+  for feature_set in nested_set2_top10 nested_set3_gated_terrain_wind_vif nested_set4_gated_all_vif; do
+    python3 -u -m models.baselines.run_baselines_env \
+      --cohort "$cohort" --split-type plot_level --feature-set "$feature_set"
+
+    for fold in 0 1 2 3 4; do
+      python3 -u -m models.baselines.run_baselines_env \
+        --cohort "$cohort" --split-type spatial_block_kfold --feature-set "$feature_set" \
+        --split-seed 42 --n-folds 5 --fold-index "$fold"
+    done
+  done
+done
+```
+36 job-units (3 sets x 2 cohorts x [1 plot_level + 5 spatial_block_kfold folds]), each fitting
+`linear_baseline_env`, `rf_baseline_env`, `xgb_baseline_env` in one pass -- same shape as the
+2026-08-09 run, just the 3 new sets substituted for the 3 old stage tiers. All 108 model fits
+(36 job-units x 3 models) completed successfully (0 failures, confirmed via each unit's own
+`exit=0` in the run log).
+
+**Output paths** (confirmed by direct query, not assumed): `plot_level` runs save to
+`outputs/{model}_{feature_set}/{cohort}/metrics.json` (no `plot_level/` subfolder prefix, unlike
+`spatial_block_kfold` runs, which DO nest under `outputs/spatial_block_kfold/{model}_{feature_set}_fold{N}/{cohort}/metrics.json`)
+-- worth knowing, this tripped up the first query attempt.
+
+### Results
+
+**`plot_level` (easy split, single run):**
+
+| Cohort | Set | Linear | RF | XGBoost |
+|---|---|---:|---:|---:|
+| 4survey | nested_set2_top10 | 0.6047 | 0.8630 | 0.8350 |
+| 4survey | nested_set3_gated_terrain_wind_vif | 0.6019 | 0.8575 | 0.8348 |
+| 4survey | nested_set4_gated_all_vif | 0.6013 | 0.8653 | 0.8396 |
+| 6survey | nested_set2_top10 | 0.6327 | 0.8810 | 0.8668 |
+| 6survey | nested_set3_gated_terrain_wind_vif | 0.6262 | 0.8764 | 0.8653 |
+| 6survey | nested_set4_gated_all_vif | 0.6314 | 0.8822 | 0.8685 |
+
+**`spatial_block_kfold` (harder, primary comparison — mean ± SD across 5 folds)**. SD added
+2026-08-10, computed directly from each combo's 5 already-saved per-fold `metrics.json` files
+(`outputs/spatial_block_kfold/{model}_{feature_set}_fold{N}/{cohort}/metrics.json`) — no rerun
+needed, matches this project's own standing convention (`TEMP_baseline_env_results_2026-08-09.tex`'s
+own `mean±SD` format, and RQ2/RQ3's `per_fold_r2_std` in every pooled table elsewhere this
+session) that the first pass of this note dropped:
+
+| Cohort | Set | Linear | RF | XGBoost |
+|---|---|---:|---:|---:|
+| 4survey | nested_set2_top10 | 0.582±0.023 | 0.620±0.017 | 0.630±0.029 |
+| 4survey | nested_set3_gated_terrain_wind_vif | 0.580±0.023 | 0.638±0.010 | 0.637±0.013 |
+| 4survey | nested_set4_gated_all_vif | 0.577±0.020 | 0.629±0.026 | 0.626±0.026 |
+| 6survey | nested_set2_top10 | 0.501±0.045 | 0.619±0.048 | 0.673±0.029 |
+| 6survey | nested_set3_gated_terrain_wind_vif | 0.509±0.060 | 0.656±0.041 | 0.651±0.014 |
+| 6survey | nested_set4_gated_all_vif | 0.495±0.052 | 0.641±0.038 | 0.658±0.034 |
+
+**Reading the SD changes the "widening doesn't help" claim below**: e.g. 4survey RF's Set3 mean
+(0.638) vs. Set4 mean (0.629) is a 0.009 gap against SDs of 0.010 and 0.026 — well within one
+fold's noise, not a real difference. 6survey is noisier throughout (SDs 0.03–0.06, roughly double
+4survey's) — consistent with 6survey's much smaller sample (7,467 vs. ~56,000+ plots) already
+flagged elsewhere in this project's docs. Any Set-to-Set comparison in this note should be read
+against these SDs, not the bare means.
+
+### Headline pattern (baselines only — RQ1 comparison not possible yet)
+
+Same qualitative shape as the 2026-08-09 stage-tier run: RF/XGBoost land in the ~0.62-0.67
+pooled-kfold R2 range on 4survey, ~0.62-0.67 on 6survey, both comfortably ahead of Linear
+(~0.50-0.58). Widening the set (Set2->Set3->Set4) does **not** monotonically improve any model
+here -- e.g. 4survey RF peaks at Set3 (0.638), not Set4 (0.629) -- consistent with this
+project's own standing finding (methodology doc §4) that widening a Set is not claimed to
+necessarily help, an empirical question per model, not a guarantee.
+
+### What this does NOT yet answer
+
+**The actual point of this rerun** -- "do RF/XGBoost still match or beat PINN-with-terrain once
+both sides use the SAME new VIF-screened sets" -- is not yet answerable. No `rq1_*` results
+exist locally yet (`outputs/spatial_block_kfold/rq1_*` empty at time of writing) -- the cluster
+sweep (`step3_rq1_sweep_fit.sh`, 90 jobs) was still running/queued when this note was written.
+**Next step**: once `step3_rq1_sweep_sync.sh` + `step3_rq1_sweep_evaluate.sh` produce real
+`rq1_dnn_env_terrain_nested_set*_seed42` / `rq1_pinn_env_terrain_nested_set*_seed42` /
+`rq1_pinn_env_terrain_k_nested_set*_seed42` pooled R2 numbers, come back to this note and add
+the actual controlled head-to-head this rerun exists to enable.
