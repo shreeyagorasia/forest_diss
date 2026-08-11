@@ -342,7 +342,55 @@ Set1 = baseline (4 columns, all RSQs). Set2 = baseline + 10 VIF-screened, backfi
 by combined rank. Set3 = baseline + terrain/wind candidates in the top half of their category by
 combined rank, VIF-screened. Set4 = Set3's terrain/wind members + every other category's
 top-half candidates, VIF-screened. Set5 = baseline + every deduplicated candidate, VIF-screened,
-no rank filter. Full membership: `documentation/env_feature_sets_manifest.csv`.
+no rank filter.
+
+### 2.12 Full Set1–5 membership (exact columns, pulled fresh from the manifest, 2026-08-11)
+
+Baseline (`CanopyCover`, `time_since_thinning`, `time_since_thinning_missing`,
+`recent_thinning_5yr`) is included in every row below exactly as the manifest stores it. **RSQ1's
+baseline is stripped before export** into `ENV_TERRAIN_FEATURE_SETS` (fed to the model through a
+separate pathway — see §5) — the RSQ1 lists below are the manifest's own (baseline-included) form,
+for direct comparison with RSQ2/RSQ3; subtract the 4 baseline columns to get what
+`torch_data.py` actually receives.
+
+**RSQ1** (target `elev_percentile_95th`):
+
+| Set | n | Columns |
+|---|--:|---|
+| Set1 | 4 | `CanopyCover`, `time_since_thinning`, `time_since_thinning_missing`, `recent_thinning_5yr` |
+| Set2 | 14 | Set1 + `gwa_weibull_k_50m`, `dist_to_scpt_boundary`, `elevation`, `tas_mean`, `eastness`, `windward_topex`, `gwa_weibull_a_10m`, `gwa_weibull_a_50m`, `slope_degrees`, `cpmt_compactness_ratio` |
+| Set3 | 15 | Set1 + `gwa_weibull_k_50m`, `elevation`, `eastness`, `windward_topex`, `gwa_weibull_a_10m`, `gwa_weibull_a_50m`, `slope_degrees`, `gwa_weibull_k_10m`, `solar_radiation_index`, `ceh_twi`, `gwa_wind_speed_10m` |
+| Set4 | 18 | Set1 + `gwa_weibull_k_50m`, `eastness`, `windward_topex`, `gwa_weibull_a_10m`, `gwa_weibull_a_50m`, `slope_degrees`, `gwa_weibull_k_10m`, `solar_radiation_index`, `ceh_twi`, `gwa_wind_speed_10m`, `dist_to_scpt_boundary`, `tas_mean`, `chelsa_gdd5_degc`, `cpmt_compactness_ratio` |
+| Set5 | 30 | Set1 + `slope_degrees`, `northness`, `eastness`, `profile_curvature`, `plan_curvature`, `local_relief_500m`, `frost_hollow_flag`, `topex`, `windward_topex`, `gwa_weibull_a_10m`, `gwa_weibull_k_10m`, `gwa_weibull_a_50m`, `gwa_weibull_k_50m`, `dist_to_forest_perimeter`, `dist_to_scpt_boundary`, `cpmt_compactness_ratio`, `dist_to_road`, `dist_to_watercourse`, `gwa_wind_speed_10m`, `soilgrids_ph`, `ceh_twi`, `chelsa_gdd5_degc`, `chelsa_bio12_precip_mm`, `tas_mean`, `groundfrost_mean`, `whcl` |
+
+**RSQ2** (target `mean_cr_residual`, baseline retained on export — no second pathway):
+
+| Set | n | Columns |
+|---|--:|---|
+| Set1 | 4 | `CanopyCover`, `time_since_thinning`, `time_since_thinning_missing`, `recent_thinning_5yr` |
+| Set2 | 14 | Set1 + `chelsa_bio12_precip_mm`, `chelsa_gdd5_degc`, `gwa_weibull_k_50m`, `slope_degrees`, `gwa_weibull_a_10m`, `local_relief_500m`, `eastness`, `dist_to_road`, `gwa_weibull_a_50m`, `tas_mean` |
+| Set3 | 14 | Set1 + `gwa_weibull_k_50m`, `slope_degrees`, `gwa_weibull_a_10m`, `local_relief_500m`, `eastness`, `gwa_weibull_a_50m`, `ceh_twi`, `whcl`, `topex`, `gwa_wind_speed_10m` |
+| Set4 | 19 | Set3 + `chelsa_bio12_precip_mm`, `dist_to_road`, `tas_mean`, `dist_to_scpt_boundary`, `soilgrids_ph` |
+| Set5 | 28 | Set1 + `slope_degrees`, `northness`, `eastness`, `profile_curvature`, `plan_curvature`, `tpi_500m`, `local_relief_500m`, `frost_hollow_flag`, `windward_topex`, `gwa_weibull_a_10m`, `gwa_weibull_k_10m`, `gwa_weibull_a_50m`, `gwa_weibull_k_50m`, `dist_to_forest_perimeter`, `dist_to_block_boundary`, `cpmt_compactness_ratio`, `dist_to_road`, `dist_to_watercourse`, `gwa_wind_speed_10m`, `soilgrids_ph`, `ceh_twi`, `tas_mean`, `groundfrost_mean`, `whcl` |
+
+**RSQ3** (target `local_y_max_difference`, baseline retained on export; `ceh_*` columns are
+one-hot dummy levels, reference level already dropped per §2.4):
+
+| Set | n | Columns |
+|---|--:|---|
+| Set1 | 4 | `CanopyCover`, `time_since_thinning`, `time_since_thinning_missing`, `recent_thinning_5yr` |
+| Set2 | 14 | Set1 + `windward_topex`, `elevation`, `cpmt_compactness_ratio`, `gwa_wind_speed_50m`, `slope_degrees`, `tpi_500m`, `dist_to_road`, `topex`, `solar_radiation_index`, `soilgrids_ph` |
+| Set3 | 12 | Set1 + `windward_topex`, `elevation`, `gwa_wind_speed_50m`, `slope_degrees`, `tpi_500m`, `topex`, `solar_radiation_index`, `northness` |
+| Set4 | 20 | Set1 + `windward_topex`, `gwa_wind_speed_50m`, `slope_degrees`, `tpi_500m`, `topex`, `northness`, `cpmt_compactness_ratio`, `dist_to_road`, `chelsa_bio12_precip_mm`, `tas_mean`, `soilgrids_ph`, `ceh_subsurface_drainage=2.0`, `ceh_pedotope=2.0`, `ceh_pedotope=8.0`, `ceh_textural_composition=2.0`, `dist_to_forest_perimeter` |
+| Set5 | 31 | Set1 + `slope_degrees`, `northness`, `eastness`, `profile_curvature`, `plan_curvature`, `ceh_twi`, `frost_hollow_flag`, `windward_topex`, `whcl`, `tpi_500m`, `local_relief_500m`, `tas_mean`, `groundfrost_mean`, `soilgrids_ph`, `dist_to_watercourse`, `dist_to_forest_perimeter`, `dist_to_scpt_boundary`, `cpmt_compactness_ratio`, `dist_to_road`, `ceh_pedotope=11.0`, `ceh_pedotope=2.0`, `ceh_pedotope=5.0`, `ceh_pedotope=8.0`, `ceh_pedotope=9.0`, `ceh_subsurface_drainage=2.0`, `ceh_subsurface_drainage=3.0`, `ceh_textural_composition=5.0` |
+
+Note Set3's non-monotonic behaviour is expected, not an error: RSQ3 Set3 (12) is smaller than
+RSQ3 Set2 (14) because Set2 and Set3 are built by two different rules (top-10 by rank vs.
+top-half-of-category by rank) over overlapping but not identical candidate pools — Set3 is not
+defined as a superset of Set2.
+
+Machine-readable source: `documentation/env_feature_sets_manifest.csv` (225 rows) — the file
+above is a snapshot for readability; the CSV is the definitive record if the two ever disagree.
 
 ---
 
