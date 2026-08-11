@@ -89,5 +89,33 @@ mirroring RQ1's own DNN-vs-PINN cohort-dependent winner pattern
 **Set choice barely matters for this specific question** — reduction and quartile numbers are
 close across Set2/3/4 for every model, echoing RQ1's own "Set4 doesn't reliably help" finding.
 
-**Not yet done**: 5-seed final pass (Step 4a, contingent on RQ1's winner being decided and
-reseeded), spatial "help map" (needs the x/y already saved in each row, not yet plotted).
+### Step 4a — 5-seed final pass on the winner (DNN + Set3), added 2026-08-11
+
+No new fitting — reuses the winner reseed's `predictions.csv` (5 seeds: 42, 43-46) directly
+against the same per-fold CR baseline (CR is seed-independent since `split_seed` is fixed at 42
+across all 5 DNN seeds — only the model's own training randomness varies).
+
+**Overall, across-seed (mean of 5 seeds' own fold-pooled means ± SD across seeds)**:
+
+| Cohort | Mean reduction (m) | SD across seeds |
+|---|---:|---:|
+| 4survey | 1.501 | 0.023 |
+| 6survey | 0.174 | 0.036 |
+
+**By CR-residual quartile, across all 5 seeds (mean ± SD)**:
+
+| Cohort | Q1 (CR best) | Q2 | Q3 | Q4 (CR worst) |
+|---|---:|---:|---:|---:|
+| 4survey | -1.583±0.052 | 0.260±0.023 | 2.272±0.037 | 5.054±0.117 |
+| 6survey | -1.093±0.091 | -0.319±0.057 | 0.409±0.042 | 1.699±0.076 |
+
+**Confirms the seed-42 finding is robust, not a fluke of one training run.** The Q1-hurts/
+Q4-helps pattern holds across all 5 seeds with small SDs relative to the means (e.g. 4survey Q4:
+5.054±0.117, SD under 2.5% of the mean) — this is now the robustness-checked number that should
+be cited in the dissertation, not the single-seed preview. 6survey's overall mean reduction
+(0.174±0.036) is much smaller than 4survey's (1.501±0.023) but still clearly positive across
+every seed, and the quartile pattern still holds — the effect is real on 6survey too, just
+smaller in absolute terms, consistent with 6survey's generally noisier behaviour throughout this
+project.
+
+**Not yet done**: spatial "help map" (needs the x/y already saved in each row, not yet plotted).

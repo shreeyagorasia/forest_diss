@@ -23,10 +23,16 @@ its keep once that information is present?
 environmental feature tiers (`nested_set2_top10`/`nested_set3_gated_terrain_wind_vif`/
 `nested_set4_gated_all_vif`, VIF-screened per `documentation/methodlogy_env_setpick.md`) x 2
 cohorts x 5-fold spatial CV, single seed (42) first as a comparison sweep, then a 5-seed reseed of
-whichever wins. **Current status (2026-08-11)**: the seed-42 sweep is complete and evaluated —
-see `TEMP_results/TEMP_rq1_sweep_results_2026-08-11.tex`. Headline: DNN wins on 4survey, PINN
-variants win on 6survey — no universal winner yet, a real decision needed before committing
-cluster time to the 5-seed reseed. Winner not yet chosen.
+whichever wins. **Current status (2026-08-11)**: complete, including the reseed. Seed-42 sweep:
+`TEMP_results/TEMP_rq1_sweep_results_2026-08-11.tex`. **Winner: DNN + Set3**
+(`nested_set3_gated_terrain_wind_vif`) — picked on non-overlapping 95% CIs vs. every PINN variant
+on 4survey (a real, statistically distinguishable gap, not noise) and a statistical tie (not a
+loss) on 6survey, confirmed by RMSE/MAE and by DNN's own tighter per-fold stability. Re-checked
+against RMSE/MAE directly (not just R2) — same conclusion, the metric choice doesn't change it.
+5-seed reseed (`TEMP_results/TEMP_rq1_winner_reseed_results_2026-08-11.tex`): confirms the win is
+not a lucky single seed (4survey R2 varies only ±0.0035 across 5 seeds) and surfaces a real,
+seed-independent finding — DNN systematically underpredicts height on 6survey (negative bias,
+every one of 5 seeds).
 
 **Physics-weight ablation — done and answered (2026-08-11)**:
 `TEMP_results/TEMP_rq1_physicsablation_results_2026-08-11.tex`. Ran on Set3 (both cohorts), two

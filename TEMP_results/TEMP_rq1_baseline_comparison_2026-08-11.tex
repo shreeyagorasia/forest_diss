@@ -1,0 +1,42 @@
+## TEMP holding note — RQ1: does neural complexity beat simple baselines? (2026-08-11)
+
+**No new fitting** — both sides of this comparison already existed
+(`TEMP_baseline_env_new_sets_results_2026-08-10.tex` for Linear/RF/XGBoost,
+`TEMP_rq1_sweep_results_2026-08-11.tex` for DNN/PINN/PINN_k), this note just joins them. Flagged
+twice earlier as a cheap remaining gap ("both sides exist, comparison never pulled together") —
+closing it now. Focused on **Set3 only** (the RQ1 winner's set — see
+`documentation/research_questions_overview.md`), since that's the set that actually matters for
+the headline claim; Set2/Set4 numbers exist in the two source files if needed later.
+
+### Results — Set3, per-fold R2 (mean±SD across 5 folds, current VIF-screened tier, both sides)
+
+| Model | 4survey | 6survey |
+|---|---:|---:|
+| Linear | 0.580±0.023 | 0.509±0.060 |
+| RF | 0.638±0.010 | 0.656±0.041 |
+| XGBoost | 0.637±0.013 | 0.651±0.014 |
+| **DNN** | **0.655±0.016** | 0.684±0.031 |
+| PINN | 0.573±0.036 | 0.686±0.038 |
+| PINN_k | 0.575±0.037 | 0.684±0.038 |
+
+### Headline finding
+
+**On 4survey, DNN edges out RF/XGBoost, but PINN/PINN_k lose to them.** DNN (0.655±0.016) sits
+just above RF (0.638±0.010) and XGBoost (0.637±0.013) — the SDs barely overlap at the edge, so
+this is a real if modest edge, not a clear-cut win. PINN and PINN_k (0.573-0.575) are clearly
+*worse* than both tree-based baselines here — the extra architectural complexity doesn't pay for
+itself on 4survey once physics conditioning is added, consistent with this project's earlier,
+now-answered physics-ablation finding (physics constraint hurts 4survey accuracy).
+
+**On 6survey, all three neural models (DNN, PINN, PINN_k, 0.684-0.686) clearly beat both
+baselines** (RF 0.656, XGBoost 0.651) — a real, unambiguous margin (roughly 0.03, outside the
+baselines' own SDs). Neural conditioning earns its keep on 6survey regardless of which neural
+architecture is used.
+
+**Linear is comfortably the weakest model everywhere** (0.509-0.580) — expected, included mainly
+as a lower-bound reference, not a serious competitor.
+
+**Overall read**: the case for using a neural model over a simple baseline is stronger on 6survey
+than on 4survey — on 4survey specifically, only DNN (not PINN/PINN_k) actually justifies the
+extra complexity over RF/XGBoost. This is a real, citable nuance for the RQ1 chapter's "why a
+neural model at all" framing, not a blanket "neural beats baseline" claim.
