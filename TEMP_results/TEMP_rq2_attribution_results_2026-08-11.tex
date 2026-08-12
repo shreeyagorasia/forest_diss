@@ -135,3 +135,36 @@ model family.
 **Not yet done**: cross-method agreement heatmap (NLME vs. EN vs. XGBoost SHAP — all three now
 exist, table not built), 5-seed reseed (no seed sweep has been run for RQ2 at all — this note
 only ever reflects split seed 42), SHAP beeswarm plot (data ready, not plotted).
+
+### CanopyCover reverse-causation check — baseline-only (Set1) comparison, added 2026-08-13
+
+**Context**: the project's own data cheat-sheet (`documentation/data_exploration_gpkg/Forest LiDAR
+& Inventory – Key Terms Cheat Sheet.md`, §3.2/§3.4/§13) flags `CanopyCover` as a "downstream
+consequence of the growth process," not a genuine driver — confirmed it and `elev_percentile_95th`
+come from the SAME LiDAR CSV/ALS flight (not independent surveys), and correlations with all 3
+targets are moderate (Pearson 0.35-0.47), ruling out literal duplication (`GapFraction`, an exact
+1-CanopyCover duplicate, correlates far higher) but not resolving the causal-direction question.
+This is NOT the same category as the `Age` circularity bug (Age is algebraically inside the CR
+formula; CanopyCover is not in any of the 3 target formulas) — a judgment call, not a proven leak.
+
+**Test run**: `nested_set1_baseline` (the 4 stand-structure columns alone — `CanopyCover`,
+`time_since_thinning`, `time_since_thinning_missing`, `recent_thinning_5yr`) had never actually
+been fit for RQ2 before (only Set2/3/4, which already include baseline + environmental candidates
+together). Widened `--set-name` choices in `run_rq2_attribution.py`/`evaluate_rq2_attribution.py`
+(additive, no behavior change for existing sets) and ran all 5 folds locally (CPU-only, ~10s/fold).
+
+**Result — see the comparison table above this section, now with a Set1 row.** Two findings:
+1. Baseline alone reaches only R2=0.185-0.220 (EN/XGBoost) — environmental variables add a real,
+   non-trivial +0.10 to +0.15 R2 on top (48-83% relative increase) — baseline is nowhere close to
+   "the whole model."
+2. NLME's variance-explained metric (specifically BETWEEN-COMPARTMENT/spatial variance, not
+   overall row-level variance) is ~0 for baseline alone (0.016+/-0.078, one fold negative) vs.
+   0.05-0.20 for the full sets — baseline has real row-level predictive power but explains almost
+   none of the spatial pattern, while environmental variables explain a real share of it.
+
+**Conclusion**: supports treating `CanopyCover`/thinning explicitly as baseline stand-structure
+CONTROLS in the write-up (expected to dominate row-level R2, not itself the interesting
+attribution finding), with the environmental variables' contribution beyond that baseline as the
+actual headline — a defensible, evidence-backed reframe rather than "CanopyCover just happens to
+win." No code/model change made (baseline stays in every set, as before) — this was a
+write-up-framing decision, backed by a real ablation number instead of an assumption either way.

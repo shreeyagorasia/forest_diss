@@ -111,11 +111,21 @@ VIF-screened feature tiers, 5-fold spatial CV, 4survey only (6survey's 47 compar
 few for stable coefficient estimates here). **Current status (2026-08-11)**: complete for all 3
 tiers — see `TEMP_results/TEMP_rq2_attribution_results_2026-08-11.tex`. Headline: `CanopyCover`
 and the two thinning-history baseline columns dominate every set for both models, with tight
-cross-fold stability — the single most consistent finding in this whole project so far (not yet
-checked for a possible confound in how `CanopyCover` is derived). XGBoost SHAP was considered for
-this RQ but deliberately pointed at RQ3 instead (see below) — RQ2b already has three converging
-global-coefficient views; SHAP's per-plot detail adds less value here than it does for RQ3's
-outlier-diagnosis goal.
+cross-fold stability — the single most consistent finding in this whole project so far.
+**CanopyCover confound — checked 2026-08-13** (see the same TEMP file's own section): the
+project's data cheat-sheet flags `CanopyCover` as a possible reverse-causation confound (same ALS
+flight/pipeline as the height target, though not algebraically inside any of the 3 target formulas
+— not the same category as the proven `Age` circularity). A baseline-only (Set1, the 4
+stand-structure columns alone) fit — never previously run — shows baseline alone reaches only
+R2=0.19-0.22, with environmental variables adding a real +0.10-0.15 R2 on top, and NLME's
+between-compartment variance explained is ~0 for baseline alone (0.016+/-0.078) vs. 0.05-0.20 for
+the full sets. Read: `CanopyCover` is a genuine row-level predictor but explains almost none of
+the spatial pattern RQ2 is attributing — supports presenting it as a baseline stand-structure
+control in the write-up, with environmental variables' contribution beyond that baseline as the
+actual attribution headline, rather than treating "CanopyCover wins" itself as the finding. XGBoost
+SHAP was considered for this RQ but deliberately pointed at RQ3 instead (see below) — RQ2b already
+has three converging global-coefficient views; SHAP's per-plot detail adds less value here than it
+does for RQ3's outlier-diagnosis goal.
 
 ## RQ3 — attribution of plot-specific curve deviation
 

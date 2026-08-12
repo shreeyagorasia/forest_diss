@@ -128,7 +128,10 @@ def main():
     parser.add_argument("--cohort", default="4survey", choices=["4survey", "6survey"])
     parser.add_argument(
         "--set-name", default="nested_set2_top10",
-        choices=["nested_set2_top10", "nested_set3_gated_terrain_wind_vif", "nested_set4_gated_all_vif", "nested_set5_all_ungated_vif"],
+        choices=[
+            "nested_set1_baseline",  # added 2026-08-13, matches run_rq2_attribution.py's own addition
+            "nested_set2_top10", "nested_set3_gated_terrain_wind_vif", "nested_set4_gated_all_vif", "nested_set5_all_ungated_vif",
+        ],
     )
     parser.add_argument("--split-type", default="spatial_block", choices=["spatial_block", "spatial_block_kfold"])
     parser.add_argument("--split-seed", type=int, default=SPLIT_SEED)

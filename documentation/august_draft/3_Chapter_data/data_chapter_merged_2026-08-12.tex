@@ -244,16 +244,24 @@ were carried into the master export:
   1 absent) recording an existing management assessment of wind-damage susceptibility, not a
   direct wind measurement.
 \item \textbf{Canopy cover} (\texttt{CanopyCover}), an ALS-derived fraction (0--1) of canopy cover
-  recorded per plot per survey. \fc{An internal project note
-  (\texttt{documentation/data\_exploration\_gpkg/...Cheat Sheet.md}) explicitly flags
-  \texttt{CanopyCover} -- along with LAI and gap fraction -- as a downstream consequence of the
-  growth process itself, cautioning against its use as a predictor of top height or growth-curve
-  residuals. \texttt{CanopyCover} is nonetheless currently included as one of four baseline
-  features in every environmental feature set used across all three research questions
-  (\texttt{documentation/methodlogy\_env\_setpick.md}, \S1.6/\S2.11). No record of a deliberate
-  resolution of this tension was found in any file inspected for this chapter -- this should be
-  either resolved with an explicit, documented decision, or the caution should be revisited, before
-  the Methodology chapter's feature-set description is finalised.}
+  recorded per plot per survey. \fc{\texttt{CanopyCover} and the height target come from the same
+  GeoPackage row -- the same ALS flight and the same area-based-analysis pipeline, for the same
+  plot and survey year -- unlike the terrain/wind/climate/soil variables in
+  \S\ref{sec:data-environmental}, which are matched in from entirely independent sources. This is
+  a reverse-causation question, not an algebraic leak: canopy closure could be a consequence of
+  prior growth, a partial independent driver of it (via planting density, stocking or thinning
+  regime), or both, and the shared-provenance fact alone does not distinguish these.
+  \texttt{CanopyCover} is nonetheless included as one of four baseline features in every
+  environmental feature set used across all three research questions
+  (\texttt{documentation/methodlogy\_env\_setpick.md}, \S1.6/\S2.11). This is addressed
+  empirically rather than by assumption: a baseline-only ablation
+  (\texttt{TEMP\_results/TEMP\_rq2\_attribution\_results\_2026-08-11.tex}, "CanopyCover
+  reverse-causation check," added 2026-08-13) fits RQ2's attribution models on the baseline
+  columns alone and compares against the full environmental sets. This Data chapter states the
+  shared-provenance fact only; the ablation's outcome and its consequences for how
+  \texttt{CanopyCover} is framed in the environmental feature sets belong in
+  Chapter~\ref{ch:methodology}'s feature-set justification and the Results chapter, not here --
+  verify those two sections actually carry this through once drafted.}
 \item \textbf{Thinning history} (\texttt{Thin}, \texttt{last\_thinn}, \texttt{next\_thin\_}), from
   which \texttt{time\_since\_thinning} and related recency flags are derived
   (\app{exact derivation formulas and the \texttt{thinning\_status} bucketing rule}).
