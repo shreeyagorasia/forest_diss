@@ -17,17 +17,23 @@ from pathlib import Path
 import pandas as pd
 
 from models.common.metrics import compute_metrics
-from models.common.splits import DEFAULT_K_FOLDS
+from models.common.splits import DEFAULT_K_FOLDS, SPLIT_SEED
 from models.growth_curve_attribution.gnnwr_check import OUTPUT_DIR, SCOPES
 from models.growth_curve_attribution.scale_comparison_check import TARGET
 
 
-def load_fold_predictions(cohort: str, scope: str, reference_set_size: int, k_folds: int = DEFAULT_K_FOLDS) -> pd.DataFrame:
+def load_fold_predictions(
+    cohort: str, scope: str, reference_set_size: int, k_folds: int = DEFAULT_K_FOLDS, split_seed: int = SPLIT_SEED,
+) -> pd.DataFrame:
+    # split_seed label added 2026-08-12, same fix/reasoning as run_gnnwr()'s own filename change --
+    # only appended when split_seed differs from the project default (42), so this still finds
+    # every already-existing seed-42 file with no path change at all.
     reference_set_label = "full" if reference_set_size is None else str(reference_set_size)
+    seed_label = "" if split_seed == SPLIT_SEED else f"_seed{split_seed}"
     fold_tables = []
     missing_folds = []
     for fold in range(k_folds):
-        run_name = f"gnnwr_{scope}_{cohort}_ref{reference_set_label}_fold{fold}of{k_folds}"
+        run_name = f"gnnwr_{scope}_{cohort}_ref{reference_set_label}_fold{fold}of{k_folds}{seed_label}"
         csv_path = OUTPUT_DIR / f"{run_name}_test_predictions.csv"
         if not csv_path.exists():
             missing_folds.append(fold)
@@ -80,19 +86,23 @@ def main():
     )
     parser.add_argument("--reference-set-size", type=int, default=16000, help="Pass 0 for the full-population runs.")
     parser.add_argument("--k-folds", type=int, default=DEFAULT_K_FOLDS)
+    parser.add_argument("--split-seed", type=int, default=SPLIT_SEED, help="For reseed runs (e.g. 43, 44) -- default 42 matches every existing run.")
     args = parser.parse_args()
 
     reference_set_size = args.reference_set_size if args.reference_set_size > 0 else None
-    pooled = load_fold_predictions(args.cohort, args.scope, reference_set_size, k_folds=args.k_folds)
+    pooled = load_fold_predictions(args.cohort, args.scope, reference_set_size, k_folds=args.k_folds, split_seed=args.split_seed)
     summary = summarize_gnnwr_kfold(pooled)
 
-    print(f"\n{args.cohort} / {args.scope} / reference_set_size={reference_set_size or 'full'}")
+    print(f"\n{args.cohort} / {args.scope} / seed={args.split_seed} / reference_set_size={reference_set_size or 'full'}")
     print(f"  Pooled R2 (headline, comparable to EN/XGBoost's own pooled 5-fold number): {summary['pooled_r2']:.4f}")
     print(f"  Per-fold R2: mean={summary['per_fold_r2_mean']:.4f}  std={summary['per_fold_r2_std']:.4f}")
     print(f"  Per-fold R2 values: {summary['per_fold_r2_values']}")
     print(f"  n_plots={summary['n_plots']:,}  n_compartments={summary['n_compartments']}")
 
-    output_path = OUTPUT_DIR / f"gnnwr_{args.scope}_{args.cohort}_ref{reference_set_size or 'full'}_kfold_pooled_summary.csv"
+    # Same seed-label fix as load_fold_predictions() -- without this, pooling seed 43 would
+    # silently overwrite the already-saved seed-42 summary (identical filename otherwise).
+    seed_label = "" if args.split_seed == SPLIT_SEED else f"_seed{args.split_seed}"
+    output_path = OUTPUT_DIR / f"gnnwr_{args.scope}_{args.cohort}_ref{reference_set_size or 'full'}{seed_label}_kfold_pooled_summary.csv"
     pd.DataFrame([summary]).to_csv(output_path, index=False)
     print(f"  Saved {output_path}")
 

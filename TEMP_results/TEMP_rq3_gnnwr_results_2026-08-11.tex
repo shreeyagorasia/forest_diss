@@ -44,19 +44,46 @@ since `--scope` is only ever used as a bare filename-pattern string, never valid
 | Set3 | 0.274 | 0.281 | **0.319** | 0.031 | 0.086 | 0.058 |
 | Set4 | 0.240 | 0.250 | **0.294** | 0.056 | 0.015 | -0.075 |
 
-**Yes on 4survey, no on 6survey — a clean, sample-size-dependent split.** GNNWR beats both
-global models on EVERY set for 4survey (by 0.03-0.05 R2, a real and consistent margin, not
-noise-level given the fold SDs are ~0.07-0.08). On 6survey, GNNWR is worse than at least one
-global model on every set, and outright negative for Set2/Set4 — consistent with GNNWR's local/
-spatially-varying coefficients needing more data than 6survey's 47 compartments can support to
-estimate reliably, rather than spatial non-stationarity simply not existing on 6survey (EN/XGBoost
-also struggle there, just less catastrophically). This directly supports keeping 4survey as the
-primary cohort for RQ3's headline attribution claims, with 6survey framed as underpowered rather
-than as evidence against spatial non-stationarity.
+**Yes on 4survey. On 6survey — see the reseed below, this single-seed number is not reliable
+enough to call it a loss.** GNNWR beats both global models on EVERY set for 4survey (by 0.03-0.05
+R2, a real and consistent margin, not noise-level given the fold SDs are ~0.07-0.08). The 6survey
+numbers in this table (from seed 42 only) looked like a clean loss at first, but the 2026-08-12
+reseed below shows the sign flips across seeds for every set — treat 6survey as "underpowered,
+can't draw a directional conclusion" rather than "GNNWR loses here," and read the 4survey result
+(unaffected by this) as the reliable part of this comparison.
+
+### 6survey reseed (2026-08-12) — CORRECTS the "GNNWR loses on 6survey" framing above
+
+Ran 2 more seeds (43, 44) on 6survey only (4survey's own per-fold SD already looked stable enough
+not to need this). **Caught and fixed a real bug first**: `run_gnnwr()`'s `run_name` never
+included `split_seed` at all — reseeding would have silently overwritten the seed-42 results with
+an identical filename before ever syncing. Fixed additively (only appends `_seed{N}` when it
+differs from the project default 42, verified byte-identical against the actual already-synced
+seed-42 filename before running anything). Same fix applied to
+`pool_gnnwr_kfold_results.py`, which had the identical gap.
+
+| Set | Seed 42 | Seed 43 | Seed 44 | Mean | SD |
+|---|---:|---:|---:|---:|---:|
+| Set2 | -0.044 | 0.059 | 0.028 | 0.014 | 0.053 |
+| Set3 | 0.058 | -0.002 | 0.108 | 0.054 | 0.055 |
+| Set4 | -0.075 | 0.055 | 0.027 | 0.002 | 0.068 |
+
+**The sign flips across seeds for every single set.** This is not "GNNWR reliably loses on
+6survey" — it's "GNNWR's pooled R2 on 6survey is indistinguishable from zero and highly unstable
+seed-to-seed," a meaningfully different and more accurate finding. The across-seed mean for every
+set sits close to 0 (0.002–0.054), well within the seed-to-seed SD (0.05–0.07) — i.e. by the same
+"is the gap bigger than the SD" test used elsewhere in this project (RQ1's winner check), **none
+of these 6survey numbers clear their own noise floor**. Read this as "GNNWR doesn't work well
+enough to draw a conclusion from on 6survey" rather than "GNNWR is worse than EN/XGBoost on
+6survey" — the earlier framing overstated a directional claim that a single seed can't actually
+support. 4survey's own headline (GNNWR beats EN/XGBoost on every set) is unaffected by this —
+that result already had tight, seed-42-only fold SDs (0.065-0.084) an order of magnitude smaller
+relative to its effect size than anything seen on 6survey here.
 
 ### Not yet done
 
 Local-coefficient maps (per-row `coef_*` columns already in each `test_predictions.csv`, not yet
 plotted), Set4x6survey's known 17-vs-20-column parity gap (flagged 2026-08-11, may partly explain
 why Set4 is GNNWR's worst 6survey result), cross-referencing GNNWR's local coefficients against
-EN's global coefficients/XGBoost's SHAP values for the same variables.
+EN's global coefficients/XGBoost's SHAP values for the same variables, 4survey reseed (not done,
+judged unnecessary given already-tight fold SDs).

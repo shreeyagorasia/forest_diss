@@ -1,0 +1,425 @@
+%=======================================================================================
+% DATA CHAPTER -- rewritten 2026-08-12, following an approved chapter-plan/fact-inventory pass.
+%
+% Base content: the pasted draft supplied for that planning pass (not identical to either
+% data_chapter_draft.tex or data_chapter_merged_2026-08-10.tex already on disk -- this file
+% supersedes both for the 2026-08-12 structure; the two earlier files are left untouched in case
+% any of their inline "Confirmed"/"NEEDS CHECKING" annotations are still wanted for reference).
+%
+% Every number below was re-verified this pass directly against data_processing/clean_master_data.py
+% (re-executed live against the raw GeoPackage, not just read), the processed Parquet tables, and
+% documentation/methodlogy_env_setpick.md (env. variables, verified 2026-08-10). Colour-coded
+% flags follow the same legend already established in 1_Chapter_Intro/11th_aug_introdraft.tex:
+% \fc = fact-check needed (red), \ct = citation missing (orange), \app = move to appendix (blue),
+% \sr = small reword (teal). No model results, performance numbers, or causal language appear in
+% this chapter -- see Methodology/Results for those.
+%=======================================================================================
+\newcommand{\fc}[1]{\textcolor{red}{[FactC: #1]}}
+\newcommand{\ct}[1]{\textcolor{orange}{[CITE: #1]}}
+\newcommand{\app}[1]{\textcolor{blue}{[APP: #1]}}
+\newcommand{\sr}[1]{\textcolor{teal}{[Reword: #1]}}
+%=======================================================================================
+
+\chapter{Data}
+\label{ch:data}
+
+This chapter describes the data on which every result in this dissertation is built: where they
+came from, how the analytical cohorts were constructed, what the response variable and the
+original stand-management fields mean, and what external terrain, wind, climate and soil data
+were attached to each plot. It states what exists and how it was assembled, not how it was
+selected, split or modelled for a specific research question -- those decisions are described in
+Chapter~\ref{ch:methodology}.
+
+\section{Study area and source data}
+\label{sec:data-source}
+
+The plot data used throughout this dissertation were supplied by Forest Research as a single
+GeoPackage layer (\texttt{LiDAR\_Years}), covering one study area, Aberfoyle forest in the
+Trossachs, Scotland \ct{Aberfoyle forest location/general description -- a short geographic
+citation, not yet in the citation list}. The \texttt{AOI} field is constant across every one of
+the 795,645 raw rows (\texttt{"Aberfoyle"}), confirming a single, unambiguous study area rather
+than a merged multi-site extract. Coordinates are recorded in the British National Grid
+(EPSG:27700); the plots used in the final analytical cohorts span roughly 16.8\,km east--west and
+12.0\,km north--south.
+
+The raw layer holds 795,645 plot-year records across 230,359 unique plot identifiers and 38
+columns, spanning six survey years: 2002 (37,888 records), 2006 (22,538), 2008 (114,975), 2012
+(173,550), 2021 (218,359) and 2023 (228,335). Coverage grows substantially between 2006 and 2008,
+consistent with an expansion of the sampling grid rather than plot loss.
+
+Each record represents one plot in one survey year. A plot is the individual Area-Based-Analysis
+sampling grid cell over which per-survey statistics (height percentiles, canopy cover, and the
+other fields listed below) were computed from Airborne Laser Scanning (ALS) data -- an
+aircraft-mounted system, not a drone survey. The nominal grid cell is 20\,m by 20\,m; the
+\texttt{area} field's median is exactly 400\,m\textsuperscript{2} (71.1\% of all raw rows,
+565,482 of 795,645, are exactly 400\,m\textsuperscript{2}), with a lower tail down to
+250.0\,m\textsuperscript{2} where a grid cell is clipped by a compartment or sub-compartment
+boundary. \fc{The area field also has an upper tail, up to 1{,}585.9\,m\textsuperscript{2} (almost
+four times the nominal cell), which the boundary-clipping explanation does not account for --
+clipping can only shrink a cell, not enlarge it. This needs checking against Forest Research's own
+plot-layout documentation before the chapter states a cause; until then, report only the median
+and the clipped lower tail with confidence, and flag the upper tail as unexplained.} Exact
+acquisition metadata for the ALS survey itself (point density, sensor, flight dates) was not found
+in any file inspected for this chapter; \ct{Forest Research ALS/LiDAR acquisition specification,
+if a technical report exists} -- otherwise this remains a stated limitation of the source data's
+documentation, not an assumption.
+
+\app{Full raw column inventory (all 38 fields in \texttt{LiDAR\_Years}), including fields never
+used downstream (e.g.\ \texttt{flyr}, constant at zero for every row; \texttt{block}, a
+99.999\%-identical duplicate of \texttt{blk}).}
+
+\section{Spatial and temporal hierarchy}
+\label{sec:data-hierarchy}
+
+The plot data sit inside a three-level Forest Research management hierarchy, and the naming of
+that hierarchy in the raw layer is not as simple as the field names suggest. \texttt{blk} (block)
+is the coarsest unit: 18 distinct blocks, and a forestry compartment (\texttt{cpmt}, 531 distinct
+values in the raw layer) sits inside exactly one block in all but 2 of the 531 cases
+(\fc{the two compartments spanning more than one block have not been individually checked -- worth
+a footnote confirming whether this reflects a genuine boundary redefinition or a data-entry
+artefact}). Below compartment, the raw layer's \texttt{scpt} field is \emph{not} a unique
+sub-compartment identifier on its own: it takes only 26 distinct values, and inspection shows they
+are simply the letters A--Z, reused across many different compartments (every one of the 26
+letters occurs in more than one compartment). The genuine sub-compartment unit is therefore the
+combination \texttt{(cpmt, scpt)}, which yields 3,385 distinct sub-compartments in the raw layer.
+A plot is the finest unit still: the individual ALS sampling grid cell that survey statistics were
+computed over, with many plots sitting inside one sub-compartment.
+
+The six survey years are unevenly spaced: 2002 to 2006 (4 years), 2006 to 2008 (2 years), 2008 to
+2012 (4 years), 2012 to 2021 (9 years), and 2021 to 2023 (2 years). This irregularity, together
+with the coverage expansion after 2006, motivates treating the six-survey and four-survey cohorts
+(\S\ref{sec:data-cohorts}) as different sampling problems rather than one dataset with some rows
+missing.
+
+% FIGURE PLACEHOLDER (study area and coverage)
+% Caption: "Aberfoyle study area (British National Grid, EPSG:27700) with compartment boundaries
+% and plot coverage for the four-survey cohort (left) and the six-survey cohort (right), shown at
+% matched map scale. The six-survey cohort's plots are a complete subset of the four-survey
+% cohort's plots (Table [cohort comparison]); the map shows which part of the forest that
+% requirement retains."
+% Content: two-panel map, national/regional inset in one corner, compartment outlines from
+% data/interim/compartment_boundaries.parquet, plot points or a density surface (not raw scatter,
+% to avoid overplotting at this record count) from each cohort's own master parquet.
+\begin{figure}[!htbp]
+\centering
+\fbox{\parbox{0.9\textwidth}{\centering\vspace{4cm}FIGURE PLACEHOLDER --- study area and cohort
+coverage, see comment above source for exact content\vspace{4cm}}}
+\caption{Study area, spatial hierarchy and cohort coverage.}
+\label{fig:data-study-area}
+\end{figure}
+
+\section{Cohort construction and coverage}
+\label{sec:data-cohorts}
+
+Two analytical cohorts were built from the same raw layer, differing only in which survey years
+are required to be present for every retained plot: a \textbf{four-survey} cohort (2008, 2012,
+2021, 2023) and a \textbf{six-survey} cohort (2002, 2006, 2008, 2012, 2021, 2023). Both are
+produced by the same six-stage cleaning funnel, re-run directly against the current raw GeoPackage
+for this chapter and matching the pipeline's own printed output exactly:
+
+\begin{enumerate}
+\setlength\itemsep{0pt}
+\item Restrict to the cohort's chosen survey years.
+\item Keep only plots present in \emph{every} one of those years (a whole plot is dropped if any
+  one of its required survey rows is missing -- balanced trajectories only, never partial ones).
+\item Keep only Sitka spruce, using the Forest Research inventory species code
+  \texttt{spis == "SS"}. Two other species-related fields exist in the raw layer
+  (\texttt{Species}, \texttt{SPIS\_RF}) but were not used for filtering: they carry only 9 coarse
+  categories each (versus \texttt{spis}'s 41), are derived from a different source pipeline, and
+  disagree with \texttt{spis} on a substantial share of rows.
+\item Keep only a valid planting year (\texttt{plyr} $\geq$ 1850 and strictly before the survey
+  year).
+\item Keep only a plausible age (\texttt{Age}, survey year minus planting year, between 0 and 200
+  years).
+\item Keep only a plausible height (the target column, \texttt{elev\_percentile\_95th}, greater
+  than 0\,m and at most 60\,m).
+\end{enumerate}
+
+Stages 4--6 are wide sanity bounds, not domain-derived thresholds, and on the current raw data
+they remove very little: stage 4 removes rows only from the four-survey cohort, and stages 5--6
+remove none at all from either cohort -- almost all attrition happens at stages 2--3 (requiring
+complete coverage, then requiring Sitka spruce).
+
+\begin{table}[!htbp]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{0.95}
+\begin{tabular}{p{4.6cm}p{2.6cm}p{2.6cm}p{2.6cm}p{2.6cm}}
+\hline
+Stage & Four-survey rows & Four-survey plots & Six-survey rows & Six-survey plots \\
+\hline
+0. Raw dataset & 795,645 & 230,359 & 795,645 & 230,359 \\
+1. Cohort years & 735,219 & 230,345 & 795,645 & 230,359 \\
+2. Complete survey coverage & 451,128 & 112,782 & 112,686 & 18,781 \\
+3. Sitka spruce & 289,580 & 72,395 & 83,382 & 13,897 \\
+4. Valid planting year & 287,064 & 71,766 & 83,382 & 13,897 \\
+5. Plausible age & 287,064 & 71,766 & 83,382 & 13,897 \\
+6. Plausible height & 287,064 & 71,766 & 83,382 & 13,897 \\
+\hline
+\end{tabular}
+\caption{Cleaning funnel, re-executed directly against the current raw GeoPackage
+(\texttt{data\_processing/clean\_master\_data.py::clean\_cohort}, verified 2026-08-12).}
+\label{tab:data-funnel}
+\end{table}
+
+\begin{table}[!htbp]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{2.5pt}
+\renewcommand{\arraystretch}{0.9}
+\begin{tabular}{p{4.3cm}p{3.2cm}p{3.2cm}}
+\hline
+Characteristic & Four-survey cohort & Six-survey cohort \\
+\hline
+Final plots & 71,766 & 13,897 \\
+Final plot-year records & 287,064 & 83,382 \\
+Survey years & 2008, 2012, 2021, 2023 & 2002, 2006, 2008, 2012, 2021, 2023 \\
+Observations per plot & 4 & 6 \\
+Compartments (\texttt{cpmt}) covered & 296 & 48 \\
+Role & Main analysis & Sensitivity check \\
+\hline
+\end{tabular}
+\caption{Cohort comparison. \fc{Six-survey compartment count verified directly against
+\texttt{clean\_master\_6survey.parquet} and \texttt{growth\_curve\_table.parquet} (both give 48),
+and matches \texttt{models/common/splits.py}'s own comment and the Results chapter draft. The
+current Methodology draft (\S\ref{sec:rq2}) states 47 -- this appears to be inherited from an
+older, pre-rebuild pipeline run recorded in \texttt{experiment\_log.md} whose plot/compartment
+counts (13,769 plots / 47 compartments) do not match the current pipeline at all. Recommend
+updating Methodology to 48 rather than re-deriving a new number here.}}
+\label{tab:data-cohort-comparison}
+\end{table}
+
+The six-survey cohort is a \textbf{complete subset} of the four-survey cohort: every one of its
+13,897 plots also appears in the four-survey cohort (0 six-survey-only plots), so the two cohorts
+are nested rather than partially overlapping. This nesting is what makes the six-survey cohort a
+meaningful sensitivity check on the same underlying plots, rather than an independent replication
+-- how that check is used for a given research question is described in
+Chapter~\ref{ch:methodology}.
+
+% FIGURE PLACEHOLDER (funnel + timeline)
+% Caption: "Left: cleaning funnel from the raw 795,645-record layer to the two final cohorts,
+% showing that most attrition happens at the complete-coverage and species-filter stages, not the
+% plausibility checks. Right: the six survey years plotted on a real timeline, showing the
+% irregular gaps (4, 2, 4, 9, 2 years) and which years each cohort uses."
+% Content: left panel, a stepped/Sankey-style bar from Table funnel's numbers, two parallel paths
+% from one raw source; right panel, a horizontal timeline with two rows (four-survey / six-survey)
+% and tick marks at the six real years, gap lengths labelled.
+\begin{figure}[!htbp]
+\centering
+\fbox{\parbox{0.9\textwidth}{\centering\vspace{4cm}FIGURE PLACEHOLDER --- cleaning funnel and
+survey timeline, see comment above source for exact content\vspace{4cm}}}
+\caption{Cohort-construction funnel and repeated-observation timeline.}
+\label{fig:data-funnel-timeline}
+\end{figure}
+
+\section{Response variable and original stand fields}
+\label{sec:data-response}
+
+The response variable used throughout this dissertation is \texttt{elev\_percentile\_95th}: the
+95th percentile of ALS return heights above ground within a plot, for a given survey year, kept
+in its raw form with no correction applied. A related field, \texttt{Top\_Height95}, is exactly
+\texttt{elev\_percentile\_95th}~$\times$~1.1 (confirmed exactly on the raw layer, standard
+deviation of the ratio $2\times10^{-17}$) and is kept in the master export only because it is the
+input the Forest Research inventory's own pre-computed reporting fields (\texttt{Vol95},
+\texttt{GYCspec95}) were built from -- it is never used as a model target or feature. An older
+family built the same way from the 99th percentile (\texttt{Top\_Height99}, \texttt{Vol99},
+\texttt{GYCspec99}, \texttt{elev\_percentile\_99th}) was dropped entirely from the export in an
+explicit 2026-07-28 decision and is not used anywhere in this dissertation.
+
+Beyond the target, the raw layer records a number of original stand and management fields that
+were carried into the master export:
+
+\begin{itemize}
+\setlength\itemsep{0pt}
+\item \textbf{Planting year} (\texttt{plyr}) and the derived \textbf{Age} (survey year minus
+  planting year), used both as a modelling input and as one of the cleaning-stage filters above.
+\item \textbf{Yield class} (\texttt{yldc}), a Forest Research inventory field (12 distinct values
+  in the four-survey cohort, ranging 2--24) kept in the master export for audit and stratification,
+  but excluded from every candidate feature set used for modelling: it is itself derived from
+  forest growth information, so including it alongside a height-based target or a
+  growth-curve-residual target raises a leakage/circularity concern.
+\item \textbf{Windthrow hazard class} (\texttt{whcl}), an ordinal Forest Research inventory field
+  (documented range 0--6; the current cohorts observe only 6 of the 7 possible levels, with class
+  1 absent) recording an existing management assessment of wind-damage susceptibility, not a
+  direct wind measurement.
+\item \textbf{Canopy cover} (\texttt{CanopyCover}), an ALS-derived fraction (0--1) of canopy cover
+  recorded per plot per survey. \fc{An internal project note
+  (\texttt{documentation/data\_exploration\_gpkg/...Cheat Sheet.md}) explicitly flags
+  \texttt{CanopyCover} -- along with LAI and gap fraction -- as a downstream consequence of the
+  growth process itself, cautioning against its use as a predictor of top height or growth-curve
+  residuals. \texttt{CanopyCover} is nonetheless currently included as one of four baseline
+  features in every environmental feature set used across all three research questions
+  (\texttt{documentation/methodlogy\_env\_setpick.md}, \S1.6/\S2.11). No record of a deliberate
+  resolution of this tension was found in any file inspected for this chapter -- this should be
+  either resolved with an explicit, documented decision, or the caution should be revisited, before
+  the Methodology chapter's feature-set description is finalised.}
+\item \textbf{Thinning history} (\texttt{Thin}, \texttt{last\_thinn}, \texttt{next\_thin\_}), from
+  which \texttt{time\_since\_thinning} and related recency flags are derived
+  (\app{exact derivation formulas and the \texttt{thinning\_status} bucketing rule}).
+\item \textbf{Leaf area index} (\texttt{LAI}), kept in the master export but not used as a feature
+  anywhere in this project's modelling code. \fc{LAI shows a clear processing discontinuity in
+  2021 specifically -- median 3.09 and maximum 23.0 that year, against a median of 0.4--0.9 and a
+  hard ceiling of 5.5 in every other survey year (verified directly on the raw layer, grouped by
+  survey year). This looks like a different LAI-processing algorithm was used for the 2021
+  acquisition. Since LAI is not used as a model input, this does not affect any result in this
+  dissertation, but it should be stated as a caveat on the column itself, not silently omitted from
+  the data dictionary.}
+\item A small set of pre-computed Forest Research reporting/audit fields
+  (\texttt{Vol95}, \texttt{GYCspec95}, \texttt{area}, \texttt{p1}--\texttt{p5}, \texttt{g1},
+  \texttt{g3}) -- species-specific growth-model lookup coefficients and the volume/yield-class
+  figures they produce, useful to foresters reading results but never used as model
+  predictors, since several are direct functions of height and age
+  \ct{Forest Research, "Use of Airborne Laser Scanning (ALS) for Forest Inventory" -- source of the
+  p1--p5 coefficients, full reference not yet confirmed}. \app{Exact
+  \texttt{Vol95}/\texttt{GYCspec95}/\texttt{Vol\_RM95} formulas.}
+\end{itemize}
+
+% FIGURE PLACEHOLDER (target and age coverage)
+% Caption: "Joint distribution of stand age and ALS-derived top height across both cohorts and all
+% six survey years, showing the range and density of the underlying data without presenting any
+% fitted model or result."
+% Content: hexbin (not scatter, to avoid overplotting at 287,064/83,382 rows) of Age vs.
+% elev_percentile_95th, faceted or coloured by survey year, one panel per cohort.
+\begin{figure}[!htbp]
+\centering
+\fbox{\parbox{0.9\textwidth}{\centering\vspace{4cm}FIGURE PLACEHOLDER --- target and age coverage,
+see comment above source for exact content\vspace{4cm}}}
+\caption{Age and top-height coverage across cohorts and survey years.}
+\label{fig:data-target-age}
+\end{figure}
+
+\section{Derived terrain, wind, climate and soil variables}
+\label{sec:data-environmental}
+
+In addition to the fields recorded directly in the Forest Research layer, every plot in the
+71,766-plot environmental table was matched to a set of external terrain, wind, climate and soil
+variables, grouped below by the same category scheme used throughout the modelling pipeline
+(\texttt{CATEGORY\_GROUPS} in \texttt{models/xgb\_environmental}). Full per-variable definitions,
+extraction methods, and coverage statistics are recorded in
+\texttt{documentation/methodlogy\_env\_setpick.md} (verified 2026-08-10 against
+\texttt{data/processed/environmental/plot\_environmental\_features.parquet}); Table
+\ref{tab:data-env-sources} summarises the source, resolution and temporal character of each family,
+and \app{the complete per-variable valid/missing/distinct/min/max table}.
+
+\begin{table}[!htbp]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{0.95}
+\begin{tabular}{p{1.6cm}p{2.3cm}p{2.6cm}p{2.4cm}p{2.7cm}p{2.4cm}}
+\hline
+Data family & Source & Resolution & Temporal character & Main purpose & Plots per grid cell (avg.) \\
+\hline
+Forest plots & Forest Research & $\sim$20\,m $\times$ 20\,m polygons & Six survey years, 2002--2023 & Response variable, stand fields & -- (native unit) \\
+Terrain & OS Terrain 50 DTM \ct{OS Terrain 50, Ordnance Survey -- exact edition/vintage not found in code, see \S\ref{sec:data-source}} & 50\,m grid & Static, single current DTM & Elevation, slope, aspect, exposure & $\sim$4.3 \\
+Soil (CEH categorical) & CEH natural capital rasters \ct{CEH natural capital rasters, UKCEH} & 50\,m grid & Static & Pedotope, drainage, texture class & $\sim$4.3 \\
+Soil pH & SoilGrids v2.0, ISRIC \ct{SoilGrids v2.0, ISRIC} & 250\,m grid & Static, topsoil (0--5\,cm) & Soil acidity screening & $\sim$53 \\
+Wind climatology & Global Wind Atlas \ct{Global Wind Atlas} & National raster grid & Long-term climatology, static & General wind exposure & -- (raster distinct-value count varies by height/variable; 1,816--1,824 distinct values across 71,766 plots, see \texttt{methodlogy\_env\_setpick.md} \S1.2) \\
+Observed wind & MIDAS Open station records \ct{MIDAS Open, Met Office} & 3 station point locations & Survey-interval summaries, 2002--2023 & Temporal wind/storm conditions & -- (point data, not gridded) \\
+Climate (long-term) & CHELSA v2.1 BIOCLIM+ \ct{CHELSA v2.1} & 1\,km grid & Static, 1981--2010 climatology & GDD, precipitation & $\sim$482 \\
+Climate (survey-matched) & HadUK-Grid, CEDA \ct{HadUK-Grid, CEDA/Met Office} & 1\,km grid & Time-varying, cohort-year-averaged & Temperature, ground frost & $\sim$482 \\
+Spatial position & OS Open Roads/Rivers; GPKG polygons \ct{OS Open Roads, OS Open Rivers, Ordnance Survey} & Vector distance calc. & Static & Edge/context effects & -- (distance-based, not gridded) \\
+\hline
+\end{tabular}
+\caption{External data sources matched to each plot. "Plots per grid cell" is computed directly
+from plot coordinates at each resolution against the full 71,766-plot table (verified 2026-08-12);
+it is an average over occupied cells, not a claim that plots are evenly distributed within a cell.
+An ERA5-Land temperature extraction was also investigated (8 distinct values across all 71,766
+plots, coarser than HadUK-Grid's 149) and was not retained in any final feature set.}
+\label{tab:data-env-sources}
+\end{table}
+
+\textbf{Terrain.} Elevation, slope, aspect-derived northness/eastness, profile and plan curvature,
+local relief, a solar-radiation index, and a frost-hollow flag are all computed from the same
+50\,m OS Terrain 50 tiles. Aspect itself (a 0--360\textdegree{} compass bearing) is not used
+directly as an input, since a circular bearing has a discontinuity at 0\textdegree/360\textdegree{}
+that would otherwise look like a large numeric jump between two physically adjacent directions; it
+is instead represented as its two continuous trigonometric components,
+$\mathrm{northness}=\cos\theta$ and $\mathrm{eastness}=\sin\theta$ (\app{full derivation and the
+frost-hollow flag's exact threshold rule, TPI below its own 15th percentile combined with negative
+plan curvature}). Terrain values are static per plot and cannot, on their own, explain a change in
+conditions between two surveys of the same plot.
+
+\textbf{Wind.} Three distinct sources describe related but different aspects of wind exposure and
+are not treated as interchangeable: the Global Wind Atlas gives a long-term, effectively static
+climatology; TOPEX (computed from the same 50\,m terrain tiles, horizon angles summed over eight
+compass directions) describes topographic exposure or shelter, not measured wind; and MIDAS Open
+station records give temporally varying observations, summarised over the intervals between LiDAR
+surveys from the three nearest stations with complete 2002--2023 metadata coverage (Glasgow
+Bishopton, Strathallan Airfield, and Salsburgh -- none located at Aberfoyle itself, so station
+values are a proxy for, not a measurement of, on-site conditions).
+
+\textbf{Climate.} Two different temporal treatments exist side by side. CHELSA provides a single
+static 1981--2010 climatology applied to every plot regardless of that plot's actual survey year
+(2008--2023) -- a real, disclosed temporal mismatch. HadUK-Grid's temperature and ground-frost
+variables are instead averaged over each cohort's own real survey years, which is closer to
+survey-year-matched but still a multi-year mean, not a single matched year. At 1\,km resolution,
+HadUK-Grid's temperature variable takes only 149 distinct values across the 71,766 plots -- on
+average, about 482 plots share one climate-grid value, which is worth stating plainly rather than
+only as a distinct-value count: a 1\,km climate cell covers roughly the same forest area as
+several hundred of this study's 400\,m\textsuperscript{2} plots.
+
+\textbf{Soil and spatial position.} SoilGrids provides topsoil pH at 250\,m resolution
+(99.4\% plot coverage); three CEH categorical layers (pedotope, subsurface drainage, textural
+composition) are recorded at 50\,m resolution, each with a small number of classes (3--7) shared
+across many plots, and share the same 39-plot coverage gap as the CEH topographic wetness index --
+one shared raster-boundary gap, not four independent failures. Distances to the nearest road,
+watercourse, and forest/compartment/sub-compartment/block boundary are computed directly from the
+GeoPackage's own polygon geometry and OS Open Roads/Rivers vector data; these describe spatial
+context and edge position, not a direct measure of a growth process.
+
+% FIGURE PLACEHOLDER (resolution schematic)
+% Caption: "Environmental data resolution relative to plot scale. A single 400 m^2 plot sits
+% inside one 50 m terrain cell alongside ~4 neighbouring plots on average, one 250 m soil cell
+% alongside ~53 plots, and one 1 km climate cell alongside ~482 plots -- resolutions are not
+% interchangeable and should not be read as though every plot has an independently measured
+% environmental value."
+% Content: nested-grid schematic, three or four concentric/overlaid squares at true relative scale
+% (50 m, 250 m, 1 km) with a small dot cluster inside each representing the "plots per cell"
+% averages from Table data-env-sources; a compact table variant is an acceptable fallback if the
+% schematic proves hard to render clearly.
+\begin{figure}[!htbp]
+\centering
+\fbox{\parbox{0.9\textwidth}{\centering\vspace{4cm}FIGURE PLACEHOLDER --- resolution vs.\ plot
+scale schematic, see comment above source for exact content\vspace{4cm}}}
+\caption{Environmental data resolution compared with plot scale.}
+\label{fig:data-resolution}
+\end{figure}
+
+\section{Strengths, limitations, and what these data can support}
+\label{sec:data-strengths-limitations}
+
+The dataset's central strengths are its scale and its repeated structure: 71,766 plots in the main
+cohort, drawn from a much larger 230,359-plot raw layer, with up to six ALS surveys per plot over
+21 years, all concentrated on one commercially important species (Sitka spruce) with an explicit
+inventory-based species filter. The six-survey cohort is a clean, fully nested subset of the
+four-survey cohort rather than a partially overlapping second sample, which is what makes it a
+genuine (if smaller, 48-compartment) sensitivity check on the same underlying plots. The explicit
+compartment/sub-compartment/block polygons -- once the \texttt{(cpmt, scpt)} correction in
+\S\ref{sec:data-hierarchy} is applied -- give a real spatial unit for compartment-level
+cross-validation, and the combination of stand, management, terrain, wind, climate and soil data
+matched to every plot supports a genuinely multi-source attribution analysis rather than a
+height-only dataset.
+
+Several properties limit what can be concluded from these data. Each plot contributes only four or
+six observations, at unequal intervals (2--9 years), which constrains how finely a within-plot
+growth trajectory can be estimated and hides whatever happens within an interval. Requiring
+complete coverage across every survey year of a chosen cohort may favour plots that remained
+identifiable and undisturbed throughout, rather than a uniformly random sample of the forest.
+ALS-derived top height is not identical to biological growth: canopy structure, measurement
+differences between acquisitions, and Forest Research's own processing choices (the confirmed 2021
+LAI discontinuity is one visible example, though LAI itself is not used as a feature) can all
+contribute to an apparent change between two surveys. Most of the external environmental variables
+are static or long-term climatologies rather than survey-year-matched observations, and several
+are recorded at a resolution coarser than the 400\,m\textsuperscript{2} plot scale -- at 1\,km, a
+single climate value can describe several hundred plots at once -- so these variables are better
+suited to describing broad spatial conditions than to explaining a specific change between two
+surveys of the same plot. Station-based wind observations come from three stations near, but not
+at, Aberfoyle. Finally, all of this is observational data: no environmental variable was
+experimentally manipulated, so any association identified downstream describes a correlation, not
+a causal effect.
+
+Chapter~\ref{ch:methodology} describes how the modelling design addresses several of these
+constraints directly -- for example, through compartment-level spatial-block cross-validation and
+an explicit feature-screening pipeline -- but no such mechanism is assumed or explained here.

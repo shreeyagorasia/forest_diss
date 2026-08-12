@@ -15,37 +15,64 @@ Run for real: `--cohort 4survey --set-name nested_set4_gated_all_vif --top-n 5`.
 | 362556 | 2173 | 56.87 | 3.80 | +53.08 | `chelsa_bio12_precip_mm` +0.82, `slope_degrees` +0.56 |
 | 370819 | 2176 | 58.20 | 5.70 | +52.50 | `chelsa_bio12_precip_mm` +1.96, `topex` +0.49 |
 
-### Headline finding — these are not unexplained environmental signal, they're almost certainly data-quality/disturbance artifacts
+### Extended to all 6 (set x cohort) combos, 2026-08-13
 
-**Every one of the 5 worst plots has an observed `local_y_max_difference` beyond 50 in magnitude**
-— against this target's overall mean of 3.94 and SD of 10.49 (RQ3 EN/XGBoost note), these sit
-**5+ standard deviations from the mean**. No smooth environmental gradient plausibly explains a
-single-plot deviation of this size from the shared curve.
+Same script, `--top-n 5`, run for the remaining 5 combos (Set2/Set3 x both cohorts). **Result: the
+same handful of plots recur across nearly every combo, not 6 independent sets of outliers.**
+`identification` 356411, 353952, and 77185 appear in the worst-5 for literally all 6 combos
+(3 sets x both cohorts they belong to); 344808 and 370819 recur in most of the 4survey combos.
+This is itself informative: the outlier-ness is a property of the PLOT, not of which feature set
+or model happens to be fit — ruling out "one set's specific variables are causing spurious
+predictions" as an explanation.
 
-**4 of 5 are spatially clustered** — x/y within a few km of each other, compartments 2232, 2217,
-2173, 2176 all adjacent (2100s-2200s range), only compartment 1135 separate. Clustered extreme
-errors, not independent random noise, strongly suggest a shared cause — a disturbance event, a
-measurement-year data issue, or a shared extraction problem for that specific area.
+### Cross-reference against the disturbance-classification system (2026-08-13) — CORRECTS the
+### "almost certainly disturbance/data-quality artifacts" claim below
 
-**Every one of the 5 shows a large `chelsa_bio12_precip_mm` SHAP push (+0.82 to +3.41) and the
-model still can't get anywhere near the observed value** (predictions all land at 2.8-6.0, nowhere
-close to 50-60) — this is not the model "missing the right variable," it's the model hitting a
-real ceiling. No environmental variable in Set4 is capable of explaining a deviation this
-extreme, which is exactly what you'd expect if these plots are disturbance/reset/data-quality
-cases rather than genuine environmental attribution targets.
+New: `models/growth_curve_attribution/cross_reference_outliers_with_disturbance.py` — joins the
+10 unique outlier `identification`s (across all 6 combos) against
+`disturbance_checks.summarize_plot_disturbance_status()` (the same `any_clearfell_like`/
+`any_measurement_inconsistent`/`any_ambiguous_disturbance` flags the notebook's own compartment
+map uses) and `fit_all_years_and_compute_residuals()`'s `residual_range` (the same quantity behind
+the notebook's `extreme_trajectory_flag`, top-1% cutoff). Calls the standalone functions in
+`disturbance_checks.py` directly — the notebook itself was never opened or executed.
 
-**Direct next step, not yet done**: cross-reference these specific `identification` values
-against the existing compartment-classification/curve-quality-gate work
-(`notebooks/growth_curve_attribution/av2_local_growth_curve_grouped_importance.ipynb`'s
-`residual_range` flag and `any_ambiguous_disturbance` classification) — if these plots are
-already flagged there, it directly validates both pieces of work independently arriving at the
-same conclusion, and gives a principled basis for excluding or separately reporting these outliers
-in RQ3's headline attribution numbers rather than letting them inflate the "unexplained residual"
-story.
+**Result: 0 of 10 outlier plots carry ANY of the three disturbance/measurement flags, and 0 of 10
+clear the top-1% `extreme_trajectory_flag` cutoff either** (residual_range for all 10 plots is
+0.9-15.1m, cohort cutoffs are 17.8m/4survey and 23.2m/6survey — every one sits below its own
+cohort's threshold). **The "almost certainly disturbance/data-quality artifacts" framing below was
+not actually checked against real data when first written, and turns out to be wrong** — this is
+exactly the kind of claim that needed verifying before being cited, and it doesn't hold up.
+
+**A more specific, better-supported pattern emerges from the residual_range split itself**:
+- **5 of 10 plots** (344808, 353952, 356411, 344812, 362556) have moderately-high residual_range
+  (13.6-15.1m) — real within-trajectory curve-fit instability across their own survey years, just
+  not extreme enough to clear the top-1% bar or match the specific consecutive-survey collapse
+  patterns the classifier looks for.
+- **5 of 10 plots** (77185, 370819, 320299, 366554, 366559) have LOW residual_range (0.9-5.9m) —
+  meaning these plots' own height trajectory fits a SMOOTH, internally consistent curve across
+  every survey year. Their entire `local_y_max_difference` (40-60m) comes from that smooth curve
+  sitting far away from the *official yldc benchmark*, not from any instability in the
+  LiDAR-observed growth itself.
+
+**Revised interpretation**: for the low-residual_range subset, the most defensible explanation is
+no longer "disturbance" but a **yldc lookup mismatch** — e.g. the wrong yield class or species
+assumed for that stand in the official table, which would produce exactly this signature (smooth,
+internally consistent observed growth; large, stable offset from the benchmark curve). For the
+higher-residual_range subset, "real but sub-threshold trajectory instability" is a more honest
+label than "disturbance," since the existing classifier explicitly does not flag them. Neither
+group supports the original blanket "data-quality artifact" claim — extreme `local_y_max_difference`
+values on these specific plots look like genuine signal about the yldc benchmark or the site
+itself, not a case to exclude from RQ3's attribution numbers.
+
+**Practical implication for RQ3's headline numbers**: no principled basis for excluding these
+plots was found — they should stay in the modelling population as-is. The earlier framing that
+implied excluding them "inflates the unexplained residual story" no longer applies; there's no
+verified evidence these are the artifacts they were assumed to be.
 
 ### Not yet done
 
-This was only run for Set4/4survey — not yet run for the other 5 (set, cohort) combinations now
-that SHAP exists for all of them; the disturbance cross-reference above; extending this pattern
-check to see whether the SAME identification numbers are also outliers in the EN/GNNWR
-predictions (would confirm the outlier-ness is about the plots, not specific to XGBoost).
+Checking whether these same identification numbers are also outliers in EN/GNNWR predictions
+(would test whether the yldc-mismatch/sub-threshold-instability read generalizes beyond XGBoost);
+directly inspecting the yldc lookup (yield class/species assumptions) for the 4 low-residual_range
+plots to test the yldc-mismatch hypothesis concretely, rather than leaving it as inference from the
+residual pattern alone.
