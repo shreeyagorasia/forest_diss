@@ -1,0 +1,70 @@
+## TEMP holding note — RQ1 architecture-size sweep on the current winner (DNN + Set3) (2026-08-13)
+
+**Context**: the 2026-08-02 architecture sweep (`documentation/experiment_log.md`) tested 4 named
+presets (`small`=[64,32], `medium`=[128,64], `large`=[256,128,64], `deeper`=[256,128,64,32]) against
+the 128x128x128 baseline and found a null result -- but ONLY on `dnn_noenv`/`pinn_noenv` (no
+environmental conditioning), never on the current `_env_terrain` models this dissertation actually
+cites as the RQ1 winner (DNN + Set3, per `TEMP_rq1_sweep_results_2026-08-11.tex`). This closes that
+gap with real evidence.
+
+### How these numbers were generated
+
+- **Fit** (cluster, GPU): `jobs/rq123_methodology/rq1_architecture_sweep_fit.sh` -- 8 jobs (4
+  architecture presets x 2 cohorts), DNN + `nested_set3_gated_terrain_wind_vif`, single
+  `spatial_block` split (not the full 5-fold kfold) -- matches the 2026-08-02 sweep's own
+  "coarse screen" convention (`documentation/experiment_log.md`'s 2026-08-06 entry). All 8/8
+  succeeded (confirmed via `outputs/run_logs/`, correct `hidden_layer_sizes` per architecture).
+- **Sync**: `jobs/rq123_methodology/rq1_architecture_sweep_sync.sh` (Mac) -- pulled only the fit
+  checkpoints (no evaluate had run on the cluster).
+- **Evaluate**: run LOCALLY (not on the cluster) via
+  `python -m models.dnn_env_terrain.evaluate_dnn_env_terrain --split-type spatial_block --run-name
+  rq1_dnn_env_terrain_nested_set3_gated_terrain_wind_vif_arch<name>` for each of the 8 combos --
+  evaluate is CPU-only, no GPU needed, so no cluster round-trip was required for this step; local
+  torch (2.13.0) loaded the cluster-saved checkpoints (torch 2.8.0a0) without any issue.
+- **Baseline (128x128x128) comparison row**: reused the ALREADY-EXISTING single-`spatial_block`-split
+  DNN+Set3 result from `rq1_temporalcheck_dnn_env_terrain_nested_set3_gated_terrain_wind_vif_seed42`
+  (same feature set, same seed, same split type -- no new baseline fit needed).
+
+### Results
+
+| Architecture | 4survey R2 | 4survey val_loss | 6survey R2 | 6survey val_loss |
+|---|---:|---:|---:|---:|
+| baseline (128,128,128) | 0.6341 | 0.3162 | 0.7219 | 0.2123 |
+| small (64,32) | 0.6140 | 0.3116 | 0.7414 | 0.2043 |
+| medium (128,64) | 0.6328 | 0.3119 | 0.7354 | 0.2071 |
+| large (256,128,64) | 0.6398 | 0.3135 | 0.7180 | 0.1976 |
+| deeper (256,128,64,32) | 0.6438 | 0.3148 | 0.7228 | 0.1951 |
+
+### Headline finding — confirms the 2026-08-02 null result on the actual current model
+
+**No architecture wins on both cohorts** -- `deeper` is best on 4survey (+0.0097 R2 vs baseline)
+but only middling on 6survey (+0.0009); `small` is best on 6survey (+0.0195) but WORST on 4survey
+(-0.0201). A genuine capacity effect should help both cohorts, not trade off between them -- this
+pattern is the signature of noise, not a real, exploitable effect.
+
+**Val_loss ranking doesn't track test-R2 ranking.** On 6survey, val_loss improves monotonically
+with architecture size (0.2123 -> 0.1951, baseline to deeper), but test R2 does NOT follow that
+order (small wins on R2 despite sitting in the middle of the val_loss ranking). When the metric
+used for early-stopping/model-selection (val_loss) and the metric that actually matters (held-out
+test R2) disagree about which architecture is best, that is a strong sign the differences are
+within noise, not a real capacity effect.
+
+**Magnitude check**: R2 spread is 0.030 (4survey) and 0.024 (6survey) across all 4 architectures --
+comparable in scale to this project's own 5-seed reseed finding for training-randomness ALONE at a
+FIXED architecture (`TEMP_rq1_winner_reseed_results_2026-08-11.tex`: 4survey SD=0.0035 pooled over
+5 folds, 6survey SD=0.0078) -- though that reseed's SD is a pooled 5-fold estimate (inherently
+tighter than a single split), so this is a directional consistency check, not a strict apples-to-
+apples noise-floor comparison.
+
+**Conclusion**: architecture size is not the lever for RQ1's current environment-conditioned
+models, extending (not just assuming) the 2026-08-02 null finding to the model actually cited as
+the RQ1 winner. No change to the 128x128x128 baseline architecture is warranted. This was a coarse
+single-split screen by design (matching the established project convention) -- if a genuinely
+large, monotonic, cross-cohort effect had appeared, a 5-fold rigorous rerun of the winning
+architecture would have been the next step; it didn't, so no further architecture work is planned.
+
+### Not yet done
+
+PINN/PINN_k were not re-tested (DNN is the actual cited RQ1 winner; the 2026-08-02 sweep already
+found the same null pattern held for `pinn_noenv` on the 7/8 runs it completed) -- could be added
+cheaply if wanted, given how fast this ran (8 fits, evaluate all local and instant).

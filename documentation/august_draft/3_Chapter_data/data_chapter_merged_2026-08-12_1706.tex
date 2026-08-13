@@ -1,12 +1,14 @@
 %=======================================================================================
-% DATA CHAPTER -- rewritten 2026-08-12, following an approved chapter-plan/fact-inventory pass.
+% DATA CHAPTER -- 2026-08-12, 17:06.
 %
-% Base content: the pasted draft supplied for that planning pass (not identical to either
-% data_chapter_draft.tex or data_chapter_merged_2026-08-10.tex already on disk -- this file
-% supersedes both for the 2026-08-12 structure; the two earlier files are left untouched in case
-% any of their inline "Confirmed"/"NEEDS CHECKING" annotations are still wanted for reference).
+% Supersedes documentation/august_draft/3_Chapter_data/data_chapter_merged_2026-08-12.tex (no
+% time-stamp) for one reason only: every table below is now a PLACEHOLDER, matching the figures'
+% own convention (planned columns/values given as a comment above a \fbox placeholder, not a
+% finished \tabular), instead of being fully typeset already. No prose, numbers, or verification
+% status changed from that file -- only the table presentation. The earlier file is left on disk
+% for reference, not deleted.
 %
-% Every number below was re-verified this pass directly against data_processing/clean_master_data.py
+% Every number below was re-verified directly against data_processing/clean_master_data.py
 % (re-executed live against the raw GeoPackage, not just read), the processed Parquet tables, and
 % documentation/methodlogy_env_setpick.md (env. variables, verified 2026-08-10). Colour-coded
 % flags follow the same legend already established in 1_Chapter_Intro/11th_aug_introdraft.tex:
@@ -140,46 +142,39 @@ they remove very little: stage 4 removes rows only from the four-survey cohort, 
 remove none at all from either cohort -- almost all attrition happens at stages 2--3 (requiring
 complete coverage, then requiring Sitka spruce).
 
+% TABLE PLACEHOLDER (cleaning funnel)
+% Planned columns: Stage | Four-survey rows | Four-survey plots | Six-survey rows | Six-survey plots
+% Planned rows (verified 2026-08-12, live re-execution of
+% data_processing/clean_master_data.py::clean_cohort against the raw GeoPackage):
+%   0. Raw dataset               795,645 | 230,359 | 795,645 | 230,359
+%   1. Cohort years              735,219 | 230,345 | 795,645 | 230,359
+%   2. Complete survey coverage  451,128 | 112,782 | 112,686 |  18,781
+%   3. Sitka spruce               289,580 |  72,395 |  83,382 |  13,897
+%   4. Valid planting year        287,064 |  71,766 |  83,382 |  13,897
+%   5. Plausible age              287,064 |  71,766 |  83,382 |  13,897
+%   6. Plausible height           287,064 |  71,766 |  83,382 |  13,897
 \begin{table}[!htbp]
 \centering
-\scriptsize
-\setlength{\tabcolsep}{3pt}
-\renewcommand{\arraystretch}{0.95}
-\begin{tabular}{p{4.6cm}p{2.6cm}p{2.6cm}p{2.6cm}p{2.6cm}}
-\hline
-Stage & Four-survey rows & Four-survey plots & Six-survey rows & Six-survey plots \\
-\hline
-0. Raw dataset & 795,645 & 230,359 & 795,645 & 230,359 \\
-1. Cohort years & 735,219 & 230,345 & 795,645 & 230,359 \\
-2. Complete survey coverage & 451,128 & 112,782 & 112,686 & 18,781 \\
-3. Sitka spruce & 289,580 & 72,395 & 83,382 & 13,897 \\
-4. Valid planting year & 287,064 & 71,766 & 83,382 & 13,897 \\
-5. Plausible age & 287,064 & 71,766 & 83,382 & 13,897 \\
-6. Plausible height & 287,064 & 71,766 & 83,382 & 13,897 \\
-\hline
-\end{tabular}
+\fbox{\parbox{0.9\textwidth}{\centering\vspace{2.5cm}TABLE PLACEHOLDER --- cleaning funnel, see
+comment above source for planned columns and values\vspace{2.5cm}}}
 \caption{Cleaning funnel, re-executed directly against the current raw GeoPackage
 (\texttt{data\_processing/clean\_master\_data.py::clean\_cohort}, verified 2026-08-12).}
 \label{tab:data-funnel}
 \end{table}
 
+% TABLE PLACEHOLDER (cohort comparison)
+% Planned columns: Characteristic | Four-survey cohort | Six-survey cohort
+% Planned rows:
+%   Final plots                        71,766 | 13,897
+%   Final plot-year records           287,064 | 83,382
+%   Survey years           2008/2012/2021/2023 | 2002/2006/2008/2012/2021/2023
+%   Observations per plot                    4 | 6
+%   Compartments (cpmt) covered            296 | 48
+%   Role                          Main analysis | Sensitivity check
 \begin{table}[!htbp]
 \centering
-\scriptsize
-\setlength{\tabcolsep}{2.5pt}
-\renewcommand{\arraystretch}{0.9}
-\begin{tabular}{p{4.3cm}p{3.2cm}p{3.2cm}}
-\hline
-Characteristic & Four-survey cohort & Six-survey cohort \\
-\hline
-Final plots & 71,766 & 13,897 \\
-Final plot-year records & 287,064 & 83,382 \\
-Survey years & 2008, 2012, 2021, 2023 & 2002, 2006, 2008, 2012, 2021, 2023 \\
-Observations per plot & 4 & 6 \\
-Compartments (\texttt{cpmt}) covered & 296 & 48 \\
-Role & Main analysis & Sensitivity check \\
-\hline
-\end{tabular}
+\fbox{\parbox{0.9\textwidth}{\centering\vspace{2.5cm}TABLE PLACEHOLDER --- cohort comparison, see
+comment above source for planned columns and values\vspace{2.5cm}}}
 \caption{Cohort comparison. \fc{Six-survey compartment count verified directly against
 \texttt{clean\_master\_6survey.parquet} and \texttt{growth\_curve\_table.parquet} (both give 48),
 and matches \texttt{models/common/splits.py}'s own comment and the Results chapter draft. The
@@ -310,26 +305,27 @@ extraction methods, and coverage statistics are recorded in
 \ref{tab:data-env-sources} summarises the source, resolution and temporal character of each family,
 and \app{the complete per-variable valid/missing/distinct/min/max table}.
 
+% TABLE PLACEHOLDER (external data sources)
+% Planned columns: Data family | Source | Resolution | Temporal character | Main purpose |
+%                  Plots per grid cell (avg.)
+% Planned rows (resolution-vs-plot-count figures computed 2026-08-12 directly from plot
+% coordinates in data/processed/environmental/plot_environmental_features.parquet, 71,766 plots;
+% all other cells verified 2026-08-10 against documentation/methodlogy_env_setpick.md):
+%   Forest plots           | Forest Research         | ~20m x 20m polygons  | Six survey years, 2002-2023            | Response variable, stand fields | -- (native unit)
+%   Terrain                | OS Terrain 50 DTM       | 50m grid             | Static, single current DTM             | Elevation, slope, aspect, exposure | ~4.3
+%   Soil (CEH categorical) | CEH natural capital     | 50m grid             | Static                                 | Pedotope, drainage, texture class | ~4.3
+%   Soil pH                | SoilGrids v2.0, ISRIC   | 250m grid            | Static, topsoil (0-5cm)                | Soil acidity screening | ~53
+%   Wind climatology       | Global Wind Atlas       | National raster grid| Long-term climatology, static          | General wind exposure | -- (1,816-1,824 distinct values across 71,766 plots, varies by height/variable)
+%   Observed wind          | MIDAS Open stations     | 3 station points     | Survey-interval summaries, 2002-2023   | Temporal wind/storm conditions | -- (point data, not gridded)
+%   Climate (long-term)    | CHELSA v2.1 BIOCLIM+    | 1km grid             | Static, 1981-2010 climatology          | GDD, precipitation | ~482
+%   Climate (survey-matched)| HadUK-Grid, CEDA       | 1km grid             | Time-varying, cohort-year-averaged     | Temperature, ground frost | ~482
+%   Spatial position       | OS Open Roads/Rivers; GPKG polygons | Vector distance calc. | Static | Edge/context effects | -- (distance-based, not gridded)
+% Footnote to keep in caption: ERA5-Land temperature investigated (8 distinct values across all
+% 71,766 plots, coarser than HadUK-Grid's 149) and not retained in any final feature set.
 \begin{table}[!htbp]
 \centering
-\scriptsize
-\setlength{\tabcolsep}{3pt}
-\renewcommand{\arraystretch}{0.95}
-\begin{tabular}{p{1.6cm}p{2.3cm}p{2.6cm}p{2.4cm}p{2.7cm}p{2.4cm}}
-\hline
-Data family & Source & Resolution & Temporal character & Main purpose & Plots per grid cell (avg.) \\
-\hline
-Forest plots & Forest Research & $\sim$20\,m $\times$ 20\,m polygons & Six survey years, 2002--2023 & Response variable, stand fields & -- (native unit) \\
-Terrain & OS Terrain 50 DTM \ct{OS Terrain 50, Ordnance Survey -- exact edition/vintage not found in code, see \S\ref{sec:data-source}} & 50\,m grid & Static, single current DTM & Elevation, slope, aspect, exposure & $\sim$4.3 \\
-Soil (CEH categorical) & CEH natural capital rasters \ct{CEH natural capital rasters, UKCEH} & 50\,m grid & Static & Pedotope, drainage, texture class & $\sim$4.3 \\
-Soil pH & SoilGrids v2.0, ISRIC \ct{SoilGrids v2.0, ISRIC} & 250\,m grid & Static, topsoil (0--5\,cm) & Soil acidity screening & $\sim$53 \\
-Wind climatology & Global Wind Atlas \ct{Global Wind Atlas} & National raster grid & Long-term climatology, static & General wind exposure & -- (raster distinct-value count varies by height/variable; 1,816--1,824 distinct values across 71,766 plots, see \texttt{methodlogy\_env\_setpick.md} \S1.2) \\
-Observed wind & MIDAS Open station records \ct{MIDAS Open, Met Office} & 3 station point locations & Survey-interval summaries, 2002--2023 & Temporal wind/storm conditions & -- (point data, not gridded) \\
-Climate (long-term) & CHELSA v2.1 BIOCLIM+ \ct{CHELSA v2.1} & 1\,km grid & Static, 1981--2010 climatology & GDD, precipitation & $\sim$482 \\
-Climate (survey-matched) & HadUK-Grid, CEDA \ct{HadUK-Grid, CEDA/Met Office} & 1\,km grid & Time-varying, cohort-year-averaged & Temperature, ground frost & $\sim$482 \\
-Spatial position & OS Open Roads/Rivers; GPKG polygons \ct{OS Open Roads, OS Open Rivers, Ordnance Survey} & Vector distance calc. & Static & Edge/context effects & -- (distance-based, not gridded) \\
-\hline
-\end{tabular}
+\fbox{\parbox{0.9\textwidth}{\centering\vspace{2.5cm}TABLE PLACEHOLDER --- external data sources,
+see comment above source for planned columns and values\vspace{2.5cm}}}
 \caption{External data sources matched to each plot. "Plots per grid cell" is computed directly
 from plot coordinates at each resolution against the full 71,766-plot table (verified 2026-08-12);
 it is an average over occupied cells, not a claim that plots are evenly distributed within a cell.

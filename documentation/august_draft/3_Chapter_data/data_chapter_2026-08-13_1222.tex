@@ -1,0 +1,148 @@
+%=======================================================================================
+\chapter{Data}
+\label{ch:data}
+
+This chapter details the dataset used for model training and evaluation, outlining steps such as feature engineering, and key data limitations. Table~\ref{tab:data_summary} summarises all predictor and target variables, including their sources and temporal coverage. The rationale for feature selection, data splits, and modelling decisions is detailed in Chapter~\ref{ch:methodology}.
+
+
+%---------------------
+\section{Study area and cohort coverage}
+\label{sec:data-source}
+
+The dataset covering Aberfoyle has survey years covering \{2002, 2006, 2008, 2012, 2021, 2023\}, with the area being approximately $16\text{~km} \times 12\text{~km}$. Each row of the total 795,645 represents one plot in one survey year, with LiDAR-derived variables such as canopy cover and height percentiles, as well as management variables such as planting year or known felling \sr{ref the table that includes them}. Most plots are a $20\text{~m} \times 20\text{~m}$ square; however, around 30\% are clipped due to being on compartment or sub-compartment boundaries \sr{ref the figure that shows these cpmt and plots zoomed in}. A key limitation is that details such as unknown flight dates and sensor errors introduce measurement variance that this study cannot separate from genuine forest growth or management activity. For example, species like broadleaves have different canopy cover in winter and summer, which led us to restrict our analysis to the evergreen Sitka spruce (SS) species, which is also the most common in Aberfoyle and is planted throughout the area. However, SS remains susceptible to windthrow and other abiotic factors.
+
+\begin{figure}[!htbp] %look at /3_Chapter_data/data_chapter_merged_2026-08-12_1810.tex
+\fbox{\parbox{0.9\textwidth}{\centering\vspace{5cm}FIGURE PLACEHOLDER --- study area, hierarchy
+and plot geometry (4 panels), fully specified in the comment above source\vspace{5cm}}}
+\caption{Aberfoyle study area, spatial hierarchy and plot geometry. See source comment for the
+complete panel specification.}
+\label{fig:data-study-area}
+\end{figure}
+
+\app{Full raw column inventory (all 38 fields in \texttt{LiDAR\_Years}), including fields never
+used downstream (\texttt{flyr}, constant at zero for every row; \texttt{block}, a
+99.999\%-identical duplicate of \texttt{blk}).}
+
+
+%---------------------
+\section{Cohort construction and coverage}
+\label{sec:data-cohorts}
+
+Due to a jump in LiDAR scan coverage between 2006 and 2008 (an increase of 37~$\text{km}^2$), two cohorts were created: a four-survey cohort ($\in \{2008, 2012, 2021, 2023\}$) and a six-survey cohort ($\in \{2002, 2006, 2008, 2012, 2021, 2023\}$). 
+
+The larger four-survey cohort forms the core dataset for spatial analyses, asking whether models can predict growth and capture drivers of local growth departures across unseen geographic areas of Aberfoyle. The six-survey cohort is used for the temporal question i.e. testing if models can generalise over a nine-year data gap to predict future top height. As illustrated in Figure~\ref{fig:cohort_coverage_funnel}, the six-survey cohort is a nested subset of the four-survey cohort. This makes it useful for a sensitivity analyses to see if the main findings persist on models with long growth trajectories but a smaller and less spatially diverse sample. 
+
+To ensure high data quality and prevent erroneous records from biasing model training, sequential filtering rules were applied (Figure~\ref{fig:cohort_coverage_funnel}, Panel B). Beyond restricting to pure Sitka Spruce (SS) stands, other checks included: planting year to be post-1850 and prior to the survey year, stand age bounded between $0$ and $200$ years, and observed height bounded between $0\text{~m}$ and $60\text{~m}$ (the local ecological maximum for Sitka spruce in Aberfoyle \cite{mason2011Sitka_C1_SS}. 
+
+While these biological and temporal checks removed erroneous, unverified records found in other species records across the raw database, Sitka Spruce records were well-maintained, so didn't remove any additional observations ($0$ rows removed from the six-survey cohort, and a negligible fraction absorbed in the four-survey cohort). Almost all attrition in the data cleaning funnel stems directly from requiring complete, uninterrupted LiDAR survey coverage and filtering exclusively for Sitka spruce.
+
+
+\begin{figure} [!htbp]
+\begin{subfigure}[t]{0.55\textwidth}
+\centering
+\fbox{\parbox{0.95\textwidth}{\centering\vspace{4cm}MAP PLACEHOLDER\vspace{4cm}}}
+\caption{Four-survey vs.\ six-survey cohort spatial coverage after cleaning.}
+\label{fig:data-cohort-map}
+\end{subfigure}%
+\hfill
+\begin{subfigure}[t]{0.4\textwidth}
+\centering
+\fbox{\parbox{0.95\textwidth}{\centering\vspace{4cm}TABLE PLACEHOLDER\vspace{4cm}}}
+\caption{Cleaning funnel.}
+\label{fig:data-cohort-table}
+\end{subfigure}
+\caption{Cohort spatial coverage and cleaning funnel.}
+\label{fig:data-cohort-coverage}
+\end{figure}
+
+%---------------------
+\section{Target variable and original stand fields}
+\label{sec:data-response}
+
+The target variable, Top Height, was derived from the 95th percentile height return (\texttt{elev\_percentile\_95th}) averaged across each plot boundary per survey, and was used as it is the primary metric to calculate yield class and volume. \sr{(this justification maybe in background, if so make the sentence so it leads on to say::: Other lidar derived metrics such as canopy cover as a metric to measure the compactness and competition in of a plot, and a signal for damage}). The survey records also include planting year, management history (such as whether an area has been thinned, with the primary goal of creating more space for trees to grow and reducing competition), and Forest Research's own yield and volume estimates. Table~\ref{tab:data-fields} lists the different variables and their role in the study. \texttt{GYCspec95} and \texttt{yldc} were excluded, as they are derived using top height in their formulas, leading to data leakage.
+
+\begin{table}[!htbp]
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{0.95}
+\begin{tabular}{p{2.6cm}p{7.0cm}p{3.2cm}}
+\hline
+Field & Meaning or derivation & Role in this study \\
+\hline
+\texttt{elev\_percentile\_95th} & 95th percentile of ALS return heights above ground, used without correction & Response variable \\
+\texttt{Top\_Height95} & $=\texttt{elev\_percentile\_95th}\times1.1$; Forest Research's own corrected height estimate & Retained for reporting but not modelled \\
+\texttt{plyr}, \texttt{Age} & Planting year; \texttt{Age} = survey year $-$ \texttt{plyr} & Input feature; used for data cleaning \\
+\texttt{yldc} & An existing Forest Research yield-class field, not calculated from this project's LiDAR-derived height response & Excluded from prediction; used as a comparison variable \\
+\texttt{whcl} & Ordinal Forest Research windthrow hazard class, 0--6 & Management descriptor \\
+\texttt{CanopyCover} & Canopy-cover fraction from the same ALS survey and processing step as the height response & Input feature \\
+\texttt{Thin}, \texttt{last\_thinn}, \texttt{next\_thin\_} & Thinning history; \texttt{Thin} is binary (1 if the stand has been thinned, 0 if never thinned); \texttt{last\_thinn}/\texttt{next\_thin\_} record the last and next thinning years & Input feature \\
+\texttt{Vol95}, \texttt{area}, \texttt{g1}, \texttt{g3} & Forest Research volume estimate, calculated from height, plot area and canopy cover & Used for disturbance screening \\
+\texttt{GYCspec95}, \texttt{p1--p5} & General Yield Class, calculated directly from a plot's own measured height (\texttt{Top\_Height95}) \ct{Forest Research, "Use of Airborne Laser Scanning (ALS) for Forest Inventory" -- source of p1--p5, full reference not yet confirmed} & Excluded from prediction because its calculation
+incorporates the height response, creating target leakage \\
+\hline
+\end{tabular}
+\caption{Target variable and original stand/management fields kept in the master export.}
+\label{tab:data-fields}
+\end{table}
+%---------------------
+\section{Derived terrain, wind, climate and soil variables}
+\label{sec:data-environmental}
+
+Each plot was matched with external terrain, wind, climate, and soil variables (Table~\ref{tab:data-env-sources}). Below is a summary of their sources, resolutions, and roles, with full variable details listed in Appendix~\ref{tab:data-env-variables_detail_app}.
+
+\begin{table}[!htbp]
+\tiny
+\setlength{\tabcolsep}{2pt}
+\renewcommand{\arraystretch}{0.9}
+\begin{tabular}{p{1.6cm}p{2.1cm}p{1.6cm}p{1.5cm}p{2.3cm}p{1.6cm}p{2.3cm}p{0.7cm}}
+\hline
+Data family & Source & Resolution & Plots/cell (obs.; geom.\ max) & Temporal coverage & Static/ time-varying & Main purpose & Citation \\
+\hline
+Forest plots & Forest Research & $\sim$20$\times$20\,m & Native unit & 2002--2023 (6 years) & Time-varying & Response, stand fields & -- \\
+Terrain & OS Terrain 50, Ed.\ 10 & 50\,m grid & 4.3; 6.25 & Ed.\ 10; flown 2023-05-29, created 2025-12-25 (tile NN40 only; 5 other tiles unconfirmed) & Static & Elevation, slope, aspect & \cite{ordnancesurveyTerrain50_C3_LID} \\
+Soil (categorical) & CEH nat.\ capital rasters & 50\,m grid & 4.3; 6.25 & 2020 (confirmed) & Static & Pedotope$^{\dagger}$, drainage, texture & \cite{feeney2026CEHNaturalCapital_C3_LID} \\
+Soil pH & SoilGrids v2.0, ISRIC & 250\,m grid & 53; 156.25 & Released May 2020 & Static (0--5\,cm) & Soil acidity & \cite{poggio2021SoilGrids_C3_LID} \\
+Wind climatology & Global Wind Atlas & 250\,m grid (bulk); $\sim$155$\times$278\,m (10\,m-height REST variant) & n/a (anisotropic for REST variant) & 10-yr climatology, 2006--2015 & Static, long-term & General wind exposure & \cite{davis2023GlobalWindAtlas_C3_LID} \\
+Observed wind & MIDAS Open, 3 stns & Point & Distance: 30.7/47.7/50.5\,km & 2002--2023, per interval & Time-varying & Storm/wind conditions & \cite{metoffice2019MIDASOpen_C3_LID} \\
+Climate (long-term) & CHELSA v2.1 BIOCLIM+ & 1\,km grid & 482; 2{,}500 & 1981--2010 & Static & GDD, precipitation & \cite{karger2017CHELSA_C3_LID} \\
+Climate (matched) & HadUK-Grid & 1\,km grid & 482; 2{,}500 & Cohort-year-averaged & Const.\ within trajectory & Temperature, frost & \cite{hollis2019HadUKGrid_C3_LID} \\
+Climate (excluded) & ERA5-Land & 0.1$^\circ$ ($\sim$9\,km native) & -- & Reanalysis, ongoing & Static/reanalysis & Excluded: 8 distinct values only & \cite{munozsabater2021ERA5Land_C3_LID} \\
+Spatial position & OS Open Roads/Rivers & Vector & Native & Refreshed 6-monthly; download date unlogged & Static & Edge/context effects & \cite{ordnancesurveyOpenRoads_C3_LID, ordnancesurveyOpenRivers_C3_LID} \\
+\hline
+\end{tabular}
+\caption{External data sources matched to each plot using point extraction at the plot's own
+coordinate centre. For the common $20\text{~m} \times 20\text{~m}$ plots, it centre is easy to calculate, but for the clipped cells the MAUP technique is used to find an estimate for the centre \cite{openshaw1984Modifiable_C5_EVAL}}
+\label{tab:data-env-sources}
+\end{table}
+
+Global Wind Atlas, TOPEX, and MIDAS station records are three distinct, representations of wind exposure, that are all different but measure different properties. The Global Wind Atlas is a long-term average, derived from a macro-scale wind-flow model. Although originally developed for wind energy assessments rather than forestry, it remains a valuable tool for mapping wind flow variations driven by landscape topography \cite{dtu2019Global_C1_SS}. TOPEX is a static geometric calculation of terrain shape (based on horizon angles around each plot) that quantifies local shelter or exposure. But is a commonly used to predict possible effects of wind for forest growth and productivity \cite{worrell1987Predicting_C1_SS}. Finally, MIDAS provides true empirical wind measurements, but these are restricted to three weather stations located several kilometres from Aberfoyle, requiring the data to be summarised over each survey interval.
+
+For climate, CHELSA provides a single static 1981--2010 value applied regardless of a plot's actual survey year, using terrain to sharpen or create coarser interpolations, and is used for broad climate modelling. HadUK-Grid's temperature and ground-frost variables are averaged over each cohort's own survey years, but are still multi-year means, not matched per year (need to justify why). 
+
+Terrain aspect was converted into trigonometric components—northness ($\cos\theta$) and eastness ($\sin\theta$)—preventing mathematical jumps at 0°/360° north \cite{moisen2002Comparing_C3_LID} (\app{full derivation and frost-hollow threshold}).
+
+
+%---------------------
+\paragraph{Strengths, limitations, and what these data can support}
+\label{sec:data-strengths-limitations}
+This dataset describes one forest, so everything is local to Aberfoyle's specific conditions like soil, climate and wind patters, and, no findings can extend to other sites, but this study instead acts as a proof of concept.  
+All data used here are observational: no environmental or management variable was experimentally
+manipulated, and plots were not randomly assigned to conditions, but there can be errors with the dataset, for example unavailable management fields like accurate thinning or felling record in this dataset. Associations identified downstream describe co-occurrence, not the effect of an intervention, and should be read that way throughout this dissertation, so its important not to interpret these as causal relationships. not only where a causal-sounding phrase might be easily interpreted. 
+
+Several of the external environmental datasets are themselves the output of another organisation's
+own modelling or interpolation process, not a direct measurement. This project has no independent
+means of auditing those upstream processes, so any systematic bias already present in a source
+product is inherited into this project's derived features without being separable, from within
+this project's own data, from genuine environmental signal.
+
+Choosing the four-survey cohort as the primary analytical population, rather than the six-survey
+cohort, trades a longer per-plot growth record for broader spatial coverage: the four-survey
+cohort spans roughly six times as many compartments. Because several of this dissertation's
+questions concern generalisation across the landscape rather than long individual trajectories,
+that broader coverage was judged more valuable here.
+
+Every field in this dataset is a plot-level summary, not an individual-tree measurement. The data
+can support plot- and compartment-level analysis of average conditions and change; they cannot
+resolve tree-to-tree competition, individual mortality, or within-plot structural variation.
+Conclusions drawn later in this dissertation are pitched at the scale the data actually measure,
+not below it. 
