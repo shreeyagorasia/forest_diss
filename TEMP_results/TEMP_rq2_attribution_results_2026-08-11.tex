@@ -1,4 +1,4 @@
-## TEMP holding note — RQ2b attribution: NLME + Elastic Net + XGBoost on mean_cr_residual (2026-08-11)
+## TEMP holding note — RQ2b attribution: NLME + Elastic Net + XGBoost on mean_cr_residual (2026-08-11, XGBoost corrected 2026-08-15)
 
 **Cluster fit ran**: 2026-08-10 (`step1_rq2_fit.sh`, 15 jobs — 3 sets x 5 folds, 4survey only).
 **Note**: Set3/Set4 initially FAILED on the cluster (`ElasticNetCV` crashed on NaN input — Set2's
@@ -7,39 +7,50 @@ smoke-testing; Set3/4 pull in columns with a small nonzero missing fraction, e.g
 the CEH layers). Fixed same day (`drop_rows_with_missing_features()` added to both
 `run_rq2_attribution.py` and `evaluate_rq2_attribution.py`, applied identically to train and test
 so NLME/EN/XGBoost all see the same rows) and the 10 affected fold-jobs resubmitted and completed
-clean. **Synced + evaluated locally**: 2026-08-11 (`step1_rq2_sync.sh` then
-`step1_rq2_evaluate.sh`). Not yet added to the main results artifact.
+clean. **Synced + evaluated locally**: 2026-08-11.
 
-### How these numbers were generated
+### XGBoost hyperparameter fix — ADOPTED into the real pipeline, 2026-08-15
 
-- **Fit** (cluster, CPU): NLME (`fit_nlme`, diagnostics saved directly, no held-out step —
-  see `run_rq2_attribution.py`'s own header for why) + Elastic Net + XGBoost, on
-  `nested_set2_top10`/`nested_set3_gated_terrain_wind_vif`/`nested_set4_gated_all_vif`
-  (VIF-screened per `documentation/methodlogy_env_setpick.md`), `spatial_block_kfold`, split
-  seed 42, 4survey only (6survey's 47 compartments too few for this — see
-  `documentation/experiment_log.md`'s cohort-justification entry).
-- **Evaluate** (local): reloads the EN (`joblib`)/XGBoost (native `save_model`/`load_model`,
-  not joblib — see the 2026-08-10 cross-version pickling fix) checkpoints, re-derives the
-  identical test split, scores both. NLME has no held-out evaluate step — its numbers below are
-  computed directly on its own training data at fit time.
-- **Pooled R2** here (unlike RQ1) is computed directly from this note's own aggregation of all 5
-  folds' `predictions.csv` (concatenated, one R2 over the whole population), since RQ2's evaluate
-  script itself only prints per-fold numbers — not from a saved `kfold_summary.json` (RQ2 doesn't
-  currently call `models.common.kfold_summary`).
-- **Coefficient tables**: mean ± SD computed across the 5 already-saved per-fold
-  `nlme_fixed_effects.json` / `elastic_net_coefficients.csv` files — this is the fold-stability
-  check flagged as a "medium tier" plot idea earlier, done here as a table instead.
+**Found via a chapter cross-check**: RQ2's XGBoost (`run_rq2_attribution.py`) was calling
+`fit_with_columns()` with only `n_jobs=1` passed — raw XGBoost library defaults
+(`n_estimators=100, max_depth=6, learning_rate=0.3`, no validation set, no early stopping), the
+same bug RQ1's baseline had. RQ3's own XGBoost (`spatial_cv_check.py:82`) has always used a
+different, fixed config (`n_estimators=500, max_depth=4, learning_rate=0.04`, real early stopping
+against a genuine validation fold) — traced its origin to `explain_signal.py:46`, a full-population
+SHAP-interpretation fit with no validation split at all; it was never the product of a tuning
+search on this project's data, just a reasonable hand-picked config that got reused.
 
-### Results — pooled + per-fold R2 (4survey only)
+**This is no longer just a documented sensitivity check** — `run_rq2_attribution.py` was edited
+directly (`val_df` now extracted alongside `train_df` from the split already produced by
+`spatial_kfold_split()`/`spatial_block_split()`, which always included a "val" partition that
+simply sat unused before; `xgb_fit_with_columns` now called with
+`val_df=val_df, n_estimators=500, max_depth=4, learning_rate=0.04`, matching RQ3's real,
+always-used procedure). All 4 sets (including `nested_set1_baseline`, the CanopyCover-only
+baseline check) refit and evaluated for real through the corrected production pipeline — 20 fits,
+20 evaluates, all local, CPU-only. SHAP also recomputed against the new checkpoints (15 combos,
+Set2/3/4).
+
+### Results — pooled + per-fold R2 (4survey only, current/corrected)
 
 | Set | n rows (pooled) | EN pooled R2 | EN fold R2 (mean±SD) | XGB pooled R2 | XGB fold R2 (mean±SD) | NLME variance explained (mean±SD) |
 |---|---:|---:|---|---:|---|---|
-| Set2 (`nested_set2_top10`) | 71,766 | 0.359 | 0.352±0.030 | 0.326 | 0.318±0.034 | 0.204±0.066 |
-| Set3 (`nested_set3_gated_terrain_wind_vif`) | 71,727 | 0.325 | 0.318±0.048 | 0.299 | 0.288±0.056 | 0.049±0.048 |
-| Set4 (`nested_set4_gated_all_vif`) | 71,330 | **0.358** | 0.350±0.040 | **0.338** | 0.329±0.041 | 0.175±0.064 |
+| Set1 (`nested_set1_baseline`) | 71,766 | 0.220 | 0.211±0.043 | 0.222 | 0.213±0.044 | 0.016±0.078 |
+| Set2 (`nested_set2_top10`) | 71,766 | 0.359 | 0.352±0.030 | **0.416** | 0.406±0.067 | 0.204±0.066 |
+| Set3 (`nested_set3_gated_terrain_wind_vif`) | 71,727 | 0.325 | 0.318±0.048 | **0.375** | 0.366±0.045 | 0.049±0.048 |
+| Set4 (`nested_set4_gated_all_vif`) | 71,330 | 0.358 | 0.350±0.040 | **0.395** | 0.388±0.057 | 0.175±0.064 |
+
+(EN/NLME numbers unchanged from the original fit, as expected — the fix only touched XGBoost's
+hyperparameters, EN/NLME were never affected. Small floating-point-level differences from the
+original table are just re-derivation noise, not a real change.)
+
+**XGBoost now beats EN on every set** (previously read as roughly tied or EN-ahead) — Set2:
++0.057, Set3: +0.050, Set4: +0.037. On the Set1 baseline-only check specifically, XGBoost
+(0.222) and EN (0.220) are now essentially identical — previously XGBoost looked meaningfully
+worse than EN on baseline-only (0.185 vs 0.220) under the old, under-tuned config; that gap was
+an artifact of the bug, not a real EN-vs-XGBoost difference on stand-structure-only data.
 
 Note the row-count drop from Set2→Set4 (71,766→71,330, ~0.6%) is entirely the missing-value drop
-from the fix above, not a data problem.
+from `drop_rows_with_missing_features()`, not a data problem.
 
 ### NLME fixed-effect coefficients, mean ± SD across 5 folds (sorted by |mean|)
 
@@ -93,11 +104,9 @@ from the fix above, not a data problem.
 every set, both models, with tight cross-fold SD relative to their mean** (e.g. EN's
 `time_since_thinning_missing`: -2.75 to -3.31 depending on set, SD always <0.5) — the single
 clearest, most stable signal in this whole table. This echoes the same pattern RQ3's category
-attribution found (`TEMP_rq3_category_attribution_results_2026-08-10.tex`, now a pre-VIF
-snapshot but the qualitative finding likely still holds): stand-structure variables carry
-disproportionate weight relative to the purely environmental candidates. **Not yet checked**:
-whether this is a genuine forestry mechanism or a confound via how `CanopyCover` is derived
-(flagged, not investigated, earlier this session).
+attribution found: stand-structure variables carry disproportionate weight relative to the purely
+environmental candidates. See the CanopyCover reverse-causation check below for how this was
+actually investigated, not just flagged.
 
 **`topex`/`windward_topex`-family wind exposure and `slope_degrees` are the most stable
 environmental (non-baseline) signals** — both NLME and EN agree on direction and magnitude across
@@ -109,34 +118,33 @@ be read as "not reliably different from zero across folds," not as settled findi
 consistent with the earlier finding that Set3's category composition is terrain-heavy with thin
 wind representation and zero soil/climate coverage.
 
-### XGBoost SHAP — added 2026-08-12, all 3 sets, 4survey
+### XGBoost SHAP — recomputed 2026-08-15 against the corrected checkpoints
 
-New: `models/spatial_attribution/compute_rq2_shap.py` — cheaper than RQ3's SHAP script since
-RQ2's fit step already saves `xgboost_model.json` per fold; this is a pure reload + compute, no
-refitting at all. Reuses the same generic `compute_shap_values_for_columns()` built for RQ3, no
-new SHAP code. Ran for all 3 sets x 5 folds x 4survey = 15 combos, all succeeded.
+`models/spatial_attribution/compute_rq2_shap.py` — pure reload + compute against the NOW-CORRECTED
+`xgboost_model.json` per fold (no refitting needed here, it just loads whatever checkpoint exists
+on disk, which is now the fixed-config one). Ran for all 3 sets x 5 folds x 4survey = 15 combos.
 
 **Mean |SHAP| across all 5 folds, top 6 per set**:
 
 | Set2 | Set3 | Set4 |
 |---|---|---|
-| CanopyCover 1.474 | CanopyCover 1.448 | CanopyCover 1.481 |
-| dist_to_road 1.220 | whcl 0.861 | dist_to_road 1.099 |
-| chelsa_bio12_precip_mm 0.955 | slope_degrees 0.817 | chelsa_bio12_precip_mm 0.932 |
-| slope_degrees 0.681 | gwa_weibull_a_50m 0.618 | slope_degrees 0.733 |
-| chelsa_gdd5_degc 0.547 | gwa_weibull_k_50m 0.613 | whcl 0.452 |
-| tas_mean 0.416 | local_relief_500m 0.593 | topex 0.431 |
+| CanopyCover 1.442 | CanopyCover 1.375 | CanopyCover 1.430 |
+| dist_to_road 0.976 | whcl 0.754 | dist_to_road 1.003 |
+| chelsa_bio12_precip_mm 0.881 | slope_degrees 0.635 | chelsa_bio12_precip_mm 0.843 |
+| slope_degrees 0.624 | gwa_weibull_k_50m 0.534 | slope_degrees 0.601 |
+| chelsa_gdd5_degc 0.392 | gwa_weibull_a_50m 0.518 | whcl 0.393 |
+| gwa_weibull_a_50m 0.307 | local_relief_500m 0.316 | topex 0.325 |
 
-**`CanopyCover` is #1 by mean |SHAP| in every set** — matches the NLME/EN coefficient ranking
-above (a real correctness check, not assumed) and confirms this is the single most consistent
-finding across every attribution method tried on this target so far, not an artifact of any one
-model family.
+**`CanopyCover` is still #1 by mean |SHAP| in every set, essentially unchanged from the pre-
+correction values** (Set2: 1.474→1.442, Set3: 1.448→1.375, Set4: 1.481→1.430) — the hyperparameter
+fix changed accuracy substantially but barely moved which features the model leans on. The
+headline attribution finding survives the correction intact.
 
 **Not yet done**: cross-method agreement heatmap (NLME vs. EN vs. XGBoost SHAP — all three now
 exist, table not built), 5-seed reseed (no seed sweep has been run for RQ2 at all — this note
 only ever reflects split seed 42), SHAP beeswarm plot (data ready, not plotted).
 
-### CanopyCover reverse-causation check — baseline-only (Set1) comparison, added 2026-08-13
+### CanopyCover reverse-causation check — baseline-only (Set1) comparison, added 2026-08-13, numbers corrected 2026-08-15
 
 **Context**: the project's own data cheat-sheet (`documentation/data_exploration_gpkg/Forest LiDAR
 & Inventory – Key Terms Cheat Sheet.md`, §3.2/§3.4/§13) flags `CanopyCover` as a "downstream
@@ -151,20 +159,22 @@ formula; CanopyCover is not in any of the 3 target formulas) — a judgment call
 `time_since_thinning`, `time_since_thinning_missing`, `recent_thinning_5yr`) had never actually
 been fit for RQ2 before (only Set2/3/4, which already include baseline + environmental candidates
 together). Widened `--set-name` choices in `run_rq2_attribution.py`/`evaluate_rq2_attribution.py`
-(additive, no behavior change for existing sets) and ran all 5 folds locally (CPU-only, ~10s/fold).
+(additive, no behavior change for existing sets) and ran all 5 folds locally.
 
-**Result — see the comparison table above this section, now with a Set1 row.** Two findings:
-1. Baseline alone reaches only R2=0.185-0.220 (EN/XGBoost) — environmental variables add a real,
-   non-trivial +0.10 to +0.15 R2 on top (48-83% relative increase) — baseline is nowhere close to
-   "the whole model."
+**Result — see the corrected Set1 row in the main results table above.** Two findings:
+1. Baseline alone reaches only R2=0.21-0.22 (EN/XGBoost, now essentially identical to each other
+   post-correction) — environmental variables add a real, non-trivial +0.14-0.19 R2 on top for
+   XGBoost (0.222→0.375-0.416, an even bigger jump than the pre-correction read since the
+   full-set XGBoost numbers rose too) — baseline is nowhere close to "the whole model."
 2. NLME's variance-explained metric (specifically BETWEEN-COMPARTMENT/spatial variance, not
-   overall row-level variance) is ~0 for baseline alone (0.016+/-0.078, one fold negative) vs.
+   overall row-level variance) is ~0 for baseline alone (0.016±0.078, one fold negative) vs.
    0.05-0.20 for the full sets — baseline has real row-level predictive power but explains almost
-   none of the spatial pattern, while environmental variables explain a real share of it.
+   none of the spatial pattern, while environmental variables explain a real share of it. (NLME
+   was never affected by the XGBoost fix, this finding is unchanged.)
 
 **Conclusion**: supports treating `CanopyCover`/thinning explicitly as baseline stand-structure
 CONTROLS in the write-up (expected to dominate row-level R2, not itself the interesting
 attribution finding), with the environmental variables' contribution beyond that baseline as the
 actual headline — a defensible, evidence-backed reframe rather than "CanopyCover just happens to
-win." No code/model change made (baseline stays in every set, as before) — this was a
-write-up-framing decision, backed by a real ablation number instead of an assumption either way.
+win." This finding is unaffected by, and actually slightly strengthened by, the XGBoost
+hyperparameter correction.

@@ -90,7 +90,17 @@ def fit_one_set(
         # different, larger row set.
         train_df = plots_df[plots_df["split"] == "train"]
         train_df = drop_rows_with_missing_features(train_df, feature_columns)
-        print(f"  train rows: {len(train_df):,}  features: {len(feature_columns)}")
+        # val_df added 2026-08-15 -- XGBoost's fit previously ran on raw library defaults
+        # (n_estimators=100, max_depth=6, learning_rate=0.3, no early stopping) since no val_df
+        # was ever passed to xgb_fit_with_columns below, even though spatial_kfold_split()/
+        # spatial_block_split() always produce a "val" partition -- it just sat unused. Confirmed
+        # via a real sensitivity check (models/baselines/xgb_hyperparameter_sensitivity_check.py,
+        # TEMP_results/TEMP_rq2_attribution_results_2026-08-11.tex) that RQ3's own fixed config
+        # (500/4/0.04 + early stopping) gives a real, substantial R2 improvement here (+0.07-0.09
+        # pooled per set) -- adopted as the real default below, not left as a one-off check.
+        val_df = plots_df[plots_df["split"] == "val"]
+        val_df = drop_rows_with_missing_features(val_df, feature_columns)
+        print(f"  train rows: {len(train_df):,}  val rows: {len(val_df):,}  features: {len(feature_columns)}")
 
         if split_type == "spatial_block_kfold":
             output_dir = model_output_dir(run_name, cohort, f"fold_{held_out_fold}", split_type=split_type)
@@ -125,7 +135,13 @@ def fit_one_set(
         # own documented cross-version-pickle warning and silently gave a badly degraded R2
         # (0.15 instead of the correct ~0.24) -- not an error, just a quietly wrong model. Elastic
         # Net (plain sklearn) had no such issue in the same test, so only XGBoost needs this.
-        xgb_model = xgb_fit_with_columns(train_df, feature_columns, target_col=TARGET_COLUMN, n_jobs=1)
+        # Fixed config + early stopping -- matches RQ3's own always-used procedure
+        # (spatial_cv_check.py's xgb_fit call), adopted here 2026-08-15 to replace the raw-default
+        # fit this line used to do (see the val_df comment above for the full reasoning).
+        xgb_model = xgb_fit_with_columns(
+            train_df, feature_columns, val_df=val_df, target_col=TARGET_COLUMN,
+            n_jobs=1, n_estimators=500, max_depth=4, learning_rate=0.04,
+        )
         xgb_model.save_model(str(output_dir / "xgboost_model.json"))
 
         with open(output_dir / "feature_columns.json", "w") as f:

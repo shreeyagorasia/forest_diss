@@ -63,8 +63,55 @@ single-split screen by design (matching the established project convention) -- i
 large, monotonic, cross-cohort effect had appeared, a 5-fold rigorous rerun of the winning
 architecture would have been the next step; it didn't, so no further architecture work is planned.
 
+### PINN + PINN_k extension (2026-08-13) -- checks a genuinely different question, not a repeat
+
+**Why this needed its own check, not just an assumption from DNN's result**: PINN/PINN_k have an
+extra physics (+ trajectory, for PINN_k) loss term competing with the data loss for the same
+weights -- a real, literature-documented concern is that balancing a physics constraint against a
+data-fit objective can need different capacity than fitting data alone. DNN's architecture result
+doesn't answer this. Raised directly: "what if PINN needs a different architecture to work
+properly" -- checked with real current-tier data instead of left as an assumption either way.
+
+**Fit**: `jobs/rq123_methodology/rq1_architecture_sweep_pinn_fit.sh` -- 16 jobs (PINN +
+PINN_k x 4 presets x 2 cohorts), same Set3, seed 42, single `spatial_block` split,
+physics_weight=1.0/trajectory_weight=1.0 (matching the main sweep's winning config, NOT the w=0
+physics-ablation arm -- this checks capacity, not physics weight). All 16/16 succeeded. Evaluated
+entirely locally, same as the DNN batch.
+
+**Results**:
+
+| PINN architecture | 4survey R2 | 6survey R2 |
+|---|---:|---:|
+| baseline (128,128,128) | 0.5835 | 0.7311 |
+| small (64,32) | 0.5795 | 0.7309 |
+| medium (128,64) | 0.5851 | 0.7332 |
+| large (256,128,64) | 0.5835 | 0.7268 |
+| deeper (256,128,64,32) | 0.5831 | 0.7321 |
+
+| PINN_k architecture | 4survey R2 | 6survey R2 |
+|---|---:|---:|
+| baseline (128,128,128) | 0.5884 | 0.7295 |
+| small (64,32) | 0.5864 | 0.7334 |
+| medium (128,64) | 0.5886 | 0.7297 |
+| large (256,128,64) | 0.5877 | 0.7328 |
+| deeper (256,128,64,32) | 0.5872 | 0.7339 |
+
+**Headline finding: PINN/PINN_k are even LESS architecture-sensitive than DNN, not more.** Spread
+across all 4 architectures is 0.0056/0.0064 R2 (PINN, 4survey/6survey) and 0.0022/0.0044 (PINN_k)
+-- roughly 5-10x smaller than DNN's own spread (0.030/0.024) on the identical screen. These spreads
+sit AT OR BELOW this project's own established training-seed noise floor (the 5-seed DNN reseed:
+SD=0.0035 on 4survey, 0.0078 on 6survey) -- meaning architecture choice moves PINN/PINN_k's R2 by
+less than a different random seed alone would, at a FIXED architecture. `medium` (128,64)
+technically edges out baseline on both PINN cohorts (+0.0016/+0.0021) -- the only case here with a
+consistent cross-cohort direction -- but the margin is a fifth the size of the noise floor, so this
+is not an actionable win, just the smallest end of noise landing the same way twice.
+
+**Conclusion**: the concern that PINN's combined data+physics loss might need a different
+architecture than DNN's pure data loss is NOT supported by current-tier evidence -- if anything the
+case for keeping 128x128x128 is cleaner for PINN/PINN_k than for DNN. No limitation needs flagging
+for RQ2a's PINN-based numbers; no re-run needed.
+
 ### Not yet done
 
-PINN/PINN_k were not re-tested (DNN is the actual cited RQ1 winner; the 2026-08-02 sweep already
-found the same null pattern held for `pinn_noenv` on the 7/8 runs it completed) -- could be added
-cheaply if wanted, given how fast this ran (8 fits, evaluate all local and instant).
+Nothing outstanding for this check -- DNN, PINN, and PINN_k have all now been tested on the actual
+current environment-conditioned models.

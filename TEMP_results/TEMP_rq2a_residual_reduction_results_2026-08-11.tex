@@ -119,3 +119,65 @@ smaller in absolute terms, consistent with 6survey's generally noisier behaviour
 project.
 
 **Not yet done**: spatial "help map" (needs the x/y already saved in each row, not yet plotted).
+
+### XGBoost's own version of this check (2026-08-14) — does the residual-shrinkage pattern require PINN specifically?
+
+**Motivation**: the XGBoost hyperparameter correction (`TEMP_rq1_baseline_comparison_2026-08-11.tex`)
+found a fairly-configured XGBoost beats DNN on raw RQ1 accuracy. Before leaning on "PINN's residual
+shrinks the shared curve's error especially cleanly" as the remaining case for using PINN despite
+losing the accuracy contest, this checks whether that shrinkage pattern is actually
+DNN/PINN-specific or something a plain tree ensemble also does.
+
+**New**: `models/spatial_attribution/rq2a_xgb_check.py` — fits TWO XGBoost arms per fold (Set3
+env-conditioned, and a no-env control), both using the corrected fixed config (matching the RQ1/
+RQ2b hyperparameter fix, not the old unfair defaults), saves `predictions.csv` in the exact schema
+`rq2_residual_reduction.py` already expects, then reuses that script's own
+`compute_residual_reduction()` directly. 5 folds x 2 cohorts x 2 arms = 20 fits, all local, a few
+minutes.
+
+**Results — mean reduction (m), across 5 folds**:
+
+| Model | 4survey | 6survey |
+|---|---:|---:|
+| DNN (env-conditioned, existing) | 1.501±0.023 | 0.174±0.036 |
+| XGBoost, env-conditioned (fixed config) | 1.597±0.330 | 0.361±0.183 |
+| XGBoost, no-env (fixed config) | 1.222±0.232 | 0.240±0.144 |
+
+**By CR-residual quartile, 4survey**:
+
+| Quartile | DNN | XGBoost-env | XGBoost-noenv |
+|---|---:|---:|---:|
+| Q1 (CR best) | -1.583 | -1.207 | -1.337 |
+| Q2 | 0.260 | 0.507 | 0.259 |
+| Q3 | 2.272 | 2.255 | 1.954 |
+| Q4 (CR worst) | 5.054 | 4.833 | 4.010 |
+
+**Honest finding — does NOT give a clean "point for PINN," and this is worth stating plainly
+rather than spinning it**:
+
+1. **XGBoost shows the same qualitative pattern DNN does** — monotonically increasing reduction by
+   quartile, concentrated on the plots CR does worst on, and environment clearly helps (env-arm
+   beats no-env arm on both cohorts, +0.375 mean reduction on 4survey, +0.121 on 6survey). This
+   "residual shrinks most where the shared curve is worst" pattern is NOT unique to physics-
+   informed neural networks — a plain tree ensemble given the same environmental features shows it
+   too.
+2. **XGBoost's average reduction is comparable to, or even slightly larger than, DNN's** (1.597 vs
+   1.501 on 4survey; 0.361 vs 0.174 on 6survey) — not a weaker effect.
+3. **The one real, evidence-backed difference is stability, not shrinkage quality.** XGBoost's
+   fold-to-fold SD is 5-14x larger than DNN's (0.330 vs 0.023 on 4survey; 0.183 vs 0.036 on
+   6survey) — DNN's environmental-conditioning effect is a tight, highly reproducible pattern
+   across different data folds; XGBoost shows a similar-sized average effect but far noisier
+   fold-to-fold, consistent with tree ensembles' well-known higher variance relative to neural
+   nets on this kind of tabular regression.
+
+**Implication for the dissertation's argument structure**: the case for continuing with PINN/DNN
+despite losing RQ1's raw-accuracy contest to XGBoost should NOT rest on "PINN's residual shrinks
+the CR curve's error more cleanly" — that claim is not supported by this check. It should rest on
+(a) reproducibility/stability of the environmental-conditioning effect across folds (supported
+here), and (b) the structural arguments established separately (PINN's differentiable, physically-
+parametrized `y_max`/`k` output enables RQ3's target and the physics-constraint mechanism itself,
+which XGBoost cannot represent by construction, regardless of its accuracy or reduction pattern).
+
+**Scope note**: this was run on Set3 only (the same set used throughout the RQ1/DNN headline
+comparisons, for direct comparability) plus a no-env control — Set2/Set4 were not tested for this
+specific check.

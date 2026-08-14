@@ -8,18 +8,67 @@ closing it now. Focused on **Set3 only** (the RQ1 winner's set — see
 `documentation/research_questions_overview.md`), since that's the set that actually matters for
 the headline claim; Set2/Set4 numbers exist in the two source files if needed later.
 
+**`average_by_age` added 2026-08-13** — a naive, no-ML, Age-only lookup-table baseline
+(`models/average_by_age/average_by_age.py`: mean observed height per rounded age, from training
+data only), the kind of simple "what's typical at this age" reference a forester might use without
+any model at all. No re-fit needed — an existing `spatial_block_kfold` run
+(`outputs/spatial_block_kfold/average_by_age_fold{0-4}/`, 2026-08-04/06) already used the current
+target (`elev_percentile_95th`) and the exact same split (`split_seed=42`, 5 folds) as every other
+row here; confirmed via its own run_log before reusing it, not assumed. It needs no feature set
+(Age only), so it's a single row, not repeated per set — kept in **this table only**, not
+propagated to RQ2/RQ3 or the main RQ1 sweep table, since it isn't part of the DNN/PINN/baseline
+model families those compare.
+
 ### Results — Set3, per-fold R2 (mean±SD across 5 folds, current VIF-screened tier, both sides)
 
 | Model | 4survey | 6survey |
 |---|---:|---:|
+| `average_by_age` | 0.352±0.061 | 0.607±0.080 |
 | Linear | 0.580±0.023 | 0.509±0.060 |
 | RF | 0.638±0.010 | 0.656±0.041 |
-| XGBoost | 0.637±0.013 | 0.651±0.014 |
+| XGBoost (raw defaults — see correction below) | 0.637±0.013 | 0.651±0.014 |
 | **DNN** | **0.655±0.016** | 0.684±0.031 |
 | PINN | 0.573±0.036 | 0.686±0.038 |
 | PINN_k | 0.575±0.037 | 0.684±0.038 |
 
-### Headline finding
+### CORRECTION (2026-08-14) — the XGBoost row above used untuned defaults; a fair comparison changes the headline
+
+**Found via a chapter cross-check**: RQ1's XGBoost baseline (`xgb_baseline.py`'s `fit()`) uses
+XGBoost's raw internal defaults — confirmed directly by fitting a dummy model, not assumed:
+`n_estimators=100, max_depth=6, learning_rate=0.3`, no validation set, no early stopping. This is
+a genuinely different (and weaker) recipe than RQ3's XGBoost, which uses a fixed, hand-picked
+config (`n_estimators=500, max_depth=4, learning_rate=0.04`, real early stopping against a
+buffered validation fold) — confirmed via `spatial_cv_check.py:82`. Neither is the product of any
+actual tuning search on THIS project's data; the 12-combination grid that exists in
+`xgb_environmental.py` (`tune_hyperparameters()`) is dead code with zero call sites anywhere in
+the pipeline, confirmed by grep.
+
+**New**: `models/baselines/xgb_hyperparameter_sensitivity_check.py` — reuses RQ1's own exact
+split-building/environmental-feature-merge logic (`build_split_for_cohort`,
+`load_full_rows_with_split`, `merge_environmental_features`), but fits XGBoost with RQ3's fixed
+config instead of raw defaults, on the same Set3, same 5 folds, same seed. Run for real, 10 fits
+(2 cohorts x 5 folds), CPU-only, a few minutes total.
+
+| Cohort | XGBoost, raw defaults (original) | XGBoost, RQ3-style fixed config (new) | Gap |
+|---|---:|---:|---:|
+| 4survey | 0.637±0.013 | **0.675±0.009** | +0.038 |
+| 6survey | 0.651±0.014 | **0.718±0.025** | +0.067 |
+
+**Both gaps clear the existing fold SDs by a wide margin — this is a real, substantial effect, not
+noise.** Recomputed against DNN:
+
+| Model | 4survey | 6survey |
+|---|---:|---:|
+| DNN | 0.655±0.016 | 0.684±0.031 |
+| **XGBoost (fixed config)** | **0.675±0.009** | **0.718±0.025** |
+
+**A fairly-configured XGBoost beats DNN on BOTH cohorts** (+0.020 on 4survey, +0.034 on 6survey,
+both outside DNN's own SD) — this overturns the headline below, which was written when XGBoost was
+still running on unfair defaults. Caveat: this is one hand-picked config borrowed from RQ3, not a
+validated search on RQ1's own data — a real tuning procedure might do even better, or this config
+might just happen to suit this data; either way, "DNN wins" is no longer supportable as written.
+
+### Headline finding (ORIGINAL, 2026-08-11 — see correction above, XGBoost's row is now stale)
 
 **On 4survey, DNN edges out RF/XGBoost, but PINN/PINN_k lose to them.** DNN (0.655±0.016) sits
 just above RF (0.638±0.010) and XGBoost (0.637±0.013) — the SDs barely overlap at the edge, so
@@ -30,13 +79,24 @@ now-answered physics-ablation finding (physics constraint hurts 4survey accuracy
 
 **On 6survey, all three neural models (DNN, PINN, PINN_k, 0.684-0.686) clearly beat both
 baselines** (RF 0.656, XGBoost 0.651) — a real, unambiguous margin (roughly 0.03, outside the
-baselines' own SDs). Neural conditioning earns its keep on 6survey regardless of which neural
-architecture is used.
+baselines' own SDs). **This is now also stale for XGBoost** — the fixed-config XGBoost (0.718)
+beats every neural model on 6survey too, per the correction above. RF (0.656) is unaffected by
+this correction (RF was never using XGBoost's hyperparameters) and remains genuinely behind the
+neural models on 6survey.
 
-**Linear is comfortably the weakest model everywhere** (0.509-0.580) — expected, included mainly
-as a lower-bound reference, not a serious competitor.
+**The weakest model is no longer a single, consistent answer once `average_by_age` is included.**
+On 4survey, `average_by_age` (0.352) is clearly the floor — well below even Linear (0.580), as
+expected from a model with no predictors beyond Age. But on 6survey, `average_by_age` (0.607)
+actually beats Linear (0.509) — a genuinely non-obvious result: a plain age-lookup table with zero
+fitted parameters outperforms a fitted linear regression on the smaller cohort. Linear remains the
+weakest model on 6survey specifically, not "everywhere."
 
-**Overall read**: the case for using a neural model over a simple baseline is stronger on 6survey
-than on 4survey — on 4survey specifically, only DNN (not PINN/PINN_k) actually justifies the
-extra complexity over RF/XGBoost. This is a real, citable nuance for the RQ1 chapter's "why a
-neural model at all" framing, not a blanket "neural beats baseline" claim.
+**Overall read, updated**: with XGBoost fairly configured, the "does neural complexity beat simple
+baselines" question flips — it doesn't, on raw accuracy, once XGBoost is given a reasonable
+(if unsearched) hyperparameter set. RF (untouched by this correction) still loses to DNN/PINN on
+6survey, so the story isn't "baselines always win" either — it's model-family-specific: tree
+boosting done properly is a genuinely strong competitor here, plain bagging (RF) is not. This
+motivates reframing RQ1's purpose away from "which model predicts best" and toward "PINN's
+structural/mechanistic value for RQ2/RQ3, independent of whether it wins the raw accuracy contest"
+— see `documentation/research_questions_overview.md` for the fuller discussion of why this doesn't
+undermine the dissertation's actual research questions.

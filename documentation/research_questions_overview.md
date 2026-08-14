@@ -117,12 +117,24 @@ project's data cheat-sheet flags `CanopyCover` as a possible reverse-causation c
 flight/pipeline as the height target, though not algebraically inside any of the 3 target formulas
 — not the same category as the proven `Age` circularity). A baseline-only (Set1, the 4
 stand-structure columns alone) fit — never previously run — shows baseline alone reaches only
-R2=0.19-0.22, with environmental variables adding a real +0.10-0.15 R2 on top, and NLME's
-between-compartment variance explained is ~0 for baseline alone (0.016+/-0.078) vs. 0.05-0.20 for
-the full sets. Read: `CanopyCover` is a genuine row-level predictor but explains almost none of
-the spatial pattern RQ2 is attributing — supports presenting it as a baseline stand-structure
-control in the write-up, with environmental variables' contribution beyond that baseline as the
-actual attribution headline, rather than treating "CanopyCover wins" itself as the finding. XGBoost
+R2=0.21-0.22 (post-correction, see below), with environmental variables adding a real R2 gain on
+top, and NLME's between-compartment variance explained is ~0 for baseline alone (0.016+/-0.078) vs.
+0.05-0.20 for the full sets. Read: `CanopyCover` is a genuine row-level predictor but explains
+almost none of the spatial pattern RQ2 is attributing — supports presenting it as a baseline
+stand-structure control in the write-up, with environmental variables' contribution beyond that
+baseline as the actual attribution headline, rather than treating "CanopyCover wins" itself as the
+finding.
+
+**XGBoost hyperparameter bug — found and FIXED IN PRODUCTION, 2026-08-15**: `run_rq2_attribution.py`
+was fitting XGBoost on raw library defaults (`n_estimators=100, max_depth=6, learning_rate=0.3`, no
+early stopping) — the "val" split it already computed was never passed through. Fixed to match
+RQ3's own always-used config (`n_estimators=500, max_depth=4, learning_rate=0.04`, real early
+stopping), and all 4 sets (Set1 baseline + Set2/3/4) refit through the corrected pipeline. Pooled R2
+rises across every set (e.g. Set4: 0.338->0.395) and **XGBoost now beats EN on every set** —
+previously read as roughly tied. SHAP recomputed against the corrected checkpoints: `CanopyCover`
+is still #1 by mean |SHAP| in every set, magnitudes barely moved — the headline attribution finding
+is unaffected by the fix, only the accuracy numbers changed. Full numbers:
+`TEMP_results/TEMP_rq2_attribution_results_2026-08-11.tex`. XGBoost
 SHAP was considered for this RQ but deliberately pointed at RQ3 instead (see below) — RQ2b already
 has three converging global-coefficient views; SHAP's per-plot detail adds less value here than it
 does for RQ3's outlier-diagnosis goal.
@@ -162,5 +174,5 @@ only, kept here because it changes less often than the plot-idea brainstorm does
 |---|---|---|---|
 | **RQ1** raw height | `predictions.csv` per model/set/cohort/fold; `training_history.csv` per epoch; pooled + per-fold R2/RMSE with bootstrap CI; x/y joinable via `load_plot_coordinates()` | Pooled 5-fold R2 per (model x set x cohort) — done, see TEMP note; physics-weight ablation at the winning set — not done, winner not yet chosen; seed variance on the winner — not done | 3 models x 3 sets x 2 cohorts x 5 folds (seed 42) — **done**. Winner x 5 seeds + zero-physics control — not started |
 | **RQ2a** residual reduction | `rq2_residual_reduction.csv` per row with x/y; overall + by-CR-quartile summary stats | Mean reduction & % improved, overall and by quartile — **done**, all 18 combos; whether help concentrates in the worst-CR quartile — **done**, confirmed robust | 3 models x 3 sets x 2 cohorts x 5 folds (90 calls) — **done**. Winner x 5 seeds — not started, contingent on RQ1's winner |
-| **RQ2b** attribution | NLME `nlme_fixed_effects.json`; `elastic_net_coefficients.csv` + EN/XGBoost checkpoints; pooled + per-fold R2 per set | Which variables agree in sign/magnitude across NLME/EN/XGBoost — **done**, see TEMP note; fold-to-fold coefficient stability — **done** | 3 sets (VIF'd) x 5 folds, 4survey only — **done** (15 fits) |
+| **RQ2b** attribution | NLME `nlme_fixed_effects.json`; `elastic_net_coefficients.csv` + EN/XGBoost checkpoints (XGBoost hyperparameter bug fixed in production 2026-08-15); pooled + per-fold R2 per set, incl. Set1 baseline-only | Which variables agree in sign/magnitude across NLME/EN/XGBoost — **done**, see TEMP note; fold-to-fold coefficient stability — **done**; XGBoost now beats EN on every set post-fix | 4 sets (Set1 baseline + 3 VIF'd) x 5 folds, 4survey only — **done** (20 fits + 15 SHAP recomputes) |
 | **RQ3** local deviation | EN/XGB `predictions.csv` (with x/y), `metrics.csv`, `elastic_net_coefficients_by_fold.csv`, `xgboost_gain_importance_by_fold.csv`; **new**: `xgboost_shap_values.csv` (per-plot, per-fold, Set4/4survey only so far); GNNWR per-row local coefficients + x/y + predictions | Does GNNWR's spatially-varying fit beat global EN/XGBoost — GNNWR still pending; global vs. local variable importance — partial (EN/XGBoost done, GNNWR pending); 5-fold vs. single-fold R2 gap — not built | EN/XGB x 3 sets x 2 cohorts — **done** (including Set4x6survey, fixed 2026-08-11). GNNWR x 3 sets x 2 cohorts x 5 folds — in progress on cluster |

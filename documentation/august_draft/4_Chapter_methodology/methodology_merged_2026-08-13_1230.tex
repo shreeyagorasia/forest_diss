@@ -9,6 +9,9 @@
 % see the Results chapter. Sentences are left terse/skeletal in places deliberately -- fill in
 % final prose by hand. Points still flagged "% TODO" were flagged in the prior version and have
 % not yet been resolved.
+% 2026-08-14: internal \S-cross-references and their \label{sec:...} anchors removed throughout
+% (author's own preference, too many labels to manage in Overleaf) -- kept only for equations,
+% tables, figures, the appendix, and the other chapter (Data). Section content/order unchanged.
 %=======================================================================================
 
 \chapter{Methodology and Experimental Design}
@@ -16,25 +19,21 @@
 
 This chapter describes how the raw plot data (Chapter~\ref{ch:data}) were converted into the
 results used to answer the project's three research questions. It is organised by method, not by
-the order experiments were run: the experimental framework first (\S\ref{sec:framework}), then
-common design decisions and leakage control (\S\ref{sec:common-design}), environmental
-feature-set construction (\S\ref{sec:feature-sets}), the top-height prediction models
-(\S\ref{sec:rq1}), the two attribution analyses (\S\ref{sec:attribution}), evaluation design
-(\S\ref{sec:evaluation}), and finally assumptions/limitations and reproducibility
-(\S\ref{sec:limitations}--\S\ref{sec:reproducibility}).
+the order experiments were run: the experimental framework first, then common design decisions and
+leakage control, environmental feature-set construction, the top-height prediction models, the two
+attribution analyses, evaluation design, and finally assumptions/limitations and reproducibility.
 
 \section{Research questions and experimental framework}
-\label{sec:framework}
 
-% Short paragraph: prediction (RQ1) vs attribution (RQ2, RQ3) as the two analytical modes of the
-% chapter; RQ2 and RQ3 share a starting point (the pooled Chapman-Richards curve) but diverge in
-% what they attribute -- pooled residual vs plot-specific asymptote.
-
-RQ1 is not a single model competition. It tests, together: predictive accuracy of the
-top-height models; whether environmental/terrain input improves prediction over no-environment
-input; whether Chapman--Richards guidance improves prediction over an unguided network of the
-same architecture; and whether any of those conclusions hold under spatial and temporal
-generalisation, not only under a random/plot-level split.
+The chapter's three research questions split into two analytical modes. RQ1 is prediction: it
+establishes whether these models can predict top height competitively, and under what input and
+generalisation conditions. One of RQ1's own model families, the pooled Chapman--Richards curve,
+also supplies the fitted curve RQ2's own target is built from; RQ3's target is independent of RQ1,
+built entirely from each plot's own height/age history and an external yield-class lookup. RQ2 and
+RQ3 are both attribution, though: RQ2 pools every plot's residual against that one shared curve,
+RQ3 fits each plot its own asymptote from only that plot's own repeated observations.
+Table~\ref{tab:rq-framework} summarises all three; each RQ's own section opens with the specific
+questions it tests before describing its models.
 
 \begin{table}[!htbp]
 \centering
@@ -59,39 +58,38 @@ design.}
 \end{table}
 
 \section{Common experimental design and leakage control}
-\label{sec:common-design}
-
-\subsection{Cohort roles and units of analysis}
-\label{sec:cohorts}
-
-Two overlapping cohorts are used throughout: 4survey (four repeated LiDAR surveys per plot) and
-6survey (six repeated surveys, a strict subset of 4survey's plots with a longer, denser survey
-history but a smaller training set). 4survey is the primary cohort for every research question;
-6survey is run in parallel as a secondary check wherever the sample size permits it. RQ1's unit of
-analysis is the plot-survey row; RQ2 and RQ3 aggregate to one row per plot (Table~\ref{tab:rq-framework}).
-Dataset-level detail (plot counts, survey years, coverage) is given in Chapter~\ref{ch:data} and
-is not repeated here.
 
 \subsection{Spatial and temporal evaluation}
-\label{sec:splits}
 
+4survey is the primary cohort for every research question, used for the spatial-generalisation
+splits below; 6survey (\S\ref{sec:data-cohorts}) is used for the temporal split and run in
+parallel elsewhere as a secondary check wherever sample size permits. RQ1's unit of analysis is
+the plot-survey row; RQ2 and RQ3 aggregate to one row per plot (Table~\ref{tab:rq-framework}).
 Four split types, each answering a different generalisation question:
 
 \begin{itemize}
 \setlength\itemsep{0pt}
-\item \textbf{Spatial block} (primary). Whole forestry compartments are assigned to
-  train/validation/test so that no compartment appears on both sides of a split -- a plot-level or
-  random split would let a model see a near-identical neighbouring plot during training,
-  overstating how well it generalises to genuinely new ground. Compartments are chosen by
-  row-count-balanced random assignment (60/20/20 train/validation/test, seed 42), with a 60\,m
-  buffer around every validation/test plot: any training plot within 60\,m of a held-out plot is
-  excluded from training (validation/test plots are never removed). The buffer distance is set
-  from typical plot spacing rather than from a measured spatial-autocorrelation range; leakage
-  protection at a larger spatial scale comes from holding out whole compartments, not from the
-  buffer alone \citep{roberts2017}. % TODO: citation -- Roberts et al. 2017; no .bib entry yet.
-  % TODO: the shared-curve residual's own semivariogram range (~3,956 m) is an observed
-  % diagnostic result -- confirm whether it belongs here (if estimated on training data only and
-  % used to justify the buffer) or should move to Results/Appendix.
+\item \textbf{Plot level} (naive baseline, not a generalisation claim). Individual plots are split
+  at random (60/20/20, seed 42) with no spatial holdout at all (Figure~\ref{fig:split-maps}, top
+  row): a held-out plot's nearest neighbour is typically a training plot metres away, so a model
+  can partly succeed by picking up on local conditions it was effectively also trained on, rather
+  than genuinely generalising. Kept only as an easy-case reference for the splits below to be
+  compared against.
+\item \textbf{Spatial block} (primary). Addresses that leakage directly: whole forestry
+  compartments, not individual plots, are assigned to train/validation/test, so no compartment
+  appears on both sides of a split and a model can no longer lean on a near-identical neighbouring
+  plot seen during training. Compartments are chosen by row-count-balanced random assignment
+  (60/20/20 train/validation/test, seed 42), with a 60\,m buffer around every validation/test
+  plot: any training plot within 60\,m of a held-out plot is excluded from training
+  (validation/test plots are never removed; Figure~\ref{fig:split-maps}, bottom row, shows the
+  resulting assignment and buffer). The buffer distance is set from typical plot spacing rather
+  than from a measured spatial-autocorrelation range; leakage protection at a larger spatial scale
+  comes from holding out whole compartments, not from the buffer alone
+  \citep{roberts2017}. % TODO: citation -- Roberts et al. 2017; no .bib entry yet.
+  % A semivariogram of the shared-curve residual was also fitted (test-partition only), giving a
+  % range far larger than this buffer -- confirmed NOT used to set the buffer distance, a
+  % deliberately separate diagnostic; see the semivariogram mention under Model evaluation,
+  % uncertainty and interpretation.
 \item \textbf{Spatial block, pooled $k$-fold} (stronger confirmation of the single spatial-block
   split). Compartments are assigned to 5 row-count-balanced folds; each fold in turn is held out
   as test, the next as validation, the remainder as train, so every compartment is evaluated
@@ -100,63 +98,85 @@ Four split types, each answering a different generalisation question:
 \item \textbf{Temporal} (secondary, harder test). Whole survey years, not compartments, are
   assigned to train/validation/test: 4survey trains on 2008 and 2012, validates on 2021, tests on
   2023; 6survey trains on 2002/2006/2008/2012, validates on 2021, tests on 2023. This asks whether
-  a model trained on earlier growth still predicts a real future survey it never saw -- a
-  different, harder question than spatial generalisation. A narrow-gap variant (training years
-  closer to the test year) is also defined as a secondary check, with validation deliberately
-  assigned to the earliest available year rather than a middle year.
+  a model trained on earlier growth still predicts a real future survey it never saw. This is a
+  different, harder question than spatial generalisation (Figure~\ref{fig:temporal-split}). A
+  narrow-gap variant (training years closer to the test year) is also defined as a secondary
+  check, with validation deliberately assigned to the earliest available year rather than a
+  middle year.
   % TODO: the reason for that choice (a failed smoke test with a middle validation year) is
   % implementation history -- move to Appendix or omit from the main text.
-\item \textbf{Plot level} (sanity floor only, not a generalisation claim). Individual plots are
-  split at random (60/20/20, seed 42) with no spatial holdout at all -- kept only as an easy-case
-  reference, since a held-out plot's nearest neighbour is typically a training plot metres away.
+  % TODO: no narrow-gap run was found anywhere in TEMP_results as of 2026-08-14 -- confirm this
+  % variant has actually been run before citing "its own results" in the Appendix pointer in
+  % Reproducibility and implementation, below; if it hasn't been run, soften that pointer or drop
+  % it.
 \end{itemize}
 
-\subsection{Training, validation and test separation}
-\label{sec:train-val-test}
+% FIGURE PLACEHOLDER (plot-level vs. spatial-block split, both cohorts) -- not finalised, likely
+% candidate: plot_level_split map vs. spatial_block_split + buffer map, 4survey and 6survey.
+% Style TBD -- match whatever map convention is settled on for the rest of the dissertation
+% (e.g. the data chapter's cohort coverage map) rather than deciding it here in isolation.
+\begin{figure}[!htbp]
+\centering
+\fbox{\parbox{0.9\textwidth}{\centering\vspace{4cm}FIGURE PLACEHOLDER --- plot-level vs.
+spatial-block split maps\vspace{4cm}}}
+\caption{Plot-level (random) versus spatial-block (compartment, buffered) split assignment,
+4survey and 6survey.}
+\label{fig:split-maps}
+\end{figure}
 
+% FIGURE PLACEHOLDER (temporal split timeline) -- not finalised.
+\begin{figure}[!htbp]
+\centering
+\fbox{\parbox{0.9\textwidth}{\centering\vspace{3cm}FIGURE PLACEHOLDER --- temporal split
+timeline\vspace{3cm}}}
+\caption{Temporal split: survey years assigned to train, validation and test, both cohorts.}
+\label{fig:temporal-split}
+\end{figure}
+
+\paragraph*{Training, validation and test separation.}
 Every model in this project reads the same split assignment for a given (cohort, split type,
 seed) combination, so results are always compared on identical train/validation/test membership.
 Compartment/block/sub-compartment identifier columns are never included in any model's feature
 list, enforced automatically. Shared data partitions and matched architectures reduce confounding
-when comparing model families under the same split -- e.g. the DNN and the Chapman--Richards-guided
-network (\S\ref{sec:rq1-dnn}--\S\ref{sec:rq1-pinn}) -- though residual differences can still
-reflect optimisation behaviour or stochastic variation rather than the model design alone.
+when comparing model families under the same split, for example the DNN and the
+Chapman--Richards-guided network. Residual differences can still reflect optimisation behaviour or
+stochastic variation rather than the model design alone.
 
-\subsection{Preprocessing and leakage prevention}
-\label{sec:preprocessing}
-
-Continuous features are standardised (zero mean, unit variance) using a scaler fitted on the
-training partition only, then applied unchanged to validation/test, so no information about
-held-out rows leaks into the scaling itself. Age is scaled with its own separate scaler, kept
-apart from other continuous features so its training-split standard deviation can be read back out
-directly for the physics loss's unit correction (\S\ref{sec:rq1-pinn-loss}). Unordered categorical
-variables (three soil-class rasters) are one-hot encoded, never treated as an ordered numeric
-scale. Rows with a missing value in any requested feature are dropped whole-plot (every survey
-year of that plot, not just the affected row), so no model ever sees a partial trajectory for a
-plot it has otherwise seen.
+\paragraph*{Preprocessing and leakage prevention.}
+Continuous features are standardised to zero
+mean and unit variance using parameters fitted exclusively on the training partition to prevent
+scaling data leakage. Age is scaled independently using a separate scaler, allowing its
+training-split standard deviation to be extracted directly for the physics-informed loss
+function's unit conversion. Unordered categorical soil variables
+(three raster classes) are one-hot encoded to avoid imposing artificial numeric orders. Any plot
+with a missing value in a required feature is removed entirely, across all of its survey years,
+so no model ever sees an incomplete trajectory. For the terrain-conditioned RQ1 models this
+removes 39 plots (156 rows) from 4survey and none from 6survey. A separate, larger loss affects
+the broader candidate pool used only for feature screening, not any trained model.
 
 \section{Environmental feature-set construction}
-\label{sec:feature-sets}
 
 Three questions each need their own screened list of candidate environmental/management
 variables: RQ1's predictive tiers, RQ2's shared-curve attribution set, and RQ3's plot-level
 attribution set. All three follow the same recipe below, differing only in candidate pool and
-target column. Full per-variable diagnostics, VIF tables, and complete final column lists are
-given in Appendix~\ref{app:feature-sets}; this section states the rules only.
-
-\subsection{Candidate variables and protected baseline features}
-\label{sec:feature-baseline}
-
-Four stand/management columns (canopy cover, time since thinning, a paired missingness flag, and
-recent-thinning fraction) are present unconditionally in every set and protected from removal at
-every later screening stage. A fifth candidate, thinning fraction, was confirmed to be an exact
-linear complement of the missingness flag and is not included separately.
+target column. A small set of stand/management columns is present in every set as a protected
+baseline, exempt from removal at every screening stage below (named in full where Set1 is
+defined). Full per-variable diagnostics, VIF tables, and complete final column
+lists are given in Appendix~\ref{app:feature-sets}; this section states the rules only.
 
 \subsection{Deduplication, ranking and multicollinearity screening}
-\label{sec:feature-screening}
 
 \begin{enumerate}
 \setlength\itemsep{0pt}
+\item \textbf{Coverage screening.} A few candidate variables have gaps in their source raster
+  itself, not in the survey data, so some plots have no value at all for that variable. Any such
+  plot is dropped the same way as described for preprocessing above: the whole plot is removed,
+  which shrinks that candidate's usable rows before ranking runs. Before any feature set is
+  chosen, this removes 430 plots (1,720 rows) from 4survey's full candidate pool, mostly from two
+  sources: SoilGrids pH (413 plots missing) and the CEH Topographic Wetness Index (39 plots,
+  mostly clustered in one compartment, consistent with a genuine gap in that raster rather than a
+  coverage-boundary issue). 6survey loses none, and neither does any feature set that excludes
+  these two columns.
 \item \textbf{Deduplication.} Deterministic duplicates (a variable that is a documented closed-form
   function of another candidate already in the pool) are dropped outright; near-exact empirical
   duplicates (Spearman $|\rho|\geq0.95$) are reduced to one representative per pair, preferring an
@@ -164,11 +184,10 @@ linear complement of the missingness flag and is not included separately.
 \item \textbf{Importance ranking.} Three signals are computed against each avenue's own target and
   combined by rank-averaging: univariate Spearman $|\rho|$; permutation importance; and
   drop-column ablation (the held-out $R^2$ change from removing one variable, given every other
-  candidate already in the model). Each signal has a known blind spot -- correlation ignores
-  context, permutation is biased under correlated predictors, ablation depends on one model/split
-  -- so this is a soft preference for cross-signal support: a variable that scores strongly on one
-  signal but weakly on the others can still reach a middling combined rank, not a hard
-  multi-signal gate.
+  candidate already in the model). Each signal has a known blind spot. Correlation ignores
+  context. Permutation is biased under correlated predictors. Ablation depends on one model/split.
+  This is a soft preference for cross-signal support, not a hard multi-signal gate: a variable that
+  scores strongly on one signal but weakly on the others can still reach a middling combined rank.
 \item \textbf{Variance-inflation screening.} Iterative VIF reduction (threshold 5.0
   \citep{dormann2013}) is applied on top of ranking, with the protected baseline columns exempt
   from removal (they remain in the design matrix, affecting every other column's VIF, but are
@@ -182,33 +201,74 @@ linear complement of the missingness flag and is not included separately.
 % construction.
 
 \subsection{Research-question-specific feature sets}
-\label{sec:feature-final}
-
-Set1 = baseline only. Set2 = baseline + the top 10 candidates by combined rank, itself
-VIF-screened with backfill from the next-ranked candidate. Set3 = baseline + terrain/wind
-candidates in the upper half of their own category by combined rank, VIF-screened. Set4 = Set3
-plus every other category's upper-half candidates, VIF-screened. Set5 = baseline plus every
-deduplicated candidate, VIF-screened, no rank filter.
 
 \begin{table}[!htbp]
 \centering
 \scriptsize
 \renewcommand{\arraystretch}{1.2}
-\begin{tabular}{p{2.3cm}p{4.2cm}p{1.6cm}p{2cm}p{3.4cm}}
+\begin{tabular}{p{1cm}p{5.3cm}p{7.2cm}}
 \toprule
-Feature set family & Feeds & Model comparison & Attribution & Purpose \\
+Set & Selection rule & RQ1 membership (worked example) \\
 \midrule
-RQ1 Set1--Set5 & DNN and Chapman--Richards-guided network variants (environment-conditioned) &
-Primary & No & DNN-vs-guided-network comparison under progressively richer terrain/wind/climate
-input; no coefficient-based model reads these lists. \\
-RQ2 Set1--Set5 & Elastic Net, XGBoost, two-stage mixed-effects model & Secondary & Primary & Which
-conditions align with persistent departure from the shared curve. \\
-RQ3 Set1--Set5 & Elastic Net, XGBoost, GNNWR & Secondary & Primary & Which conditions align with
-plot-specific trajectory deviation; GNNWR additionally tests whether that association is
-spatially varying. \\
+Set1 & Baseline only. & 4 columns: CanopyCover, time\_since\_thinning,
+time\_since\_thinning\_missing, recent\_thinning\_5yr. \\
+Set2 & Baseline + the top 10 candidates by combined importance rank (Spearman + permutation
+importance + drop-column ablation, averaged); a candidate that fails VIF screening is skipped and
+replaced by the next-ranked candidate, so the count stays at 10. & 14 columns: Set1 +
+gwa\_weibull\_k\_50m, dist\_to\_scpt\_boundary, elevation, tas\_mean, eastness, windward\_topex,
+gwa\_weibull\_a\_10m, gwa\_weibull\_a\_50m, slope\_degrees, cpmt\_compactness\_ratio. \\
+Set3 & Baseline + the upper half (by combined rank) of the terrain/wind category only, ranked
+within that category, not against every other candidate. VIF-screened. & 15 columns: Set1 +
+gwa\_weibull\_k\_50m, elevation, eastness, windward\_topex, gwa\_weibull\_a\_10m,
+gwa\_weibull\_a\_50m, slope\_degrees, gwa\_weibull\_k\_10m, solar\_radiation\_index, ceh\_twi,
+gwa\_wind\_speed\_10m. \\
+Set4 & Set3 + the upper half (by combined rank) of every other category: climate, soil/site,
+spatial-position/edge-effects. VIF-screened. & 18 columns: Set3 + dist\_to\_scpt\_boundary,
+tas\_mean, chelsa\_gdd5\_degc, cpmt\_compactness\_ratio. \\
+Set5 & Baseline + every deduplicated candidate, with no importance-rank filter at all. Essentially
+the full candidate pool, cleaned only of duplicates and VIF-redundant members. & 30
+columns: baseline + 26 further candidates spanning every category (e.g. slope\_degrees,
+soilgrids\_ph, chelsa\_gdd5\_degc, dist\_to\_road, whcl); full list in
+Appendix~\ref{app:feature-sets}. \\
 \bottomrule
 \end{tabular}
-\caption{Purpose of the final feature sets by research question. Full column lists: Appendix~\ref{app:feature-sets}.}
+\caption{The five feature sets created by applying the screening steps above, shown here for
+RQ1's own candidate pool as a worked example. RQ2
+and RQ3 apply the identical recipe over their own candidate pools (different available variables,
+different target column), producing different actual membership at each Set. Full membership
+for all three research questions is given in Appendix~\ref{app:feature-sets}. Baseline columns
+(Set1) are protected from removal at every later stage; a fifth baseline candidate, thinning
+fraction, was confirmed to be an exact linear complement of the missingness flag and is not
+included separately.}
+\label{tab:feature-sets-composition}
+\end{table}
+
+\begin{table}[!htbp]
+\centering
+\scriptsize
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{p{1.3cm}p{1.3cm}p{3.6cm}p{1.4cm}p{1.6cm}p{3.4cm}}
+\toprule
+Research question & Set5 size & Feeds & Model comparison & Attribution & Purpose \\
+\midrule
+RQ1 & 30 & DNN and Chapman--Richards-guided network variants (environment-conditioned) & Primary &
+No & DNN-vs-guided-network comparison under progressively richer terrain/wind/climate input; no
+coefficient-based model reads these lists. \\
+RQ2 & 28 & Elastic Net, XGBoost, two-stage mixed-effects model & Secondary & Primary & Which
+conditions align with persistent departure from the shared curve. \\
+RQ3 & 31 & Elastic Net, XGBoost, GNNWR & Secondary & Primary & Which conditions align with
+plot-specific deviation; GNNWR additionally tests whether that association is spatially
+varying. \\
+\bottomrule
+\end{tabular}
+\caption{Purpose of the feature sets listed in Table~\ref{tab:feature-sets-composition}, by
+research question. Each runs the identical Set1--Set5 recipe over its own candidate pool; "Set5
+size" gives the total column count of each pool's largest set (baseline + every deduplicated,
+VIF-screened candidate), so the differing pool sizes are visible without opening the appendix. The
+model comparisons actually evaluated for all three research questions cover Set2--Set4; Set1
+(baseline only) and Set5 (the full, ungated pool) are constructed by the same recipe but were not
+carried through to a full model comparison. Full column lists for all three research questions:
+Appendix~\ref{app:feature-sets}.}
 \label{tab:feature-set-purpose}
 \end{table}
 
@@ -251,13 +311,29 @@ comment above source for exact content\vspace{4cm}}}
 \end{figure}
 
 \section{Top-height prediction models}
-\label{sec:rq1}
 
-Target: the 95th-percentile LiDAR-derived top height, per plot per survey. Six model families are
-compared, sharing splits, metrics, and (where applicable) network architecture.
+RQ1 is not a single model competition. It tests, together: predictive accuracy of the
+top-height models; whether including environmental/terrain data beyond the original dataset
+improves prediction (this tells stakeholders where to invest further high-quality data
+acquisition); whether Chapman--Richards guidance improves prediction over an unguided network of
+the same architecture; and whether any of those conclusions hold under spatial and temporal
+generalisation, not only under a random/plot-level split.
+
+Raw predictive accuracy is not the only criterion this comparison is built around. Only the
+Chapman--Richards curve and its guided-network variants produce a fitted asymptote and growth rate
+as an explicit, biologically interpretable output, rather than an opaque row-by-row prediction;
+random forest and XGBoost have no equivalent internal structure to report, whatever their own
+accuracy. This is why the guided-network family stays part of the comparison even where a
+conventional baseline predicts height at least as well: they are answering a different question,
+not only competing on the same one.
+
+Target: the 95th-percentile LiDAR-derived top height, per plot per survey. Six model families
+appear below. Five (the Chapman--Richards curve, linear/random-forest/XGBoost, and the DNN/PINN
+family) share splits, metrics, and, where applicable, network architecture throughout.
+Average-by-age is a single floor reference evaluated under one split only, not a full peer
+comparison sharing every split and metric with the other five.
 
 \subsection{Reference and conventional comparison models}
-\label{sec:rq1-baselines}
 
 \textbf{Chapman--Richards (CR) curve.} A three-parameter curve
 \begin{equation}
@@ -267,133 +343,66 @@ H(a) = y_{\max}\left(1-e^{-ka}\right)^{p}
 is fitted by nonlinear least squares (five restarts, lowest sum-of-squared-error kept), where
 $H(a)$ is predicted top height at age $a$ (years), $y_{\max}$ is the asymptotic maximum height,
 $k$ controls growth rate, and $p$ is a shape parameter. This is a single \emph{pooled},
-population-average curve -- one fit per cohort, not per plot or per compartment -- fitted on the
+population-average curve: one fit per cohort, not per plot or per compartment. It is fitted on the
 training partition of the split in use (never on validation/test rows), refitted separately per
 fold under the pooled spatial-block $k$-fold split so that a given fold's held-out compartments
 never influence its own frozen curve. The pooled curve's fitted $(y_{\max},k,p)$ are treated as
-constants downstream (\S\ref{sec:rq1-pinn-loss}), never as trainable parameters.
+constants downstream in the physics loss, never as trainable parameters.
 
 \textbf{Average-by-age.} A lookup table of mean observed height per integer age year, computed on
 the same training rows as the CR fit; an unseen age falls back to the overall training mean
 height.
 
-\textbf{Linear, random forest, and XGBoost baselines.} Conventional supervised baselines fit
-directly on the no-environment feature set, evaluated under the same splits as every other model.
-XGBoost's hyperparameters (max depth $\in\{2,3,4,6\}$, $\ell_2$ regularisation
-$\in\{1,5,20\}$, 500 boosting rounds fixed with early stopping, learning rate 0.1 fixed) are
-selected by validation-set $R^2$ over this 12-combination grid; full grid and selection results:
-Appendix~\ref{app:hyperparameters}.
-% TODO: verify -- confirm whether the environmental-feature-set XGBoost fits reported in RQ1's
-% sweep used this same grid/selection procedure or a separate configuration.
+\textbf{Linear, random forest, and XGBoost baselines.} Three conventional supervised models are
+fit on the same feature sets as every other RQ1 model (no-environment and, separately, each
+environmental Set), evaluated under the same splits.
 
-\subsection{Deep neural network}
-\label{sec:rq1-dnn}
+Linear regression fits one global coefficient per feature, assuming no interaction or curvature at
+all. It sets the floor: a more complex model that cannot beat it is not learning anything beyond a
+straight-line relationship between age, stand variables, and height.
+
+Random forest averages many decision trees, each trained on a bootstrap-resampled subset of rows
+and a random subset of features at each split. It can capture nonlinear interactions between
+predictors with no parametric growth-curve assumption at all, giving it a genuinely different
+inductive bias from the Chapman-Richards curve and the DNN/PINN family: the comparison tests
+whether growth prediction needs a smooth, curve-shaped model or whether flexible, non-parametric
+averaging does just as well.
+
+XGBoost also fits an ensemble of trees, but sequentially rather than in parallel: each new tree is
+trained on the residual error left by the trees already fit (gradient boosting), correcting
+mistakes iteratively rather than averaging independently-grown trees as random forest does.
+Gradient-boosted trees are widely used as a strong, hard-to-beat baseline in applied machine
+learning precisely because this sequential correction often reaches a given accuracy with fewer,
+shallower trees than random forest needs; that strength is also why it is included here, as a
+demanding comparison point rather than a token baseline. The same sequential correction that makes
+it strong also makes it more prone to overfitting than random forest's averaging if left
+unconstrained, which is why its hyperparameters cannot simply be left at library defaults. L2
+regularisation is applied at XGBoost's library default strength ($\lambda=1$); no L1 penalty is
+applied ($\alpha=0$), so tree weights are shrunk towards zero rather than driven to exact
+sparsity.
+
+Its remaining hyperparameters (500 boosting rounds, maximum tree depth 4, learning rate 0.04) are
+a fixed configuration, not a grid search: they reuse the setting already established for RQ3,
+where they were chosen to correct a documented overfitting problem on 6survey's smaller sample,
+applied here with early stopping against a held-out validation fold rather than a fixed round
+count. This configuration, not XGBoost's own library defaults, is what is carried forward into the
+main comparison: a direct check against those defaults, run on both the no-environment and every
+environmental-feature-set variant, showed the reused configuration fits at least as well while
+correcting the same overfitting risk the defaults leave unaddressed on the smaller cohort. Full
+comparison: Appendix~\ref{app:hyperparameters}.
 
 A single shared architecture is used for every DNN and Chapman--Richards-guided variant in this
-project: three hidden layers of 128 units each, leaky-ReLU activation, age concatenated with every
-other input feature. Reusing one architecture throughout means any difference between the DNN and
-the guided network's results is attributable to the loss function, not to a different network. The
-DNN's loss is plain mean squared error,
-\begin{equation}
-\mathcal{L}_{\text{data}} = \frac{1}{N}\sum_{i=1}^{N}\left(\hat H_i - H_i\right)^2,
-\label{eq:data-loss}
-\end{equation}
-where $\hat H_i$ is the network's predicted height for row $i$ and $H_i$ is the observed height,
-plus an L1 weight penalty ($\lambda_{L1}=10^{-5}$). The environment-conditioned DNN is
-architecturally identical to the no-environment DNN; its terrain/wind block is simply concatenated
-into the same input, widening that vector rather than adding a second network.
-
-\subsection{Chapman--Richards-guided neural network}
-\label{sec:rq1-pinn}
-
-Three physics-informed variants share the DNN's exact network class, differing only in loss terms
-and, for the environment-conditioned variants, in an added small sub-network. The no-environment
-variant uses the CR curve's $(y_{\max},k,p)$ as the single pooled, frozen cohort constants from
-Equation~\ref{eq:cr}.
-
-\subsubsection{Physics and trajectory losses}
-\label{sec:rq1-pinn-loss}
-
-Every guided variant optimises the same three-term objective, using $H'(a)$, the CR curve's
-analytical derivative,
-\begin{equation}
-H'(a) = y_{\max}\,p\,k\,e^{-ka}\left(1-e^{-ka}\right)^{p-1}.
-\label{eq:cr-derivative}
-\end{equation}
-The \emph{physics} term matches the network's own instantaneous growth rate, obtained by automatic
-differentiation of its prediction with respect to age, against the analytical rate at that same
-age:
-\begin{equation}
-\mathcal{L}_{\text{phys}} = \frac{1}{N}\sum_{i=1}^{N}\left(\frac{\partial \hat H_i}{\partial a_i} -
-H'(a_i)\right)^2.
-\label{eq:physics-loss}
-\end{equation}
-Because age is standardised for network input (\S\ref{sec:preprocessing}), the automatic-differentiation
-derivative is with respect to standardised age; it is rescaled by the training-split age standard
-deviation before comparison against $H'(a_i)$, which is defined in real age units.
-
-The \emph{trajectory} term is a separate, finite-difference check: for $M$ pairs of real,
-consecutive same-plot survey observations (both endpoints drawn only from that plot's own
-training-labelled rows), the network's own predicted height \emph{change} between the pair must
-match the analytical rate at the pair's mid-age,
-\begin{equation}
-\mathcal{L}_{\text{traj}} = \frac{1}{M}\sum_{j=1}^{M}\left(\frac{\hat H_{j,\text{later}} -
-\hat H_{j,\text{earlier}}}{\Delta a_j} - H'(\bar a_j)\right)^2,
-\label{eq:trajectory-loss}
-\end{equation}
-where $\Delta a_j$ is the elapsed time between the pair's two surveys and $\bar a_j$ is their
-mid-age. The two terms are deliberately distinct checks: an instantaneous derivative at one point
-versus a measured change across two real observations. The full training objective is
-\begin{equation}
-\mathcal{L} = \mathcal{L}_{\text{data}} + \lambda_{\text{phys}}\mathcal{L}_{\text{phys}} +
-\lambda_{\text{traj}}\mathcal{L}_{\text{traj}} + \lambda_{L1}\sum_{\theta}|\theta|,
-\label{eq:total-loss}
-\end{equation}
-with $\lambda_{\text{phys}}=\lambda_{\text{traj}}=1.0$ as the default weighting
-(\S\ref{sec:rq1-ablation} for the physics-weight ablation). $(y_{\max},k,p)$ are always plain
-constants at every point in this objective, never tensors that accumulate a gradient -- training
-updates only the network (and, where present, the sub-networks below), never the process model
-itself. A trajectory pair is only formed from two rows both labelled training under the split in
-use, so no validation or test survey year can leak into this loss term.
-
-\subsubsection{Environment-conditioned growth parameters}
-\label{sec:rq1-pinn-env}
-
-\begin{itemize}
-\setlength\itemsep{0pt}
-\item The terrain-conditioned variant feeds terrain/wind features into a small sub-network
-  (16 hidden units) that outputs a per-plot \emph{additive} adjustment to the pooled $y_{\max}$:
-  \begin{equation}
-  y_{\max}^{(i)} = y_{\max} + f_{y}\!\left(\mathbf{x}^{\text{terrain}}_i\right),
-  \label{eq:ymax-adjust}
-  \end{equation}
-  where $f_y$ is the sub-network and $\mathbf{x}^{\text{terrain}}_i$ is plot $i$'s terrain/wind
-  feature vector. $k$ and $p$ remain the pooled global constants. This sub-network never sees age
-  or the no-environment features, and its output is initialised near zero so training starts from
-  the known-good pooled curve rather than an arbitrary value. Terrain/wind conditions only the
-  growth \emph{ceiling} in this design, not the trajectory shape -- matching the
-  asymptote-varies, shape-fixed framing of site-index modelling
-  \citep{socha2021}. % TODO: citation -- Socha et al. 2021 (ADA/GADA), no .bib entry yet.
-\item A second variant adds a further sub-network producing a per-plot \emph{multiplicative},
-  log-space adjustment to $k$:
-  \begin{equation}
-  k^{(i)} = k \cdot \exp\!\left(f_{k}\!\left(\mathbf{x}^{\text{terrain}}_i\right)\right),
-  \label{eq:k-adjust}
-  \end{equation}
-  again initialised near zero so $k^{(i)}\approx k$ at the start of training. $p$ stays a pooled
-  global constant in every variant; no variant makes the curve's shape parameter site-specific.
-\end{itemize}
-
-\subsection{Physics-loss controls and ablation}
-\label{sec:rq1-ablation}
-
-A physics-weight ablation over $\lambda_{\text{phys}},\lambda_{\text{traj}}\in\{0,1,2\}$ is run
-against the default weighting above to test whether Chapman--Richards guidance itself improves
-prediction, rather than only whether a model labelled as guided performs well; settings and full
-results: Results chapter, not repeated here. The no-environment DNN (\S\ref{sec:rq1-dnn}), sharing
-the identical network architecture and trained under the same splits, serves as the matched
-control against which the guided network's physics/trajectory terms are isolated -- the two
-differ only in loss function, not in network capacity or input (for the no-environment pairing).
+project, including the environment-conditioned versions of both (Figure~\ref{fig:model-architecture}):
+environmental input never grows a second trunk, only a small additional sub-network feeding the
+guided variants' physics constraint. Reusing one architecture throughout means any difference
+between the DNN and the guided network's results is attributable to the loss function, not to a
+different network. This is a checked fair comparison, not an assumed one: a screen against four
+alternative sizes was run separately on the environment-conditioned DNN and on the
+Chapman--Richards-guided variants, and for neither model family did any alternative architecture
+reliably improve on this same shared architecture across both cohorts at once, with the guided
+variants showing even less architecture sensitivity than the DNN. Both model families
+independently point to the same architecture, which is why it is retained for every model in this
+chapter, not carried over untested from one family to the other.
 
 % FIGURE PLACEHOLDER (model architecture)
 % Caption: "Shared DNN/guided-network architecture. The plain data loss (DNN, and the guided
@@ -424,54 +433,204 @@ terms.}
 \label{fig:model-architecture}
 \end{figure}
 
+\subsection{Deep neural network}
+
+Three hidden layers of 128 units each, leaky-ReLU activation, age concatenated with every other
+input feature. The DNN's loss is plain mean squared error,
+\begin{equation}
+\mathcal{L}_{\text{data}} = \frac{1}{N}\sum_{i=1}^{N}\left(\hat H_i - H_i\right)^2,
+\label{eq:data-loss}
+\end{equation}
+where $\hat H_i$ is the network's predicted height for row $i$ and $H_i$ is the observed height,
+plus an L1 weight penalty ($\lambda_{L1}=10^{-5}$). The environment-conditioned DNN is
+architecturally identical to the no-environment DNN; its terrain/wind block is simply concatenated
+into the same input, widening that vector rather than adding a second network.
+
+\subsection{Chapman--Richards-guided neural network}
+
+Three physics-informed variants share the DNN's exact network class, differing only in loss terms
+and, for the environment-conditioned variants, in an added small sub-network. The no-environment
+variant uses the CR curve's $(y_{\max},k,p)$ as the single pooled, frozen cohort constants from
+Equation~\ref{eq:cr}.
+
+\paragraph*{Physics and trajectory losses.}
+Every guided variant optimises the same three-term objective, using $H'(a)$, the CR curve's
+analytical derivative,
+\begin{equation}
+H'(a) = y_{\max}\,p\,k\,e^{-ka}\left(1-e^{-ka}\right)^{p-1}.
+\label{eq:cr-derivative}
+\end{equation}
+The \emph{physics} term matches the network's own instantaneous growth rate, obtained by automatic
+differentiation of its prediction with respect to age, against the analytical rate at that same
+age:
+\begin{equation}
+\mathcal{L}_{\text{phys}} = \frac{1}{N}\sum_{i=1}^{N}\left(\frac{\partial \hat H_i}{\partial a_i} -
+H'(a_i)\right)^2.
+\label{eq:physics-loss}
+\end{equation}
+Because age is standardised for network input, the automatic-differentiation
+derivative is with respect to standardised age; it is rescaled by the training-split age standard
+deviation before comparison against $H'(a_i)$, which is defined in real age units.
+
+The \emph{trajectory} term is a separate, finite-difference check: for $M$ pairs of real,
+consecutive same-plot survey observations (both endpoints drawn only from that plot's own
+training-labelled rows), the network's own predicted height \emph{change} between the pair must
+match the analytical rate at the pair's mid-age,
+\begin{equation}
+\mathcal{L}_{\text{traj}} = \frac{1}{M}\sum_{j=1}^{M}\left(\frac{\hat H_{j,\text{later}} -
+\hat H_{j,\text{earlier}}}{\Delta a_j} - H'(\bar a_j)\right)^2,
+\label{eq:trajectory-loss}
+\end{equation}
+where $\Delta a_j$ is the elapsed time between the pair's two surveys and $\bar a_j$ is their
+mid-age. The two terms are deliberately distinct checks: an instantaneous derivative at one point
+versus a measured change across two real observations. The full training objective is
+\begin{equation}
+\mathcal{L} = \mathcal{L}_{\text{data}} + \lambda_{\text{phys}}\mathcal{L}_{\text{phys}} +
+\lambda_{\text{traj}}\mathcal{L}_{\text{traj}} + \lambda_{L1}\sum_{\theta}|\theta|,
+\label{eq:total-loss}
+\end{equation}
+with $\lambda_{\text{phys}}=\lambda_{\text{traj}}=1.0$ as the default weighting (the physics-weight
+ablation follows below). $(y_{\max},k,p)$ are always plain
+constants at every point in this objective, never tensors that accumulate a gradient. Training
+updates only the network (and, where present, the sub-networks below), never the process model
+itself. A trajectory pair is only formed from two rows both labelled training under the split in
+use, so no validation or test survey year can leak into this loss term.
+
+\paragraph*{Environment-conditioned growth parameters.}
+
+\begin{itemize}
+\setlength\itemsep{0pt}
+\item The terrain-conditioned variant feeds terrain/wind features into a small sub-network
+  (16 hidden units) that outputs a per-plot \emph{additive} adjustment to the pooled $y_{\max}$:
+  \begin{equation}
+  y_{\max}^{(i)} = y_{\max} + f_{y}\!\left(\mathbf{x}^{\text{terrain}}_i\right),
+  \label{eq:ymax-adjust}
+  \end{equation}
+  where $f_y$ is the sub-network and $\mathbf{x}^{\text{terrain}}_i$ is plot $i$'s terrain/wind
+  feature vector. $k$ and $p$ remain the pooled global constants. This sub-network never sees age
+  or the no-environment features, and its output is initialised near zero so training starts from
+  the known-good pooled curve rather than an arbitrary value. Terrain/wind conditions only the
+  growth \emph{ceiling} in this design, not the trajectory shape. This matches the
+  asymptote-varies, shape-fixed framing of site-index modelling
+  \citep{socha2021}. % TODO: citation -- Socha et al. 2021 (ADA/GADA), no .bib entry yet.
+\item A second variant adds a further sub-network producing a per-plot \emph{multiplicative},
+  log-space adjustment to $k$:
+  \begin{equation}
+  k^{(i)} = k \cdot \exp\!\left(f_{k}\!\left(\mathbf{x}^{\text{terrain}}_i\right)\right),
+  \label{eq:k-adjust}
+  \end{equation}
+  again initialised near zero so $k^{(i)}\approx k$ at the start of training. $p$ stays a pooled
+  global constant in every variant; no variant makes the curve's shape parameter site-specific.
+\end{itemize}
+
+\subsection{Physics-loss controls and ablation}
+
+A physics-weight ablation sweeps $\lambda_{\text{phys}}=\lambda_{\text{traj}}\in\{0,1,2\}$ against
+the default weighting, testing whether Chapman--Richards guidance itself improves prediction
+rather than only whether a model labelled as guided performs well, against the matched DNN of
+identical architecture and input, described above. The default ($\lambda=1.0$) is fixed at
+Equation~\ref{eq:total-loss}'s own symmetric weighting before the ablation is run, not selected
+afterwards from whichever value the same ablation scores best: choosing a hyperparameter from the
+same test used to report it would be circular. Every guided model in the main comparison is
+trained at this pre-specified default. Settings and full results: Results chapter, not repeated
+here.
+
 \begin{table}[!htbp]
 \centering
 \scriptsize
 \renewcommand{\arraystretch}{1.2}
-\begin{tabular}{p{3.2cm}p{3cm}p{2.6cm}p{4.5cm}}
+\begin{tabular}{p{4.6cm}p{4.4cm}p{4.4cm}}
 \toprule
-Model & Environmental input & Loss terms & Notes \\
+Model & Environmental input & Loss terms \\
 \midrule
-CR (baseline) & None & N/A (curve fit) & Pooled per cohort, refit per fold for pooled $k$-fold. \\
-Average-by-age & None & N/A (lookup) & Same training rows as CR. \\
-Linear / random forest / XGBoost & No-environment feature set & Model-specific & XGBoost
-hyperparameters selected by validation $R^2$ (Appendix~\ref{app:hyperparameters}). \\
-DNN (no environment) & None & Data (Eq.~\ref{eq:data-loss}) + L1 & Shared architecture with every
-guided variant. \\
-DNN (environment-conditioned) & Terrain/wind, concatenated into main input & Data + L1 & Same
-network class, wider input only. \\
-Guided network (no environment) & None & Data + physics + trajectory + L1 & $y_{\max},k,p$
-pooled, frozen. \\
+CR (baseline) & None & N/A (curve fit) \\
+Average-by-age & None & N/A (lookup) \\
+Linear / random forest / XGBoost & No-environment feature set & Model-specific \\
+DNN (no environment) & None & Data (Eq.~\ref{eq:data-loss}) + L1 \\
+DNN (environment-conditioned) & Terrain/wind, concatenated into main input & Data + L1 \\
+Guided network (no environment) & None & Data + physics + trajectory + L1 \\
 Guided network (terrain-conditioned asymptote) & Terrain/wind, asymptote sub-network only & Data +
-physics + trajectory + L1 & Eq.~\ref{eq:ymax-adjust}; $k,p$ pooled. \\
+physics + trajectory + L1 \\
 Guided network (terrain-conditioned asymptote and rate) & Terrain/wind, asymptote and rate
-sub-networks & Data + physics + trajectory + L1 & Eqs.~\ref{eq:ymax-adjust}--\ref{eq:k-adjust};
-$p$ pooled. \\
+sub-networks & Data + physics + trajectory + L1 \\
 \bottomrule
 \end{tabular}
-\caption{Model family comparison for top-height prediction (RQ1). Full hyperparameters:
+\caption{Model family index for top-height prediction (RQ1). Full hyperparameters:
 Appendix~\ref{app:hyperparameters}.}
 \label{tab:rq1-models}
 \end{table}
 
-\section{Environmental attribution analyses}
-\label{sec:attribution}
-
 Both avenues below start from the single pooled Chapman--Richards curve fitted in
-Equation~\ref{eq:cr} but diverge in what they attribute: RQ2 pools every plot's residual against
-that one shared curve; RQ3 fits each plot its own asymptote from only that plot's own repeated
-observations. Both report association, not causal, relationships.
+Equation~\ref{eq:cr} but diverge in what they attribute, and both report association, not causal,
+relationships. RQ2 pools every plot's residual against that one shared curve, and splits into two:
+RQ2a reuses RQ1's own fitted models directly, no new model is fitted; RQ2b fits new
+coefficient-based models on a separate, plot-level target. RQ3 fits each plot its own asymptote
+from only that plot's own repeated observations, described in its own section below.
 
-\subsection{Persistent departure from a shared growth curve (RQ2)}
-\label{sec:rq2}
+\section{RQ2: Environmental attribution}
 
+\paragraph*{RQ2a: does environment shrink RQ1's own departure from the curve.}
+
+This avenue reuses RQ1's own already-fitted predictions directly, together with the fold-matched
+Chapman--Richards curve: no model is fitted for RQ2a specifically. The
+shared curve is the theoretical growth trajectory for Aberfoyle's average plot, so a plot's
+departure from it marks whether that plot is systematically over- or under-predicted by the
+population average. This avenue asks whether giving RQ1's environment-conditioned models
+environmental information shrinks that departure, and whether the shrinkage concentrates
+specifically on the plots the shared curve over- or under-predicts most, rather than improving
+every row uniformly.
+
+\paragraph*{Residual reduction.}
+For each test row shared between the frozen, fold-matched CR baseline
+and one of RQ1's three environment-conditioned model families (DNN, PINN, PINN$_k$), predictions
+are joined on plot and survey year. Each prediction's residual, $r_i^{\text{CR}}$ or
+$r_i^{\text{model}}$, is observed minus predicted height for that row; its \emph{magnitude},
+$|r_i|$, is how far that prediction sits from the observed value, a value close to 0 meaning the
+prediction is close to what was observed and a larger value meaning it is further off, regardless
+of which side of the observation it falls on. A reduction is computed from these magnitudes,
+\begin{equation}
+\text{reduction}_i = \left|r_i^{\text{CR}}\right| - \left|r_i^{\text{model}}\right|,
+\label{eq:residual-reduction}
+\end{equation}
+so a positive reduction means the model's prediction sits closer to the observed height than the
+shared curve's does, and a negative reduction means the model is further off than the curve.
+
+Reduction alone only says whether the error shrank, not which way either prediction was wrong.
+That is carried by the residuals' \emph{sign}, not their magnitude: $r_i^{\text{CR}}$ and
+$r_i^{\text{model}}$ are positive where that prediction under-predicts the observed height and
+negative where it over-predicts. Reading sign alongside reduction distinguishes a model that moves
+a plot's prediction toward the observed value, correcting the direction the shared curve got
+wrong, from one that only shrinks the size of an error that still points the same way. This
+re-reads each model's existing held-out test predictions against the identical fold's frozen CR
+baseline, so RQ2a is a reinterpretation of RQ1's own results, not an additional modelling step.
+
+\paragraph*{Quartile decomposition and coverage.}
+Test rows are additionally split into four quartiles by the CR baseline's own absolute residual
+within that fold (Q1: the curve's smallest errors; Q4: its largest), and the mean reduction is
+reported separately per quartile rather than as one pooled figure. The split is purely rank-based,
+an equal-count division of that fold's test rows by the CR baseline's own error, not a
+distributional assumption; each quartile is a quarter of the population, not a handful of extreme
+points, so this is a subgroup comparison, not outlier detection.
+
+This decomposition exists because the overall mean reduction cannot distinguish two substantively
+different patterns that could produce the same average: a model that shaves a similar amount of
+error off every row regardless of how well the shared curve already fits it, consistent with added
+model capacity alone rather than anything specifically environmental; or a model whose improvement
+concentrates on the rows the shared curve fits worst, potentially at some cost on the rows it
+already fits well, consistent with environmental conditioning capturing genuine, systematic
+departure from a single population-average curve. Only the quartile breakdown, not the pooled
+mean, can tell these apart. Coverage: all three environment-conditioned
+model families, Set2--Set4, both cohorts, under the pooled spatial-block $k$-fold split described
+earlier; the winning combination is additionally checked across the same reseeds used for RQ1's
+own reseed-robustness check, described below, so RQ2a's headline pattern and RQ1's winner-reseed
+check share one robustness result, not two separate ones.
+
+\paragraph*{RQ2b: persistent departure from a shared growth curve.}
 This avenue asks which environmental/management conditions align with a plot's persistent
 position above or below the single shared curve, using only the 4survey cohort (6survey's 47
 compartments were judged too few for a reliable spatial-block attribution split).
 
-\subsubsection{Target construction}
-\label{sec:rq2-target}
-
+\paragraph*{Target construction.}
 For each row $i$ of a plot's own survey history, a residual is computed against the pooled curve,
 \begin{equation}
 r_i = H_i - H(a_i),
@@ -485,29 +644,43 @@ survey rows,
 \end{equation}
 Age is excluded from every RQ2 candidate feature: it is the CR curve's only input and therefore
 the sole construction variable of $\overline{r}_{\text{plot}}$, making it circular for this
-target.
+target, consistent with the documented risk of age bias in age-structured growth/site-index
+equations generally \citep{socha2016AgeBias}. % TODO: citation -- Socha, Coops & Ochal 2016, no
+% .bib entry yet.
 % TODO: verify -- confirm whether any plot contributing to Equation~\ref{eq:mean-cr-residual}'s
 % average (computed over all of that plot's survey rows) falls in the test partition of the
 % downstream attribution split below; the target is constructed before that split is drawn, which
 % is expected rather than a leakage bug, but is not yet explicitly documented as checked.
 
-\subsubsection{Global and mixed-effects attribution models}
-\label{sec:rq2-models}
-
-Three models are fitted on $\overline{r}_{\text{plot}}$ using RQ2's Set1--Set5
-(\S\ref{sec:feature-final}), under the same spatial-block design as \S\ref{sec:splits}:
+\paragraph*{Global and mixed-effects attribution models.}
+Three models are fitted on $\overline{r}_{\text{plot}}$ using RQ2's Set2--Set4, under the same
+spatial-block design described earlier. Set1
+(baseline only) was fitted separately as a targeted ablation, to check whether canopy cover's
+attribution signal reflects a genuine environmental association or the reverse: canopy cover
+itself partly reflecting growth already achieved. Set5 (the full, ungated candidate pool) was not
+evaluated:
 
 \begin{itemize}
 \setlength\itemsep{0pt}
-\item \textbf{Elastic Net} -- continuous features standardised on the training split; unordered
+\item \textbf{Elastic Net}: continuous features standardised on the training split; unordered
   soil-class variables one-hot encoded; regularisation strength and $\ell_1$/$\ell_2$ mixing
   ratio selected by 5-fold cross-validation on the training partition only (never touching
   validation or test).
-\item \textbf{XGBoost} -- same hyperparameter-selection approach as \S\ref{sec:rq1-baselines}.
-\item \textbf{Two-stage mixed-effects model.} Stage 1 is the already frozen, pooled CR curve
-  above; Stage 2 is a \emph{linear} mixed model fitted on the residual $\overline{r}_{\text{plot}}$,
-  with the candidate environmental variables as fixed effects and a random intercept grouped by
-  forestry compartment,
+\item \textbf{XGBoost}: a separate model from RQ1's, fitted on RQ2's own target
+  $\overline{r}_{\text{plot}}$ and RQ2's own candidate features rather than reused from RQ1;
+  what carries over is only the hyperparameter recipe, not the fitted model itself (500 boosting
+  rounds, maximum tree depth 4, learning rate 0.04, early stopping against a held-out validation
+  fold; see the Reference and conventional comparison models subsection above for why this
+  configuration, not library defaults, is used). This recipe was chosen for RQ1 to correct an
+  overfitting problem tied to sample size, not to top-height prediction specifically, so reusing
+  it for a different, plot-level target is a reasonable default rather than an unrelated
+  transplant; a direct check on RQ2's own target confirmed the same configuration improves the
+  fit here too, not only on RQ1's. RQ1, RQ2, and RQ3 now share one XGBoost recipe, each fitted
+  separately on its own target.
+\item \textbf{Two-stage mixed-effects model.} This provides an interpretable attribution baseline
+  for RQ2b. Stage 1 is the already frozen, pooled CR curve above, removing the shared age--height
+  relationship; Stage 2 is a \emph{linear} mixed model testing whether the resulting persistent
+  plot-level departure is associated with the candidate environmental and management variables,
   \begin{equation}
   \overline{r}_{\text{plot}} = \boldsymbol{\beta}^{\top}\mathbf{x}_{\text{plot}} +
   u_{\text{cpmt}} + \varepsilon_{\text{plot}},
@@ -515,35 +688,57 @@ Three models are fitted on $\overline{r}_{\text{plot}}$ using RQ2's Set1--Set5
   \end{equation}
   where $\boldsymbol{\beta}$ are fixed-effect coefficients on the standardised feature vector
   $\mathbf{x}_{\text{plot}}$, $u_{\text{cpmt}}\sim\mathcal{N}(0,\sigma_u^2)$ is a compartment-level
-  random intercept, and $\varepsilon_{\text{plot}}$ is residual error. This is a practical
-  two-stage approximation to a full nonlinear mixed-effects refit of the CR curve itself, which
-  was not implemented for this project. Fitted by restricted maximum likelihood (REML) for
-  coefficient reporting; a separate variance-explained comparison between nested fixed-effects
-  specifications uses maximum likelihood (ML) instead, since REML variance components are not
-  directly comparable across models that differ in fixed-effects structure
-  \citep{pinheiro2000}. % TODO: citation -- Pinheiro & Bates, no .bib entry yet.
+  random intercept, and $\varepsilon_{\text{plot}}$ is residual error. The fixed effects give the
+  direction and magnitude of each association; the random intercept accounts for unmeasured
+  conditions shared by plots within the same compartment, so that clustered plots are not treated
+  as independent observations. This is a practical two-stage approximation to a full nonlinear
+  mixed-effects refit of the CR curve itself, which was not implemented for this project. Fitted
+  by restricted maximum likelihood (REML) for coefficient reporting; a separate variance-explained
+  comparison between nested fixed-effects specifications uses maximum likelihood (ML) instead,
+  since REML likelihoods are not directly comparable across models that differ in fixed-effects
+  structure \citep{pinheiro2000}. % TODO: citation -- Pinheiro & Bates, no .bib entry yet.
   This model is fitted on the training partition only and has no held-out test evaluation step;
   its role is coefficient/variance reporting on the fitted training sample, not held-out
-  prediction.
-  % TODO: verify -- confirm the default random-effects structure used (random intercept only, no
-  % random slope) against the fitting package's installed version, since no explicit random-effects
-  % formula is set elsewhere in this description.
+  prediction. Because the response is itself a residual from an already-fitted curve, this second
+  stage does not propagate uncertainty from the Stage 1 curve fit; associations are interpreted as
+  attribution of departure from that fitted curve, not as causal environmental effects.
+
+  The random-effects structure is a random intercept only, no random slope on any candidate
+  variable: confirmed against the fitting package's own documented default, which applies here
+  since no variance-structure formula is set explicitly. Random slopes were not fitted, both
+  because RQ2b poses no hypothesis about compartment-varying effects and because compartment
+  sizes in this dataset range from single plots to over a thousand, too uneven to support stable
+  random-slope estimation throughout.
 \end{itemize}
 
-\subsection{Plot-specific growth-curve deviation (RQ3)}
-\label{sec:rq3}
+Feature importance and SHAP values are also examined for this XGBoost fit, described more fully
+under Model evaluation, uncertainty and interpretation later in this chapter. Gain-based
+importance comes directly from the fit itself; SHAP is a separate step, computed by reloading the
+already-fitted checkpoint afterward with no refitting involved, over the full population rather
+than a held-out partition. This SHAP computation reads from the same corrected checkpoint as the
+reported XGBoost fit itself, not an earlier, superseded one.
+
+\section{RQ3: Plot-specific growth-curve deviation}
 
 This avenue asks the same broad question at plot level: does a plot's \emph{own} fitted growth
 ceiling deviate from what a static, external yield-class table would predict for it, and does
 that deviation associate with environmental/management conditions. The deviation implemented here
-is specifically in the fitted asymptote, with the curve's other shape parameters held fixed --
-not a claim about the full growth trajectory.
+is specifically in the fitted asymptote, with the curve's other shape parameters held fixed, for
+three reasons. Each per-plot fit has as few as the cohort minimum of survey observations, too few
+to reliably estimate more than one free parameter per plot; holding the shape parameters fixed
+keeps the fit linear and closed-form rather than an unstable small-sample nonlinear optimisation.
+The comparison target itself, the plot's asymptote against its yield-class table entry, is already
+a statement about height ceiling, so this is the parameter the question is actually about, not a
+compromise forced onto an unrelated one. It also matches the standard site-index-modelling
+convention already used for RQ1's environment-conditioned growth parameters, described earlier in
+this chapter: site quality is represented as a difference in asymptotic height potential, with
+growth-curve shape held roughly constant within a species \citep{socha2021}. This is not a claim
+about the full growth trajectory: a plot growing at a different rate or in a different-shaped
+trajectory but reaching the same eventual ceiling is invisible to this target by construction.
 
-\subsubsection{Target construction}
-\label{sec:rq3-target}
-
+\paragraph*{Target construction.}
 For each plot, a per-plot asymptote $\hat y_{\max}^{\text{plot}}$ is fitted using \emph{only that
-plot's own} repeated height/age observations -- never pooled across plots, unlike
+plot's own} repeated height/age observations. This is never pooled across plots, unlike
 Equation~\ref{eq:cr}. Because the curve's shape parameters are held fixed per plot (taken from
 its own Forestry Commission yield-class lookup, not refitted), height is linear in the one
 remaining unknown, $y_{\max}$, so the fit is closed-form weighted least-squares through the
@@ -557,13 +752,20 @@ table entry,
 As with RQ2, this target is built entirely from height/age survey data and a static external
 lookup table, with no environmental variable involved in its construction. Each per-plot fit uses
 only that plot's own small number of repeated observations (as few as the cohort minimum), so the
-fitted asymptote carries more sampling uncertainty for plots with fewer surveys
-(\S\ref{sec:limitations}).
+fitted asymptote carries more sampling uncertainty for plots with fewer surveys, discussed as a
+limitation below.
 
-\subsubsection{Global and spatially varying attribution models}
-\label{sec:rq3-models}
+The plots with the most extreme $\Delta y_{\max}^{\text{plot}}$ values were checked before being
+kept in the modelling population, not excluded by default. Each recurring worst-residual plot was
+cross-referenced against an independent disturbance-flag record (clearfelling-like change,
+measurement inconsistency, ambiguous disturbance) and a trajectory-instability cutoff (the top 1\%
+of within-plot height change). None of the checked plots cleared either flag, so none were removed
+on that basis; the extreme values instead reflect real, if unusually large, departures from the
+yield-class expectation.
 
-Elastic Net and XGBoost are fitted as in \S\ref{sec:rq2-models}, on RQ3's own Set1--Set5. A third
+\paragraph*{Global and spatially varying attribution models.}
+Elastic Net and XGBoost are fitted the same way as RQ2b's own models above, on RQ3's own
+Set2--Set4 (Set1 and Set5 were not evaluated for RQ3, matching RQ2). A third
 model, GNNWR (geographically and neurally weighted regression), additionally allows coefficients
 to vary continuously over space rather than assuming one global linear relationship,
 \begin{equation}
@@ -579,19 +781,17 @@ predictor plus an intercept weight. Each local coefficient $\beta_j(s_i)$ is tha
 times the corresponding frozen global coefficient, so the network learns a spatially varying
 re-weighting of one shared global regression rather than an unconstrained per-plot model; one
 shared network produces every coefficient's weight jointly, not a separate network per coefficient.
-There is no explicit distance-decay kernel or neighbourhood/bandwidth step -- weighting is learned
-implicitly from the distance vector -- and held-out plots at evaluation are given their distance to
-the training reference set, not a bespoke neighbour set of their own. The reference set is capped
-at a fixed row limit for memory reasons, a disclosed deviation from using the full training
-partition as every other model in this chapter does. This tests whether the attribution result
-itself is spatially non-stationary, a question the global Elastic Net/XGBoost fits cannot answer.
-Gain-based XGBoost importance and SHAP values are
-computed after model fitting, over the full population rather than a held-out partition, purely to
-interpret an already-chosen model; neither is used at any point to decide which variables enter a
-feature set (\S\ref{sec:feature-screening}).
-% TODO: interpreting SHAP on the same rows used to fit the model risks optimistic or unstable
-% explanations even though SHAP does not feed back into feature selection -- consider out-of-fold
-% or held-out SHAP, or state explicitly why full-population SHAP was judged acceptable here.
+There is no explicit distance-decay kernel or neighbourhood/bandwidth step. Weighting is learned
+implicitly from the distance vector. Held-out plots at evaluation are given their distance to
+the training reference set, not a bespoke neighbour set of their own. The reference set can be
+capped at a fixed row limit for memory reasons; the reported runs use the full training partition
+uncapped, the same population every other model in this chapter uses. This tests whether the
+attribution result itself is spatially non-stationary, a question the global Elastic Net/XGBoost
+fits cannot answer. Gain-based importance and SHAP values are also examined here, described more
+fully under Model evaluation, uncertainty and interpretation later in this chapter. Unlike RQ2b's
+full-population computation, each of the 5 spatial-block folds' own XGBoost model is evaluated
+only on its own held-out fold, and the resulting SHAP values are pooled across folds, so no plot's
+SHAP explanation comes from a model that was fitted on that same plot.
 
 % FIGURE PLACEHOLDER (RQ3 target construction and attribution models, incl. GNNWR mechanism)
 % Caption: "RQ3's asymptote-deviation target, fitted from each plot's own repeated observations
@@ -600,7 +800,7 @@ feature set (\S\ref{sec:feature-screening}).
 % using each plot's distances to a training reference set, producing plot-level local
 % coefficients and predictions evaluated under the spatial-block split. RQ2's parallel but
 % simpler pipeline (pooled residual -> Elastic Net/XGBoost/two-stage mixed-effects model) is
-% described in prose and equations only (\S\ref{sec:rq2}), not duplicated in a figure here,
+% described in prose and equations only above, not duplicated in a figure here,
 % since it has no comparable internal mechanism to unpack."
 %
 % Verified against the actual GNNWR implementation (third-party `gnnwr` package) before drawing:
@@ -608,7 +808,7 @@ feature set (\S\ref{sec:feature-screening}).
 %   plot to every plot in the reference set (MinMax-scaled), NOT raw coordinates and NOT
 %   coordinate differences;
 % - no k-nearest-neighbour or distance-threshold step exists -- "neighbourhood" is implicit,
-%   learned by the network from the full distance vector to the (capped) reference set;
+%   learned by the network from the full distance vector to the reference set;
 % - the network does NOT output final coefficients directly: it outputs one multiplicative
 %   weight per predictor (+ intercept), which is multiplied against a separately pre-fitted,
 %   frozen global OLS coefficient to give the local coefficient beta_j(s_i);
@@ -616,9 +816,9 @@ feature set (\S\ref{sec:feature-screening}).
 %   one network per coefficient;
 % - held-out/test plots reuse the training reference set for their distance vector, not a
 %   bespoke neighbour set built from their own location;
-% - this is the standard GNNWR (Du et al. 2020) formulation, with one disclosed deviation: the
-%   reference set is capped at a fixed row count (not the full training partition) for memory
-%   reasons;
+% - this is the standard GNNWR (Du et al. 2020) formulation; the reference set CAN be capped at a
+%   fixed row count for memory reasons, but the reported runs use the full, uncapped training
+%   partition (confirmed: run with --reference-set-size 0) -- do not draw a capped reference set;
 % - no geographical kernel or bandwidth parameter exists in the implementation -- do not draw one;
 % - no rendered spatial coefficient map was found in the modelling pipeline, only a per-plot
 %   coefficient table and a Moran's I residual-autocorrelation diagnostic -- label the coefficient
@@ -631,13 +831,13 @@ feature set (\S\ref{sec:feature-screening}).
 %     A["Repeated heights, own plot only"] --> B["Closed-form per-plot<br/>asymptote fit"]
 %     C["Yield-class asymptote<br/>(static lookup)"] --> D["RQ3 target: y_max diff"]
 %     B --> D
-%     F["Environmental/management<br/>predictors (Set1-5)"] --> G["Elastic Net"]
+%     F["Environmental/management<br/>predictors (Set2-4)"] --> G["Elastic Net"]
 %     F --> H["XGBoost"]
 %     F --> M["Global OLS fit<br/>(frozen coefficients)"]
 %     D --> G
 %     D --> H
 %     D --> M
-%     P["Plot location"] --> Q["Distance to every plot in<br/>reference set (train, capped)"]
+%     P["Plot location"] --> Q["Distance to every plot in<br/>reference set (full training partition)"]
 %     Q --> R["Spatial weighting network<br/>(one shared trunk)"]
 %     R --> S["Per-predictor weights w_j(s_i)"]
 %     M --> T["Local coefficient<br/>beta_j(s_i) = w_j(s_i) x beta_j"]
@@ -665,92 +865,126 @@ models, including the GNNWR spatial weighting mechanism.}
 \end{figure}
 
 \section{Model evaluation, uncertainty and interpretation}
-\label{sec:evaluation}
 
 This section states what is measured and why, not what was found (Results chapter).
 
-\subsection{Predictive and spatial diagnostics}
-\label{sec:eval-diagnostics}
-
-Every RQ1 model is scored on the same metric set, computed from residuals $e_i = H_i - \hat H_i$
-(observed minus predicted height) over $N$ rows:
+\paragraph*{Predictive diagnostics (RQ1).}
+Every RQ1 model is scored on residuals $e_i = H_i - \hat H_i$ over $N$ rows:
 \begin{align*}
 \text{MAE} &= \frac{1}{N}\sum_i |e_i|, &
 \text{RMSE} &= \sqrt{\frac{1}{N}\sum_i e_i^2}, \\
 R^2 &= 1 - \frac{\sum_i e_i^2}{\sum_i (H_i - \bar H)^2}, &
-\text{Bias} &= \frac{1}{N}\sum_i e_i,
+\text{Bias} &= \frac{1}{N}\sum_i e_i.
 \end{align*}
-where $\bar H$ is the mean observed height in that evaluation set; a positive bias indicates
-systematic under-prediction. Metrics are also broken down by five age bands ($<30$, 30--40,
-40--60, 60--80, $80+$ years) to check whether an aggregate score conceals age-specific weaknesses;
-the maturity gate (plot-level age $\geq$ 30 at the 2023 reference survey) is applied at plot
-level, so individual rows below 30 can still appear in a trajectory, and a poor score in the
-$<30$ band reflects a small, non-representative sample rather than necessarily worse prediction.
+$R^2$ is variance explained relative to a mean-only baseline (1 perfect, 0 matches the mean,
+negative is worse than the mean on a held-out split); positive bias is systematic
+under-prediction. Metrics are further broken down by five age bands to check whether an
+aggregate score conceals age-specific weaknesses (the maturity gate is applied at plot level, so
+individual rows below 30 can still appear; a poor $<30$ score reflects a small, non-representative
+sample, not necessarily worse prediction). Pooled $R^2$ additionally carries a cluster-bootstrap
+95\% confidence interval, resampling whole compartments rather than individual rows or plots. This
+is RQ1 only; RQ2b and RQ3's own $R^2$ numbers do not currently carry one.
 
-Moran's I is computed on model residuals (not on raw features, and not as a variable-selection
-criterion) to test whether spatial structure remains unexplained after fitting. This is a
-diagnostic applied after a model is fitted, answering a different question from environmental
-feature selection (\S\ref{sec:feature-sets}); it does not feed back into which variables enter a
-model.
+\paragraph*{Spatial autocorrelation (Moran's I).}
+Tests whether nearby plots have more similar residuals than distant ones, against a null of no
+spatial pattern (near zero: spatially random error; positive: errors cluster; negative: errors
+alternate more than chance). Used two ways in this project, not one. On \textbf{RQ1}'s raw-height
+residuals, it is a post-fit diagnostic of whether spatial structure remains unexplained (does not
+feed back into feature selection). On \textbf{RQ3}'s category-removal check, the question shifts
+from "is spatial structure gone" to "does removing this variable category raise residual
+clustering," diagnosing whether that category was carrying real spatial signal; this check
+currently runs for Set4/4survey only, not the full set/cohort matrix. It has not yet been computed
+on RQ2b's own attribution residuals, or on RQ3's main GNNWR/EN/XGBoost residuals under the current
+VIF-screened tiers (only superseded, pre-restructure numbers exist for the latter). A
+semivariogram, fitted to test-partition residuals only, complements Moran's I with the distance
+range over which spatial autocorrelation persists, rather than only whether it is present.
 
-\subsection{Uncertainty and attribution stability}
-\label{sec:eval-uncertainty}
+\paragraph*{Feature attribution (RQ2b, RQ3).}
+Both use XGBoost's gain-based importance (a free byproduct of fitting) and SHAP: a separate,
+deliberately computed post-hoc step decomposing one row's prediction into signed per-feature
+contributions, the tree-ensemble equivalent of Elastic Net/the mixed-effects model's own
+coefficients. Neither feeds back into feature selection. The role differs slightly by research
+question. In \textbf{RQ2b}, SHAP is one of three converging global-attribution views, alongside
+the mixed-effects model and Elastic Net. In \textbf{RQ3}, it is additionally the tool behind the
+per-plot outlier check, since it is the only method here that explains an individual row's
+prediction, not just average importance. SHAP values are pooled across folds into one mean per
+feature in both research questions; fold-to-fold SHAP stability itself has not been computed for
+either.
 
-Robustness of the RQ1 result to stochastic training variation is checked by a reseed of the
-winning model across additional seeds, reported alongside the pooled-fold evaluation in the
-Results chapter. The physics-weight ablation (\S\ref{sec:rq1-ablation}) plays the same role for
-the physics/trajectory loss terms specifically: whether the guided network's advantage, if any,
-depends on the weighting rather than the mechanism.
+\paragraph*{Coefficient stability (RQ2b, RQ3).}
+Elastic Net coefficients are reported as mean $\pm$ SD across the 5 spatial folds, for both RQ2b
+and RQ3, checking whether a coefficient's sign and magnitude are stable across different held-out
+compartments, not just significant in one fit. This has not been checked across seeds for either
+research question: no seed sweep has been run for the attribution Elastic Net or XGBoost models.
 
-% TODO: state which of the following are actually implemented and where their settings live --
-% bootstrap confidence intervals on RQ1 metrics; Elastic Net coefficient stability across folds/
-% seeds; SHAP stability across folds/seeds for RQ3; spatial autocorrelation of the RQ2/RQ3
-% attribution residuals themselves (as distinct from RQ1's residual diagnostic above). If any of
-% these are not yet run, state that plainly rather than implying they are.
+\paragraph*{Robustness to stochastic and configuration choices.}
+Several checks test whether a headline result depends on an incidental choice rather than the
+mechanism being claimed:
+\begin{itemize}
+\setlength\itemsep{0pt}
+\item \textbf{Training-seed reseed} (RQ1, RQ2a): the RQ1 winner is refit across 4 additional
+  seeds; RQ2a reuses these same predictions rather than reseeding separately, so the two share one
+  robustness result.
+\item \textbf{Architecture-size sensitivity} (RQ1, all three guided-network variants): tests
+  whether the fixed network size affects the headline comparison.
+\item \textbf{Physics-weight ablation} (RQ1, PINN and PINN$_k$): tests whether the guided
+  network's advantage, if any, depends on the physics/trajectory loss weighting rather than the
+  mechanism.
+\item \textbf{XGBoost hyperparameter sensitivity} (RQ1 baseline, RQ2b, RQ2a): RQ1's baseline and
+  RQ2b's attribution model were both found to be running on library defaults rather than a
+  deliberately chosen configuration; this check tests whether their headline results depend on
+  that choice, by refitting all three under one consistent, non-default configuration. Outcome
+  reported in the Results chapter, not here.
+\item \textbf{Split-seed reseed} (RQ3, GNNWR, 6survey only): checks whether GNNWR's
+  smaller-cohort result is stable across different fold assignments, given its wide per-fold
+  variance there, discussed as a limitation later in this chapter.
+\end{itemize}
 
 \section{Methodological assumptions and limitations}
-\label{sec:limitations}
 
 % Keep to 3-5 items. Draft points below, expand each into 2-4 sentences by hand.
 
 \begin{itemize}
 \setlength\itemsep{0pt}
 \item \textbf{Spatial-block and buffer assumptions.} The 60\,m buffer is set from typical plot
-  spacing, not from the measured spatial-autocorrelation range of the shared-curve residual
-  (\S\ref{sec:splits}); compartment-level holdout is the primary leakage control, the buffer a
+  spacing, not from the measured spatial-autocorrelation range of the shared-curve residual;
+  compartment-level holdout is the primary leakage control, the buffer a
   secondary one.
 \item \textbf{Environmental scale mismatch.} Terrain/wind/soil variables are raster-derived and
   assigned to point-scale plots; the raster resolution does not necessarily match the scale at
   which these conditions act on a plot.
   % TODO: confirm raster resolution(s) and the assignment method (nearest-cell, bilinear, zonal
   % mean) against the actual extraction code before stating this as fact.
-\item \textbf{Feature-selection leakage or split dependence.} Ranking and VIF screening
-  (\S\ref{sec:feature-screening}) determine Set1--Set5 before final evaluation; the open questions
+\item \textbf{Feature-selection leakage or split dependence.} Ranking and VIF screening, described
+  earlier, determine Set1--Set5 before final evaluation; the open questions
   flagged there about which partition was used, and whether ranking was fold-specific, bear
   directly on how much confidence to place in the resulting sets.
-\item \textbf{Uncertainty in plot-specific targets.} RQ3's per-plot asymptote
-  (\S\ref{sec:rq3-target}) is fitted from as few as the cohort minimum of repeated observations
-  per plot; plots with shorter survey histories contribute a noisier estimate of the same target
-  as plots with longer histories, without that difference being explicitly weighted or flagged
-  downstream.
-\item \textbf{Association, not causation.} Both attribution avenues (\S\ref{sec:attribution})
-  report statistical association between environmental/management conditions and departure from
+\item \textbf{Uncertainty in plot-specific targets and their attribution models.} RQ3's per-plot
+  asymptote target is fitted from as few as the cohort minimum of repeated
+  observations per plot; plots with shorter survey histories contribute a noisier estimate of the
+  same target as plots with longer histories, without that difference being explicitly weighted or
+  flagged downstream. This compounds with 6survey's small compartment count: a multi-seed reseed
+  of RQ3's GNNWR fit on 6survey shows its pooled $R^2$ sign-flipping across seeds for every feature
+  set, centred near zero within the seed-to-seed spread. This is an underpowered result, not a
+  reliable positive or negative one. 6survey's GNNWR fit should be read as inconclusive, not as
+  evidence the spatially-varying-coefficient effect is genuinely weaker there than on 4survey.
+\item \textbf{Association, not causation.} Both attribution avenues report statistical association
+  between environmental/management conditions and departure from
   an expected growth curve; none of the designs support a causal claim.
 \end{itemize}
 
 \section{Reproducibility and implementation}
-\label{sec:reproducibility}
 
 All split assignments, network weight initialisation, and Elastic Net/XGBoost cross-validation
 folds use a fixed seed (42) unless explicitly swept as part of a stated robustness check (e.g. the
-RQ1 winner-model reseed check, \S\ref{sec:eval-uncertainty}). Every model reads its feature list
+RQ1 winner-model reseed check, described above). Every model reads its feature list
 from a single generated manifest, so a reported set's exact column membership can always be
 checked against that source rather than a hand-copied list.
 
 Detailed hyperparameter grids and selected values (Appendix~\ref{app:hyperparameters}), full
 Set1--Set5 column lists and per-variable screening diagnostics (Appendix~\ref{app:feature-sets}),
-and secondary sensitivity settings not reported in the main text -- dropout-rate/architecture-width
-sweeps, the narrow-gap temporal split's own results (Appendix~\ref{app:sensitivity}) -- are kept
+and secondary sensitivity settings not reported in the main text (dropout-rate/architecture-width
+sweeps, the narrow-gap temporal split's own results, Appendix~\ref{app:sensitivity}) are kept
 out of this chapter and pointed to at the relevant section above rather than repeated here.
 
 % TODO: verify -- confirm whether RQ2/RQ3's own model-fitting scripts read the same feature-set
