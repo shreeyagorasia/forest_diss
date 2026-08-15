@@ -25,6 +25,18 @@
 %     but the artwork itself doesn't exist yet.
 %%%
 
+\documentclass[11pt,a4paper]{report}
+
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{subcaption}
+\usepackage{amsmath}
+
+% Editing macros — delete for the final draft
+% (\fc, \ct, \app, \sr, \fig are already defined below in this file)
+\newcommand{\ai}[1]{\textcolor{brown}{[AI: #1]}}
+
+\begin{document}
 %%% Colour commands - delete for final draft
 \newcommand{\fc}[1]{\textcolor{red}{[FactC: #1]}}
 \newcommand{\ct}[1]{\textcolor{orange}{[CITE: #1]}}
@@ -535,3 +547,5 @@ Limitations specific to one model or target are stated beside that method (the C
 All split assignments, network weight initialisation, and Elastic Net/XGBoost cross-validation folds use a fixed seed (42) unless explicitly swept as part of a stated robustness check (\S\ref{sec:eval-diagnostics}). Every model reads its feature list from a single generated manifest, so a reported set's exact column membership can always be checked against that source rather than a hand-copied list.
 
 Detailed hyperparameter grids and selected values (Appendix~\ref{app:hyperparameters}), full Set1--Set5 column lists and per-variable screening diagnostics (Appendix~\ref{app:feature-sets}), and secondary sensitivity settings not reported in the main text (dropout-rate/architecture-width sweeps, the narrow-gap temporal split's own results; Appendix~\ref{app:sensitivity}) are kept out of this chapter and pointed to at the relevant section above rather than repeated here.
+
+\end{document}
