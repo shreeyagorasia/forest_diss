@@ -35,130 +35,36 @@ actually finish and sync (not done as of 2026-08-11).
 
 ---
 
-## Discussion primer — ranked, per RQ (2026-08-15)
+## Discussion, analysis, and the results-chapter draft
 
-Not a draft, not exhaustive — a prompt for you to react to. Per RQ, the results most worth
-building discussion around, ranked by how much they matter for actually answering that RQ and how
-genuine/non-obvious the finding is (not just "biggest number"). Pull whichever ones you want to go
-deeper on.
+The ranked discussion primer and the results/evaluation chapter draft itself now live in
+`documentation/august_draft/5_Chapter_results_evaluation/a_draft_plan_14th_aug.md` — that's the
+actively-edited file for turning these numbers into an argument. This folder (`TEMP_results/`)
+stays scoped to what it says at the top: raw, dated, real-numbers holding notes per experiment,
+plus the method notes below — no discussion/ranking/prose interpretation content here, so there's
+one place, not two, for that.
 
-**Appendix-only, not discussion**: the XGBoost hyperparameter bug-and-fix story (RQ1 baseline and
-RQ2b both affected, RQ3 was never buggy) is real and worth reporting, but per your call it stays
-out of the main discussion narrative in both RQ1 and RQ2b — cite the corrected numbers in an
-appendix table, don't build a discussion section around the tuning story itself.
-
-### RQ1 — raw height prediction, model comparison (throughline: 4survey vs. 6survey cohort)
-
-1. **The winner is cohort-conditional, not absolute.** DNN's 4survey win is real and CI-confirmed
-   (non-overlapping vs. every PINN variant); on 6survey, the apparent "PINN wins" doesn't survive
-   scrutiny — DNN's CI fully contains PINN's, so it's a tie, not a loss for DNN
-   (`TEMP_rq1_winner_reseed`). The honest answer to "which model wins" is "it depends which cohort
-   you ask," not a single verdict — worth stating as the RQ1 throughline rather than picking one.
-2. **6survey's negative bias is real and seed-independent** (`TEMP_rq1_winner_reseed`). Consistent
-   across all 5 reseed seeds — not noise. Worth asking why the smaller cohort specifically produces
-   systematic under/over-prediction rather than just smaller-sample noise.
-3. **Temporal forecasting degrades far worse on 6survey than 4survey** (`TEMP_rq1_temporalcheck`).
-   PINN loses >3/4 of its R2 forecasting forward on 6survey vs. a much smaller drop on 4survey —
-   ties model fragility directly to cohort/sample size, not just "temporal splits are harder."
-4. **`average_by_age`'s ranking flips by cohort** (`TEMP_rq1_baseline_comparison`). Worst model on
-   4survey, but beats fitted Linear regression on 6survey — a genuinely non-obvious, cohort-specific
-   result, not just "the baseline is bad."
-5. **No architecture helps both cohorts** (`TEMP_rq1_architecture_sweep`). `deeper` wins on 4survey,
-   `small` wins on 6survey — architecture choice interacts with cohort rather than having a single
-   right answer, reinforcing the "depends on which cohort" throughline rather than being a separate
-   point.
-6. **Plot_level vs. spatial_block_kfold asymmetry** (`TEMP_rq1_plotlevel_check`). DNN inflates
-   hugely under an easy split (+0.197 R2); PINN/PINN_k barely move (±0.006) — a real DNN-vs-PINN
-   difference, less directly about cohort, but worth keeping if you want one non-cohort item.
-7. **Physics-weight ablation** (`TEMP_rq1_physicsablation`). Real accuracy-vs-identifiability
-   tradeoff (w=0 beats w=1 on 4survey; `y_max`/`k` far less identifiable without the physics term)
-   — probably belongs with RQ2a/RQ2b's mechanism discussion more than RQ1's cohort story, your call.
-
-### RQ2a — does environmental conditioning shrink the departure from the shared curve
-
-1. **XGBoost's own version of the quartile check** (`TEMP_rq2a_residual_reduction`). The most
-   important corrective finding in RQ2: the "shrinks most where CR is worst" pattern is NOT
-   PINN-specific — XGBoost shows it too, with comparable or larger average reduction. Forces the
-   "why PINN" argument onto different (stability + structural) ground.
-2. **The core quartile pattern itself** (`TEMP_rq2a_residual_reduction`). The actual RQ2a answer:
-   Q1 (CR already good) gets *worse* under environmental conditioning, Q4 (CR worst) improves a lot
-   — a real trade-off, not a uniform improvement. This is the finding the whole RQ hinges on.
-3. **Stability gap between DNN and XGBoost** (`TEMP_rq2a_residual_reduction`). The one thing that
-   *does* survive as evidence for DNN specifically: its reduction is 5-14x more reproducible
-   fold-to-fold than XGBoost's — worth building the "why PINN" argument around this, not accuracy.
-4. **5-seed robustness of the quartile pattern** (`TEMP_rq2a_residual_reduction`, Step 4a). Confirms
-   the Q1-hurts/Q4-helps shape isn't a single-seed fluke — tight SDs across all 5 seeds.
-5. **Cohort asymmetry** (`TEMP_rq2a_residual_reduction`). 6survey's effect is real but much smaller
-   than 4survey's (0.174 vs 1.501 mean reduction) — fits the broader 6survey-noisiness pattern
-   across the whole project, worth one general sentence rather than re-explaining per RQ.
-
-### RQ2b — attribution of the CR-residual to environmental/stand-structure variables
-
-1. **CanopyCover baseline-only ablation** (`TEMP_rq2_attribution`, Set1 section). Resolves a real
-   methodological concern (reverse-causation) with actual evidence rather than assumption:
-   environment adds real R2 beyond baseline, and — more decisively — explains real spatial variance
-   the baseline explains almost none of. Strong material for "justification of choices."
-2. **CanopyCover/thinning dominance, converging across NLME/EN/XGBoost-SHAP** (`TEMP_rq2_attribution`).
-   The actual headline: three independent methods agree, tightly, on the same answer — the single
-   most consistent finding in the project. Needs the Set1 framing above to not read as circular.
-3. **`topex`/`slope_degrees` as the most stable real environmental signals** (`TEMP_rq2_attribution`).
-   The actual environmental (non-baseline) attribution answer, distinct from the baseline-dominance
-   story — both NLME and EN agree on direction/magnitude.
-4. **Variables that don't survive scrutiny** (`TEMP_rq2_attribution`). `chelsa_gdd5_degc`, `tas_mean`,
-   `soilgrids_ph` flip sign or have SD comparable to their mean — honest "what we can't claim" list,
-   useful for critical evaluation rather than overselling every coefficient.
-5. **Set3 as the weakest set** (`TEMP_rq2_attribution`). Lowest R2, lowest NLME variance explained —
-   ties directly to Set3's terrain-heavy, thin-wind, zero-soil/climate composition; a clean
-   set-composition-to-outcome link worth stating explicitly.
-
-### RQ3 — plot-specific curve deviation (throughline: interesting growth-curve behaviour, not just which model wins)
-
-1. **The Moran's I contradiction** (`TEMP_rq3_category_attribution`). The best-suited item for a
-   real expectation-vs-evidence discussion: the working assumption was "removing a category that
-   genuinely explains local deviation should raise residual spatial clustering." Removing `terrain`
-   — the largest real contributor besides stand_structure — instead *lowers* clustering (0.153 →
-   0.042), the opposite direction. Structure to use: state the expectation, show the diagnostic,
-   name the contradiction, offer competing explanations (VIF screening changed what "terrain" even
-   captures? spatial structure was never really carried by terrain in the first place?), and don't
-   force a resolution if the evidence doesn't support one.
-2. **RQ3 outlier diagnosis + disturbance cross-reference** (`TEMP_rq3_outlier_diagnosis`). A
-   hypothesis about *why specific plots deviate* ("these are disturbance artifacts") generated, then
-   tested against the project's own disturbance-classification data, then found NOT supported (0/10
-   flagged). The revised explanation — a smooth, stable trajectory that's just far from the yldc
-   benchmark, i.e. a probable yield-class lookup mismatch rather than a real disturbance event — is
-   itself an interesting growth-curve-behaviour finding, not just a data-quality footnote.
-3. **Same outlier plots recur across nearly every (set, cohort) combo** (`TEMP_rq3_outlier_diagnosis`).
-   Outlier-ness is a stable property of the *plot's own trajectory*, not an artifact of which
-   feature set was used to try to explain it — worth stating plainly since it rules out "we just
-   picked bad features" as the explanation for these deviations.
-4. **GNNWR 6survey reseed, correcting the original finding** (`TEMP_rq3_gnnwr_results`). "GNNWR
-   loses on 6survey" was wrong — R2 sign-flips across seeds, mean near zero. A model-comparison
-   result rather than a growth-curve one, but the clearest self-correction in the project and worth
-   keeping somewhere even if RQ3's main narrative is curve-behaviour-focused.
-5. **GNNWR beats EN/XGBoost on 4survey** (`TEMP_rq3_gnnwr_results`). The one reliable positive
-   spatially-varying-fit result — answers RQ3's "does letting the relationship vary spatially help"
-   question directly, on the cohort where the comparison is well-powered.
-6. **Category attribution rerun changed after VIF screening** (`TEMP_rq3_category_attribution`).
-   The earlier "every category removal improves R2" pattern disappeared once VIF screening fixed
-   collinearity — connects directly to item 1's contradiction, since VIF screening is also the
-   most likely explanation for why `terrain`'s Moran's I behaviour looks different from expected.
+**Methodology → Results content migration table** (specific sentences flagged as living in the
+wrong chapter — methodology currently states them as findings) also moved there, since it
+cross-references the primer's item numbers directly.
 
 ---
 
-## Methodology → Results content migration (flagged during methodology review, 2026-08-15)
+## Reproducing the ad-hoc TEMP checks (2026-08-15)
 
-Specific sentences identified as living in the wrong chapter — methodology currently states them
-as findings, but they're results. Logged here so they land in the right subsection when the
-results chapter is actually drafted, not lost between chats.
+Several checks this session were run as one-off local snippets rather than saved as a dedicated
+script under `models/`. In every case the actual statistic is computed by an existing, already-used
+project function — only the *driving loop* (which files/sets/cohorts to feed it) was throwaway. All
+read already-saved `predictions.csv`/`test_predictions.csv` files — none of them retrain a model.
+Each has its own short method file (what was evaluated + pseudocode for how + pointer to the
+numbers), so nothing here needs digging through chat history to reproduce:
 
-| Sentence/claim | Target location | Status |
+| Method file | RQ | What it covers |
 |---|---|---|
-| "Testing four alternative network sizes confirmed that this shared design performs best... guided models proving the least sensitive" | Results, **RQ1 architecture-sweep subsection** (primer item 5 above) | Matches the real finding: PINN/PINN_k's architecture-sensitivity spread is 5-10x *smaller* than DNN's — "guided models least sensitive" is accurate, not just DNN robustness. Source: `TEMP_rq1_architecture_sweep_results_2026-08-13.tex`. |
-| "Because no checked plots triggered these exclusion criteria, all were retained as genuine empirical departures" (flagged `\fc{check this is true}`) | Results, **RQ3 outlier-diagnosis subsection** (primer item 2 above) | **`\fc{}` resolved — verified true.** 0 of 10 outlier plots trigger any disturbance/measurement exclusion flag, and 0 of 10 clear the top-1% trajectory-instability cutoff either. Source: `TEMP_rq3_outlier_diagnosis_results_2026-08-12.tex:39-40`. Safe to state as fact, drop the flag. |
-| GNNWR 6survey sign-flip limitations bullet: "centred near zero... underpowered... should be read as inconclusive" | Results/Discussion, **RQ3 GNNWR subsection** (primer item 4 above) | Matches `TEMP_rq3_gnnwr_results_2026-08-11.tex`'s reseed section exactly. **Split**: methodology keeps only the general "small-cohort split/seed instability" caveat (applies broadly, e.g. also motivates RQ2b's 4survey-only scope); this specific sign-flip finding and its numbers belong in results only, not duplicated in methodology. |
-
-**Pattern to watch for**: methodology sections that state a specific numeric outcome ("X performed
-best," "no plots were excluded," "the result was inconclusive") are usually results content that
-drifted upstream during drafting — methodology should describe the *procedure* checked, results
-should report *what the check found*. Worth a pass over the rest of the methodology draft for the
-same pattern before it's finalised.
+| `TEMP_rq2b_rq3_method_bootstrap_ci_2026-08-15.tex` | RQ2b + RQ3 | Cluster-bootstrap 95% CI on pooled R2 (EN/XGBoost, GNNWR) |
+| `TEMP_rq2b_method_vif_2026-08-15.tex` | RQ2b | VIF on the SHAP-important attribution variables |
+| `TEMP_rq2b_rq3_method_morans_i_2026-08-15.tex` | RQ2b + RQ3 | Residual Moran's I (EN/XGBoost/GNNWR) |
+| `TEMP_rq3_method_boundary_ymaxfit_mechanism_2026-08-15.tex` | RQ3 | Why some outlier plots' `y_max_fit` is implausible; boundary-distance pull |
+| `TEMP_rq3_method_broader_scan_sensitivity_2026-08-15.tex` | RQ3 | Tukey-fence scan for implausible `y_max_fit` beyond the known 10; exclusion sensitivity check |
+| `TEMP_rq3_method_typology_crossmodel_2026-08-15.tex` | RQ3 | Cross-model (EN/XGBoost/GNNWR) outlier agreement; sub-compartment spatial clustering |
+| `TEMP_rq3_method_2008_artifact_2026-08-15.tex` | RQ3 | Wind exposure, storm-year signature, 2008 survey-boundary artifact test |

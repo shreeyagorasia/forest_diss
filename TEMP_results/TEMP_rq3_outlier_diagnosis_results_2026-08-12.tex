@@ -69,10 +69,205 @@ plots was found — they should stay in the modelling population as-is. The earl
 implied excluding them "inflates the unexplained residual story" no longer applies; there's no
 verified evidence these are the artifacts they were assumed to be.
 
+### Mechanism behind the extreme `y_max_fit` values, and a boundary-proximity check (2026-08-15)
+
+Ad-hoc checks, no dedicated script (see README's "Reproducing the ad-hoc TEMP checks" section for
+the exact snippets) — reuses `build_plot_level_table()` (`scale_comparison_check.py`) and
+`load_plots_for_cohort()` (`models/xgb_environmental/data.py`) directly, no new fitting.
+
+**Why some of these plots have biologically implausible `y_max_fit` (up to 116m)**: the closed-form
+fit (`build_plot_level_table()`) holds each plot's `k`/`p` FIXED at its yield-class's assumed
+values and only solves for `y_max`. Pulling the raw per-survey heights (`load_filtered_growth_curve_table`)
+for the 5 highest-`y_max_fit` plots shows their OBSERVED heights are entirely normal (e.g. 353952:
+38.9m/41.6m/43.9m/46.8m across ages 20-35) — the implausibility is not a raw measurement problem.
+It's that these plots' true growth trajectory is flatter/slower than their assigned yield class
+assumes, so forcing that fixed (fast) `k` onto a genuinely slow trajectory requires an inflated
+ceiling to reconcile the fit. This is a downstream fitted-parameter artifact, not a data-cleaning
+gap — `filter_data()` (`models/common/data.py`) only gates `Age`/`yldc` plausibility, and no
+height- or y_max-based sanity filter exists anywhere in the pipeline (nor would one have caught
+this, since the raw heights themselves are fine). Symmetric to the PINN_k identifiability finding
+(RQ1/RQ2a) — there, letting `k` float risks non-identifiability; here, fixing `k` risks an unstable
+solved `y_max` when the fixed value is wrong for that specific plot. Two failure modes of the same
+underlying constraint: very few points (4-6) per plot forces a design choice between floating or
+fixing shape parameters, and either choice has a failure mode.
+
+| identification | cpmt | y\_max\_yldc | y\_max\_fit (4survey) | local\_y\_max\_difference | n\_fitting\_points |
+|---|---|---:|---:|---:|---:|
+| 353952 | 2232 | 57.06 | 116.18 | +59.12 | 4 |
+| 356411 | 2217 | 46.39 | 107.05 | +60.66 | 4 |
+| 344808 | 2250 | 34.51 | 90.78 | +56.28 | 4 |
+| 362556 | 2173 | 39.27 | 96.15 | +56.87 | 4 |
+| 370819 | 2176 | 39.27 | 97.48 | +58.20 | 4 |
+
+(6survey values for the same plots are consistently *more* extreme still — e.g. 353952 hits
+124.28m — since the 6survey fit uses even fewer/different points; not shown, same mechanism.)
+
+**Boundary-proximity check**: pulled `dist_to_cpmt_boundary`, `dist_to_block_boundary`,
+`dist_to_forest_perimeter` for all 10 recurring outlier plots (`identification` list: 344808,
+353952, 356411, 344812, 362556, 77185, 370819, 320299, 366554, 366559) and compared against the
+4survey population median.
+
+| Metric | Outlier-subset median | 4survey population median |
+|---|---:|---:|
+| `dist_to_cpmt_boundary` | 9.4 m | 28.0 m |
+| `dist_to_block_boundary` | 12.1 m | 29.3 m |
+| `dist_to_forest_perimeter` | 29.7 m | 165.7 m |
+
+**A real, roughly 3x pattern on all three boundary metrics** — these plots sit much closer to
+compartment, block, and forest-perimeter boundaries than a typical plot (7 of 10 are within 45m of
+the forest perimeter; the 3 exceptions — 344808, 344812, 353952, all in compartments 2232/2250 —
+sit 150-240m from the forest edge but still close to their own compartment boundary, 2.5-18.5m).
+Plausible mechanism: boundary-adjacent stands are more likely to have an edge effect (different
+light/wind exposure, or a stand-management history that doesn't match the interior-stand norm the
+yield-class table assumes) that a single compartment-level yldc lookup can't capture — consistent
+with, and a candidate explanation for, the "yldc lookup mismatch" interpretation above rather than
+a competing one. Not causally proven (no per-plot species/management record exists to confirm the
+mechanism directly), but a concrete, checkable pattern rather than a vague hand-wave.
+
+**Practical implication, unchanged from above**: still no principled basis for excluding these
+plots — the pattern found here explains WHY they might diverge from the yldc benchmark (a real,
+plausible forestry mechanism: edge effects/yldc misassignment near boundaries), reinforcing that
+this is genuine signal about specific stands, not noise or a data artifact to filter out.
+
+### Broader scan for implausible `y_max_fit`, and a rerun sensitivity check (2026-08-15)
+
+**Is this limited to the 10 known outlier plots?** No. Applying a standard Tukey-fence outlier
+rule directly to `y_max_fit` (Q1/Q3 of the full population, flag beyond Q3+1.5×IQR or below
+Q1-1.5×IQR — no cherry-picking, a generic statistical definition) finds far more:
+
+| Cohort | n flagged (high + low) | % of population |
+|---|---:|---:|
+| 4survey | 266 | 0.47% |
+| 6survey | 709 | 5.32% |
+
+**Clustered by compartment, not scattered** — e.g. cpmt 2186: 12/37 plots flagged high (32%);
+cpmt 2251: 31/702; cpmt 2016/2017/2021 and cpmt 2142 cluster on the LOW side (implausibly short
+mature stands) in 4survey. Most other affected compartments show a smaller 2-5% subset. This reads
+as a compartment- or sub-stand-level yield-class misassignment pattern, not isolated one-off flukes
+— a stronger, more systematic version of the "yldc lookup mismatch" read above.
+
+**Would results differ if these were fixed/excluded?** Tested directly — no retraining, just
+dropping the flagged plots from the already-saved RQ3 `predictions.csv` (Set4/gated_all_vif) and
+recomputing pooled R2:
+
+| Cohort | EN R2 (all → excl. flagged) | XGB R2 (all → excl. flagged) |
+|---|---|---|
+| 4survey | 0.240 → 0.239 (-0.002) | 0.250 → 0.248 (-0.002) |
+| 6survey | 0.056 → 0.029 (-0.027) | 0.015 → -0.021 (-0.037) |
+
+4survey: negligible. **6survey: excluding these plots makes the result meaningfully WORSE, not
+better — XGBoost's pooled R2 goes negative.** These extreme-target plots are disproportionately
+anchoring what little signal 6survey's models have; removing them shrinks total variance (SS_tot)
+more than it shrinks residual variance (SS_res), revealing the remaining "normal" plots carry
+almost no signal for 6survey. **Conclusion: exclusion is not a fix and should not be applied** —
+this isn't a case where cleaning would have changed the headline story for the better; the current
+"keep all plots in" choice is the more defensible one, backed by evidence rather than inertia. A
+principled target-construction fix (e.g. a compartment-level fallback `y_max` when the plot-level
+closed-form fit is implausible) remains a legitimate future-work item, but would require retraining
+the full RQ3 matrix (EN/XGBoost/GNNWR x sets x cohorts x folds) for a benefit this check doesn't
+support as obviously positive.
+
+### Outlier typology: cross-model agreement, sub-compartment clustering (2026-08-15)
+
+Ad-hoc, no dedicated script (see README). Extends the broader-scan flagged set (266 plots,
+4survey, Tukey-fence on `y_max_fit`) with three further checks, moving beyond "top-N worst
+single-model residual" as the sampling frame.
+
+**Cross-model agreement — not an XGBoost artifact.** Loaded EN/XGBoost from the same
+`predictions.csv` and pooled GNNWR from its 5 seed-42 fold `test_predictions.csv` files (Set4/
+4survey). Fraction of the 266 flagged plots landing in each model's own worst 1%/5% of |residual|:
+
+| Model | in worst 1% | in worst 5% |
+|---|---:|---:|
+| Elastic Net | 35.7% | 59.0% |
+| XGBoost | 38.0% | 61.3% |
+| GNNWR | 37.6% | 57.5% |
+
+~36x over-representation vs. the 1% expected by chance, consistently across all three
+independently-fit models — real convergent evidence this is a property of the plot/target, not an
+artifact of one model family.
+
+**Not a uniform group.** `residual_range` (per-plot trajectory-consistency, via
+`disturbance_checks.per_plot_residual_range()`) among the 266: median 5.68m (population median
+2.13m) but ranging 0.12-21.3m — elevated overall but spanning the full spectrum, confirming the
+"smooth-but-offset vs. genuinely unstable" split found on the original 10 plots is a real, general
+pattern, not a small-sample coincidence.
+
+**Disturbance cross-reference at a statistically real scale (n=266, not n=10)**: `any_clearfell_like`
+0/266, `any_measurement_inconsistent` 0/266, `any_ambiguous_disturbance` 2/266 — the original
+"0/10" finding was underpowered; this confirms it holds at scale.
+
+**Sub-compartment spatial clustering — the most decisive new check.** For the 6 most heavily-
+flagged compartments, flagged plots' mean distance to their own (flagged-only) centroid is smaller
+than the whole compartment's mean distance to its own centroid, every time:
+
+| cpmt | n flagged / n total | flagged mean dist-to-centroid | whole-cpmt mean dist-to-centroid |
+|---|---|---:|---:|
+| 2251 | 31/702 | 349.9m | 389.6m |
+| 1129 | 19/362 | 139.0m | 196.2m |
+| 2217 | 19/649 | 142.9m | 280.2m |
+| 2016 | 17/525 | 227.2m | 259.8m |
+| 2142 | 16/394 | 110.7m | 213.6m |
+| 1094 | 12/605 | 202.1m | 234.9m |
+
+A whole-compartment data/logging error (wrong yldc recorded for the entire compartment) would
+apply uniformly regardless of location and show no spatial sub-clustering. This pattern instead
+supports a genuine **localized** event or sub-stand condition (real disturbance, or a sub-
+compartment-level rather than whole-compartment misassignment) — evidence in favour of "natural,
+localized" over "clerical/whole-compartment," addressing that exact question directly.
+
+**Correction to the earlier boundary-proximity finding**: re-checked at n=266 (not the original
+10). `dist_to_cpmt_boundary`/`dist_to_block_boundary` still run ~2x closer than population median
+(weaker than the original 3x, but real and directional). `dist_to_forest_perimeter` does NOT
+generalize — the 266-plot median (187.8m) is farther from the forest edge than the population
+median (165.7m), reversing the direction seen in the original 10. The original 10 happened to
+over-represent forest-edge cases; that specific claim doesn't hold at scale and is walked back.
+
+### Wind exposure, storm-year signature, and the known 2008 survey-boundary artifact (2026-08-15)
+
+Ad-hoc, no dedicated script. Four further candidate patterns checked on the 266-plot flagged set
+(4survey), beyond boundary proximity.
+
+**Wind exposure does NOT support a windthrow-disturbance story** — flagged plots are actually
+slightly MORE sheltered than the population, the opposite of what storm damage would predict:
+`topex` flagged median -4.03 vs. population +0.74; `windward_topex` 0.72 vs. 1.28;
+`gwa_wind_speed_50m` near-identical (5.06 vs. 5.24). `yldc` and thinning history (`time_since_thinning`,
+`recent_thinning_5yr`) show no meaningful difference. `CanopyCover` is modestly lower in the
+flagged set (0.69 vs. 0.76 population) — consistent with, not proof of, a more open stand than its
+assigned yield class expects.
+
+**Storm-year / calendar-year signature — real and worth a direct test.** Using
+`fit_all_years_and_compute_residuals()` + finding each plot's worst-fitting `LiDAR_year`: 75.6% of
+flagged plots have their worst residual in the **2008** survey, vs. 47.8% of the whole population
+(2008 is the earliest of the 4 fitting years for 4survey) — a real over-representation.
+
+**Directly tested against the already-known 2006->2008 survey-expansion artifact**
+(`project-lidar-data-understanding` memory: 2006->2008 added 71,483 new plot IDs and produced
+>20m apparent height-drop artifacts on >90% of non-consecutive comparisons, attributed to plot-
+boundary re-delineation, not real forest change). Refit each flagged plot's `y_max` EXCLUDING its
+2008 row (`fit_y_max_per_plot()`, unchanged) and compared to `y_max_yldc`:
+
+- 236 / 266 (89%) move CLOSER to `y_max_yldc` without the 2008 point — a real, consistent
+  directional effect, not chance.
+- But only modestly: median |y_max_fit - y_max_yldc| drops from 28.9m to 27.2m (~6%). The worst
+  cases barely move (e.g. 356411: 107.05m -> 102.10m without 2008 -- still far from plausible).
+
+**Conclusion: the 2008 survey-boundary artifact is a real, minor contributing factor, not the
+dominant explanation.** It nudges most flagged plots' fits in the right direction, consistent with
+a known, already-documented data-quality issue partially bleeding into this target's construction
+-- but it explains only a small fraction of the implausibility's magnitude. The dominant mechanism
+remains the fixed-k/p closed-form fit reacting to a plot's true growth diverging from its assigned
+yield class (see the mechanism section above). Not a case for excluding 2008 rows from the fit
+project-wide on this evidence alone -- the effect size doesn't justify it, though it's now a
+quantified, not just suspected, contributor.
+
 ### Not yet done
 
 Checking whether these same identification numbers are also outliers in EN/GNNWR predictions
 (would test whether the yldc-mismatch/sub-threshold-instability read generalizes beyond XGBoost);
 directly inspecting the yldc lookup (yield class/species assumptions) for the 4 low-residual_range
 plots to test the yldc-mismatch hypothesis concretely, rather than leaving it as inference from the
-residual pattern alone.
+residual pattern alone. Whether a broader scan (beyond these 10 known plots) turns up more
+biologically-implausible `y_max_fit` cases project-wide, and whether an upper-bound plausibility
+check on `y_max_fit` (analogous to the existing lower-bound check in the CR baseline fit) is
+warranted — flagged as an open decision, not yet resolved.

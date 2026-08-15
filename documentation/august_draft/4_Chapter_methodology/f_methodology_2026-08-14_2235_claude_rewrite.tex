@@ -1,13 +1,3 @@
-\documentclass[11pt,a4paper]{report}
-
-\usepackage{microtype}
-\usepackage{xcolor}
-\usepackage{subcaption}
-\usepackage{amsmath}
-
-% Editing macros — all six (\fc, \ct, \app, \sr, \fig, \ai) are already defined below in this file
-
-\begin{document}
 %%% ANNOTATED MARKUP DRAFT — read this block, then delete it before compiling for real.
 %
 % Base file: e_methodology_chapter_draft_14th_aug_6_29.tex (confirmed by Shreeya as the current
@@ -85,8 +75,8 @@ This chapter outlines how the raw data was utilised to answer the three research
 \toprule
 RQ & Unit & Target & Model families compared & Evaluation design \\
 \midrule
-RQ1 & Plot-survey row & 95th-percentile LiDAR top height & Chapman-Richards curve, average-by-age
-lookup, linear/random forest/XGBoost, deep neural network, Chapman-Richards-guided neural network
+RQ1 & Plot-survey row & 95th-percentile LiDAR top height & Chapman-Richards curve,
+linear/random forest/XGBoost, deep neural network, Chapman-Richards-guided neural network
 variants & Spatial-block (primary), pooled spatial $k$-fold, temporal, plot-level \\
 RQ2 & Plot & Mean residual from the single pooled Chapman--Richards curve, across a plot's survey
 history & Elastic Net, XGBoost, two-stage mixed-effects model & Spatial-block \\
@@ -100,12 +90,12 @@ design.}
 \end{table}
 \ai{Keep this table unchanged -- it is already the most space-efficient statement of the framework and everything after it in the chapter should refer back to it rather than restate its columns in prose.}
 
-\ai{RELOCATED (2026-08-14, after discussion): this pipeline-overview figure originally sat at the end of \S\ref{sec:feature-final}, right before RQ1 -- moved here instead, as the chapter's second figure (after Table~\ref{tab:rq-framework}), on your call to keep and reposition it rather than cut it. Kept deliberately, against the general space-reduction instinct, because a flowchart of cohorts $\to$ splits $\to$ feature screening $\to$ three branches $\to$ outputs does a job Table~\ref{tab:rq-framework} cannot: it shows the reader the pipeline's \emph{shape} before any box is individually unpacked, which is exactly the value a diagram has over prose in an ML methodology chapter. Its box labels (e.g.\ "Set1-5 feature screening", "spatial and temporal partitions") don't need to be fully defined yet at this point in the chapter -- that's normal for an opening overview figure, and every term is properly defined in the sections that follow. Per your instruction, all of the mechanical detail that used to live in a five-part comment block (a prose caption draft, a "confirmed outputs" note, a mermaid sketch, and a prose fallback -- four overlapping descriptions of the same thing) is now consolidated into the one real caption below, and nothing describing the pipeline is left duplicated in body prose elsewhere in the chapter.}
+\ai{RELOCATED (2026-08-14, after discussion): this pipeline-overview figure originally sat at the end of \S\ref{sec:feature-final}, right before RQ1 -- moved here instead, as the chapter's second figure (after Table~\ref{tab:rq-framework}), on your call to keep and reposition it rather than cut it. Kept deliberately, against the general space-reduction instinct, because a flowchart of cohorts $\to$ splits $\to$ feature screening $\to$ three branches $\to$ outputs does a job Table~\ref{tab:rq-framework} cannot: it shows the reader the pipeline's \emph{shape} before any box is individually unpacked, which is exactly the value a diagram has over prose in an ML methodology chapter. Its box labels (e.g.\ "Set1-4 feature screening", "spatial and temporal partitions") don't need to be fully defined yet at this point in the chapter -- that's normal for an opening overview figure, and every term is properly defined in the sections that follow. Per your instruction, all of the mechanical detail that used to live in a five-part comment block (a prose caption draft, a "confirmed outputs" note, a mermaid sketch, and a prose fallback -- four overlapping descriptions of the same thing) is now consolidated into the one real caption below, and nothing describing the pipeline is left duplicated in body prose elsewhere in the chapter.}
 
 \ai{PAGE-BUDGET NOTE: keeping this figure removes the $\sim$0.4-0.5 page saving it was counted for in the original 12-page plan (see part C of the review). Restoring it alone puts the chapter closer to $\sim$13-13.5 pages rather than 12. Two places I'd look first if you want to claw that back, rather than me cutting them unilaterally: (1) Table~\ref{tab:feature-set-purpose}'s "Purpose" column is still full sentences and could tighten to phrases; (2) this section's own RQ1 opening paragraph (\S\ref{sec:rq1-models}) carries a parenthetical aside about stakeholder investment decisions that isn't load-bearing for the methodology itself. Flagging both, not cutting either -- your call.}
 
 % FIGURE PLACEHOLDER -- pipeline overview. Content: a flowchart, cohorts feeding data-splitting
-% (Table~\ref{tab:splits-summary}) and, separately, the shared Set1-5 screening process
+% (Table~\ref{tab:splits-summary}) and, separately, the shared Set1-4 screening process
 % (Table~\ref{tab:feature-sets-composition-rq1}); both outputs feed three parallel branches, one
 % per research question (RQ1 top-height prediction, RQ2 shared-curve residual attribution, RQ3
 % plot-specific asymptote attribution); each branch terminates in its own confirmed evaluation
@@ -118,7 +108,7 @@ comment above source for exact content\vspace{4cm}}}
 \caption{Overview of the full pipeline from raw data to each research question's results. Both
 cohorts (\S\ref{sec:data-cohorts}) feed the four data-splitting strategies
 (Table~\ref{tab:splits-summary}) and a shared screening process that produces each research
-question's own Set1--5 (Table~\ref{tab:feature-sets-composition-rq1}). Three branches follow, one
+question's own Set1--4 (Table~\ref{tab:feature-sets-composition-rq1}). Three branches follow, one
 per research question (Table~\ref{tab:rq-framework}): RQ1's top-height prediction models, RQ2's
 shared-curve residual attribution, and RQ3's plot-specific asymptote attribution. RQ1 produces
 per-fold and pooled predictive metrics under each split type; RQ2 produces a fixed-effects
@@ -134,7 +124,7 @@ map.}
 \label{sec:common-design}
 
 \paragraph*{Evaluation Framework and Data Splits}. 4survey is the main cohort for every research question, used for the spatial-generalisation splits; 6survey (\S\ref{sec:data-cohorts}) is used for the temporal split and run in parallel elsewhere as a secondary check wherever sample size permits. For RQ1, each row in the dataset represents a single plot in a given survey year. For RQ2 and RQ3, data are aggregated so each row represents a single plot (Table~\ref{tab:rq-framework}). Model performance is evaluated using four distinct data-splitting strategies:
-\ai{This paragraph's first sentence re-explains the 4survey/6survey cohort roles, which Chapter~\ref{ch:data} \S\ref{sec:data-cohorts} already states in full (the nested-cohort relationship, why 4survey is primary, why 6survey serves the temporal question). DELETE the first sentence and REPLACE with: "As established in \S\ref{sec:data-cohorts}, 4survey is the primary cohort throughout; 6survey supplies the temporal split and, where sample size allows, a secondary spatial check." Keep the rest of the paragraph (RQ1 vs RQ2/RQ3 row unit, and the lead-in to the four splits) as-is.}
+\ai{This paragraph's first sentence re-explains the 4survey/6survey cohort roles, which Chapter~\ref{ch:data} \S\ref{sec:data-cohorts} already states in full (the nested-cohort relationship, why 4survey is primary, why 6survey serves the temporal question). DELETE the first sentence and REPLACE with: "As established in \S\ref{sec:data-cohorts}, 4survey is the primary cohort throughout; 6survey's longer per-plot trajectories suit the temporal split, and its spatial-block results are compared against 4survey's throughout to help explain differences in model behaviour." (revised 2026-08-15: the earlier draft of this replacement framed 6survey's spatial-block role as only a "secondary check, where sample size allows," which undersold it -- 6survey is genuinely run for spatial-block comparisons throughout, and that cross-cohort comparison is itself an analytical tool, e.g.\ explaining why DNN inflates more than PINN under easy splits or why GNNWR's stability differs by cohort, not just a backup confirmation.) Keep the rest of the paragraph (RQ1 vs RQ2/RQ3 row unit, and the lead-in to the four splits) as-is.}
 
 \begin{itemize}
 \setlength\itemsep{0pt}
@@ -200,7 +190,7 @@ Every model uses the same split assignment for a given (cohort, split type, seed
 \section{Environmental feature-set construction}
 \label{sec:feature-final}
 Candidate environmental and management variables are screened separately for RQ1 (predictive tiers), RQ2 (shared-curve attribution), and RQ3 (plot-level attribution). All three follow the same recipe below, differing only in candidate pool and
-target column. This produces five tiered feature sets (Set1–Set5; \S\ref{sec:feature-final}) to evaluate whether expanding environmental inputs improves model performance or introduces unhelpful noise across different model architectures.
+target column. This produces four tiered feature sets (Set1–Set4; \S\ref{sec:feature-final}) to evaluate whether expanding environmental inputs improves model performance or introduces unhelpful noise across different model architectures.
 
 \begin{enumerate}
 \setlength\itemsep{0pt}
@@ -245,7 +235,7 @@ predictors; ablation depends on one model/split). \\
 variables' VIF. \\
 \bottomrule
 \end{tabular}
-\caption{The four-step screening protocol applied to build each research question's Set1--Set5
+\caption{The four-step screening protocol applied to build each research question's Set1--Set4
 (Table~\ref{tab:feature-sets-composition-rq1}).}
 \label{tab:feature-screening-steps}
 \end{table}
@@ -273,17 +263,12 @@ gwa\_wind\_speed\_10m. \\
 Set4 & Set3 + the upper half (by combined rank) of every other category -- climate, soil/site,
 spatial-position/edge-effects; VIF-screened. & 18 columns: Set3 + dist\_to\_scpt\_boundary,
 tas\_mean, chelsa\_gdd5\_degc, cpmt\_compactness\_ratio. \\
-Set5 & Baseline + every deduplicated candidate, with no importance-rank filter at all --
-essentially the full candidate pool, cleaned only of duplicates and VIF-redundant members. & 30
-columns: baseline + 26 further candidates spanning every category (e.g. slope\_degrees,
-soilgrids\_ph, chelsa\_gdd5\_degc, dist\_to\_road, whcl); full list in
-Appendix~\ref{app:feature-sets}. \\
 \bottomrule
 \end{tabular}
-\caption{The five feature sets generated by the screening protocol, using RQ1 as an example. While RQ2 and RQ3 follow the identical protocol, differing candidate pools and target variable for the models lead to different set membership (full lists in Appendix~\ref{app:feature-sets}).}
+\caption{The four feature sets generated by the screening protocol, using RQ1 as an example. While RQ2 and RQ3 follow the identical protocol, differing candidate pools and target variable for the models lead to different set membership (full lists in Appendix~\ref{app:feature-sets}). Set4 is deliberately the final, richest tier: it is the widest set still curated by evidence-driven relevance ranking, extending Set3's terrain/wind-only ranking to every candidate category.}
 \label{tab:feature-sets-composition-rq1}
 \end{table}
-\ai{CORRECTNESS BUG (not a style choice): the source had two \textbackslash caption commands on this float (one ending "...here is the worked example for RQ1..." and a second, cleaner one immediately after). Only one \textbackslash caption per float is valid -- the first is deleted above, the second (already the better-written one) is kept. Separately, for space: Set2--Set4's "worked example" column currently spells out every one of 10-11 variable names in full, which is exactly the "exhaustive feature configuration" the brief says belongs in the appendix. REPLACE each of those three cells' variable lists with "(e.g. \emph{first two names}; full list Appendix~\ref{app:feature-sets})", matching the pattern Set5's cell already uses. This keeps the counts (14/15/18 columns) and one or two concrete examples per set -- enough for a reader to understand what each Set adds -- while cutting roughly two wrapped lines per row.}
+\ai{CORRECTNESS BUG (not a style choice): the source had two \textbackslash caption commands on this float (one ending "...here is the worked example for RQ1..." and a second, cleaner one immediately after). Only one \textbackslash caption per float is valid -- the first is deleted above, the second (already the better-written one) is kept. Separately, for space: Set2--Set4's "worked example" column currently spells out every one of 10-11 variable names in full, which is exactly the "exhaustive feature configuration" the brief says belongs in the appendix. REPLACE each of those three cells' variable lists with "(e.g. \emph{first two names}; full list Appendix~\ref{app:feature-sets})". This keeps the counts (14/15/18 columns) and one or two concrete examples per set -- enough for a reader to understand what each Set adds -- while cutting roughly two wrapped lines per row.}
 
 \begin{table}[!htbp]
 \centering
@@ -293,17 +278,19 @@ Appendix~\ref{app:feature-sets}. \\
 \toprule
 Feature set family & Feeds & Model comparison & Comparison role & Attribution role & Purpose \\
 \midrule
-RQ1 & 30 & DNN and Chapman--Richards-guided network variants (environment-conditioned) & Primary &
+RQ1 & 18 & DNN and Chapman--Richards-guided network variants (environment-conditioned) & Primary &
 No & DNN-vs-guided-network comparison under progressively richer terrain/wind/climate input; no
 coefficient-based model reads these lists. \\
-RQ2 & 28 & Elastic Net, XGBoost, two-stage mixed-effects model & Secondary & Primary & Which
+RQ2 & 19 & Elastic Net, XGBoost, two-stage mixed-effects model & Secondary & Primary & Which
 conditions align with persistent departure from the shared curve. \\
-RQ3 & 31 & Elastic Net, XGBoost, GNNWR & Secondary & Primary & Which conditions align with
+RQ3 & \ct{RQ3's Set4 total column count -- pull from the actual feature manifest, don't guess (not
+derivable from the old Set5 total, since Set4 and Set5 were independently VIF-screened, not
+nested)} & Elastic Net, XGBoost, GNNWR & Secondary & Primary & Which conditions align with
 plot-specific deviation; GNNWR additionally tests whether that association is spatially
 varying. \\
 \bottomrule
 \end{tabular}
-\caption{Purpose of the feature sets, each research question uses the identical Set1--Set5 screening protocol, with "Set5 size" reflecting the total feature count after deduplication and VIF screening}
+\caption{Purpose of the feature sets, each research question uses the identical Set1--Set4 screening protocol, with "Feeds" reflecting the total feature count after deduplication and VIF screening}
 \label{tab:feature-set-purpose}
 \end{table}
 \ai{CORRECTNESS BUG: the source tabular declared 5 columns (p{2.3cm}p{4.2cm}p{1.6cm}p{2cm}p{3.4cm}) but every row supplies 6 fields -- name, Feeds, Model comparison, a Primary/Secondary "comparison role", a Primary/No "attribution role", then Purpose. The header was missing the "Comparison role" label entirely. Fixed above by adding the missing column (both header and column spec) and re-splitting the column widths to fit six columns in scriptsize. No wording changed, this is a rendering fix, not an edit.}
@@ -324,9 +311,7 @@ H(a) = y_{\max}\left(1-e^{-ka}\right)^{p}
 predicts top height $H(a)$ at age $a$ using asymptotic height $y_{\max}$, growth rate $k$, and shape parameter $p$. Curves are fitted strictly on each split's training partition via nonlinear least squares (five restarts, lowest sum of squared errors (SSE); Appendix~\ref{app:sse}). Under the pooled $k$-fold split, five separate curves are fitted per cohort (one per fold). The resulting $(y_{\max}, k, p)$ serve as fixed constants in the PINN loss (\S\ref{sec:rq1-pinn-loss}): each PINN model uses strictly its own fold-specific curve so that information from held-out validation or test compartments never leaks into the physics guidance loss.
 \ai{Keep this paragraph and Equation~\ref{eq:cr} as-is. ADD one sentence at the end, since it is a genuine, currently-unstated modelling assumption the limitations checklist calls for and it is cheapest to state right where the curve is defined rather than in the cross-cutting limitations section: "The CR form assumes a single monotonic growth trajectory per plot; a plot whose real trajectory is non-monotonic (e.g.\ following disturbance) is not represented by this functional form, and is instead handled by the outlier audit in \S\ref{sec:rq3-target} rather than by the curve itself."}
 
-\textbf{Average-by-age.} Mean observed top height is calculated for each integer age on the training partition, with unseen ages assigned the overall training mean. Mirroring conventional yield-table practice \citep{forestResearchForestYield}, this empirical baseline sets a performance threshold that complex models must exceed to provide predictive value beyond expected age-height averages.
-
-Three standard supervised models are fit on all RQ1 feature sets (baseline and Sets 1–5) using identical splits. Linear regression fits one.
+Three standard supervised models are fit on all RQ1 feature sets (baseline and Sets 1–4) using identical splits. Linear regression fits one.
 \textbf{Linear regression.} A single linear relationship was fitted between the predictors and height. Because plots were at least 15 years old in 2008, the observed section of the age--height relationship may appear approximately linear despite the nonlinear full growth trajectory. Linear regression therefore provides a simple baseline, but may perform poorly near the limits of the observed age range. \app{but age distribution, the cut off for early ages (with annotation of unreliable lidar scans) and then an example champan richards curve, for the 4 point example and showing how it aligns with the linear portion of the curve}
 \ai{"Linear regression fits one." is a broken leftover sentence fragment (does not parse, duplicates the "\textbf{Linear regression.}" heading right after it) -- DELETE it. Also act on your own \app{} note: it is a good, genuinely space-saving figure request (it replaces the hedge "may appear approximately linear" with an actual visual argument), so convert it to the standard format below instead of leaving it as an open instruction to yourself.}
 
@@ -429,7 +414,6 @@ To evaluate the true impact of physical guidance, the penalty weights are varied
 Model & Environmental input & Loss terms & Notes \\
 \midrule
 CR (baseline) & None & N/A (curve fit) & Pooled per cohort, refit per fold for pooled $k$-fold. \\
-Average-by-age & None & N/A (lookup) & Same training rows as CR. \\
 Linear / random forest / XGBoost & No-environment feature set & Model-specific & XGBoost uses a
 fixed configuration, not a validation-selected grid (Appendix~\ref{app:hyperparameters}). \\
 DNN (no environment) & None & Data (Eq.~\ref{eq:data-loss}) + L1 & Shared architecture with every
@@ -603,7 +587,7 @@ where $\bar e$ is the mean residual, $w_{ij}$ the spatial weight between plots $
 A semivariogram, fitted to test-partition residuals only, complements Moran's $I$ with the distance range over which spatial autocorrelation persists, rather than only whether it is present.
 % Relocated from the feature-set-construction section's VIF-screening step, where it did not
 % belong methodologically (it is an evaluation-time residual diagnostic, not a step in building
-% Set1-5) -- see the \ai{} note at that location above.
+% Set1-4) -- see the \ai{} note at that location above.
 
 \paragraph*{Feature attribution (RQ2b, RQ3).}
 Feature importance is evaluated using XGBoost gain and SHAP values \citep{lundberg2017unified}, which decompose individual predictions into signed, additive feature contributions analogous to linear model coefficients. Neither metric is used for feature selection. In RQ2b, SHAP provides a non-linear global attribution view to assess convergence alongside Elastic Net and mixed-effects coefficients; in RQ3, SHAP additionally enables local attribution for individual outlier plots, isolating specific drivers of extreme growth deviations. In both, SHAP values are pooled across the five spatial folds to report mean feature contributions; fold-to-fold SHAP stability is not evaluated.
@@ -636,7 +620,7 @@ Limitations specific to one model or target are stated beside that method (the C
 \begin{itemize}
 \setlength\itemsep{2pt}
 \item \textbf{The spatial buffer is set by convention, not a measured range.} The 60\,m buffer (\S\ref{sec:common-design}) is set from typical plot spacing, not from the residual's own measured spatial-autocorrelation range. A semivariogram-based buffer (\S\ref{sec:eval-diagnostics}) could tighten or loosen this bound, but \textbf{was not used to set the buffer itself because the semivariogram is computed from held-out residuals \emph{after} a split already exists} -- a circular basis for choosing that same split's buffer. Compartment-level holdout remains the primary leakage control; the buffer is a secondary refinement on top of it.
-\item \textbf{Feature-set membership is fixed once, not re-derived per fold.} Set1--5 (\S\ref{sec:feature-final}) are ranked and VIF-screened once on the full training partition, not separately per cross-validation fold. A fold-specific ranking would better separate selection variance from model variance, but \textbf{was not used because it would let each of the five folds train on a different feature set}, breaking the direct model-family comparison every research question in this chapter relies on.
+\item \textbf{Feature-set membership is fixed once, not re-derived per fold.} Set1--4 (\S\ref{sec:feature-final}) are ranked and VIF-screened once on the full training partition, not separately per cross-validation fold. A fold-specific ranking would better separate selection variance from model variance, but \textbf{was not used because it would let each of the five folds train on a different feature set}, breaking the direct model-family comparison every research question in this chapter relies on.
 \item \textbf{Repeated observations are not modelled as within-plot correlated data.} RQ1's modelling unit is the plot-survey row; the pooled-$R^2$ bootstrap CI (\S\ref{sec:eval-diagnostics}) resamples whole compartments, capturing between-plot spatial clustering, but does not separately model correlation between a single plot's own repeated surveys. \textbf{This is retained because compartment-level resampling is the clustering that matters for RQ1's spatial-generalisation question}; a full hierarchical plot-within-compartment model was judged unnecessary complexity for a predictive-accuracy comparison.
 \item \textbf{Environmental variables are point-extracted onto plots smaller than their source resolution.} Terrain/wind/soil rasters (sources and resolutions: \S\ref{sec:data-environmental}) are matched to each plot's centre; several nearby plots can therefore share an identical value from the coarsest sources. \textbf{This reduces the effective variation available to the importance-ranking and VIF steps (\S\ref{sec:feature-final}) for those variables specifically} -- a consequence of the point-extraction choice documented in Chapter~\ref{ch:data}, not a new limitation introduced here.
 \item \textbf{Per-plot attribution targets carry unweighted uncertainty.} RQ3's asymptote target (\S\ref{sec:rq3-target}) is fitted from as few as the cohort's minimum number of repeated observations per plot; \textbf{plots with shorter survey histories give a noisier target than plots with longer histories, without this being weighted or flagged downstream}. This compounds for 6survey, whose small compartment count (47) already excluded it from RQ2b's attribution split (\S\ref{sec:rq2b}); GNNWR's own 6survey stability is examined as a separate robustness check (\S\ref{sec:eval-diagnostics}), not assumed here.
@@ -647,7 +631,7 @@ Limitations specific to one model or target are stated beside that method (the C
 \section{Reproducibility and implementation}
 All split assignments, network weight initialisation, and Elastic Net/XGBoost cross-validation folds use a fixed seed (42) unless explicitly swept as part of a stated robustness check (\S\ref{sec:eval-diagnostics}). Every model reads its feature list from a single generated manifest, so a reported set's exact column membership can always be checked against that source rather than a hand-copied list.
 
-Detailed hyperparameter grids and selected values (Appendix~\ref{app:hyperparameters}), full Set1--Set5 column lists and per-variable screening diagnostics (Appendix~\ref{app:feature-sets}), and secondary sensitivity settings not reported in the main text (dropout-rate/architecture-width sweeps, the narrow-gap temporal split's own results; Appendix~\ref{app:sensitivity}) are kept out of this chapter and pointed to at the relevant section above rather than repeated here.
+Detailed hyperparameter grids and selected values (Appendix~\ref{app:hyperparameters}), full Set1--Set4 column lists and per-variable screening diagnostics (Appendix~\ref{app:feature-sets}), and secondary sensitivity settings not reported in the main text (dropout-rate/architecture-width sweeps, the narrow-gap temporal split's own results; Appendix~\ref{app:sensitivity}) are kept out of this chapter and pointed to at the relevant section above rather than repeated here.
 % Not expanded into a per-choice implementation/limitation/alternative-considered list, despite
 % the source's own note requesting this ("add many more implementations... understand the
 % limitations and how this affects results, and why we still chose to do it"). That level of
@@ -655,5 +639,3 @@ Detailed hyperparameter grids and selected values (Appendix~\ref{app:hyperparame
 % note in \S\ref{sec:rq1-models}, the physics-loss misspecification note in \S\ref{sec:rq1-models},
 % the seven cross-cutting items in \S\ref{sec:limitations} above) rather than being duplicated a
 % third time here, which the 12-page budget does not have room for.
-
-\end{document}

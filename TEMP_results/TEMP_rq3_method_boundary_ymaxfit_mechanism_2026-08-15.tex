@@ -1,0 +1,20 @@
+## TEMP method note — RQ3 boundary distance + y_max_fit mechanism (2026-08-15)
+
+**Applies to**: RQ3 only.
+
+**What this evaluates**: for the 10 recurring worst-residual outlier plots, why is the fitted
+`y_max_fit` biologically implausible (up to 116m) for some of them, and are they systematically
+closer to compartment/block/forest boundaries than a typical plot?
+
+**How** (pseudocode):
+1. Mechanism check: pull each flagged plot's raw per-survey-year rows via
+   `load_filtered_growth_curve_table(cohort)` (`models/growth_curve_attribution/data.py`) — confirm
+   the raw observed heights are normal (not the source of the implausibility).
+2. Confirm `filter_data()` (`models/common/data.py`) only gates `Age`/`yldc` plausibility — no
+   height- or y_max-based filter exists anywhere, so this was never a data-cleaning gap.
+3. Boundary check: pull `dist_to_cpmt_boundary`, `dist_to_block_boundary`, `dist_to_forest_perimeter`
+   for the 10 plots via `load_plots_for_cohort(cohort)` (`models/xgb_environmental/data.py`),
+   compare each plot's value against the population median for that cohort.
+
+**Full results**: `TEMP_rq3_outlier_diagnosis_results_2026-08-12.tex`'s "Mechanism behind the
+extreme `y_max_fit` values, and a boundary-proximity check" section.

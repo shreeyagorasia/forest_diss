@@ -1,5 +1,35 @@
 # Environmental Feature Methodology — Final Implementation Summary
 
+**Note added 2026-08-15 — Set5 dropped from the essential experiment matrix, all three RSQs.**
+Set5 (baseline + every deduplicated candidate, VIF-screened, no rank filter — §2.11) is fully
+defined below and in the manifest, but was never fit for any RSQ (confirmed: no `predictions.csv`,
+`test_predictions.csv`, or run log anywhere references it) and is not planned to be run. Reasons,
+checked directly rather than assumed:
+- **Deadline** (2026-08-17 at the time of this note): already the reason it was excluded from the
+  essential matrix in `jobs/rq123_methodology/README.md`, not an oversight.
+- **Set5 is not a strict widening of Set4** — each Set gets its own independent VIF pass over a
+  differently-composed candidate pool, so Set5 actually DROPS some Set4 members rather than only
+  adding to them. Concretely: RSQ2's Set4 contains `topex`, `chelsa_bio12_precip_mm`, and
+  `dist_to_scpt_boundary`, none of which survive into Set5; RSQ3's Set4 contains `gwa_wind_speed_50m`,
+  `topex`, and `chelsa_bio12_precip_mm`, also absent from Set5. `topex` in particular is one of
+  RSQ2's headline stable-signal findings (alongside `slope_degrees`) — a Set5 run couldn't test
+  whether that finding holds at wider scope, since Set5 simply doesn't contain the variable.
+- **Set4 is the last evidence-curated tier**: Set2/Set3/Set4 all include only candidates that
+  ranked well (top-10 globally, then top-half-of-category, then top-half-of-category across every
+  category); Set5 drops the rank filter entirely and keeps everything that merely survives
+  deduplication + VIF, regardless of relevance ranking. Given the methodology's own explicit
+  position that widening a Set is not claimed to necessarily improve results (§4), and that Set3
+  was already found to be the weakest-performing tier in practice, there was no strong prior that
+  an unranked, maximal set would sharpen the story rather than dilute it.
+- **Cost was asymmetric across RSQs**: cheap for RSQ2 (5 CPU fold-jobs), but RSQ3's GNNWR piece
+  alone would need 10 GPU jobs (up to 4hr each) — real schedule risk for a set unlikely to change
+  the substantive findings.
+
+Decision: Set5 stays fully defined here (for anyone who wants to run it later) but is out of scope
+for this dissertation's results. Any downstream document (draft chapters, primers) that referenced
+Set5 as "still to run" has been updated to reflect this as a deliberate scope decision, not an open
+gap.
+
 Reconstructed from the implemented pipeline (`models/xgb_environmental/feature_set_builder.py`,
 `models/xgb_environmental/multicollinearity_screen.py`, `notebooks/environmental_data/
 multicollinearity_screen_set1_5.ipynb`), the generated manifest

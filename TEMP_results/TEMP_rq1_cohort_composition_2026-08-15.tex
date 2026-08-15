@@ -1,0 +1,91 @@
+## TEMP holding note — RQ1: why does 6survey behave differently, not just noisier? (2026-08-15)
+
+**Motivation**: multiple RQ1/RQ2a results show 6survey degrading more than a pure sample-size
+story explains (systematic, seed-independent negative bias; much worse temporal-forecast drop).
+Checked whether this is because 6survey is a compositionally different slice of the landscape,
+not just a smaller sample of the same population.
+
+### The CR curve itself is already fit separately per cohort — no new fitting needed
+
+**Correction to an initial hypothesis**: the CR curve is NOT a single pooled fit across "all of
+Aberfoyle" applied unfairly to 6survey. `models/baselines/run_baselines.py`'s
+`fit_chapman_richards_logged()` fits one curve per cohort, on that cohort's own `plot_level` train
+split -- already sitting on disk since 2026-08-09 for both cohorts, no re-run required:
+
+| Cohort | y_max | k | p | n rows fit |
+|---|---:|---:|---:|---:|
+| 4survey | 51.96 m | 0.0103 | 0.865 | 139,472 |
+| 6survey | 44.46 m | 0.0233 | 1.193 | 49,578 |
+
+**These are genuinely different curve shapes, not the same relationship with more noise**:
+6survey's fitted ceiling is 7.5m lower, but its growth rate is more than double 4survey's, with a
+different shape parameter too -- faster early growth, lower eventual asymptote. Each cohort's own
+DNN/PINN physics anchor already uses its own cohort-matched curve (confirmed via
+`load_cr_params()`'s cohort argument), so this does NOT directly explain the neural models' own
+bias -- their anchor is already correct for their own cohort. It DOES support "different parts of
+the landscape have different growth relationships" as a real, evidenced claim, not a data-quality
+excuse.
+
+### Compositional check: elevation and compartment structure differ substantially
+
+Real numbers, computed directly from `load_plots_for_cohort()` (both cohorts), no fitting:
+
+| Cohort | n plots | n compartments | plots/compartment (mean/median/range) | elevation mean±SD | elevation range |
+|---|---:|---:|---|---:|---|
+| 4survey | 71,766 | 296 | 242.5 / 166 / 1-1336 | 177.9±104.6 m | 18-561 m |
+| 6survey | 13,897 | 48 | 289.5 / 200 / 8-1236 | 102.3±47.9 m | 18-351 m |
+
+**6survey sits at systematically lower elevation, with much less elevation variation, and simply
+does not include any of 4survey's higher-elevation compartments at all** (max 351m vs. 561m).
+Combined with the differing CR curves above, this gives a real compositional explanation, not just
+"smaller sample = noisier": 6survey is disproportionately drawn from a lower-elevation, more
+homogeneous subset of Aberfoyle, with its own distinct growth relationship.
+
+### What this does and doesn't explain
+
+- **Supports**: the systematic (seed-independent) negative bias on 6survey (`TEMP_rq1_winner_reseed`)
+  and the much larger temporal-forecast degradation on 6survey (`TEMP_rq1_temporalcheck`) plausibly
+  reflect a genuinely different, more homogeneous population being harder to generalise across or
+  forecast for -- not simply "6survey has fewer rows so results are noisier."
+- **Does not yet explain**: the specific causal forestry mechanism (why lower elevation associates
+  with faster early growth but a lower ceiling here) -- stated as a compositional fact, not a
+  causal claim, pending domain interpretation.
+- **Not yet checked**: species/planting-era mix between the two cohorts (elevation and compartment
+  structure were checked; species composition was not, would need identifying the right column).
+
+### Plot idea (not yet built)
+
+Two-panel figure: the two fitted CR curves (4survey vs. 6survey, Equation form, using the
+params.json values above) plotted together on the same age axis, next to an elevation-distribution
+comparison (histogram or violin, both cohorts overlaid). Directly visualises "these are different
+growth relationships between two compositionally different populations," motivating both the
+6survey bias finding and the temporal-degradation finding without needing a new model run.
+
+### Why does `average_by_age` beat fitted Linear regression on 6survey specifically? (added 2026-08-15)
+
+**Hypothesis tested**: 6survey's age-height relationship is more nonlinear within its own observed
+data than 4survey's, so a straight-line model is penalised there specifically, while a fully
+nonparametric age-lookup (`average_by_age`) isn't.
+
+**Real, quantified answer**: fit a straight line to each cohort's OWN true CR curve shape, across
+that cohort's own observed age range (no new model training -- reuses the two frozen curves above
+and each cohort's own real age range from `load_cohort_data()`):
+
+| Cohort | Own age range | R2 of a straight-line approximation to the true curve | Max deviation from that line |
+|---|---|---:|---:|
+| 4survey | 15-94 | 0.984 | 2.30 m |
+| 6survey | 9-90 | 0.958 | 4.58 m |
+
+6survey's true relationship deviates from a straight line roughly TWICE as much, within its own
+data, as 4survey's does -- a direct consequence of 6survey's own curve (faster `k`, different `p`)
+and its age range starting younger (9 vs. 15, capturing more of the steep early-growth phase).
+
+**Raw variance check** (the original hypothesis, tested directly): 4survey's height SD (8.03) IS
+higher than 6survey's (7.21) -- true, but this alone doesn't mechanically explain the Linear-vs-
+`average_by_age` flip, since R2 already normalises for overall variance. Nonlinearity within the
+observed range, not raw variance, is the more precise, falsifiable mechanism.
+
+**Connects to an existing methodology-chapter claim**: the draft justifies Linear regression as a
+baseline by noting the observed age range sits on the curve's "near-linear" segment. That's true
+for 4survey (R2=0.984) but measurably less true for 6survey (R2=0.958) -- worth stating as a
+cohort-specific caveat rather than a blanket justification covering both cohorts equally.

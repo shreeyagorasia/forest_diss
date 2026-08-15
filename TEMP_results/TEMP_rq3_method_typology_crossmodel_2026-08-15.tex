@@ -1,0 +1,24 @@
+## TEMP method note — RQ3 outlier typology: cross-model agreement + sub-compartment clustering (2026-08-15)
+
+**Applies to**: RQ3 only.
+
+**What this evaluates**: are the 266 flagged plots (from the broader Tukey-fence scan) hard for
+EN/GNNWR too, or just XGBoost? And do flagged plots cluster spatially within a compartment (points
+toward a localized event) or spread evenly through it (points toward a whole-compartment lookup
+error)?
+
+**How** (pseudocode):
+1. Cross-model agreement: load EN/XGBoost residuals from the shared `predictions.csv`; load GNNWR
+   by concatenating its 5 seed-42 fold `test_predictions.csv` files and using `denormalized_pred_result`
+   as the prediction column. For each model, rank all plots by `|residual|` (`.rank(pct=True)`), then
+   check what fraction of the 266 flagged plots fall in each model's own worst 1%/5%.
+2. Sub-compartment clustering: for each of the 6 most-flagged compartments, compute each flagged
+   plot's distance to the CENTROID of the flagged plots in that compartment (using `x`/`y`), and
+   compare the mean of that to the same quantity computed over ALL plots in that compartment (their
+   distance to the whole-compartment centroid). Flagged-subset distance smaller than whole-
+   compartment distance = spatially clustered, not spread evenly.
+
+**Full results**: `TEMP_rq3_outlier_diagnosis_results_2026-08-12.tex`'s "Outlier typology:
+cross-model agreement, sub-compartment clustering" section — ~36x over-representation in each
+model's worst-1% bucket across all 3 models; flagged plots consistently closer together than their
+compartment as a whole, in every compartment checked.

@@ -80,10 +80,88 @@ support. 4survey's own headline (GNNWR beats EN/XGBoost on every set) is unaffec
 that result already had tight, seed-42-only fold SDs (0.065-0.084) an order of magnitude smaller
 relative to its effect size than anything seen on 6survey here.
 
+### Bootstrap 95% CIs on 4survey's pooled R2 (2026-08-15) — no retraining needed
+
+Cluster-bootstrap (`models/common/bootstrap_ci.py`, unchanged, `n_resamples=1000` matching RQ1/
+RQ2b's own default) computed directly from the already-saved `*_test_predictions.csv` files (which
+already carry `cpmt`) — GNNWR's own training cost is irrelevant here, only the already-fitted
+predictions are resampled.
+
+| Set (4survey) | GNNWR R2 [95% CI] |
+|---|---|
+| Set2 | 0.320 [0.270, 0.369] |
+| Set3 | 0.319 [0.263, 0.365] |
+| Set4 | 0.294 [0.236, 0.347] |
+
+### EN/XGBoost's own bootstrap 95% CI (2026-08-15) — closes the gap flagged above
+
+Same method (`cluster_bootstrap_ci()`, unchanged, `n_resamples=1000`), applied to the already-saved
+`predictions.csv` for RQ3's EN/XGBoost (Set2/3/4, 4survey) — checks whether GNNWR's win survives
+CI-overlap scrutiny the way RQ1's winner-pick did, rather than resting on point estimates alone.
+
+| Set | EN R2 [95% CI] | XGB R2 [95% CI] | GNNWR R2 [95% CI] (from above) |
+|---|---|---|---|
+| Set2 | 0.286 [0.241, 0.325] | 0.266 [0.214, 0.308] | 0.320 [0.270, 0.369] |
+| Set3 | 0.274 [0.223, 0.316] | 0.281 [0.235, 0.320] | 0.319 [0.263, 0.365] |
+| Set4 | 0.240 [0.192, 0.286] | 0.250 [0.201, 0.295] | 0.294 [0.236, 0.347] |
+
+**GNNWR's CI overlaps EN's and XGBoost's CI in every single set** — by the same non-overlapping-CI
+bar RQ1 used to pick its own winner, this specific test does not clear it. Point estimates are
+consistently higher for GNNWR (every set, by 0.03-0.05), and this is independently corroborated by
+the residual Moran's I check below (GNNWR reduces spatial clustering EN/XGBoost leave behind on
+4survey) — so the honest read is "a real, plausible, corroborated edge that doesn't clear the
+single strictest bar this project applies elsewhere," not a clean, CI-confirmed win the way RQ1's
+was. The primer's item 1 (`a_draft_plan_14th_aug.md`) has been updated to reflect this, softening
+"the one reliable positive result" language accordingly.
+
+### Residual Moran's I vs. EN/XGBoost (2026-08-15) — current tier, closes the gap flagged in RQ2b
+
+Same method as the RQ2b check (`compute_residual_morans_i()`, k=8, 999 permutations, seed=42,
+`models/growth_curve_attribution/residual_spatial_autocorrelation_check.py`, unchanged), run for
+real on RQ3's own current-tier EN/XGBoost and GNNWR residuals (`local_y_max_difference` target),
+all 3 sets, both cohorts. No new fitting — all from already-saved `predictions.csv`/
+`test_predictions.csv` files.
+
+| Set / cohort | EN | XGB | GNNWR | GNNWR vs. best global |
+|---|---:|---:|---:|---:|
+| Set2 / 4survey | 0.7032 | 0.7059 | 0.6829 | -0.0203 |
+| Set2 / 6survey | 0.5964 | 0.6064 | 0.6354 | +0.0390 |
+| Set3 / 4survey | 0.7069 | 0.6958 | 0.6843 | -0.0115 |
+| Set3 / 6survey | 0.6060 | 0.5721 | 0.6031 | +0.0310 |
+| Set4 / 4survey | 0.7179 | 0.7085 | 0.6962 | -0.0123 |
+| Set4 / 6survey | 0.5996 | 0.6091 | 0.6517 | +0.0521 |
+
+(All p=0.001, the permutation floor, in every cell — clustering is real and significant
+throughout, the question here is only the magnitude/direction of GNNWR's effect on it.)
+
+**A clean, consistent, two-directional pattern — independent confirmation of two things already
+established by other means, via a completely different diagnostic (spatial residual clustering,
+not R2):**
+
+1. **On 4survey, GNNWR reduces residual clustering relative to the best global model in all 3
+   sets** (-0.012 to -0.020, small but consistent in direction every time). This corroborates the
+   4survey accuracy win (GNNWR beats EN/XGBoost pooled R2) with independent evidence: it isn't just
+   fitting the data better on average, it's specifically capturing spatial structure the global
+   models leave behind — exactly the mechanism the accuracy win would imply if it's real.
+2. **On 6survey, GNNWR *increases* residual clustering relative to the best global model in all 3
+   sets** (+0.031 to +0.052, consistently the wrong direction). This independently corroborates the
+   6survey reseed finding (R2 sign-flips across seeds, unreliable) via a completely different
+   diagnostic — not just "the accuracy number is unstable," but "the spatial model appears to be
+   fitting noise rather than real local structure" on the smaller cohort, consistent with GNNWR's
+   spatial-weighting mechanism needing more reference density (47 vs. 231 compartments) than
+   6survey provides.
+
+**This closes the bridge flagged in RQ2b's own Moran's I finding** (`TEMP_rq2_attribution`,
+current-tier EN/XGBoost residual Moran's I on `mean_cr_residual`, 0.65-0.74, barely moved by more
+environmental data): RQ3's GNNWR modestly but consistently reduces that same kind of unexplained
+spatial structure on 4survey, where the comparison is reliable — the motivation now has an
+answered, not just hypothesised, other half.
+
 ### Not yet done
 
 Local-coefficient maps (per-row `coef_*` columns already in each `test_predictions.csv`, not yet
 plotted), Set4x6survey's known 17-vs-20-column parity gap (flagged 2026-08-11, may partly explain
 why Set4 is GNNWR's worst 6survey result), cross-referencing GNNWR's local coefficients against
 EN's global coefficients/XGBoost's SHAP values for the same variables, 4survey reseed (not done,
-judged unnecessary given already-tight fold SDs).
+judged unnecessary given already-tight fold SDs), bootstrap CI on EN/XGBoost's own RQ3 numbers for
+a direct CI-vs-CI comparison against GNNWR (see section above).

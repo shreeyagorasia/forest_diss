@@ -178,3 +178,84 @@ attribution finding), with the environmental variables' contribution beyond that
 actual headline — a defensible, evidence-backed reframe rather than "CanopyCover just happens to
 win." This finding is unaffected by, and actually slightly strengthened by, the XGBoost
 hyperparameter correction.
+
+### Bootstrap 95% CIs on pooled R2 (2026-08-15) — closes a real gap, RQ1 had this from the start
+
+Cluster-bootstrap (resamples whole compartments, `models/common/bootstrap_ci.py`, unchanged,
+`n_resamples=1000` matching RQ1's own default), ~1 minute to run, no new fitting.
+
+| Set | EN R2 [95% CI] | XGB R2 [95% CI] |
+|---|---|---|
+| Set1 (baseline-only) | 0.220 [0.180, 0.252] | 0.222 [0.183, 0.252] |
+| Set2 | 0.359 [0.310, 0.396] | 0.416 [0.355, 0.461] |
+| Set3 | 0.325 [0.272, 0.365] | 0.375 [0.321, 0.414] |
+| Set4 | 0.358 [0.305, 0.398] | 0.395 [0.338, 0.438] |
+
+**Tempers the "Set2 is best" reading from the results table above**: Set2 and Set4's XGB CIs
+overlap substantially ([0.355,0.461] vs [0.338,0.438]) — a real point-estimate gap, not a
+statistically clear-cut one. Set2 vs. Set3 looks more separated. Every set's CI clears Set1's
+baseline-only CI with no overlap at all, so "environment adds real value beyond baseline" is the
+one comparison here that's unambiguous; "which environmental set is best" is softer than the point
+estimates alone suggest.
+
+### VIF values for the SHAP-important variables (2026-08-15) — real numbers, not just pass/fail
+
+Computed directly via `compute_vif_table()` (`models/xgb_environmental/multicollinearity_screen.py`,
+already existed, unchanged), within Set4's full 19-column context (VIF is only meaningful relative
+to a specific co-predictor set). Not previously saved anywhere — the manifest only stores the
+pass/fail screening decision, not the underlying VIF values.
+
+The core SHAP-important variables are clean: `dist_to_road`=2.33, `chelsa_bio12_precip_mm`=3.91,
+`slope_degrees`=2.18, `CanopyCover`=1.09 — all well under the 5.0 threshold. **But the baseline
+thinning columns, exempt from VIF removal by methodological design, are not clean among
+themselves**: `time_since_thinning_missing`=39.7, `time_since_thinning`=22.6 (full table:
+`gwa_weibull_a_50m`=3.93, `tas_mean`=3.44, `local_relief_500m`=3.27, `topex`=2.37,
+`gwa_weibull_a_10m`=2.24, `gwa_wind_speed_10m`=2.18, `soilgrids_ph`=2.12, `gwa_weibull_k_50m`=1.63,
+`whcl`=1.50, `ceh_twi`=1.40, `dist_to_scpt_boundary`=1.11, `eastness`=1.10,
+`recent_thinning_5yr`=9.89).
+
+**New caveat for the coefficient tables above**: `time_since_thinning_missing` and
+`time_since_thinning` (both large in every EN/NLME table) are almost certainly not separable from
+each other given VIF this high — read as one combined "thinning-history" signal, not two
+independently interpretable numbers. The dominance finding itself (thinning-history + CanopyCover
+together carry the signal) is unaffected; only the individual-coefficient-magnitude interpretation
+needs this caveat.
+
+### Moran's I on the EN/XGBoost residual — run 2026-08-15, a substantial finding
+
+**What this answers**: after NLME/EN/XGBoost use environmental variables to explain
+`mean_cr_residual`, does what's left over (the model's own residual) still cluster spatially? Used
+`compute_residual_morans_i()` (`models/growth_curve_attribution/residual_spatial_autocorrelation_check.py`,
+unchanged, k=8 nearest-neighbour weights matching this project's own established LISA/RQ3
+convention, 999 permutations), pooled predictions across all 5 folds, `x`/`y` joined in via
+`load_plot_coordinates()` (one join, RQ2b's `predictions.csv` doesn't carry coordinates natively).
+
+| Set | EN residual Moran's I | EN p | XGB residual Moran's I | XGB p |
+|---|---:|---:|---:|---:|
+| Set1 (baseline-only) | 0.738 | 0.001 | 0.735 | 0.001 |
+| Set2 | 0.690 | 0.001 | 0.655 | 0.001 |
+| Set3 | 0.700 | 0.001 | 0.673 | 0.001 |
+| Set4 | 0.693 | 0.001 | 0.659 | 0.001 |
+
+**Substantial, significant spatial clustering remains in every case, and more environmental
+information barely moves it.** Moran's I stays in the 0.65-0.74 range regardless of set (baseline-
+only vs. the full environmental set), with p at the permutation floor (0.001, the smallest value
+999 permutations can report) every time. Going from Set1 (4 baseline columns) to Set4 (19 columns,
+every category, VIF-screened) only nudges EN's Moran's I from 0.738 to 0.693 — a small reduction,
+not a resolution. XGBoost shows the same pattern, slightly lower magnitude throughout.
+
+**Why this matters beyond RQ2b itself**: this is real, current-tier evidence that RQ2b's global
+attribution models leave a large amount of spatially-structured signal unexplained, and that
+*more* environmental data (within the current candidate pool) does not meaningfully close that
+gap. That's a concrete, evidenced motivation for RQ3's spatially-varying (GNNWR) approach — not
+"a fancier model tried for its own sake," but a response to a demonstrated gap that adding more
+global environmental features does not fix. For comparison, the old-tier (pre-VIF, pre-restructure)
+RQ3 check found EN/XGBoost residual Moran's I of 0.709/0.708 on the `terrain_wind_plus_management`
+scope — this current-tier RQ2b result (0.65-0.74) sits in the same range, suggesting this is a
+persistent characteristic of this dataset/target family, not an artifact of the old tier or a set
+choice.
+
+**Not yet done**: the equivalent current-tier check for RQ3's own GNNWR/EN/XGBoost residuals
+(flagged separately in `TEMP_rq3_gnnwr_results`) — would let this be stated as a direct, current-
+tier "does GNNWR actually reduce this clustering" comparison, rather than relying on the old-tier
+number cited above.

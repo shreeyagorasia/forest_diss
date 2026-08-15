@@ -1,0 +1,24 @@
+## TEMP method note — bootstrap 95% CI on pooled R2 (2026-08-15)
+
+**Applies to**: RQ2b (EN/XGBoost) and RQ3 (GNNWR) — same method, two separate use sites, not two
+different checks.
+
+**What this evaluates**: how uncertain is a reported pooled R2 (RQ2b's EN/XGBoost, RQ3's GNNWR),
+given the population isn't independent rows (many plots share a compartment)?
+
+**How** (pseudocode):
+1. Load the already-saved `predictions.csv` / `test_predictions.csv` (must carry a cluster id
+   column, e.g. `cpmt`) — no retraining, whatever model already produced these numbers stays as-is.
+2. Call `cluster_bootstrap_ci(df, cluster_column="cpmt", statistic_fn=lambda d: r2_score(d[obs], d[pred]), n_resamples=1000, seed=42, confidence=0.95)`
+   from `models/common/bootstrap_ci.py` (unchanged, pre-existing function).
+3. Resamples WHOLE compartments with replacement (not individual rows) each of the 1000 times,
+   recomputes R2 on each resample, takes the 2.5/97.5 percentiles as the CI.
+4. `n_resamples=1000` is the function's own default, matching RQ1's existing convention — not a
+   bespoke choice for this check.
+
+**Full results**: `TEMP_rq2_attribution_results_2026-08-11.tex`'s "Bootstrap 95% CIs on pooled R2"
+section (EN/XGBoost, Set1-4); `TEMP_rq3_gnnwr_results_2026-08-11.tex`'s "Bootstrap 95% CIs on
+4survey's pooled R2" section (GNNWR, Set2-4) and its "EN/XGBoost's own bootstrap 95% CI" section
+(same three sets, added 2026-08-15 to make the GNNWR-vs-EN/XGBoost comparison CI-vs-CI rather than
+CI-vs-point-estimate) — finds GNNWR's CI overlaps EN/XGBoost's in every set, tempering RQ3's
+headline "GNNWR wins" claim (see primer item 1, `a_draft_plan_14th_aug.md`).

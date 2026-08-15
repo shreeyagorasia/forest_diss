@@ -1,0 +1,21 @@
+## TEMP method note — RQ3 broader implausible-y_max_fit scan + rerun sensitivity check (2026-08-15)
+
+**Applies to**: RQ3 only.
+
+**What this evaluates**: does the implausible-`y_max_fit` issue extend beyond the original 10
+known outlier plots, and would RQ3's pooled R2 change if the affected plots were excluded?
+
+**How** (pseudocode):
+1. Build the full plot-level table via `build_plot_level_table(cohort, apply_disturbance_cleaning=True)`
+   (`models/growth_curve_attribution/scale_comparison_check.py`).
+2. Flag outliers on `y_max_fit` using a standard Tukey fence: `Q1/Q3` of the full population,
+   flag anything beyond `Q3 + 1.5*IQR` (high) or below `Q1 - 1.5*IQR` (low). Generic statistical
+   rule, no cherry-picking.
+3. Check compartment clustering: `value_counts()` of `cpmt` among flagged plots vs. compartment size.
+4. Sensitivity check (no retraining): load the already-saved `predictions.csv` for Set4/gated_all_vif,
+   drop rows where `identification` is in the flagged set, recompute `r2_score(observed, predicted)`
+   for EN and XGBoost, compare to the R2 on the full set.
+
+**Full results**: `TEMP_rq3_outlier_diagnosis_results_2026-08-12.tex`'s "Broader scan for
+implausible `y_max_fit`, and a rerun sensitivity check" section — 0.47% of 4survey / 5.32% of
+6survey flagged; excluding them barely changes 4survey but makes 6survey's XGBoost R2 go negative.

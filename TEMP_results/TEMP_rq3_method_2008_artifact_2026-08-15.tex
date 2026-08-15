@@ -1,0 +1,29 @@
+## TEMP method note — RQ3 outlier wind exposure, storm-year signature, 2008 survey-boundary artifact (2026-08-15)
+
+**Applies to**: RQ3 only.
+
+**What this evaluates**: does wind exposure support a windthrow-disturbance explanation for the
+flagged plots? Does their worst-fitting survey year cluster on a particular calendar year (a
+storm-year signature)? And does the already-known 2006->2008 survey-boundary re-delineation
+artifact (see `project-lidar-data-understanding` memory) explain the implausible `y_max_fit`
+values, even partly?
+
+**How** (pseudocode):
+1. Wind/yldc/thinning comparison: pull `topex`, `windward_topex`, `gwa_wind_speed_50m`, `yldc`,
+   `time_since_thinning`, `recent_thinning_5yr`, `CanopyCover` for the 266 flagged plots via
+   `load_plots_for_cohort(cohort)`, compare medians against the population.
+2. Storm-year signature: call `fit_all_years_and_compute_residuals(cohort)`
+   (`models/growth_curve_attribution/disturbance_checks.py`) to get a residual per plot per survey
+   year; for each plot find the `LiDAR_year` with the largest `|residual|`; compare the distribution
+   of that "worst year" between the flagged set and the whole population.
+3. 2008-artifact direct test: take each flagged plot's raw rows (`load_filtered_growth_curve_table`),
+   drop the 2008 row, refit `y_max` with `fit_y_max_per_plot()`
+   (`models/growth_curve_attribution/temporal_stability_check.py`, unchanged) on the remaining
+   years, and compare the new `y_max_fit` to `y_max_yldc` versus the original (with-2008) fit — did
+   removing 2008 move the plot closer to plausible, and by how much?
+
+**Full results**: `TEMP_rq3_outlier_diagnosis_results_2026-08-12.tex`'s "Wind exposure, storm-year
+signature, and the known 2008 survey-boundary artifact" section — wind exposure argues against
+windthrow; 75.6% of flagged plots have their worst residual in 2008 (vs. 47.8% population);
+removing the 2008 point moves 89% closer to plausible but only ~6% on average — a real but minor
+contributor, not the dominant cause.

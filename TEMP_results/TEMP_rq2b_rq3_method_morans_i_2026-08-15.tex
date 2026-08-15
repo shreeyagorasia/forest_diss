@@ -1,0 +1,27 @@
+## TEMP method note — residual Moran's I, RQ2b and RQ3 (2026-08-15)
+
+**Applies to**: RQ2b (EN/XGBoost) and RQ3 (EN/XGBoost/GNNWR) — same method, two separate use sites,
+not two different checks.
+
+**What this evaluates**: after fitting, does spatially-structured signal remain in the residual
+(i.e. do nearby plots share similar prediction error), and does more environmental data or a
+spatially-varying model (GNNWR) reduce it?
+
+**How** (pseudocode):
+1. Load the already-saved predictions file for a given (set, cohort) — RQ2b's EN/XGBoost, or
+   RQ3's EN/XGBoost/GNNWR.
+2. `residual = observed - predicted`.
+3. Call `compute_residual_morans_i(x, y, residual, k=8, permutations=999, seed=42)` from
+   `models/growth_curve_attribution/residual_spatial_autocorrelation_check.py` (unchanged,
+   pre-existing function) — k=8 nearest-neighbour weights.
+4. Repeat per set x cohort/model, no new fitting anywhere.
+
+**Convention note**: k=8 nearest-neighbour weights is deliberately the RQ3/LISA convention already
+established in this project — a DIFFERENT convention from RQ1's own raw-height Moran's I check
+(`models/common/spatial_pattern_check.py`, DistanceBand weights derived from a semivariogram
+range). Don't mix the two when citing.
+
+**Full results**: `TEMP_rq2_attribution_results_2026-08-11.tex`'s "Moran's I on the EN/XGBoost
+residual" section (0.65-0.74 across all sets, barely moved by more environmental data);
+`TEMP_rq3_gnnwr_results_2026-08-11.tex`'s "Residual Moran's I vs. EN/XGBoost" section (GNNWR
+reduces clustering on 4survey, increases it on 6survey).

@@ -1,0 +1,22 @@
+## TEMP method note — VIF check on RQ2b's SHAP-important variables (2026-08-15)
+
+**Applies to**: RQ2b only.
+
+**What this evaluates**: are the variables SHAP/NLME/EN flag as important for `mean_cr_residual`
+(`dist_to_road`, `chelsa_bio12_precip_mm`, `slope_degrees`, `CanopyCover`, plus the baseline
+thinning columns) collinearity artifacts, or genuinely separable signals?
+
+**How** (pseudocode):
+1. Load Set4's full feature table (the 19-column `nested_set4_gated_all_vif` context these
+   variables were fit alongside).
+2. Call `compute_vif_table(df, columns=[...])` from
+   `models/xgb_environmental/multicollinearity_screen.py` (unchanged, pre-existing function) —
+   returns a real VIF value per column, not just a pass/fail flag.
+3. Threshold: VIF > 5.0 = not separable from the rest of the set.
+
+**Note**: not persisted anywhere in the manifest (`env_feature_sets_manifest.csv` only stores
+rank/screening columns, no `vif` column) — needs rerunning if cited again.
+
+**Full results**: `TEMP_rq2_attribution_results_2026-08-11.tex`'s "VIF values for the SHAP-
+important variables" section — core-four clean (VIF 1.09-3.91), but `time_since_thinning`/
+`time_since_thinning_missing` are NOT separable from each other (VIF 39.7/22.6).

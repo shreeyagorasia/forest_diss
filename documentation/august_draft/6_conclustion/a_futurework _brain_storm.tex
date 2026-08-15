@@ -1,0 +1,403 @@
+%%% FUTURE WORK — broad brainstorm, not precise/implementation-level.
+%
+% Relationship to the Limitations section: Limitations (methodology chapter + the precise,
+% implementation-tied Future Work items in
+% documentation/methodology_critical_review_for_future_work_2026-08-15.md) covers concrete,
+% actionable fixes to THIS project's actual design choices -- things like weighting RQ3's per-plot
+% target by survey-history length, or a proper per-target XGBoost search. Those items answer "what
+% would we do differently within the same overall approach." This document is different in kind:
+% it asks whether a fundamentally different approach -- different data modality, different physics,
+% different model class -- would have answered the same three research questions better. Limitations
+% comes first in the dissertation and feeds into this section, but this section is broader and more
+% speculative by design; not everything here needs to be feasible within a masters-dissertation
+% timeline, that's expected of a brainstorm.
+%%%
+
+\section{Future work: broader methodological directions}
+\label{sec:futurework-broad}
+
+The methodology in this dissertation works entirely on tabular, plot-level summary statistics
+derived from LiDAR (95th-percentile height, canopy cover, etc.), matched to point-extracted
+environmental covariates. This was a deliberate, defensible scope choice for a masters
+dissertation -- tabular data is fast to iterate on, every model family used here has mature,
+well-understood tooling, and the resulting attribution methods (coefficients, SHAP) are directly
+interpretable. But it is worth being honest that this scope choice also sets a ceiling on what the
+project can find, in ways that are more fundamental than any single hyperparameter or split
+decision. The directions below describe what sits above that ceiling.
+
+\subsection{From plot-level tabular summaries to individual-tree measurement}
+\label{sec:futurework-imagery}
+
+Every field in this dataset is a plot-level summary, not an individual-tree measurement
+(\S\ref{sec:data-strengths-limitations}) -- the data cannot resolve tree-to-tree competition,
+individual mortality, or within-plot structural variation, and it is also true that any measurement
+or scanning error, being effectively summarised over an entire $20\text{m}\times20\text{m}$ plot,
+cannot be separated from genuine biological signal at that resolution. This is not just a data
+limitation to note in passing -- it is arguably the main reason a deep neural network in this
+project (the DNN/CR-PINN family) never gets to do what neural networks are actually good at.
+Both are fed a short vector of hand-engineered scalar summaries per plot-survey row; there is no
+raw spatial structure in the input for a network to learn representations from, so the DNN's
+capacity advantage over Elastic Net or XGBoost has little to draw on.
+
+A more ambitious future direction would work from the LiDAR point cloud or canopy height model
+(CHM) raster directly, rather than from percentile summaries computed over it. Individual tree
+detection/delineation (ITD) methods -- watershed segmentation on the CHM, or deep-learning point
+cloud segmentation architectures increasingly used in forestry remote sensing -- can recover
+individual-tree height, crown extent, and local density directly from the same LiDAR acquisitions
+already available for Aberfoyle. This would move the whole project's unit of analysis from a
+$20\text{m}\times20\text{m}$ plot to an individual tree, which is both a more precise measurement
+(no within-plot averaging over trees of different sizes/ages/competitive positions) and a more
+interesting one -- it would let a future project actually ask whether an individual tree's local
+neighbourhood (crowding, gaps, edge proximity) explains its growth trajectory, a question the
+current plot-averaged design cannot pose at all, only gesture at via crude proxies like
+\texttt{CanopyCover}.
+
+\subsection{Visual encoders and a reconstructed forest digital twin}
+\label{sec:futurework-digital-twin}
+
+A further step beyond individual-tree detection: use a vision encoder (a CNN or vision-transformer
+backbone, pretrained on canopy imagery or trained from scratch on the CHM/point-cloud data
+available here) to learn a general-purpose representation of canopy structure, rather than
+hand-designing the ITD pipeline's segmentation rules. Interpreting and reconstructing every
+individual crown across a compartment this way effectively builds a digital twin of the forest's
+current structure -- a persistent, queryable 3D/2.5D representation rather than a table of
+plot-level scalars. This is a substantially larger undertaking than anything in the current
+dissertation (a different data modality, a different modelling paradigm, and a much larger
+engineering surface -- point-cloud/imagery pipelines, not tabular ML), and is offered here as a
+longer-horizon direction rather than an immediate next step. Its main payoff would be enabling
+individual-tree-level growth and competition modelling (\S\ref{sec:futurework-imagery}) at scale
+across the whole study area, rather than one hand-built pipeline run once.
+
+\subsection{Physics-based wind modelling}
+\label{sec:futurework-wind-cfd}
+
+Worth being precise about what the current wind/terrain covariates actually are, since it is easy
+to assume they are already physics-based simulations when they are not. TOPEX
+(\S\ref{sec:data-environmental}) is a static, purely geometric calculation from horizon angles
+around each plot -- it quantifies shelter/exposure from terrain shape alone, with no fluid dynamics
+involved. The Global Wind Atlas is closer to physics-based (a macro-scale wind-flow model, built
+originally for wind-energy resource assessment), but it is still a coarse, $250\text{m}$-resolution
+long-term climatological average -- it does not resolve local turbulence, canopy-edge acceleration,
+or gap dynamics at the stand scale. Neither source is a computational fluid dynamics (CFD)
+simulation of how wind actually moves through and around this specific forest's terrain and canopy
+structure.
+
+A genuine future direction is to bring in either a full local CFD simulation (e.g.\ an
+OpenFOAM-style canopy-flow model resolving wind speed and turbulence intensity at the stand or
+even individual-tree scale) or a mechanistic forestry wind-risk model purpose-built for this
+species and region -- ForestGALES, the UK Forestry Commission's operational decision-support tool
+for wind risk, which estimates critical wind speeds for stem breakage and overturning from tree
+mechanics and site conditions rather than from a geometric or macro-scale proxy \ct{Gardiner,
+Peltola, Kellomaki (2000), "Comparison of two models for predicting the critical wind speeds
+required to damage coniferous trees," Ecological Modelling -- this is the mechanistic model
+underlying GALES/ForestGALES and I'm reasonably confident it's correct, but the specific
+ForestGALES \emph{tool/software} citation (commonly a Gardiner et al./Forest Research technical
+publication) is a separate reference I'm not confident enough on the exact year/authors to state --
+confirm both before citing}. Either would give
+RQ2/RQ3's attribution models a mechanistically grounded wind covariate to test against, instead of
+TOPEX's static geometry or GWA's coarse climatology -- and since this dissertation's own data
+already comes from Forest Research, a ForestGALES-based covariate in particular would be a natural,
+well-precedented extension rather than an exotic one.
+
+\subsection{Foundation-model geospatial embeddings (AlphaEarth)}
+\label{sec:futurework-alphaearth}
+
+Newer satellite-derived geospatial embedding models (e.g.\ Google DeepMind's AlphaEarth
+Foundations \ct{Google DeepMind, "AlphaEarth Foundations," 2025 -- I'm not confident enough on the
+exact author list or publication venue (likely an arXiv preprint/technical report rather than a
+peer-reviewed journal, given how recent it is) to state either -- confirm before citing}) compress
+multi-modal Earth observation data into a compact per-location embedding
+vector, intended for downstream similarity and classification tasks without hand-selecting
+individual variables the way \S\ref{sec:feature-final}'s Set1--5 protocol does.
+
+\textbf{Why not used here (justification, not an oversight):} the strongest reason is a genuine
+methodological conflict with this dissertation's aims, not just timing. RQ2/RQ3 are explicitly
+attribution tasks -- they ask \emph{which} environmental variable explains a departure from
+expected growth, and in \emph{which direction}, using coefficients and SHAP values that decompose
+a prediction into named, physically meaningful drivers. An embedding vector is, by design, opaque:
+its dimensions do not correspond to named physical quantities, so it cannot support that kind of
+attribution at all -- feeding it into RQ2b/RQ3 would trade away the entire interpretability
+apparatus those research questions depend on. A secondary, less certain reason is availability:
+these embedding products are recent, and it is not confirmed here whether a usable release existed
+early enough in this project's timeline to have been a realistic option.
+
+\textbf{Where it could help in future work:} not as an attribution-model input, but for tasks where
+raw predictive power or similarity matters more than interpretability. Two candidates: (1) a
+plot/area similarity search -- using embedding distance to find structurally comparable stands
+outside Aberfoyle, which would directly address the generalisability limitation stated in
+\S\ref{sec:data-strengths-limitations} (this is a single-forest proof of concept) by giving a
+principled way to identify where else the findings might transfer; (2) as an additional predictive
+feature for RQ1-style top-height prediction specifically, where the DNN/PINN family already
+tolerates lower interpretability in exchange for accuracy, unlike RQ2b/RQ3's attribution models.
+
+\subsection{Statistical attribution methods vs.\ neural networks -- revisiting this project's own evidence}
+\label{sec:futurework-stats-vs-nn}
+
+Worth stating precisely, because the intuition turns out to already be supported by this project's
+own results, not just general ML folklore. Every attribution model actually used for RQ2b and RQ3
+is a statistical or tree-based method with a mature, standardised interpretability toolkit: Elastic
+Net (linear coefficients), XGBoost (gain importance, SHAP), the two-stage mixed-effects model
+(fixed-effect coefficients), and GNNWR, which despite being a small neural network, is explicitly
+constrained to be interpretable -- it multiplies a frozen, pre-fitted global OLS coefficient by a
+learned local weight, rather than learning an opaque end-to-end mapping. The one genuinely
+unconstrained deep architecture in the project, the DNN/CR-PINN family, is used only for RQ1's raw
+predictive task, never for attribution -- and RQ2a's own finding (the residual-shrinkage pattern
+motivating PINN's physics guidance) turned out to hold just as well for XGBoost, with the actual
+case for continuing with PINN resting on reproducibility and its structural
+$y_{\max}$/$k$ parametrisation, not on it explaining anything more clearly than a tree-based model
+does.
+
+So the more precise version of the claim is: it is not that statistical methods are
+\emph{inherently} better than neural networks at attribution in general (there is active research
+on interpretable/explainable deep learning -- attention-based attribution, integrated gradients,
+concept-based explanations); it is that at this project's scale (thousands of rows, roughly 30
+features) and for this project's specific goal (named, defensible, direction-and-magnitude
+attribution rather than raw predictive accuracy), classical statistical and tree-based methods are
+better matched, and their attribution tooling is more mature and easier to defend rigorously than
+the equivalent tooling for deep networks. That is a scale-and-purpose-specific claim, evidenced by
+this project's own design choices and RQ2a's finding, not a general law about neural networks --
+worth stating it that way rather than overclaiming.
+
+\subsection{A better method for RQ3, independent of AI/ML: hierarchical, jointly-fitted models}
+\label{sec:futurework-hierarchical}
+
+RQ3's central difficulty is not model choice, it is that each plot contributes only a handful of
+repeated observations to its own asymptote estimate -- a small-$N$-per-unit problem, not a
+wrong-model-family problem. The textbook answer to that specific problem needs no AI/ML at all: a
+\textbf{hierarchical (multilevel) model with partial pooling}, where a plot's asymptote estimate is
+shrunk toward its compartment or yield-class expectation in proportion to how little data that
+plot actually has, rather than every plot's point estimate being trusted equally regardless of
+whether it came from two surveys or six. Concretely, this looks like a Bayesian hierarchical
+growth-curve model (e.g.\ fitted with Stan/\texttt{brms}), with plot-level random effects on
+$y_{\max}$ nested inside compartment, and environmental covariates entering as fixed or
+random-slope predictors, fit \emph{jointly} in one stage rather than the current design's two
+disconnected stages (Stage 1: closed-form per-plot asymptote fit, its own uncertainty then
+discarded; Stage 2: attribution model treating that point estimate as measured without error,
+\S\ref{sec:rq3-target}).
+
+This is not a new idea introduced here -- it is, precisely, the "full non-linear mixed-effects
+model" that RQ2b's own methodology (\S\ref{sec:rq2b}) already names as the more statistically
+correct alternative to its two-stage approximation, declined there for complexity and time. The
+honest framing for Future Work is therefore not "a better method exists that wasn't considered," it
+is "the better method was identified and consciously deferred, for a stated and defensible reason,
+and revisiting it is the single most textbook-correct upgrade available to RQ3 specifically."
+
+\subsection{Causal design: mediators, confounders and colliders, not just correlation screening}
+\label{sec:futurework-causal-design}
+
+A worked example makes the gap concrete. Consider elevation: it plausibly affects growth deviation
+through several different downstream pathways at once -- greater rainfall exposure directly, but
+also, combined with slope and aspect, greater surface run-off, which in turn implies shallower
+effective soil depth and moisture retention, which in turn weakens root anchorage, which in turn
+increases vulnerability to windthrow -- and that whole chain is sharpened further if a drought or
+storm happens to fall inside a given plot's specific survey interval. None of the intermediate
+steps in that chain (soil moisture, root anchorage) are directly measured in this dataset. When an
+unmeasured \emph{mediator} sits between a measured feature and the outcome, the coefficient
+actually estimated on that feature (elevation, say) is a mixture of whatever direct effect exists
+plus everything routed through the missing mediator -- unproblematic for pure prediction, actively
+misleading if read as "elevation is the driver" rather than "elevation is a proxy for a bundle of
+largely unmeasured mechanisms."
+
+This is a different problem from what VIF screening (\S\ref{sec:feature-final}) solves. VIF only
+asks whether a variable is numerically redundant with another -- a multicollinearity/stability
+concern. It does not ask which of three structurally different roles a correlated variable plays:
+a \textbf{confounder} (a common cause of both a variable of interest and the outcome, which must be
+adjusted for to avoid bias), a \textbf{mediator} (an intermediate step on the causal path itself,
+which must \emph{not} be adjusted for if the goal is the total effect), or a \textbf{collider} (a
+variable caused by two other things, where conditioning on it manufactures a spurious association
+between them that did not exist before). The current screening pipeline treats every correlated
+variable the same way; a causally-informed design would not. \texttt{CanopyCover}'s
+reverse-causation concern (\S\ref{sec:rq2b}), already investigated empirically, is arguably better
+described in exactly these terms -- closer to a mediator/collider role than a simple confounder --
+and revisiting it with this vocabulary would sharpen, not overturn, the existing conclusion.
+
+Further plausible causal chains worth naming, as illustrations of the same failure mode recurring
+under different variables:
+\begin{itemize}
+\item \textbf{Thinning has two opposing pathways}: more growing space (positive, via reduced
+  competition) and more wind exposure (negative, via reduced canopy shelter). A small or null
+  linear coefficient on thinning could represent two real, cancelling effects rather than "thinning
+  doesn't matter."
+\item \textbf{Yield class may itself be causally downstream of historical site assessment}: if
+  denser planting or higher-yield-class assignment historically tracked a forester's own judgement
+  of site quality, RQ3's baseline (the yield-class-implied asymptote,
+  Equation~\ref{eq:local-ymax-diff}) already partly encodes the same environmental information the
+  research question attributes deviations \emph{from} -- a selection/allocation confound, distinct
+  from but structurally similar to the \texttt{CanopyCover} case.
+\item \textbf{Edge proximity is sign-ambiguous by mechanism}: more light (positive) versus more
+  wind exposure (negative) act in opposite directions. A coefficient's sign alone, without a stated
+  mechanism, is correlation with a label attached, not attribution.
+\item \textbf{Timing, not just exposure score, is the real confound} in the drought/storm example
+  above: two plots with identical static "exposure" could show opposite deviation depending on
+  whether an extreme event happened to fall inside their specific survey window -- a time-varying
+  omitted variable that a \emph{persistent} target (\S\ref{sec:rq2b}, \S\ref{sec:rq3-target}) is
+  structurally unable to represent, connecting directly to
+  \S\ref{sec:futurework-temporal-spatial} below.
+\item \textbf{Species-scope exclusion may discard real cross-species signal}: pests/disease known
+  not to affect Sitka spruce directly are excluded by the single-species scope
+  (\S\ref{sec:data-source}), but if neighbouring or historically mixed stands carried
+  disease/pest pressure that shaped current stand composition or management response near a plot,
+  removing that information entirely is not obviously costless -- worth flagging as an open
+  question rather than an assumed-safe simplification.
+\end{itemize}
+
+\subsection{Toward a causal-linked attribution model}
+\label{sec:futurework-causal-model}
+
+Two tiers, from achievable now to requiring data this project does not have:
+
+\textbf{Achievable without new data collection.} Formally draw the assumed causal graph (a DAG:
+elevation $\to$ \{rainfall exposure, slope-mediated run-off\} $\to$ soil depth/moisture $\to$ root
+stability $\to$ deviation, plus a separate management/selection-confound branch through yield
+class) and use it to determine the correct \emph{adjustment set} for a given causal question --
+which variables to condition on to isolate a specific effect, explicitly excluding known mediators
+and colliders from that set, rather than admitting every VIF-passing variable into one regression
+indiscriminately. This changes which variables enter the model and why, not just how they are
+screened for redundancy, and could be described and partially applied to the existing dataset
+without collecting anything new.
+
+\textbf{A middle tier that still uses ML, but targets a causal rather than associational estimate.}
+Double machine learning / causal forests \citep{chernozhukov2018double} use flexible ML models
+(potentially including the tree ensembles already used throughout this project) to model nuisance
+relationships (treatment assignment, outcome surface) while still targeting a causally-interpretable
+effect estimate with valid uncertainty -- a genuinely different exercise from reading a raw SHAP
+value as if it were a causal effect, and one that keeps this project's existing tooling relevant
+rather than discarding it. \ct{Chernozhukov, Chetverikov, Demirer, Duflo, Hansen, Newey, Robins
+(2018), "Double/debiased machine learning for treatment and structural parameters" -- full
+reference (journal/volume/pages, BibTeX key) not yet confirmed, find and add}
+
+\textbf{The strong version (instrumental variables, natural experiments), needing data not
+currently available.} Requires a source of variation in an environmental or management driver that
+is exogenous -- uncorrelated with unmeasured confounders -- such as a historical policy change or a
+sharp, arbitrary management threshold. No obvious candidate is identified in the current dataset;
+worth naming as the gold standard while being explicit that pursuing it would likely require new
+historical records (e.g.\ archived planting/management policy decisions) rather than a change of
+model alone.
+
+\subsection{Spatial and temporal: separate models, with one shared prerequisite}
+\label{sec:futurework-temporal-spatial}
+
+The principled answer -- a single joint spatiotemporal model, with spatial random effects,
+temporal random effects, and a spatial$\times$temporal interaction term, capable of representing
+exactly the "drought hits exposed slopes harder" pattern described above -- is not recommended for
+this project as it currently stands. That kind of model needs temporal replication this dataset
+does not have: a handful of irregular, multi-year survey gaps per plot is far too little to fit a
+spatiotemporal covariance structure without the temporal component being dominated by noise. Two
+separate, simpler models -- one for "does location matter" (\S\ref{sec:rq2b}, \S\ref{sec:rq3-target}),
+one for "does time matter" -- remain the more defensible choice given the data actually available.
+
+That does not mean the spatial$\times$temporal interaction idea is a dead end, only that it should
+be tested cheaply rather than via a full joint model. It already was tested, in exactly this form:
+\texttt{temporal\_wind\_extension\_check.py} interacted a cohort-level storm profile against
+plot-level static exposure (\S\ref{sec:futurework-broad}'s discussion in the companion review
+document, \texttt{documentation/methodology\_critical\_review\_for\_future\_work\_2026-08-15.md})
+and found no gain. As established there, that result is best read as a target-shape problem, not a
+refutation of the interaction idea itself: a persistent per-plot target structurally cannot reward
+interval-specific signal, interaction terms or not. The conclusion from that check and the
+conclusion here are the same fix, reached from two different directions -- an interval-level target
+(survey-to-survey deviation \emph{change}, naturally extending RQ2a's row-level shape rather than
+RQ2b/RQ3's persistent one) is the shared prerequisite for testing \emph{both} the temporal question
+on its own \emph{and} any spatial$\times$temporal interaction meaningfully. Build that target once,
+and both open questions become testable from the same design, rather than needing two separate
+future extensions.
+
+
+--- # Critical review of the implemented methodology (either gores into limitations for methodlogy or if directly connected to results then their, else future work) — prep for Future Work
+
+**Purpose**: not dissertation prose. A working audit of every real decision made in the actual
+pipeline (data cleaning through each RQ's experimental setup), each with its justification, its
+honest limitation, and why it was kept anyway — then a consolidated list of what would be *more
+obviously done differently* if starting over, for the Future Work section specifically.
+
+**Sourcing**: data-cleaning facts are drawn from `documentation/august_draft/3_Chapter_data/
+data_chapter_2026-08-13_1222.tex` (authoritative for what was actually applied). A few
+exploratory data-quality observations from earlier in the project (LAI 2021 anomaly, `plyr=0`
+artefact) are noted separately as *observed, not necessarily gated by a formal filter* — flagged
+where that distinction matters, since I haven't re-read the cleaning notebook line-by-line in this
+session. Methodology facts are drawn from the current chapter draft
+(`4_Chapter_methodology/g_methodology_2026-08-15_clean_all_applied.tex`) and
+`TEMP_results/README.md` / `documentation/research_questions_overview.md` for what's actually been
+checked.
+
+---
+
+## 1. Data cleaning stage
+
+| Decision | Justification | Limitation | Why kept anyway |
+|---|---|---|---|
+| Two cohorts (4survey/6survey) instead of one, split at the 2006→2008 LiDAR coverage jump | A single cohort would either discard the pre-2008 surveys' longer trajectories or discard the +37km² of post-2008 spatial coverage; splitting keeps both | 6survey is a *nested* subset of 4survey, not an independent replication — findings that hold on both aren't two separate confirmations, and 6survey's 47 compartments are too few for some attribution splits (RQ2b excludes it entirely) | Spatial coverage matters more for this dissertation's core spatial-generalisation RQs than trajectory length; 6survey still earns its keep as a temporal-split cohort and a sensitivity check |
+| Restricted to Sitka spruce (SS) only | Other species (esp. broadleaves) have seasonally variable canopy cover, which would confound `CanopyCover` as a stand-structure signal; SS is also the dominant species in Aberfoyle | Every finding is species- and site-specific; nothing generalises beyond SS/Aberfoyle by design | Explicitly framed as a proof-of-concept, not a general model — a defensible scope choice, not an oversight, but worth restating plainly in Future Work rather than only in the data chapter |
+| Age/height cleaning bounds (planting year post-1850 and pre-survey-year; age 0–200; height 0–60m, the local SS ecological max) | Standard biological plausibility gates | Removed ~0 rows for SS specifically — almost all attrition instead comes from requiring complete, uninterrupted LiDAR coverage | These bounds were sanity checks, not real filters for this species — fine, but means the *actual* main source of sample loss (coverage-completeness) isn't a considered methodological choice so much as a hard data constraint |
+| **Age-floor filter (≥30 years by 2023) investigated but deliberately not applied** | Quantified precisely: would remove 19% of 4survey plots (meaningful) vs. only 0.9% of 6survey — a real, considered trade-off, not an oversight | Early-age rows may include less reliable LiDAR-derived heights (the CR curve's near-linear early segment, `Figure~\ref{fig:age-linearity}`, is itself partly a hedge against this), but no formal floor was ever imposed | The 19% cut on 4survey was judged too costly for the spatial-coverage goal; deferred rather than resolved — **this is one of the strongest, most concrete Future Work candidates**: revisit with an explicit, stated age-floor rule now that the RQ1 baseline/PINN comparison and the linear-regression age-range argument both implicitly lean on this same early-age reliability question |
+| Target = 95th-percentile LiDAR height (`elev_percentile_95th`), used directly without correction | Matches Forest Research's own basis for yield-class/volume calculations, keeping this project's target comparable to their convention | Not independently validated against ground-truth field height for this specific dataset (accepted as the industry-standard proxy) | Standard practice, and no ground-truth field survey exists to check against anyway |
+| Environmental variables missing → **plot dropped entirely**, not imputed | Avoids introducing synthetic values that could masquerade as a real environmental driver in RQ2/RQ3's attribution — imputation bias would be a serious threat to an attribution task specifically | 430 plots lost from 4survey's candidate pool, concentrated (SoilGrids: 413, CEH TWI: 39, clustered in one compartment) — this is a **non-random dropout**, so the modelled population is subtly geographically biased away from wherever that compartment's plots sit | Imputation would need its own justification and validation (a whole sub-method), which wasn't judged worth the complexity for an attribution-focused chapter where introducing any synthetic signal is riskier than losing coverage |
+| Environmental variables assigned by **point extraction** at plot centroid (MAUP heuristic for clipped plots), not interpolation or zonal/area-weighted aggregation | Simpler, avoids compounding one MAUP-style choice (centroid estimation for clipped plots) with a second one (aggregation method) | Several source rasters are coarser than the 20×20m plot footprint (SoilGrids 250m, CHELSA/HadUK 1km) — many nearby plots share an identical raw value, reducing effective variance for VIF/importance ranking on those variables specifically | Most sources are already *someone else's* interpolated/modelled product upstream (SoilGrids, CHELSA) — a fancier local aggregation wouldn't recover real sub-cell variation that was never captured by the source in the first place, so the extra complexity buys little |
+| `GYCspec95`/`yldc` excluded from all models | Both are calculated *from* the height target — textbook target leakage | None beyond the obvious (loses a variable that would otherwise be informative) | Non-negotiable; keeping them would invalidate every downstream result |
+
+**Data-quality caveats observed but not necessarily formally gated** (flagged for verification, not asserted as implemented filters): an early LAI-2021 anomaly and a `plyr=0` artefact were identified during exploratory data work earlier in the project. If these were resolved by a specific filter in the final cleaning notebook, that should be stated explicitly in the data chapter rather than left implicit — worth a quick check before the dissertation is finalised, since a marker who reads the data chapter closely could reasonably ask "what happened to X anomaly you must have found."
+
+---
+
+## 2. Common experimental design (splits, leakage control)
+
+| Decision | Justification | Limitation | Why kept anyway |
+|---|---|---|---|
+| Spatial-block (compartment-level) as the primary split | Plot-level splitting leaks location (nearest-neighbour argument, now visualised in `Figure~\ref{fig:splits-combined}`) | — | Directly validated: the plot-level integrity check found a real, model-dependent inflation gap (DNN much more than PINN) |
+| 60m buffer, set from **typical plot spacing**, not a measured spatial-autocorrelation range | Simple, defensible starting heuristic | Circular to fix with a semivariogram *after* a split already exists — flagged explicitly in the chapter's own limitations | **Most obvious Future Work fix**: a two-stage procedure — fit a rough semivariogram on an initial coarse split, use its range to set the buffer, then refit the real splits — would resolve the circularity without much extra cost, and wasn't done only because of time, not principle |
+| Feature-set ranking (Set1–5) done **once globally**, not per fold | Keeps every fold comparing the same feature set, which the whole model-family-comparison design depends on | Selection variance is never separated from model variance | A fold-specific ranking is the "more obvious" textbook-correct approach, explicitly traded away for comparability — worth naming directly in Future Work as a deliberate simplification, not an oversight |
+| One XGBoost hyperparameter config reused across RQ1/RQ2/RQ3 | Keeps the three research questions' XGBoost models comparable to each other | Never derived from a systematic search; originated from one earlier exploratory fit and was applied unevenly (RQ1: still on library defaults in production, only sensitivity-checked; RQ2b: fixed in production; RQ3: used the shared config from the start but its own origin traces to yet another unvalidated exploratory script) | This is the one area where the honest answer is "this should have been a proper per-target hyperparameter search (e.g. Optuna, nested CV) from the outset" — not a principled trade-off, closer to technical debt that was caught late. **Say this plainly in Future Work rather than dressing it up as a considered choice** |
+
+---
+
+## 3. RQ1 — top-height prediction
+
+| Decision | Justification | Limitation | Why kept anyway |
+|---|---|---|---|
+| Physics-loss weight fixed a priori at λ=1.0 (symmetric), not validation-selected | Avoids circular evaluation — picking λ to maximise held-out performance, then reporting that performance, would overstate the physics constraint's value | The physics-weight ablation later found λ=0 beats λ=1 on accuracy — the pre-specified default is *not* the best-performing one | This is a genuine, defensible tension worth stating directly: the project treated λ as the **object of study** (does physics guidance help, tested cleanly), not as a hyperparameter to be optimised. Most PINN papers do the latter; this one deliberately didn't, at the cost of the "guided" model's headline accuracy number |
+| Shared architecture size (3×128) across all DNN/CR-PINN variants, size fixed rather than tuned per variant | Isolates the loss-formulation comparison from confounding architecture-capacity differences | — | Validated directly by the architecture-size sensitivity sweep (found robust, low sensitivity) — one of the better-supported design choices in the chapter |
+| Environmental features are **static per plot** for RQ2b/RQ3's candidate pool (`plot_environmental_features.parquet`, one row per plot, zero year-varying columns) | Matches RQ2b/RQ3's own targets, which are themselves persistent per-plot summaries (`mean_cr_residual`, `local_y_max_difference`), not per-survey values | A genuinely time-varying source (MIDAS wind, interval-resolved) **was tried against RQ3's target and tested honestly, not assumed to fail** — see below — and the negative result is a real, checked finding, not an untested design gap | **Correcting my earlier claim here**: this was NOT simply left untried. `models/growth_curve_attribution/temporal_wind_extension_check.py` (run 2026-08-04, `documentation/experiment_log.md` lines 2731-2775) built real survey-interval-level MIDAS storm metrics (one row per actual survey gap, e.g. 2012$\to$2021, per station, per gust threshold, annualised) and tested them against RQ3's target under the same 5-fold spatial CV. Because that target is a single persistent number per plot, the interval metrics first had to be collapsed to one value per *cohort* (inverse-distance + interval-length weighted across stations/intervals) to attach to it at all -- and a cohort-constant number can't explain cross-*plot* variation on its own, so the check multiplied it against plot-varying exposure (`topex`, `windward_topex`, `whcl`, `gwa_wind_speed_50m`) to create 24 interaction columns. Result: essentially no gain on 4survey (0.1302$\to$0.1304 EN; XGBoost unchanged at 0.1222), a small *drop* on 6survey (0.0437$\to$0.0277 EN; XGBoost unchanged). The experiment log's own conclusion is precise: this doesn't mean storm timing is biologically irrelevant, it means a *persistent* target structurally can't reward *interval-specific* timing no matter how the join is engineered -- the fix is a differently-shaped target (e.g. survey-to-survey deviation change), not more feature engineering against the current one. **Only run for RQ3's target, not RQ2b's** -- same persistent-target shape, so the same conclusion would likely hold, but it is untested there specifically. **Scope of what this negative result actually covers**: `temporal_wind_extension_check.py` fits only Elastic Net and XGBoost (`METHODS = {"elastic_net_predicted": ..., "xgboost_predicted": ...}`) -- it never touches GNNWR, the one model in this project's toolkit built to test spatially-*varying* relationships rather than one fixed global one. So the result shows the interaction terms don't help under a globally-fixed relationship; it does not rule out the effect being real but spatially heterogeneous (e.g. terrain funnelling storm exposure differently in different parts of Aberfoyle), which is a genuinely separate, untested question, not a restatement of the one already answered. |
+
+---
+
+## 4. RQ2a — does environment shrink RQ1's own departure from the curve
+
+| Decision | Justification | Limitation | Why kept anyway |
+|---|---|---|---|
+| No new models fitted — reuses RQ1's own predictions against the CR baseline | Cheap (seconds per combination), keeps RQ2a mechanically tied to whatever RQ1 already validated | Entirely contingent on RQ1's model roster: originally covered only DNN/PINN/PINN$_k$, and only later got an XGBoost-specific follow-up once the fairness question surfaced — not because it was designed to cover every RQ1 family from the start | The retrofit (adding XGBoost's version after the fact) worked, but it's a patch, not the original design — Future Work: build RQ2a to sweep every RQ1 model family uniformly from day one, so an upstream fairness fix doesn't require a bespoke follow-up experiment each time |
+
+---
+
+## 5. RQ2b — persistent departure from the shared curve
+
+| Decision | Justification | Limitation | Why kept anyway |
+|---|---|---|---|
+| Age excluded from all candidate features | It's the CR baseline curve's sole predictor — including it would make the attribution target circular by construction | — | Non-negotiable, well-justified, and explicitly checked (this project's one clean example of a target-circularity audit actually catching something) |
+| Two-stage mixed-effects approximation instead of a full joint non-linear mixed-effects model | Standard, citable simplification (Socha 2016); much cheaper to fit | Stage-1 uncertainty isn't propagated into Stage-2 — coefficient significance may be slightly overstated | Full joint NLME is substantially more complex to fit and wasn't judged worth it for an attribution-only (not predictive) model; a reasonable place to spend more time in Future Work if the coefficient p-values need to be defended more rigorously |
+| `CanopyCover`'s reverse-causation risk checked **after** it turned out to dominate every set, not designed around from the start | The check itself (baseline-only ablation, between-compartment variance decomposition) is solid and the resulting framing (baseline control, not the headline finding) is defensible | It's a retrofit — the original design didn't anticipate needing this control | **A clear, honest Future Work item**: build the baseline-vs-environment decomposition into the attribution design from the outset for any future stand-structure variable that shares the same ALS pipeline as the target, rather than adding it reactively once a variable looks suspiciously dominant |
+
+---
+
+## 6. RQ3 — plot-specific growth-curve deviation
+
+| Decision | Justification | Limitation | Why kept anyway |
+|---|---|---|---|
+| Asymptote-only deviation target, curve shape fixed to yield-class values, fitted by closed-form WLS | Stable with few observations per plot; directly matches what the yield-class comparison is actually about (max height potential) | Plots with different growth *rates* or inflection timing that reach the same eventual ceiling aren't treated as divergent — a real, stated scope limitation | Deliberate, well-justified scope choice, not an oversight — but worth restating in Future Work as "a companion growth-*shape* deviation metric (not just ceiling) is the natural next target" |
+| Per-plot asymptote target uses whatever survey history each plot has, with **no weighting by history length** | Simpler pipeline, treats every plot symmetrically | Plots with only the cohort-minimum number of surveys get a noisier target than plots with a full history, and this noise isn't propagated or down-weighted anywhere downstream | **Probably the single most "obvious in hindsight" fix in the whole RQ3 design**: inverse-variance weighting (or even just a categorical "survey-count" control feature) by survey-history length is a standard, low-cost fix that wasn't implemented — good, concrete Future Work item |
+| GNNWR kept as an attribution tool despite known 6survey fragility (sign-flips across seeds, near-zero, underpowered) | It's the only tool in the toolkit that tests spatially-*varying* coefficients at all — dropping it would remove that entire axis of RQ3 | 6survey's result there is genuinely inconclusive, not just noisy-but-directionally-right | 4survey's GNNWR result is reliable and is the headline; 6survey was always meant as a secondary check, and reporting "underpowered, no reliable direction" honestly is itself a valid finding about cohort-size requirements for spatially-varying models |
+
+---
+
+## Consolidated "more obvious alternative" list for Future Work
+
+Ranked roughly by how concrete/actionable each one is, not by importance:
+
+1. **Treat the temporal-environmental question as its own separate, purpose-built analysis with an interval-level target** (e.g. survey-to-survey deviation *change*), rather than continuing to force time-varying data into RQ2b/RQ3's persistent-target framework. This isn't a hunch — it's supported by a real, checked result: the feature-side fix was already tried (engineering cohort$\times$exposure interactions from real interval-level MIDAS data, `temporal_wind_extension_check.py`) and found not to help under two different global-relationship model families (Elastic Net, XGBoost; GNNWR was not included in that check and remains untested). The experiment log's own reasoning is the stronger argument, though: a target that collapses a plot's whole survey history into one persistent number cannot, by construction, reward interval-specific timing, regardless of how cleverly the features are engineered. That's a structural explanation, not just an empirical correlation of failure. **Design suggestion**: this future analysis would naturally extend RQ2a's shape, not RQ2b/RQ3's — RQ2a already operates at the per-survey-row level (RQ1's predictions vs. the CR baseline, matched by plot *and year*), which is inherently compatible with time-varying environmental data in a way RQ2b/RQ3's persistent per-plot summaries structurally aren't. Framing this as a proposed future RQ (rather than a buried "also try X" line) is a reasonable rhetorical choice for the Future Work section, even though structurally it's an extension of existing row-level machinery rather than a wholly new design.
+2. **Inverse-variance (or survey-count) weighting for RQ3's per-plot asymptote target** — cheap, standard, directly addresses a named limitation.
+3. **A real per-target XGBoost hyperparameter search** (RQ1/RQ2b/RQ3 each tuned on their own target) instead of one carried-over config applied unevenly — the most honest "this was technical debt, not a principled choice" item.
+4. **Two-stage semivariogram-then-buffer procedure** to set the 60m spatial buffer empirically instead of by convention, resolving the circularity noted in the chapter's own limitations.
+5. **An explicit, applied age-floor rule** for early-age LiDAR reliability — quantified during the project (19%/0.9% cut on 4survey/6survey) but never actually adopted; the linear-regression age-range argument and RQ1's baseline comparison both lean on this same unresolved question.
+6. **Build RQ2a to cover every RQ1 model family from the start**, not just DNN/PINN with XGBoost bolted on later once a fairness issue surfaced.
+7. **Design the baseline-vs-environment decomposition into RQ2b/RQ3 from the outset** for any stand-structure variable sharing the target's own ALS pipeline, rather than adding it reactively after `CanopyCover` turned out to dominate.
+8. A companion **growth-shape** (not just asymptote) deviation target for RQ3, since the current target is explicitly scoped to ignore rate/inflection differences between plots that reach the same ceiling.
+
+Items 1, 2, and 3 are the strongest candidates for the dissertation's actual Future Work section — each is concrete, each has a clear "why it wasn't done" (data-pipeline design, not laziness), and each maps directly onto a limitation already stated in the methodology chapter, so the Future Work section can cross-reference rather than re-derive the argument.
