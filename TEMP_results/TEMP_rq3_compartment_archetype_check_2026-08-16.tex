@@ -1,0 +1,125 @@
+## TEMP holding note — RQ3 compartment-archetype classification, re-run on current data (2026-08-16)
+
+**Context**: re-implements an earlier notebook's compartment-level growth-trajectory classification
+(`notebooks/growth_curve_attribution/av2_local_growth_curve_grouped_importance.ipynb`, last run
+2026-08-08, before the environmental Set2-5 restructuring) as a standalone script against the
+CURRENT data pipeline — `models/growth_curve_attribution/rq3_compartment_archetype_check.py`. Same
+rule shapes as the notebook, percentile bands recomputed fresh on today's data (not copied from the
+old run), plus two additions the notebook didn't have: each representative compartment's own mean
+yield class and Chapman-Richards shape parameters (k, p), and what fraction of the curve's eventual
+asymptote is reached at that compartment's mean survey age.
+
+**Run as**: `python -m models.growth_curve_attribution.rq3_compartment_archetype_check --cohort 4survey`
+
+### What happened — 4 of 5 categories work fine; 1 has a real, specific, fixable reason for being empty
+
+4survey, 231 compartments, 56,526 plots (`apply_disturbance_cleaning=True`, the default used
+throughout this project's target construction):
+
+| Pattern | n compartments |
+|---|---:|
+| moderate mismatch / mixed | 159 |
+| trajectory-break outlier | 26 |
+| close to yldc / stable | 20 |
+| consistently above yldc | 20 |
+| consistently below yldc | 6 |
+| **possible reset / measurement issue** | **0** |
+
+**Diagnosed directly, not guessed**: `build_plot_level_table(cohort, apply_disturbance_cleaning=True)`
+already excludes every plot flagged `any_clearfell_like`/`any_measurement_inconsistent` from the
+population before this classification ever runs (by the design of that function — see its own
+docstring: those plots have "no real trajectory to fit a fixed-shape curve to"). The "possible
+reset / measurement issue" category is looking for exactly those flags at the compartment level
+(>=10% of a compartment's plots) — but by the time it runs, none of the plots it's looking for are
+still in the population. **Confirmed by re-running with `apply_disturbance_cleaning=False`**: the
+category immediately populates (1 compartment, cpmt with sufficient concentration of flagged
+plots), and the other categories shift only slightly (trajectory-break outlier: 26->29,
+consistently above: 20->20, close to yldc: 20->18, consistently below: 6->5) — consistent with
+adding ~300 previously-excluded plots back into a 56,000+ population, not a different story.
+
+**Why the fixed version still only finds 1 compartment, not many — a real data characteristic, not
+a remaining bug**: disturbance flags are genuinely rare project-wide (254 `any_clearfell_like` +
+67 `any_measurement_inconsistent`, out of 56,841 plots without cleaning applied — about 0.55% of
+plots total), and the compartment-level rule requires a 10%+ CONCENTRATION of flagged plots within
+one compartment, not just their presence anywhere. Rare + requires local concentration = a
+genuinely demanding bar, expected to be sparse even with the pipeline fixed.
+
+**Conclusion**: 4 of the 5 rule categories are not too strict for current data — they populate with
+real, substantial examples (6-26 compartments each) using the exact same threshold logic as the
+original notebook, just with fresh percentile bands. The 5th category's emptiness has a specific,
+now-understood cause (an upstream filtering step removing its target population before it runs),
+not a flaw in the classification rules themselves or a mismatch with forestry ecology. If this
+category is wanted for the write-up, re-run with `apply_disturbance_cleaning=False` specifically
+for this diagnostic (methodologically fine here, since this classification is exploratory/
+diagnostic, not feeding anything the disturbance-exclusion decision was designed to protect).
+
+### Representative examples per category (`frac_of_asymptote_at_mean_age` = (1-exp(-k*Age))^p at
+the compartment's own mean k/p/Age — how far up the sigmoid this compartment's data actually sits)
+
+| Pattern | cpmt | n_plots | mean local_y_max_diff (m) | mean yldc | mean k | mean p | frac of asymptote at mean age |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| close to yldc / stable | 1012 | 36 | +3.21 | 20.0 | 0.033 | 1.807 | 0.780 |
+| consistently above yldc | 1098 | 302 | +16.24 | 12.1 | 0.031 | 1.739 | 0.402 |
+| consistently below yldc | 2069 | 3 | -33.65 | 22.0 | 0.026 | 1.522 | 0.691 |
+| trajectory-break outlier | 1053 | 66 | -4.71 | 11.1 | 0.035 | 1.198 | 0.876 |
+
+**The single-example lead above does NOT hold up as a strong pattern once checked across the full
+groups (2026-08-16)** — group means for `frac_of_asymptote_at_mean_age`:
+
+| Pattern | n | mean | SD |
+|---|---:|---:|---:|
+| close to yldc / stable | 20 | 0.644 | 0.124 |
+| consistently above yldc | 20 | 0.584 | 0.153 |
+| consistently below yldc | 6 | 0.710 | 0.182 |
+| moderate mismatch / mixed | 159 | 0.593 | 0.138 |
+| trajectory-break outlier | 26 | 0.670 | 0.161 |
+
+There's a weak, directionally-sensible signal — `consistently above yldc` has the lowest group mean,
+`consistently below yldc` the highest, consistent with "caught earlier in growth" partly explaining
+the above/below split — but the SDs (0.12-0.18) are large enough that the ranges overlap heavily
+across every group. The single compartment originally pulled as the "above yldc" example (cpmt
+1098, 0.402) was an unusually extreme case within its own category, not representative of the
+group's actual mean (0.584) — corrected here rather than left standing as a stronger finding than
+it is.
+
+### Environmental means by archetype (2026-08-16) — corroborates the boundary-proximity finding at compartment scale
+
+Merged `elevation`, `topex`, `windward_topex`, `slope_degrees`, `gwa_wind_speed_50m`,
+`CanopyCover`, and the three boundary-distance columns onto the plot table before compartment
+aggregation (`merge_environmental_features()`, unchanged). A targeted set, not the full candidate
+pool -- chosen because each is already established elsewhere in RQ3's work as real signal worth
+checking against this new classification.
+
+| Archetype | n | elevation | topex | windward_topex | slope | CanopyCover | dist_to_cpmt_boundary | dist_to_block_boundary | dist_to_forest_perimeter |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| close to yldc / stable | 20 | 114.1 | 2.31 | 0.73 | 7.48 | 0.74 | 30.1 | 31.1 | 196.0 |
+| consistently above yldc | 20 | 175.5 | 8.91 | 2.29 | 12.93 | 0.78 | 24.2 | 25.1 | 133.2 |
+| consistently below yldc | 6 | 185.2 | 5.04 | -0.98 | 11.83 | 0.49 | 13.6 | 15.5 | 126.3 |
+| trajectory-break outlier | 26 | 220.6 | 0.87 | 2.66 | 12.80 | 0.57 | 19.7 | 20.7 | 153.1 |
+| moderate mismatch / mixed | 159 | 179.1 | 2.48 | 0.81 | 10.02 | 0.71 | 28.0 | 29.3 | 174.7 |
+| *(4survey population median)* | -- | 149.9 | 0.35 | 1.07 | 8.81 | 0.79 | 28.4 | 29.9 | 165.5 |
+
+**Two real, corroborating patterns, checked against population medians, not eyeballed against
+nothing**:
+1. **`consistently below yldc` and `trajectory-break outlier` compartments sit notably closer to
+   compartment/block boundaries than `close to yldc/stable`** (13.6-19.7m vs. 30.1m dist_to_cpmt_
+   boundary, population median 28.4m) — extends the individual-outlier-plot boundary-proximity
+   finding (originally found on the 10 hand-picked plots) to whole compartment archetypes, a
+   different unit of analysis, independently.
+2. **`trajectory-break outlier` compartments have the highest elevation (220.6m) and highest
+   windward-specific exposure (`windward_topex`=2.66) of any group; `consistently above yldc` has
+   the highest omnidirectional exposure (`topex`=8.91) instead.** A real, meaningful distinction
+   between the two wind metrics, not the same signal twice — omnidirectional exposure associates
+   with growing faster than the yldc benchmark predicts; windward-specific exposure associates more
+   with unstable/break-type trajectories.
+
+**Honest caveat**: these are directional patterns from group means (n=6 to 159 compartments), not a
+significance-tested result — no test run to confirm they exceed what group-size-driven noise alone
+would produce. Consistent in direction with, and a genuine corroboration of, findings established
+elsewhere in this project, not proof on its own.
+
+### Not yet done
+
+The representative-compartment trajectory plots (observed height by age vs. mean fitted local curve
+vs. mean official yldc curve, one panel per category) that the original notebook built — data is
+all present in the merged plot table, plotting code not yet written for the new script.

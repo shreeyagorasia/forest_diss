@@ -172,12 +172,165 @@ rather than spinning it**:
 
 **Implication for the dissertation's argument structure**: the case for continuing with PINN/DNN
 despite losing RQ1's raw-accuracy contest to XGBoost should NOT rest on "PINN's residual shrinks
-the CR curve's error more cleanly" — that claim is not supported by this check. It should rest on
+the CR curve's error more cleanly" — that claim is not supported by this check. ~~It should rest on
 (a) reproducibility/stability of the environmental-conditioning effect across folds (supported
-here), and (b) the structural arguments established separately (PINN's differentiable, physically-
-parametrized `y_max`/`k` output enables RQ3's target and the physics-constraint mechanism itself,
-which XGBoost cannot represent by construction, regardless of its accuracy or reduction pattern).
+here)~~ **CORRECTION (2026-08-16, see below): claim (a) does not hold up — the "5-14x more stable"
+comparison above mismatches DNN's 5-SEED SD against XGBoost's 5-FOLD SD, not a like-for-like
+comparison.** It should instead rest on (b) the structural arguments established separately
+(PINN's differentiable, physically-parametrized `y_max`/`k` output enables RQ3's target and the
+physics-constraint mechanism itself, which XGBoost cannot represent by construction, regardless of
+its accuracy or reduction pattern).
+
+### CORRECTION (2026-08-16) — the "XGBoost is 5-14x less stable" claim used mismatched SD types
+
+**Caught during a document audit**: the "Honest finding" point 3 above compares XGBoost's
+fold-to-fold SD (0.330/0.183, from the single-seed 5-fold run in the table just above) against
+DNN's row labelled "(env-conditioned, existing) | 1.501±0.023 | 0.174±0.036" — but those DNN
+numbers are the **5-SEED reseed SD** (seed-to-seed variability of the fold-pooled mean, Step 4a
+above), not DNN's own fold-to-fold SD. These are different quantities (training-randomness
+stability vs. spatial-split sensitivity) and are not comparable in magnitude by construction —
+seed-to-seed SD is expected to be much smaller than fold-to-fold SD for almost any model, since
+changing the held-out spatial region changes the actual data being evaluated, while changing the
+training seed only changes weight initialisation on the same data.
+
+**The correct like-for-like comparison** uses DNN's OWN single-seed fold-to-fold SD, already in
+the "Results — overall" table above: Set3 4survey = 1.495±**0.386**, Set3 6survey =
+0.190±**0.264**. Compared against XGBoost's fold SD (0.330/0.183):
+
+| Cohort | DNN fold-to-fold SD | XGBoost fold-to-fold SD | XGBoost/DNN ratio |
+|---|---:|---:|---:|
+| 4survey | 0.386 | 0.330 | 0.85 |
+| 6survey | 0.264 | 0.183 | 0.69 |
+
+**XGBoost's fold-to-fold SD is actually SMALLER than DNN's on both cohorts** (85% and 69% of DNN's
+own fold SD) — the opposite conclusion from "5-14x less stable." No new fitting was needed for this
+correction — both numbers already existed in this same file, just never compared against each
+other correctly. **The "far less fold-to-fold reproducibility" claim for XGBoost should be
+retracted**; on the one basis that's actually comparable, XGBoost and DNN's fold-to-fold stability
+are similar, if anything favouring XGBoost slightly. DNN's 5-seed reseed SD (0.023/0.036) remains a
+real, separately-useful number — it just answers a different question ("does retraining with a new
+seed change the answer," not "does XGBoost swing around more than DNN fold-to-fold") — and there is
+no equivalent multi-seed reseed for XGBoost to compare it against directly.
 
 **Scope note**: this was run on Set3 only (the same set used throughout the RQ1/DNN headline
 comparisons, for direct comparability) plus a no-env control — Set2/Set4 were not tested for this
 specific check.
+
+### XGBoost's own % rows improved (2026-08-16) — no retraining, reused already-saved predictions
+
+`rq2a_xgb_check.py`'s original run computed `pct_rows_improved` internally (inside
+`compute_residual_reduction()`) but the saved summary didn't retain it. Re-ran the script's own
+`run_reduction_check()` against the already-saved `predictions.csv` for both arms (5 folds x 2
+cohorts, no new fitting):
+
+| Model | 4survey | 6survey |
+|---|---:|---:|
+| XGBoost, env-conditioned | 67.2±3.8 | 56.0±4.6 |
+| XGBoost, no-env control | 64.5±3.2 | 54.8±3.0 |
+
+Comparable to DNN's own (64.8±4.1 / 52.4±4.8) — consistent with the existing "XGBoost reproduces
+the pattern" finding, on this additional metric too.
+
+### CORRECTION (2026-08-16) — the CR baseline stated for every 6survey row (3.057) is stale
+
+**Found during a document audit**: recomputing the CR baseline directly from the currently-saved
+`chapman_richards_fold{0-4}` predictions.csv files (joined against DNN/PINN/PINN_k/XGBoost's own
+predictions, via `compute_residual_reduction()`, no changes to that function) gives **3.047** for
+6survey, consistently across all three neural models and both XGBoost arms — not 3.057. Likely
+cause: `chapman_richards_fold{N}`'s predictions.csv were regenerated at some point after this
+note's original 2026-08-11 computation (fold split-assignment CSVs get rewritten every time
+`build_split_for_cohort()` runs, which has happened many times across this project's later
+sessions), shifting the 6survey CR fit slightly. 4survey's CR baseline (5.0285) is essentially
+unchanged from the original 5.028.
+
+**Script**: `models/spatial_attribution/rq2a_verify_cr_baseline.py` — recomputes CR baseline,
+model mean|resid|, reduction, and % improved for every model row in one consistent pass, all
+pooled across the 5 folds' joined rows (not mean-of-fold-means, a slightly different but
+closely-matching aggregation already discussed below).
+
+| Model | Cohort | n | CR baseline | Model mean|resid| | Reduction | % improved |
+|---|---|---:|---:|---:|---:|---:|
+| DNN | 4survey | 232,292 | 5.0285 | 3.5333 | 1.4951 | 64.8 |
+| PINN | 4survey | 232,292 | 5.0285 | 4.0637 | 0.9648 | 61.6 |
+| PINN_k | 4survey | 232,292 | 5.0285 | 4.0465 | 0.9820 | 61.5 |
+| XGBoost env | 4survey | 232,292 | 5.0285 | 3.4317 | 1.5968 | 67.2 |
+| XGBoost no-env | 4survey | **232,448** | **5.0300** | 3.8086 | 1.2214 | 64.5 |
+| DNN | 6survey | 82,614 | **3.0467** | 2.8559 | 0.1907 | 52.5 |
+| PINN | 6survey | 82,614 | **3.0467** | 2.8103 | 0.2364 | 56.7 |
+| PINN_k | 6survey | 82,614 | **3.0467** | 2.8079 | 0.2388 | 55.7 |
+| XGBoost env | 6survey | 82,614 | **3.0467** | 2.6888 | 0.3579 | 56.1 |
+| XGBoost no-env | 6survey | 82,614 | **3.0467** | 2.8080 | 0.2387 | 54.8 |
+
+**Also confirms a real, legitimate (not erroneous) difference**: XGBoost's no-env arm has a
+genuinely larger 4survey population (232,448 vs. 232,292) than every other Set3 row, since it
+isn't filtered for missing environmental data (that filtering only applies once environmental
+features are actually merged in) — its own CR baseline (5.030) is correctly slightly different
+from the other rows' (5.028), not an inconsistency to paper over.
+
+**Practical impact: none of the draft's stated "% of baseline error closed" figures actually
+change** — recomputing every 6survey percentage with the corrected 3.047 baseline (instead of
+3.057) still rounds to the same 1-decimal-place value in every case (e.g. DNN: 0.174/3.047=5.71%
+vs. the old 0.174/3.057=5.69%, both round to 5.7%). Only the raw "CR baseline" column itself needed
+correcting in the results table.
+
+### How large is Q1's harm, relative to what CR itself achieves there? (2026-08-16)
+
+**Motivation**: the draft characterised Q1's harm as the model "hurts slightly where it already
+fits well" — checking this against Q1's own CR baseline error (not just the overall cohort
+baseline) rather than assuming the word "slightly" is accurate.
+
+**Method**: `models/spatial_attribution/rq2_residual_reduction.py`'s own `compute_residual_reduction()`
+already returns a `by_quartile` breakdown with `cr_mean_abs_residual` and `model_mean_abs_residual`
+per quartile — just never printed/cited in the draft, which only cited the `mean_reduction` column.
+DNN, Set3, seed 42, pooled across 5 folds, both cohorts:
+
+| Cohort | Q1 CR baseline | Q1 model error | Ratio | % of Q1 rows improved |
+|---|---:|---:|---:|---:|
+| 4survey | 1.006m | 2.580m | 2.6x | 25.4% |
+| 6survey | 0.517m | 1.653m | 3.2x | 21.6% |
+
+**"Hurts slightly" is a real understatement.** In Q1 (the quartile CR already fits best), DNN's
+own error is 2.6x (4survey) to 3.2x (6survey) LARGER than CR's own error there — not a marginal
+degradation. Only about 1 in 4-5 Q1 plots actually improve; the large majority (75-79%) get worse.
+The absolute reduction number (-1.57m/-1.14m) looks small only relative to Q4's much larger
+absolute swing (+5.08m/+1.81m) — in RELATIVE terms, against Q1's own small baseline error, this is
+the opposite of slight.
+
+### Testing the "Q1=noise, Q4=signal" mechanism against the 5-seed quartile data (2026-08-16)
+
+**Motivation**: item 1's proposed mechanism (env conditioning hurts Q1 because there's little real
+residual left to fit, so the model fits training noise there; helps Q4 because the large residual
+is real, environment-linked signal) had never been directly tested — only asserted as plausible.
+A cheap, no-retraining test: if Q1's harm really is "fitting noise," it should behave more
+erratically across independent training runs (different random seeds) than Q4's help, which
+should be a reproducible, systematic signal. The already-computed 5-seed reduction-by-quartile
+table above (DNN, Set3, both cohorts) gives exactly this: compute each quartile's coefficient of
+variation (CV = |SD / mean| across the 5 seeds) as a proxy for "is this effect systematic
+(low CV) or erratic (high CV)."
+
+| Cohort | Q1 CV | Q2 CV | Q3 CV | Q4 CV |
+|---|---:|---:|---:|---:|
+| 4survey | 3.3% | 8.8% | 1.6% | 2.3% |
+| 6survey | 8.3% | 17.9% | 10.3% | 4.5% |
+
+**Result: mixed, not a clean confirmation.** Q4 IS the most reproducible quartile on 4survey (2.3%,
+second-lowest only to Q3's 1.6%) and clearly the most reproducible on 6survey (4.5%, lowest of all
+four) — consistent with "Q4's help is real, systematic signal." But **Q1 is not the noisiest
+quartile in either cohort — Q2 is** (8.8% vs Q1's 3.3% on 4survey; 17.9% vs Q1's 8.3% on 6survey).
+This is more likely a denominator artifact than evidence against the mechanism: Q2's mean reduction
+is close to zero (0.260m on 4survey, -0.319m on 6survey), so its CV is inflated by dividing by a
+small number, not necessarily by more erratic underlying behaviour. Q1's own mean (-1.583m/
+-1.093m) is large enough that its CV is a more trustworthy reproducibility signal, and it IS low
+(single digits) — but "low" doesn't distinguish "genuinely reproducible harm" from "genuinely
+reproducible noise-fitting," since both would look equally stable across seeds if the SAME noise
+pattern in the training data gets fit the same way each time (seeds change model initialisation,
+not the training data's noise itself).
+
+**Conclusion**: this check does not cleanly prove or disprove the signal-vs-noise mechanism — it
+confirms Q4's effect is highly reproducible (supporting "real signal" there) but the CV comparison
+cannot actually distinguish "reproducible harm from noise-fitting" from "reproducible harm from a
+real but undesirable systematic effect" at Q1, since seed-to-seed stability alone doesn't test
+what's being fit, only whether the same thing is fit each time. A real test of the noise-vs-signal
+claim specifically would need to look at whether Q1's residual correlates with anything
+environment-linked at all (if it doesn't, "noise" is more supportable) or is itself systematic
+across independent data subsets — not yet done, remains future work.

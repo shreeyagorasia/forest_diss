@@ -61,3 +61,62 @@ anti-correlation, the two learned parameters become almost interchangeable), 6su
 removing the physics constraint: w=0 gives better raw R2 but a substantially less interpretable
 model, since y_max and k become much harder to attribute independently once nothing is pulling
 them toward physically-consistent, separable values.
+
+### What does the -0.935 correlation actually look like in the raw learned values? (2026-08-16)
+
+Checked directly, no retraining — pooled `learned_y_max`/`learned_k` from the already-saved
+`predictions.csv` across all 5 test folds of `rq1_pinn_env_terrain_k_..._w0_seed42`, 4survey,
+deduplicated to one row per plot (58,073 unique plots; these columns are static per plot, repeated
+across a plot's own survey-year rows in the long table).
+
+| | min | 25% | median | 75% | max |
+|---|---:|---:|---:|---:|---:|
+| `learned_y_max` (m) | 50.207 | 50.207 | 51.963 | 51.963 | 51.963 |
+| `learned_k` | 0.009609 | 0.010142 | 0.010196 | 0.011059 | 0.011414 |
+
+Recomputed correlation from these raw values: **-0.9345** — matches the reported -0.935.
+
+**This changes what the finding actually means, in an important way.** The learned `y_max` values
+are NOT wandering off to biologically implausible individual values — every one of the 58,073
+plots sits between 50.2m and 52.0m, tightly clustered around the global CR anchor (51.96m,
+4survey's own fitted ceiling) — 0 plots exceed 55m, 0 plots fall below 20m. So this is not a case
+of the model producing absurd per-plot asymptotes. What the extreme correlation actually shows is
+narrower and more precise: within this tight band, whichever tiny amount the sub-network nudges a
+plot's `y_max` up, it reliably nudges that same plot's `k` down by a corresponding amount — the two
+sub-networks are trading off a small, shared degree of freedom rather than each capturing
+independent, site-specific signal. The individual values stay plausible; the *decomposition* into
+"this plot's asymptote" vs. "this plot's growth rate" is what's not trustworthy.
+
+### Freeze-y_max ablation, re-run on the current Set3 tier (2026-08-16) — a more complex result than the old tier's, reported honestly
+
+Old-tier version (2026-08-04, pre-restructuring) found `k`'s learned range barely narrowed when
+`y_max` was pinned (frozen range ~77% as wide as the full two-parameter model's), read as evidence
+against "two knobs simply fighting over one degree of freedom." Re-ran the same ablation on the
+current tier for a direct check: `run_pinn_env_terrain_k.py --freeze-y-max`, 4survey,
+`spatial_block` (single split, matching the comparison model below), Set3, seed=42 — local run
+(MPS), 428.8s, 57 epochs, early-stopped. Compared against the correct like-for-like baseline: the
+full two-parameter model on the SAME split type and weight
+(`rq1_physicsablation_singlesplit_pinn_env_terrain_k_..._w1_seed42`, not the w=0 or kfold versions,
+which would not be a fair comparison).
+
+| | `learned_y_max` range | `learned_k` range | `k` range width | y_max/k correlation |
+|---|---|---|---:|---:|
+| Full two-parameter model (w=1, single split) | 51.189–52.076 | 0.010364–0.019564 | 0.009200 | +0.102 |
+| Freeze-`y_max` (w=1, single split) | 51.96 (exact constant) | 0.009956–0.023534 | 0.013578 | +nan (constant) |
+
+**On the current tier, the frozen-`y_max` model's `k` range is WIDER than the full model's** (0.0136
+vs. 0.0092, ~148% as wide) — the opposite direction from the old tier's ~77%-as-wide finding.
+Freezing `y_max` did not narrow `k`'s range here; if anything it widened. This is still evidence
+against a clean "two knobs simply fighting over one shared degree of freedom, resolved once you pin
+one" story — a single free parameter here explores an even WIDER range than a jointly-estimated one
+does — but it does not replicate the old tier's specific direction, and shouldn't be reported as
+though it does.
+
+**A second, unplanned finding worth flagging honestly**: the full two-parameter model's own
+y_max/k correlation is sensitive to which split evaluates it — +0.102 on this single `spatial_block`
+split vs. -0.449 pooled across the 5-fold `spatial_block_kfold` version (same tier, same seed,
+different split/pooling). Sign and magnitude both move. This doesn't overturn the pooled-kfold
+number already cited as the project's primary result (5 folds pooled is more robust than one
+split), but it does mean a single-split identifiability check is noisier than the old-tier work
+implied, and a genuine multi-seed check (not yet done, flagged separately) would help establish
+whether either number is stable or whether both are within the same noise band.

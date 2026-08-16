@@ -1,3 +1,4 @@
+
 %=======================================================================================
 
 \chapter{Methodology and Experimental Design}
@@ -8,7 +9,6 @@ This chapter outlines how the raw data was utilised to answer the three research
 
 
 %------------------------------------------------
-\section{Research questions and experimental framework}
 \textbf{RQ1} tests which models accurately predict top height and under what input and cohort year. \textbf{RQ2} is an attribution task, asking which areas over or under predict top height relative to the average CR equation formed from the entire dataset. \textbf{RQ3} fits each plot with its own asymptote from only the plot's own repeated observations, and makes comparisons on the growth trajectories of curves, and if they are associated with specific stand, management or external environmental variables.
 
 \begin{table}[!htbp]
@@ -60,7 +60,8 @@ map.}
 
 
 %------------------------------------------------
-\paragraph*{Evaluation Framework and Data Splits}. 4survey is the primary cohort throughout; 6survey's longer per-plot trajectories suit the temporal split, and its spatial-block results are compared against 4survey's throughout to help explain differences in model behaviour. For RQ1, each row in the dataset represents a single plot in a given survey year. For RQ2 and RQ3, data are aggregated so each row represents a single plot (Table~\ref{tab:rq-framework}). Model performance is evaluated using four distinct data-splitting strategies.
+\section{Data splits and Feature Design} 
+4survey is the primary cohort throughout; 6survey's longer per-plot trajectories suit the temporal split, and its spatial-block results are compared against 4survey's throughout to help explain differences in model behaviour. For RQ1, each row in the dataset represents a single plot in a given survey year. For RQ2 and RQ3, data are aggregated so each row represents a single plot (Table~\ref{tab:rq-framework}). Model performance is evaluated using four distinct data-splitting strategies.
 
 As a held-out plot's nearest neighbour is typically a training plot metres away, a model can succeed by learning \emph{where} it is in Aberfoyle rather than \emph{why} a plot grows the way it does. Spatial block splitting removes this by holding out whole compartments instead. The temporal split asks whether a model trained on past growth still predicts a real future survey it never saw, rather than an unseen location in the same time period. Table~\ref{tab:splits-summary} gives the exact construction of all four splits used across RQ1--RQ3 (Table~\ref{tab:rq-framework}).
 
@@ -315,7 +316,7 @@ Appendix~\ref{app:hyperparameters}.}
 \end{table}
 
 %------------------------------------------------
-\section{RQ2a: does environment shrink RQ1's own departure from the curve}
+\section{RQ2a: Environmental Correction of Curve Deviation}
 RQ2a reuses CR-parameter predictions from RQ1 alongside the fold-matched CR baseline without fitting new models. Deviations from this baseline curve mark plots that diverge from the population average. We test whether environmental covariates reduce these departures, particularly for the most severely over- or under-predicted plots, rather than providing a uniform global improvement.
 
 For each test observation, predictions from the fold-matched CR baseline and the environment-conditioned models (DNN, PINN, and PINN$_k$) are matched by plot and survey year. The residual reduction is computed from the error magnitudes:
@@ -329,7 +330,7 @@ To separate general model improvements from specific environmental corrections, 
 , each quartile contains exactly 25\% of the test data; this evaluates performance across standard subgroups rather than focusing on a few extreme outliers. Mean reductions are evaluated per quartile across all three environment-conditioned models, feature sets (Sets~2--4), and cohorts under spatial cross-validation, with the top-performing configuration verified across multiple random seeds for robustness %%NOT ACTUALLY SURE I DID THIS, CHECK WITH RESULTS, POSSIBLY CHANGE PARAGRAPH ON HOW WE EVALUATED RQ2a
 
 %------------------------------------------------
-\section{RQ2b: persistent departure from a shared growth curve}
+\section{RQ2b: Persistent Shared-Curve Deviation}
 \label{sec:rq2b}
 This asks which environmental/management conditions align with a plot's persistent position above or below the single shared curve, using only the 4survey cohort (6survey's 47 compartments were judged too few for a reliable spatial-block attribution split).
 
@@ -365,7 +366,7 @@ where $\boldsymbol{\beta}$ represents fixed-effect coefficients on standardised 
 Feature importance and SHAP values provide post-hoc interpretability, compared against the mixed-effects coefficients for cross-model convergence. %todo, CHECK WE ACTUALLY DO THIS IN THE RESULTS. 
 
 %------------------------------------------------
-\section{RQ3: Plot-specific growth-curve deviation}
+\section{RQ3: Plot-Specific Curve Deviation}
 \label{sec:rq3-target}
 This tests whether a plot's fitted growth ceiling deviates from its static yield-class expectation, and whether local environmental or management conditions explain that deviation. Deviation is estimated in the asymptotic ceiling alone, with the curve's shape parameters held fixed, for three reasons: with few survey observations per plot, fixing shape lets the asymptote be estimated by a stable closed-form linear fit rather than an unstable nonlinear optimisation; the yield-class comparison concerns maximum height potential directly, making the asymptote the parameter of interest; and this follows standard site-index modelling convention, where site quality shifts asymptotic potential while trajectory shape stays constant \citep{socha2021Regional_C2_CR}. By construction the target captures asymptotic height potential alone -- plots with different growth rates or inflection timing that ultimately reach the same ceiling are not treated as divergent.
 
@@ -423,7 +424,7 @@ mechanism to unpack. Annotate: association, not causation.}
 %   diagnostic -- label it "per-plot coefficient table", not "coefficient map", unless a
 %   map-producing script is separately confirmed.
 
-\section{Model evaluation, uncertainty and interpretation}
+\section{Model Evaluation and Robustness}
 \label{sec:eval-diagnostics}
 This section states what is measured and why, not what was found (Results chapter).
 
@@ -457,7 +458,7 @@ Elastic Net coefficients are reported as mean $\pm$ standard deviation across th
 
 
 
-\section{Methodological assumptions and limitations}
+\section{Assumptions and Limitations}
 \label{sec:limitations}
 
 \begin{itemize}
@@ -471,3 +472,18 @@ Elastic Net coefficients are reported as mean $\pm$ standard deviation across th
 \end{itemize}
 
 %%I WILL REVIEW THIS AFTER I DRAFT RESULTS AND BACKGROUND, AND I IMAGINE MUCH OF THE SIMPLE METHOD JUSTIFCAITON CAN GO TO BACKGROUND, (SIMPLIFY WHAT IS SAID IN METHODLOGY WHITHOUT EXPLINAING), BUT THEN ADD IN MORE EVLAUATION RULES AND AFTER MODEL RUN DIAGNOSTICS THAT IM STILL DOING. 
+
+%------------------------ rq1_ADDTIONS ------------------------
+%% tuned xgboost separetaly so now its no the same as rq3, its for this task (rq2 isnt tuned at the moment)
+%% RQ1 XGBoost now has its own tuned config, not the shared RQ2b/RQ3 one -- update:
+%%   - Table~\ref{tab:rq1-models} XGBoost row: "fixed configuration, not a validation-selected grid" -> now IS validation-selected, per-cohort
+%%   - the "single XGBoost configuration...used throughout" sentence (Sec RQ1, para on XGBoost): no longer true for RQ1
+%%   - "Robustness" list's "XGBoost hyperparameter sensitivity (RQ1 baseline)" bullet: outcome is DECIDED -- adopted into production, not just a sensitivity check
+%%   - Limitations' "XGBoost's hyperparameter recipe is shared across research questions" paragraph + \fc{check its was tuned only to rq3}: now RQ1 is also individually tuned, only RQ2b/RQ3 share the fixed config
+%% Search spec to add: n_estimators in {300,500,800}, max_depth in {3,4,6}, learning_rate in {0.02,0.04,0.08}, 5-fold spatial_block_kfold, selected on validation R2 (never test), per cohort
+%% Architecture-size sensitivity (Robustness list bullet) outcome, for a one-line mention: null result -- no size helps both cohorts for any of the 3 guided-network variants; DNN somewhat size-sensitive, PINN/PINN_k 5-10x less so; val_loss ranking does not track test-R2 ranking (signature of noise, not a real capacity effect) -- left out of Results write-up as low-value, not reported there in detail.
+
+%------------------------ rq3_ADDTIONS ------------------------
+%% need to add tukey fence scan for rq3 outlier sorting
+%% symptote fraction
+%% Category-removal Moran's I check (Sec eval-diagnostics, "as a category-removal check for RQ3") outcome, for a one-line mention: stand_structure dominates category attribution, but removing terrain (the #2 category) LOWERS residual clustering while stand_structure removal doesn't -- the opposite of the working hypothesis, unresolved, no test distinguishes the competing explanations -- left out of Results write-up as an unresolved contradiction, not reported there in detail.

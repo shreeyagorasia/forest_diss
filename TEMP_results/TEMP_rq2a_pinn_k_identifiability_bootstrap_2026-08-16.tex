@@ -1,0 +1,38 @@
+## TEMP holding note — PINN_k y_max/k cluster-bootstrap CI, current tier, pooled 5-fold (2026-08-16)
+
+**Why this exists**: RQ2a item 3's corroborating bootstrap CI for the y_max/k identifiability
+correlation was cited as `95% CI [-0.77, -0.62]`, flagged in the draft itself as "still the old,
+pre-restructuring tier — not yet rerun current." A search of every file in `TEMP_results` for
+these numbers found no source at all — this CI could not be traced to any saved result. Recomputed
+here on the current tier instead, on the exact same pooled 5-fold w=0 predictions that produced the
+flagship -0.9345 point estimate (`TEMP_rq1_physicsablation_results_2026-08-11.tex`'s "What does the
+-0.935 correlation actually look like" section).
+
+**Method**: `models/pinn_env_terrain_k/bootstrap_correlation_check_kfold_pooled.py` — pools the 5
+per-fold `predictions.csv` files from
+`outputs/spatial_block_kfold/rq1_pinn_env_terrain_k_nested_set3_gated_terrain_wind_vif_w0_seed42/`,
+dedupes to one row per plot (matching the existing pooling approach exactly), then reuses
+`bootstrap_correlation_check.py`'s own `cluster_bootstrap_correlation_ci()` unmodified (2000
+resamples, resampling whole compartments with replacement, not individual plots — same
+cluster-bootstrap convention already established elsewhere in this project). No new fitting.
+
+**Run as**: `python -m models.pinn_env_terrain_k.bootstrap_correlation_check_kfold_pooled`
+
+### Results
+
+| Cohort | n plots | n compartments | Point estimate | 95% CI | % resamples wrong-sign |
+|---|---:|---:|---:|---|---:|
+| 4survey | 58,073 | 232 | -0.9345 | [-0.9437, -0.9232] | 0.0% |
+| 6survey | 13,769 | 47 | +0.4300 | [+0.2544, +0.5893] | 100.0% (i.e. always positive) |
+
+**4survey**: the CI is far tighter than the old-tier number it replaces ([-0.9437, -0.9232] vs. the
+untraceable [-0.77, -0.62]) and never crosses zero across 2000 resamples — the near-perfect
+anti-correlation is not small-sample noise, on the current tier, with a real saved source.
+
+**6survey**: newly computed here for the first time (the old-tier CI was 4survey-only). The sign
+flip reported elsewhere (+0.430 point estimate) is itself statistically robust — the CI
+[+0.254, +0.589] stays positive throughout, confirming 6survey's opposite-sign correlation is a
+real, reproducible pattern on this cohort, not noise scattering around zero either. 6survey's CI is
+noticeably wider than 4survey's (relative to its point estimate), consistent with 6survey's smaller
+sample (13,769 vs. 58,073 plots, 47 vs. 232 compartments) — the same sample-size-driven precision
+gap seen throughout this project's 6survey results.

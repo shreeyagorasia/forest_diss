@@ -1,0 +1,46 @@
+## TEMP holding note — RQ1's own XGBoost hyperparameter search (2026-08-16)
+
+**Context**: RQ1's "fairly tuned" XGBoost row (`TEMP_rq1_baseline_comparison_2026-08-11.tex`) used
+a config (`n_estimators=500, max_depth=4, learning_rate=0.04`) borrowed from RQ3's
+`explain_signal.py`, itself never validated by a real search -- reused across RQ1/RQ2b/RQ3 as a
+"borrowed, not searched" default. This note replaces that hedge for RQ1 specifically with a real
+per-target search: **only RQ1's XGBoost was retuned. RQ2b and RQ3's XGBoost configs are
+deliberately left untouched** -- retuning RQ3 in particular carries real blast-radius risk, since
+its entire outlier-diagnosis thread (which specific plots are worst-residual) depends on the
+current fit.
+
+**Method**: `models/baselines/rq1_xgb_hyperparameter_search.py`. Grid: `n_estimators` in
+{300, 500, 800}, `max_depth` in {3, 4, 6}, `learning_rate` in {0.02, 0.04, 0.08} = 27 configs,
+each fit on Set3 (`nested_set3_gated_terrain_wind_vif`), both cohorts, `spatial_block_kfold`
+(5 folds) = 270 fits total. **Model selection uses validation R2 only, never test R2**, to avoid
+tuning-on-test leakage; test R2/RMSE/MAE reported only for the winning config, after selection is
+already decided. Reuses the same data/split pipeline as
+`xgb_hyperparameter_sensitivity_check.py`'s `fit_and_score_rq1_fold()`.
+
+### Winning config per cohort (selected on mean validation R2 across 5 folds)
+
+| Cohort | n_estimators | max_depth | learning_rate | Val R2 | Test R2 | Test RMSE | Test MAE |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 4survey | 500 | 6 | 0.02 | 0.682 | 0.674±0.009 | 4.548±0.137 | 3.431±0.123 |
+| 6survey | 300 | 3 | 0.08 | 0.717 | 0.722±0.031 | 3.656±0.232 | 2.669±0.183 |
+
+### Borrowed config's result, for direct comparison (same pipeline, same folds)
+
+| Cohort | Val R2 | Test R2 | Test RMSE | Test MAE |
+|---|---:|---:|---:|---:|
+| 4survey | 0.678 | 0.675±0.009 | 4.539±0.152 | 3.431±0.153 |
+| 6survey | 0.712 | 0.718±0.025 | 3.682±0.221 | 2.697±0.170 |
+
+**Finding: a real 270-fit search barely moves the numbers.** The winning config's test R2 sits
+within 0.002-0.004 of the borrowed config's on both cohorts -- well inside the fold-to-fold SD
+(0.009 on 4survey, 0.025-0.031 on 6survey). RMSE/MAE are likewise indistinguishable (4survey MAE
+is identical to three decimal places: 3.431 vs. 3.431). On 4survey the winning-by-val-R2 config is
+actually marginally *lower* on test R2 than the borrowed config (0.674 vs. 0.675) -- expected
+noise from selecting on validation rather than test, not a sign the search failed.
+
+**What this means for RQ1 item 1**: the "fairly tuned" hedge (borrowed, unsearched config) can now
+be dropped -- a genuine per-target search was run and it confirms the borrowed config was already
+close to optimal for this task. This also strengthens (does not weaken) the headline claim that
+XGBoost beats every neural model: the margin isn't an artifact of a lucky or unfair hyperparameter
+choice, since 270 alternative configs, honestly selected on validation data, don't find anything
+meaningfully better.

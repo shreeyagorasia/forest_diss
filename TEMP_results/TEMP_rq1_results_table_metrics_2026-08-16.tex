@@ -1,0 +1,58 @@
+## TEMP holding note — single-source recomputation of RQ1's results table (2026-08-16)
+
+**Context**: during a numeric audit of RQ1's results table, the DNN/PINN/PINN_k rows' RMSE/MAE
+±SD values could not be traced to any existing TEMP_results note — `TEMP_rq1_sweep_results_
+2026-08-11.tex` only reports pooled RMSE/MAE (no per-fold SD), and R2 point estimates matched but
+SDs didn't line up cleanly across notes. Wrote one script,
+`models/baselines/rq1_results_table_metrics.py`, that recomputes every row in the table (Linear,
+RF, XGBoost raw defaults, DNN, PINN, PINN_k) from the same already-saved per-fold `metrics.json`
+files, using one consistent formula, so the whole table now traces to a single source. No
+retraining — every fit already exists on disk from the main RQ1 sweep
+(`rq1_dnn_env_terrain_.../fold_{0-4}/metrics.json` etc.) and the baseline-env rerun
+(`linear_baseline_env_..._fold{0-4}/metrics.json` etc.), both Set3, both cohorts, seed 42,
+`spatial_block_kfold`.
+
+### A real inconsistency found, not introduced here
+
+The two original source notes used **different SD formulas** without saying so:
+- `TEMP_baseline_env_new_sets_results_2026-08-10.tex` (Linear/RF/XGBoost raw): population SD
+  (numpy default, ddof=0).
+- `TEMP_rq1_sweep_results_2026-08-11.tex` (DNN/PINN/PINN_k): sample SD (pandas `.std()` default,
+  ddof=1).
+
+With only 5 folds, sample SD is `sqrt(5/4) ≈ 1.118×` larger than population SD — confirmed exactly
+against both notes' own numbers (e.g. Linear 4survey R2: population SD 0.023 vs. this script's
+sample SD 0.026; 0.026 × sqrt(4/5) = 0.0233, matches). This means the results table's original
+"same method every row" claim was not actually true even before the RMSE/MAE gap was noticed — the
+Linear/RF/XGBoost-raw rows and the DNN/PINN/PINN_k rows used two different SD conventions that
+happened to look similar in magnitude.
+
+### Fix
+
+This script standardises on **sample SD (ddof=1)**, matching pandas' own default and matching the
+convention already used for the XGBoost-tuned row
+(`TEMP_rq1_xgb_hyperparameter_search_2026-08-16.tex`, also pandas `.std()`). All six rows below are
+computed the same way, from the same script, for the first time.
+
+### Results — Set3, both cohorts, per-fold mean±SD (ddof=1), 5 folds
+
+| Model | Cohort | R2 | RMSE | MAE |
+|---|---|---:|---:|---:|
+| Linear | 4survey | 0.580±0.026 | 5.168±0.361 | 4.056±0.343 |
+| RF | 4survey | 0.638±0.011 | 4.794±0.187 | 3.611±0.142 |
+| XGBoost (raw defaults) | 4survey | 0.637±0.015 | 4.797±0.175 | 3.621±0.136 |
+| DNN | 4survey | 0.655±0.016 | 4.681±0.230 | 3.533±0.201 |
+| PINN | 4survey | 0.573±0.036 | 5.206±0.399 | 4.063±0.407 |
+| PINN_k | 4survey | 0.575±0.037 | 5.197±0.402 | 4.046±0.421 |
+| Linear | 6survey | 0.509±0.067 | 4.877±0.643 | 3.619±0.426 |
+| RF | 6survey | 0.656±0.046 | 4.062±0.249 | 3.010±0.185 |
+| XGBoost (raw defaults) | 6survey | 0.651±0.016 | 4.106±0.358 | 3.041±0.301 |
+| DNN | 6survey | 0.684±0.031 | 3.903±0.316 | 2.867±0.275 |
+| PINN | 6survey | 0.686±0.038 | 3.886±0.290 | 2.819±0.196 |
+| PINN_k | 6survey | 0.684±0.038 | 3.895±0.282 | 2.816±0.196 |
+
+All R2 point estimates match the two original notes exactly (to 3 dp) — this recomputation changes
+only the SD magnitudes (all slightly larger, ~1.1-1.15x) and gives RMSE/MAE ± SD for DNN/PINN/PINN_k
+for the first time. No headline conclusion in RQ1 depends on any of these SDs at a level of
+precision this correction would change (all comparisons currently cited in the document rest on
+gaps far wider than a ~1.1x SD change would matter for).

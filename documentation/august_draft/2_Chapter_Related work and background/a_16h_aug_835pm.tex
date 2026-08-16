@@ -1,0 +1,138 @@
+%%% Colour commands - delete for final draft 
+% --- Editing Macros (Hierarchy of Importance) ---
+% 1. FACT CHECK (Critical): Red commands immediate attention for potential inaccuracies.
+\newcommand{\fc}[1]{\textcolor{red}{[FactC: #1]}} 
+% 2. CITE (High): Orange highlights missing evidence or attribution.
+\newcommand{\ct}[1]{\textcolor{orange}{[CITE: #1]}} 
+% 3. APPENDIX (Medium): Blue indicates structural moves (shifting text out of the main body).
+\newcommand{\app}[1]{\textcolor{blue}{[APP: #1]}} 
+% 4. SMALL REWORD (Low): Teal is for minor stylistic edits, mirroring your friend's setup.
+\newcommand{\sr}[1]{\textcolor{teal}{[Sreword: #1]}}
+% 5. FIGURE (Low): Purple is for figure-related notes (refer to figure, create figure, etc.).
+\newcommand{\fig}[1]{\textcolor{purple}{[FIG: #1]}}
+% 6. AI redraft (Low): Ai marker suggestions and corrections
+\newcommand{\ai}[1]{\textcolor{brown}{[AI: #1]}}
+
+
+%=======================================================================================
+
+\chapter{Related Work and Background}
+\label{ch:background}
+
+This chapter reviews the literature in three areas: top-height and growth-curve modelling, machine learning and physics-informed prediction, and spatial evaluation and attribution methods. It closes by identifying where this literature falls short and how the study addresses that gap.
+
+%------------------------------------------------ 
+\section{Top-height growth and environmental variation} 
+\label{sec:background-top-height}
+
+\paragraph*{Top height and forest productivity.}
+Top height reflects upper-canopy development and serves as the primary empirical indicator of forest site productivity. In British forestry, the height--age relationship underpins conventional General Yield Class (GYC) systems \citep{edwards1981Yield_C1_SS,ForestResearch2026Sitka_C1_SS}. GYC defines the maximum expected mean annual increment in cumulative stemwood timber volume ($\mathrm{m^3\,ha^{-1}\,yr^{-1}}$) under standard management prescriptions. For Sitka spruce, GYC is calculated directly from top height and stand age:
+\begin{equation}
+\mathrm{GYC}_{\mathrm{SS}} = \frac{ \dfrac{\mathrm{TopHeight}_{\mathrm{SS}}} {\left(1-\exp(-0.035067\,\mathrm{Age}_{\mathrm{SS}})\right)^{1.923684}} - 12.13610 } {1.473882},
+\label{eq:gyc-ss}
+\end{equation}
+where $\mathrm{TopHeight}_{\mathrm{SS}}$ is dominant canopy height (m) and $\mathrm{Age}_{\mathrm{SS}}$ is stand age (years). Stands reaching a greater top height at a given age receive a higher expected productivity rating, which informs downstream forecasts of merchantable timber volume.
+
+Because operational inventory records (such as GYC and estimated timber volume) are derived directly from observed top height via \eqref{eq:gyc-ss}, including them as candidate predictors when modelling top height introduces circular target leakage. Traditional yield tables provide standardized reference trajectories for predefined management regimes \citep{edwards1981Yield_C1_SS}; however, they describe population-average trajectories rather than fine-scale differences between individual plots.
+
+\ai{The general forestry justification for selecting top height can be removed from Methodology. The Data chapter should retain only the exact definition of the LiDAR-derived response and its relationship with the original Forest Research fields. - also the motivation is mentioned in introduction, so things in this chapter should focus more on the papers and documents etc and final cocnlsuions of reasons dont have to be metnioned until research gap}
+
+\paragraph*{Chapman--Richards growth models.}
+The Chapman--Richards (CR) equation is widely adopted in forestry to represent height and yield trajectories through a flexible sigmoidal formulation \citep{richards1959Flexible_C2_CR,pommerening2015Methods_C2_CR,manso2021Dynamic_C2_CR}. In this context, the model is parameterised as:
+\begin{equation}
+H(a) = y_{\max}\left(1-\exp(-ka)\right)^p,
+\label{eq:background-cr}
+\end{equation}
+where $H(a)$ is dominant height at stand age $a$, $y_{\max}$ is the asymptotic height ceiling, $k$ controls the approach rate to the asymptote, and $p$ governs the inflection and shape of the trajectory.
+
+\ai{FIGURE: Plot one illustrative Chapman--Richards curve (Equation~\ref{eq:background-cr}), height (m) on the y-axis, stand age (years, 0--100) on the x-axis. Use plausible parameter values only; state directly in the caption that this is a representative example curve, not a fit to this project's own data, and that the exact values do not need justifying. Draw the curve as a single solid line in one clear colour (e.g.\ dark green). Annotate the asymptote $y_{\max}$ with a horizontal dashed line, labelled to state it represents the stand's maximum height potential under the fitted curve, not a height any individual stand is necessarily observed at. Add a second horizontal reference line in a visually distinct colour (e.g.\ amber), labelled with Sitka spruce's typical UK top height at commercial felling age: 16--23\,m at yield class 14, around 40 years, citing the same Forest Research yield-table source already used elsewhere in this dissertation \citep{forestResearchForestYield}. Do not use 80\,m as a maximum-height reference -- this dissertation's own data chapter already establishes 60\,m as the local ecological maximum for Sitka spruce in Aberfoyle \citep{mason2011Sitka_C1_SS}; if a maximum-height marker is added, use that figure and citation, not a new uncited number. The caption must state: (1) this is an illustrative curve, not a fitted result; (2) what the asymptote represents; (3) that stands are typically felled well before the curve approaches its asymptote, which is why the asymptote itself, not any single observed height, is the growth-potential parameter this dissertation models; (4) the felling-height source and figure.}
+
+Parameter estimation involves structural identifiability challenges. When sample observations span a restricted age interval, the asymptote $y_{\max}$ is weakly identified, and disparate combinations of $(y_{\max}, k, p)$ can generate indistinguishable trajectories over intermediate ages. Furthermore, observational noise, repeated-measurement correlation, mortality, and disturbance events cannot be resolved through the functional form of the curve alone \citep{rennolls1995Forest_C2_CR}. Single pooled fits represent population-average relationships across the fitting population.
+
+\ai{Equation~\ref{eq:background-cr}, the parameter definitions and the general strengths and limitations of Chapman--Richards can be removed from Methodology. That chapter should retain only the training-partition fitting procedure, parameter restrictions and the way the fitted relationship enters each experiment.}
+
+\paragraph*{Regional and environmental variation in height growth.}
+Height--age trajectories vary across environmental gradients, such that stands with comparable early growth can diverge at later developmental stages \citep{socha2021Regional_C2_CR}. To represent this variation, mixed-effects and site-conditioned models allow growth-curve parameters to vary with measured plot- or stand-level covariates \citep{scolforo2013Dominant_C2_CR,socha2016Assessment_C2_CR}.
+
+For Sitka spruce in the UK and Ireland, empirical studies link site productivity to elevation, wind exposure, soil moisture, and nutrient availability \citep{worrell1987Predicting_C1_SS,worrell1990Productivity_C1_SS,farrelly2011Sitka_C1_SS}. Upland surveys indicate that an increase of 100\,m in elevation corresponds to a $3.2$--$4.0\,\mathrm{m^3\,ha^{-1}\,yr^{-1}}$ decline in General Yield Class, largely reflecting co-varying temperature and exposure gradients \citep{worrell1990Productivity_C1_SS}. Similarly, soil nutrient regime is the strongest single predictor of site index, explaining over half its variation, with site index also declining at both dry and wet soil moisture extremes; topographic exposure only becomes a significant factor at higher elevations \citep{farrelly2011Sitka_C1_SS}. Because these environmental variables are collinear, individual model coefficients often reflect compound site conditions rather than isolated causal mechanisms.
+
+Furthermore, existing studies primarily examine stand- or regional-scale yield class and site index rather than fine-scale plot metrics \sr{TODO: confirm exact LiDAR grid resolution, e.g. 20\,m}. Unmeasured factors—including past silvicultural interventions, planting stock provenance, localized competition, and disturbance—introduce fine-scale variance that macro-environmental layers cannot capture \citep{cameron2015Building_C1_SS,lee2012Choosing_C1_SS}.
+
+\paragraph*{Multi-source environmental modelling.}
+Integrating forest inventory records with multi-source geospatial data—such as digital elevation models, soil classifications, and topographic exposure indices—provides an established framework for spatial productivity mapping. Early UK applications linked Forestry Commission subcompartment databases with terrain and edaphic layers via principal component analysis and global linear regression to map Sitka spruce Yield Class across regional scales \citep{bateman1998Using_C1_SS}, though this evaluated coarse stand-level productivity rather than repeated plot-level height trajectories.
+
+More recent remote-sensing workflows combine airborne LiDAR canopy height metrics with multi-scale climate, soil, and topographic layers \citep{fricker2019More_C3_LID}. In complex terrain, macro-climatic indices (e.g., climatic water balance) often govern broad-scale maximum canopy height, whereas fine-scale topographic variables explain localized structural variation \citep{fricker2019More_C3_LID}. This confirms that the apparent explanatory power of environmental covariates is highly sensitive to the spatial resolution and alignment of both the response metric and the predictor layers.
+
+\ai{The literature-based argument that growth relationships vary with site conditions can be removed from the environmental-model Methodology. Methodology should retain only which environmental features were supplied, which Chapman--Richards parameters were conditioned and how the adjustment was implemented.}
+
+%------------------------------------------------
+\section{Data-driven and process-informed prediction}
+\label{sec:background-prediction}
+
+\paragraph*{Machine learning for forest prediction.}
+Machine learning models estimate predictive relationships directly from data, without imposing a fixed parametric form \citep{lee2018Machine_C3_LID}.
+
+Tree-based ensembles provide robust baselines for structured tabular data. Random Forest constructs an ensemble of de-correlated decision trees via bootstrap aggregation (bagging) and random feature sub-sampling, reducing predictive variance without parametric assumptions \citep{breiman2001RandomForest_C4_NN}. In contrast, Gradient Boosted Decision Trees, such as XGBoost \citep{chen2016XGBoost_C4_NN}, add trees sequentially to minimise a regularised objective function using second-order Taylor approximations of the loss. Boosting algorithms excel at isolating non-linear boundaries and interaction thresholds in dense tabular covariates. However, remote-sensing benchmarks frequently evaluate these models on static, single-epoch cross-sectional surveys; predicting multi-temporal height development requires models to generalize across stand ages, multi-year measurement intervals, and geographically disjoint forest blocks.
+
+\ai{The general descriptions and literature-based justification for Random Forest and XGBoost can be removed from Methodology. (so move the explanation of what xgboost is and how it works, and why its usefule for that data we have. Methodology should retain only their predictors, tuning procedure and implementation.}
+
+\paragraph*{Neural models of forest height growth.}
+Deep neural networks (DNNs) learn unconstrained multi-variable interactions via layered hierarchical representations. Multi-layer perceptrons optimize weight matrices via backpropagation to minimize empirical loss across multidimensional feature spaces. However, unconstrained empirical networks minimize sample loss without preserving theoretical growth properties, such as monotonic height accumulation, bounded asymptotes, or base-age invariance \citep{ercanli2023Comparison_C4_NN,karatepe2022Total_C4_NN}. When evaluated against non-linear mixed-effects models, unconstrained ANNs can reproduce general sigmoid shapes while failing to preserve essential demographic properties across age ranges \citep{ercanli2023Comparison_C4_NN}.
+
+\ai{Generic neural-network theory and the general justification for a DNN can be removed from Methodology. That chapter should retain the actual network architecture, inputs, loss and training procedure.}
+
+\paragraph*{Process-informed neural models.}
+Physics-informed neural networks (PINNs) and theory-guided machine learning frameworks incorporate scientific relationships directly into the optimization objective \citep{karpatne2017Theory_C4_NN,raissi2019Physics_C4_NN,karniadakis2021Physics_C4_NN,willard2022Integrating_C4_NN}. A standard loss-regularised formulation is expressed as:
+\begin{equation}
+\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{data}} + \lambda\,\mathcal{L}_{\text{process}},
+\label{eq:pinn-loss-general}
+\end{equation}
+where $\mathcal{L}_{\text{data}}$ measures observational error, $\mathcal{L}_{\text{process}}$ penalizes departures from domain-specific equations, and $\lambda$ balances the objectives. 
+
+Process knowledge can be integrated into neural architectures across a structural continuum \citep{wesselkamp2024Process_C4_NN}:
+\begin{enumerate*}[label=(\roman*)]
+  \item \emph{bias correction}, where networks learn systematic residuals of process outputs;
+  \item \emph{parallel physics}, where process and neural predictions are combined additively;
+  \item \emph{physics regularisation}, where an unconstrained neural predictor is penalised for equation disagreement via loss terms;
+  \item \emph{domain adaptation}, pre-training networks on synthetic process simulations prior to empirical fine-tuning; and
+  \item \emph{physics embedding}, where differentiable process models form the forward architecture and auxiliary sub-networks predict the equation parameters.
+\end{enumerate*}
+
+This project's approach aligns with \emph{physics regularisation}, paired with \emph{physics embedding} to condition growth-curve parameters on environmental covariates, following variable-coefficient and conditional PINN frameworks \citep{kovacs2022Conditional_C4_NN,miao2023VCPINN_C4_NN} and covariate-conditioned growth models \citep{scolforo2013Dominant_C2_CR}.
+
+This structure contrasts with more deeply coupled mechanistic frameworks, such as Forest-Informed Neural Networks (FINN; \citealt{pichler2025Inferring_C4_NN}), which embed neural components directly inside dynamic global vegetation simulators to replace uncertain demographic functions. While mechanistic embedding is suited to multi-process ecosystem simulators, soft regularisation and parameter conditioning are designed for empirical settings where a single remote-sensing metric is modelled alongside an established empirical growth curve.
+
+\paragraph*{Methodological trade-offs in process guidance.}
+Incorporating process penalties introduces specific optimization trade-offs. Multi-task loss formulations can cause gradient pathology, where dominant penalty terms prevent data loss minimization, while ill-conditioned loss landscapes complicate convergence \citep{wang2021Understanding_C4_NN,rathore2024Challenges_C4_NN}. Furthermore, if the governing process model (e.g., a population-level Chapman--Richards curve) is structurally incomplete or misspecified, excessive guidance penalties ($\lambda$) risk biasing predictions toward an inaccurate mean rather than fitting valid local departures. Evaluating process-guided architectures therefore requires isolating predictive error from domain-constraint adherence against matched unconstrained baselines.
+
+\ai{The general benefits and optimisation limitations of process guidance can be removed from Methodology. Exact loss terms, tested weights and control models must remain there.}
+
+%------------------------------------------------
+\section{Spatial evaluation and growth attribution}
+\label{sec:background-spatial-attribution}
+
+\paragraph*{Spatial dependence and validation.}
+Forest inventory observations exhibit spatial autocorrelation: proximal plots share climate, edaphic profiles, planting stock, and remote-sensing acquisition conditions. Spatial blocking and temporal holdouts test distinct aspects of model generalization: predicting subsequent surveys within a sampled landscape evaluates temporal extrapolation, whereas transfer to geographically disjoint forest blocks tests generalization across spatial gradients.
+
+\ai{The general explanation of spatial dependence, leakage and inflated random-split performance can be removed from Methodology. That chapter should retain the exact compartment folds, exclusion buffer, temporal holdouts and partition roles used in this study.}
+
+\paragraph*{Predictive utility versus environmental attribution.}
+Predictive accuracy and environmental attribution address distinct objectives. A covariate may improve out-of-sample height predictions by indexing broad spatial gradients without isolating the underlying ecological mechanism. Attribution follows one of two routes: fitting a model whose parameters are themselves interpretable, such as linear or mixed-effects coefficients, or fitting a more flexible model for accuracy and explaining it after the fact, using methods such as tree-based SHAP values \citep{lundberg2017unified} or Accumulated Local Effects (ALE; \citealt{apley2020Visualizing_C6_GWR}). Both routes decompose model behavior rather than estimate causal effects. These methods remain constrained by data structure: macro-environmental covariates often operate at coarser resolutions than fine-scale plot responses, leaving localized silvicultural history and competition unmeasured. Consequently, attribution outputs quantify empirical associations with model predictions or curve departures rather than direct mechanistic drivers.
+
+\paragraph*{Global versus spatially varying relationships.}
+Global parametric and tree-based models assume that environmental relationships remain stationary across space. Geographically weighted regression (GWR) relaxes this assumption by fitting localized linear regressions via spatial distance-decay kernels \citep{brunsdon1996Geographically_C6_GWR}. Geographically and Neurally Weighted Regression (GNNWR) extends this framework by coupling a global OLS base model with a neural weighting network that learns continuous, distance-based parameter adjustments without requiring predefined bandwidths \citep{du2020Geographically_C6_GWR,yin2024GNNWR_C6_GWR}. In this context, Elastic Net and XGBoost capture global linear and non-linear associations, while GNNWR evaluates whether environmental relationships with growth departure exhibit spatial non-stationarity across the forest estate.
+
+\ai{The general distinction between global regression, GWR and GNNWR can be removed from Methodology. That chapter should retain the exact GNNWR implementation, reference set, inputs, optimisation and spatially held-out evaluation.}
+
+%------------------------------------------------
+\section{Research gap and study position}
+\label{sec:background-gap}
+
+Established top-height and site-index models provide parsimonious representations of stand development, and modern dynamic curves allow trajectories to vary with site productivity classes. However, regional and site-conditioned studies demonstrate that uniform height--age curves can mask substantial local growth variation. While multi-temporal airborne LiDAR provides extensive spatial coverage of dominant canopy height, these metrics reflect a combination of biological growth, sensor acquisition differences, and unmeasured fine-scale stand management.
+
+Empirical machine learning and process-informed neural networks offer flexible alternatives to static parametric curves, yet domain guidance does not inherently guarantee predictive gains over unconstrained DNNs or optimized tree ensembles under rigorous spatial evaluation. Three gaps follow. Comparisons of Chapman--Richards guidance against tree-based baselines rarely use tuned baselines or spatial and temporal holdout together; most use random splits or omit a strong ensemble baseline. Environmental conditioning of growth-curve parameters has been shown for site-index classes, not for individual LiDAR plots, so its effect at plot level is untested. Classical Sitka spruce site-index studies illustrate this ceiling directly: stepwise regression on field-measured permanent sample plots at a single reference age, with no spatial leakage control and no repeated-measures growth trajectory \citep{farrelly2011Sitka_C1_SS}. Attribution of growth-curve departures to environmental drivers has not been compared across linear, mixed-effects, and tree-based methods under spatially valid evaluation, so whether these methods converge on the same drivers is unclear.
+
+This dissertation addresses these gaps through the aim and objectives set out in the introduction.
+
+\ai{The extended literature-based justification for the research questions and model families can be removed from the opening of Methodology. That chapter can begin with the experimental framework and proceed directly to the exact datasets, targets, models and evaluation procedures.}
+

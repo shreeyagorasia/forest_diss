@@ -1,0 +1,36 @@
+## TEMP holding note — RQ1: proper paired fold-by-fold XGBoost-vs-DNN comparison (2026-08-16)
+
+**Why this exists**: item 1's "XGBoost beats DNN" claim was originally supported by comparing the
+pooled gap (+0.019/+0.038 R2) against each model's own MARGINAL fold-to-fold SD (~1.2x) — a weak
+comparison, since it ignores that both models are evaluated on the exact same 5 folds
+(`spatial_block_kfold`, `split_seed=42`) and some folds are simply harder for every model (shared
+difficulty), which a marginal-SD comparison can't see. The correct comparison is PAIRED:
+`XGBoost_r2_fold_i - DNN_r2_fold_i` for each of the 5 folds.
+
+**Method**: `models/baselines/rq1_xgb_vs_dnn_paired_folds.py`. XGBoost's per-fold test R2 comes
+from a direct refit using the winning config from
+`TEMP_rq1_xgb_hyperparameter_search_2026-08-16.tex` (`n_estimators=500, max_depth=6,
+learning_rate=0.02` for 4survey; `n_estimators=300, max_depth=3, learning_rate=0.08` for
+6survey). DNN's per-fold test R2 is read directly from its already-saved `kfold_summary.json`
+(`per_fold_r2_values`, no retraining). Same 5 folds, same split, both models.
+
+### Results
+
+| Cohort | Fold 0 | Fold 1 | Fold 2 | Fold 3 | Fold 4 | Mean diff | SD | XGBoost wins |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| 4survey (XGB−DNN) | -0.0068 | +0.0255 | +0.0326 | +0.0176 | +0.0264 | +0.0191 | 0.0154 | 4/5 |
+| 6survey (XGB−DNN) | +0.0883 | +0.0259 | +0.0383 | +0.0364 | +0.0005 | +0.0379 | 0.0319 | 5/5 |
+
+Both cohorts' mean paired difference matches the pooled-gap numbers already cited in item 1
+(+0.019/+0.038) almost exactly — a good internal consistency check between the pooled and
+per-fold-paired views of the same comparison.
+
+### Honest finding: the direction is not unanimous on 4survey
+
+**6survey: XGBoost wins every one of the 5 folds** (though fold 4's margin is razor-thin, +0.0005
+— essentially a tie on that one fold). **4survey: XGBoost wins 4 of 5 folds, and loses fold 0** (DNN
+ahead by -0.0068 on that fold specifically) — a real, if small, direction reversal on one fold out
+of five. This is a more honest and more informative statement than "well outside the SD" ever was:
+the overall direction (XGBoost ahead) is not unanimous, but it is dominant (9 of 10 fold-level
+comparisons across both cohorts favour XGBoost, and the one exception is a small margin, not a
+large reversal).

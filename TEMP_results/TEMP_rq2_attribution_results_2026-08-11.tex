@@ -255,7 +255,56 @@ scope — this current-tier RQ2b result (0.65-0.74) sits in the same range, sugg
 persistent characteristic of this dataset/target family, not an artifact of the old tier or a set
 choice.
 
-**Not yet done**: the equivalent current-tier check for RQ3's own GNNWR/EN/XGBoost residuals
-(flagged separately in `TEMP_rq3_gnnwr_results`) — would let this be stated as a direct, current-
-tier "does GNNWR actually reduce this clustering" comparison, rather than relying on the old-tier
-number cited above.
+**Done (2026-08-15), this note just never got updated to say so**: the equivalent current-tier
+check for RQ3's own GNNWR/EN/XGBoost residuals was run — see
+`TEMP_rq3_gnnwr_results_2026-08-11.tex`'s "Residual Moran's I vs. EN/XGBoost (2026-08-15)" section,
+same method (`compute_residual_morans_i()`, `models/growth_curve_attribution/
+residual_spatial_autocorrelation_check.py`, unchanged), which explicitly closes this bridge. No
+further action needed here.
+
+### CanopyCover-dropped ablation (2026-08-16) — the decisive test for the reverse-causation concern
+
+**What this evaluates**: the SHAP-dominance framing above ("modest, 1.2-1.7x margin over the #2
+variable") describes CanopyCover's RELATIVE rank margin while it's still in the model — it does not
+directly show how much unique predictive power CanopyCover itself contributes, or whether removing
+it lets `dist_to_road` (the #2 variable) simply absorb the same signal. This ablation tests both
+directly.
+
+**How**: refit Elastic Net + XGBoost on Set4 with `CanopyCover` removed (18 of the 19 columns),
+same split (`spatial_kfold_split`, seed 42, 5 folds), same fixed XGBoost config
+(`n_estimators=500, max_depth=4, learning_rate=0.04`, early stopping against the same val split),
+same missing-row handling as the production pipeline (`drop_rows_with_missing_features`) — reuses
+`run_rq2_attribution.py`'s exact fit logic via its own imported functions, not a reimplementation.
+SHAP recomputed the same way as the existing check (`compute_rq2_shap.py`'s own method,
+`shap.TreeExplainer`, mean |SHAP| pooled across folds weighted by fold test size). No new script
+saved to `models/` — one-off, see this note for the method.
+
+| | R2 (mean of per-fold), WITH CanopyCover | R2, WITHOUT CanopyCover | Drop |
+|---|---:|---:|---:|
+| Elastic Net | 0.350±0.040 | 0.231±0.062 | -0.119 (34% relative) |
+| XGBoost | 0.388±0.057 | 0.249±0.076 | -0.139 (36% relative) |
+
+**Mean \|SHAP\|, without CanopyCover, top 4**: `dist_to_road` 0.869, `chelsa_bio12_precip_mm`
+0.829, `slope_degrees` 0.677, `whcl` 0.373. Compare to WITH CanopyCover: `CanopyCover` 1.430,
+`dist_to_road` 1.003, `chelsa_bio12_precip_mm` 0.843, `slope_degrees` 0.601.
+
+**This sharpens the reverse-causation concern rather than resolving it, in a specific and honest
+way — two findings pulling in different directions**:
+1. **The R2 drop is large, not modest** — removing CanopyCover costs roughly a third of both
+   models' explanatory power. This is a bigger effect than the earlier "1.2-1.7x SHAP margin"
+   framing implied; CanopyCover carries substantial, not-easily-replaceable predictive signal that
+   nothing else in the set backfills.
+2. **But `dist_to_road`'s own SHAP magnitude does NOT rise to compensate** (1.003 -> 0.869, actually
+   slightly lower) once CanopyCover is removed. If CanopyCover were simply "stealing" correlated
+   credit that rightfully belonged to `dist_to_road`, removing it should have let `dist_to_road`'s
+   importance rise to fill the gap — it didn't. This specific mechanism (correlation-driven credit
+   theft from the #2 variable) is not what's happening.
+
+**Honest conclusion**: CanopyCover carries real, large, non-redundant signal — but this ablation
+cannot distinguish whether that signal is "CanopyCover is a genuine driver" or "CanopyCover is
+entangled with the same growth process that produces the residual target, and no other single
+variable happens to capture the same entanglement." The write-up position established earlier
+(present CanopyCover/thinning explicitly as baseline stand-structure controls, not the interesting
+attribution finding itself) remains the defensible one — if anything, this result is a reason to
+lean on that framing more explicitly, not less, given how much of the model's power turns out to
+run through this one variable.

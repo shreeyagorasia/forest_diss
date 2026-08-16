@@ -1,0 +1,42 @@
+## TEMP holding note — does GNNWR's own CanopyCover rank also reverse on 6survey? (2026-08-16)
+
+**Context**: RQ3 item 1 (`TEMP_rq3_en_xgb_results_2026-08-11.tex`) found `CanopyCover` dominant on
+4survey (EN coefficient, XGBoost gain-importance, and SHAP all agree, #1 by a wide margin) but
+outranked on 6survey — by `cpmt_compactness_ratio` (Set2, Set4) or `windward_topex` (Set3), by SHAP
+alone (EN/XGBoost coefficient tables were never computed for 6survey, flagged too noisy in that
+source file). GNNWR was explicitly flagged as "not covered by this item at all" — its own per-plot
+local coefficients (`coef_*` columns) already exist in every saved `test_predictions.csv` but had
+never been checked for this pattern.
+
+**Method**: `models/growth_curve_attribution/rq3_gnnwr_local_coef_rank_check.py`. No new fitting —
+pools each set's 5 already-saved fold `test_predictions.csv` (Set2/3/4, both cohorts, seed 42),
+ranks every `coef_*` column by mean absolute value across all plots — the standard way to collapse
+a per-plot local coefficient into a single importance-like number, directly analogous to EN's
+|coefficient| or XGBoost's mean |SHAP| already used for this same comparison in RQ3 item 1.
+
+### Results
+
+| Set | Cohort | n plots | CanopyCover rank | Top variable |
+|---|---|---:|---:|---|
+| Set2 | 4survey | 56,135 | 1/14 | CanopyCover (24.00) |
+| Set2 | 6survey | 13,335 | 1/14 | CanopyCover (11.09) |
+| Set3 | 4survey | 56,526 | 1/12 | CanopyCover (24.88) |
+| Set3 | 6survey | 13,335 | 1/12 | CanopyCover (11.61) |
+| Set4 | 4survey | 56,114 | 1/20 | CanopyCover (23.57) |
+| Set4 | 6survey | 13,335 | 1/17 | CanopyCover (12.32) |
+
+**GNNWR does NOT show the EN/XGBoost 6survey reversal.** `CanopyCover` is the #1-ranked variable by
+mean |local coefficient| in every one of the 6 (set × cohort) combinations, including all three
+6survey sets — unlike EN/XGBoost-SHAP, where `cpmt_compactness_ratio` or `windward_topex` overtakes
+it on 6survey specifically. This is a genuine three-way model disagreement on 6survey (GNNWR says
+CanopyCover still dominates; EN/XGBoost-SHAP says it doesn't), not a confirmation of the reversal
+extending across every model.
+
+**What this does and doesn't resolve**: it rules out "CanopyCover's dominance is universally lost
+on 6survey, regardless of model" — GNNWR's own answer disagrees. It does not resolve *why* EN/
+XGBoost and GNNWR disagree here specifically — candidates include GNNWR's spatial weighting
+picking up a different (correct or incorrect) signal on 6survey's much sparser reference density
+(47 compartments, the same limitation already established in RQ3 item 3's Moran's I finding), or
+EN/XGBoost's SHAP-only 6survey numbers being the less reliable side of the disagreement (no
+coefficient-table corroboration exists for them, unlike 4survey's three-way agreement). Not
+adjudicated here — flagged as a genuine, unresolved three-way disagreement specific to 6survey.

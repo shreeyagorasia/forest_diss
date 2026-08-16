@@ -271,3 +271,44 @@ residual pattern alone. Whether a broader scan (beyond these 10 known plots) tur
 biologically-implausible `y_max_fit` cases project-wide, and whether an upper-bound plausibility
 check on `y_max_fit` (analogous to the existing lower-bound check in the CR baseline fit) is
 warranted — flagged as an open decision, not yet resolved.
+
+### GNNWR's own local coefficients: flagged vs. control plots (2026-08-16)
+
+**What this evaluates**: item 7 established EN/XGBoost/GNNWR all find the 266 flagged plots hard
+(~36x over-representation in each model's own worst-1% residual bucket) via a percentile-overlap
+statistic. This checks GNNWR's own predictions and *local* coefficients directly — does GNNWR's
+locally-fit relationship near these plots look different from normal plots, or does it just fail to
+predict them?
+
+**How**: pulled `denormalized_pred_result` and every `coef_*` column from the already-saved
+`test_predictions.csv` (Set4, 4survey, 5 folds pooled, no retraining) for all 265 flagged plots
+(one dropped, not present in the saved test rows) and a random size-matched sample of 265 unflagged
+plots (`sample(len(flagged_ids), random_state=42)`).
+
+| | Flagged (n=265) | Control (n=265) |
+|---|---:|---:|
+| Mean absolute prediction error | 21.12m | 7.70m |
+
+GNNWR is ~2.7x worse on the flagged plots — confirms item 7's finding with a real, precise number
+for GNNWR specifically, not just a percentile statistic.
+
+**Local coefficients, however, are essentially indistinguishable between the two groups** — every
+one of the 16 non-categorical coefficients has flagged/control means within a fraction of a
+standard deviation of each other (e.g. `CanopyCover` 21.76±5.32 vs. 23.63±4.90; `windward_topex`
+12.93±10.78 vs. 12.47±10.53; `chelsa_bio12_precip_mm` -8.27±7.73 vs. -8.21±7.00). The one exception,
+`dist_to_forest_perimeter` (-1.25±3.42 flagged vs. +0.13±4.42 control), is small relative to its
+own SD — a faint echo of the boundary-proximity finding above, not something to lean on.
+**The rare-category NaN pattern noticed in an earlier n=6 look does NOT hold at proper scale**:
+flagged and control plots have essentially identical NaN rates for the `ceh_pedotope`/
+`ceh_textural_composition` dummies (40.4% vs. 39.2%) — that small-sample observation was noise, not
+a real pattern, confirmed and retracted here rather than left standing.
+
+**Why this matters — a genuine corroboration, not a null result**: GNNWR's local spatial weighting
+doesn't detect anything unusual about the *environmental relationship* near these plots — its local
+coefficients look like any other plot's. What fails is the prediction itself. This is independent,
+from-a-different-angle support for the mechanism finding above: the extreme `local_y_max_difference`
+values on these plots are a target-*construction* artifact (the closed-form fit's `k`/`p` mismatch),
+not a real, environmentally-driven local pattern any attribution model — global or spatially-varying
+— could be expected to capture. If the true story were "these plots have a genuinely different local
+environmental relationship," GNNWR's own local coefficients would be the one place that should show
+it, and they don't.
