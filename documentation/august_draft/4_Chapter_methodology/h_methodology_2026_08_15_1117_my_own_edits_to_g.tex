@@ -487,3 +487,10 @@ Elastic Net coefficients are reported as mean $\pm$ standard deviation across th
 %% need to add tukey fence scan for rq3 outlier sorting
 %% symptote fraction
 %% Category-removal Moran's I check (Sec eval-diagnostics, "as a category-removal check for RQ3") outcome, for a one-line mention: stand_structure dominates category attribution, but removing terrain (the #2 category) LOWERS residual clustering while stand_structure removal doesn't -- the opposite of the working hypothesis, unresolved, no test distinguishes the competing explanations -- left out of Results write-up as an unresolved contradiction, not reported there in detail.
+
+%------------------------ disclosed_limitations_ADDITIONS ------------------------
+% DISCLOSED LIMITATION (add to main text/appendix): GNNWR's AIC/AICc are approximated via plain
+% feature count rather than the true GWR-corrected effective degrees of freedom, and its F1/F2/F3
+% significance tests are unavailable, because the package's exact hat-matrix computation would
+% need ~54GB at this project's row counts; R2/RMSE (what GNNWR is actually compared against
+% EN/XGBoost on throughout) are computed separately and are unaffected.

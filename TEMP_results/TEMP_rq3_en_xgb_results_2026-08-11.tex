@@ -185,3 +185,53 @@ coefficient-vs-gain-importance comparison (data is here, table not built), and �
 of building SHAP — the per-plot outlier-diagnosis pass (pulling the worst-residual plots and
 reading their individual SHAP breakdown), still not done despite SHAP now covering every
 combination.
+
+### 6survey EN coefficients + XGBoost gain importance — closes the gap flagged above (2026-08-16)
+
+**Context**: item 1's "6survey reversal" claim rested on SHAP alone (this file's own SHAP-expansion
+section above) — EN/gain-importance were computed for 4survey only, on the grounds that 6survey's
+smaller population makes per-fold estimates "too noisy to be worth reporting yet." Given the
+audit's own finding that a single-method reading was being used to support a headline claim while
+the other cohort has three-method agreement, this closes the gap directly rather than leaving it
+open: reran the SAME already-existing script (`models/growth_curve_attribution/run_rq3_en_xgb.py`),
+just with `--cohort 6survey`, all 3 sets — no new code, no new model design. Pooled R2 for all
+three sets matches this file's own existing R2 table exactly (Set2 EN=0.057/XGB=0.031, Set3
+EN=0.031/XGB=0.086, Set4 EN=0.056/XGB=0.015), confirming this is the identical underlying fit, just
+now also keeping the per-fold coefficient/importance breakdown that was previously discarded.
+
+**Results — EN coefficients, 6survey, mean ± SD across 5 folds, top variable vs. CanopyCover**:
+
+| Set | #1 variable | CanopyCover's own value | Margin over #2 |
+|---|---|---:|---:|
+| Set2 | CanopyCover 1.237±0.576 | — (#1) | 1.06x over `cpmt_compactness_ratio` (1.170±0.984) |
+| Set3 | CanopyCover 0.890±0.299 | — (#1) | 1.63x over `slope_degrees` (0.546±0.347) |
+| Set4 | CanopyCover 1.586±0.559 | — (#1) | 1.21x over `cpmt_compactness_ratio` (1.309±0.946) |
+
+**CanopyCover is #1 by EN coefficient in all three 6survey sets** — matching 4survey's own reading
+and matching GNNWR's own local-coefficient reading
+(`TEMP_rq3_gnnwr_local_coef_rank_2026-08-16.tex`). The Set2 margin is thin (1.06x, within the fold
+SD of both variables) but the direction is consistent across all three sets.
+
+**Results — XGBoost gain importance, 6survey, mean ± SD across 5 folds, top 4**:
+
+| Set | #1 | #2 | #3 | #4 |
+|---|---|---|---|---|
+| Set2 | `cpmt_compactness_ratio` 0.134±0.035 | `time_since_thinning_missing` 0.111±0.063 | **CanopyCover 0.095±0.024** | `elevation` 0.088±0.024 |
+| Set3 | `time_since_thinning_missing` 0.128±0.043 | `recent_thinning_5yr` 0.118±0.065 | `time_since_thinning` 0.106±0.029 | **CanopyCover 0.102±0.025** |
+| Set4 | `cpmt_compactness_ratio` 0.127±0.033 | `tas_mean` 0.119±0.070 | **CanopyCover 0.090±0.020** | `time_since_thinning_missing` 0.078±0.033 |
+
+**CanopyCover is NOT #1 by XGBoost gain importance in any of the three 6survey sets** — consistent
+with this file's own existing SHAP-expansion table above (also XGBoost, also not #1 on 6survey in
+any set).
+
+**This resolves the gap into a more precise, more interesting finding than "6survey is uncertain
+due to missing data."** It is not one method (SHAP) against three; it is a genuine **2-vs-1 split
+by model, not by method-coverage**: EN's coefficient and GNNWR's local coefficient both still rank
+`CanopyCover` #1 on 6survey, in every set. XGBoost — both its gain importance and its SHAP, two
+different attribution views of the SAME fitted model — does not, in any set. The disagreement is
+specifically about what XGBoost is picking up on 6survey relative to EN/GNNWR, not a data-coverage
+artifact that more computation happened to fix. Given XGBoost's own 6survey R2 is close to zero or
+negative for these sets (already reported in this file's own R2 table above), the honest reading is
+that XGBoost's own attribution on 6survey — for any variable, not just CanopyCover — should be
+trusted less than EN's or GNNWR's, since the underlying XGBoost fit itself is barely predictive
+there in the first place.

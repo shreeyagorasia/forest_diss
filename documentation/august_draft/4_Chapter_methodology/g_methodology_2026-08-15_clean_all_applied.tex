@@ -540,5 +540,10 @@ Limitations specific to one model or target are stated beside that method (the C
 All split assignments, network weight initialisation, and Elastic Net/XGBoost cross-validation folds use a fixed seed (42) unless explicitly swept as part of a stated robustness check. Every model reads its feature list from a single generated manifest, so a reported set's exact column membership can always be checked against that source rather than a hand-copied list.
 
 Detailed hyperparameter grids and selected values (Appendix~\ref{app:hyperparameters}), full Set1--Set4 column lists and per-variable screening diagnostics (Appendix~\ref{app:feature-sets}), and secondary sensitivity settings not reported in the main text (dropout-rate/architecture-width sweeps, the narrow-gap temporal split's own results; Appendix~\ref{app:sensitivity}) are kept out of this chapter and pointed to at the relevant section above rather than repeated here.
+% DISCLOSED LIMITATION (add to main text/appendix): GNNWR's AIC/AICc are approximated via plain
+% feature count rather than the true GWR-corrected effective degrees of freedom, and its F1/F2/F3
+% significance tests are unavailable, because the package's exact hat-matrix computation would
+% need ~54GB at this project's row counts; R2/RMSE (what GNNWR is actually compared against
+% EN/XGBoost on throughout) are computed separately and are unaffected.
 
 \end{document}

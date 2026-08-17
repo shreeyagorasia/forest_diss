@@ -568,6 +568,15 @@ strikingly with CR-fit quality once actually plotted.
    fit the same way every time" — both look equally stable across seeds. So this check confirms Q4's
    half of the mechanism but leaves Q1's "it's noise, not signal" half still unproven — a genuinely
    harder question than this cheap check could resolve, flagged as open rather than assumed answered.
+   **Optional addition, conditional on whether the spatial map is used**: the reduction value itself
+   is spatially clustered, not scattered randomly across Aberfoyle — Moran's I 0.55–0.64 (p=0.001)
+   for both DNN and XGBoost, both cohorts (`TEMP_rq2a_reduction_morans_i_2026-08-16.tex`), a
+   magnitude comparable to the spatial clustering already reported for RQ2b/RQ3's own residuals.
+   Only worth including in the write-up if the accompanying map figure is actually used, or as a
+   short corroborating sentence folded into this item's existing evidence (it does not need its own
+   figure to be worth citing as a number) — it does not independently resolve the Q1-noise-vs-signal
+   question above, only shows the effect has real spatial structure, which is consistent with (not
+   proof of) CR-fit quality itself being spatially patterned.
 2. **`[Importance: 4/5]` The effect lives in the data, not in physics-guided architecture — a plain
    XGBoost given the same environmental features reproduces the same pattern with a comparable
    effect size and comparable fold-to-fold stability.**
@@ -1142,15 +1151,17 @@ trajectory shapes behind that pattern are shown directly.
 #### Figure R3-3: Does CanopyCover's rank agree across all three attribution models?
 
 **Research question and findings supported:** RQ3 item 1 — CanopyCover dominates on 4survey by
-three converging methods; on 6survey, EN/XGBoost's SHAP ranks it below other variables, but GNNWR's
-own local coefficients still rank it #1 — a genuine three-way disagreement, not a confirmed reversal.
+three converging methods; on 6survey, the disagreement splits by MODEL, not by which method
+happened to be computed — EN and GNNWR both still rank it #1 in every set, XGBoost (gain importance
+and SHAP alike) does not, in any set.
 
 **Purpose:** Do EN, XGBoost, and GNNWR agree on which variable is most important, separately for
 4survey and 6survey?
 
-**Key insight:** All three methods agree on 4survey (CanopyCover #1 throughout); on 6survey, GNNWR
-disagrees with EN/XGBoost's own SHAP-based reading — a genuine three-way split on one cohort, not a
-clean reversal every method confirms.
+**Key insight:** All three methods agree on 4survey (CanopyCover #1 throughout). On 6survey, EN and
+GNNWR still agree with each other and with 4survey's own reading; XGBoost disagrees with both,
+consistently, across all three sets — visible on the slopegraph as XGBoost's own column being the
+one that consistently displaces CanopyCover, not as three columns each pointing a different way.
 
 **What it adds beyond the table:** No RQ3 results table shows variable-level importance at all
 (the main table is R2 only) — this is the only place a reader sees the rank comparison across all
@@ -1180,24 +1191,25 @@ three methods and both cohorts together.
 - Axis limits: rank 1 to (whichever method has the most reported variables, e.g. Set4's ~19),
   though only the top 5-6 ranks need dense labelling — lower ranks can compress.
 
-**Data required:** 4survey EN/XGBoost coefficients and SHAP
-(`TEMP_rq3_en_xgb_results_2026-08-11.tex`); 6survey XGBoost SHAP only (same file — EN/gain-importance
-were never computed for 6survey, per item 1's own text, so the 6survey panel's EN column will be
-genuinely empty/missing, and this gap must be labelled directly, not silently omitted); GNNWR
-local-coefficient ranks, both cohorts (`TEMP_rq3_gnnwr_local_coef_rank_2026-08-16.tex`) — all
-already computed, only the plot type changed from the earlier bar-chart version.
+**Data required:** 4survey and 6survey EN coefficients, XGBoost gain importance, and SHAP, all
+three sets, both cohorts — all now computed and available (`TEMP_rq3_en_xgb_results_2026-08-11.tex`,
+updated 2026-08-16: the earlier gap where EN/gain-importance were never run for 6survey has been
+closed by rerunning the same existing script with `--cohort 6survey`); GNNWR local-coefficient
+ranks, both cohorts (`TEMP_rq3_gnnwr_local_coef_rank_2026-08-16.tex`) — all already computed, no
+missing columns in either panel now.
 
 **Interpretation limits:** Do not interpret rank or coefficient magnitude as causal effect size —
 RQ3's own methodology frames all three methods as association, not causal effect, and SHAP/gain
-importance specifically should not be read as effect direction. The missing EN/gain-importance data
-for 6survey is a real data gap, not a finding that CanopyCover is unimportant there by those
-methods — the figure/caption must not imply that absence is evidence.
+importance specifically should not be read as effect direction. On 6survey, XGBoost's own R2 for
+these sets is close to zero or negative (see results table above) — its rank/importance values are
+attributing a fit with very little genuine predictive signal, so its disagreement with EN/GNNWR on
+6survey should be read in that light, not as two equally-trustworthy readings in simple conflict.
 
 **Placement:** main text if space allows, otherwise appendix.
 
 **Caption message:** All three attribution methods agree CanopyCover is the top-ranked variable on
-4survey; on 6survey, GNNWR's own local coefficients still rank it highest even though EN/XGBoost's
-SHAP-based reading does not — a genuine disagreement between methods, not a confirmed reversal.
+4survey; on 6survey, EN and GNNWR still rank it highest in every set, while XGBoost does not — a
+disagreement that tracks which model is used, not which attribution method was available.
 
 **Ranking:** 2 (useful if space allows).
 
@@ -1274,38 +1286,43 @@ message is already stated by one number," an explicit anti-pattern; not proposed
 
 ### Ranked items
 
-1. **`[Importance: 3/5]` `CanopyCover` dominates EN/XGBoost attribution on 4survey exactly as in
-   RQ2b; on 6survey it's outranked by SHAP alone — a real but evidentially thinner finding than the
-   4survey side, not an apples-to-apples reversal.** (`TEMP_rq3_en_xgb_results_2026-08-11.tex`)
+1. **`[Importance: 3/5]` `CanopyCover` dominates on 4survey by every method; on 6survey the
+   disagreement splits by MODEL, not by which method happened to be computed — EN and GNNWR both
+   still rank it #1, XGBoost (by gain importance and SHAP alike) does not, in any set.**
+   (`TEMP_rq3_en_xgb_results_2026-08-11.tex`, `TEMP_rq3_gnnwr_local_coef_rank_2026-08-16.tex`)
    `CanopyCover` is present as a feature in every set and both cohorts throughout — this is about
    its *rank* by importance, not its presence.
-   **What's actually being compared, stated precisely**: on 4survey, `CanopyCover` is #1 by THREE
-   converging methods — EN coefficient (2.3x the next-largest on Set2, 2.3x on Set4, but only 1.5x
-   on Set3, where the gap is real but noticeably smaller), XGBoost gain-importance (consistently
-   ~2.6-2.7x across all three sets), and SHAP — the same pattern as RQ2b, though the margin is not
-   uniformly "2-3x" the way a single approximate figure would suggest. On 6survey, the EN
-   coefficient and gain-importance tables were never computed at all (the source file's own
-   explicit scope decision: 6survey's smaller
-   population makes per-fold coefficient estimates too noisy to report). The only 6survey number
-   that exists is SHAP, and by SHAP alone, `CanopyCover` is beaten by `cpmt_compactness_ratio`
-   (Set2, Set4) or `windward_topex` (Set3). So this is a three-method finding on one side compared
-   against a single-method finding on the other — a real result, but a thinner one than "dominance
-   on 4survey, reversal on 6survey" implies at face value.
-   **GNNWR does NOT show this reversal** (`TEMP_rq3_gnnwr_local_coef_rank_2026-08-16.tex`): ranking
-   GNNWR's own per-plot local coefficients (`coef_*` columns, already saved in every
-   `test_predictions.csv`) by mean absolute value, `CanopyCover` is #1 in all 6 (set × cohort)
-   combinations, including all three 6survey sets — a genuine three-way disagreement on 6survey
-   specifically, not a confirmation that the reversal holds across every model. It's not resolved
-   here which side of that disagreement is more trustworthy: 4survey has three-way agreement (EN,
-   XGBoost, GNNWR all rank CanopyCover #1), but 6survey's EN/XGBoost reading rests on SHAP alone
-   (no coefficient-table corroboration exists for 6survey), while GNNWR's is its own independent
-   local-coefficient estimate — either could be the less reliable side.
-   **Why the SHAP reversal happens — not established, genuinely open**: either 6survey has a real,
-   different top-ranked predictor for EN/XGBoost specifically, or this is 6survey's small, noisy
-   sample behaving unreliably — consistent with 6survey's generally weaker results throughout this
-   project. No test here separates these two readings.
-   **Not yet done**: compute EN coefficients/gain-importance for 6survey despite the noise (even a
-   caveated number would let this be a like-for-like comparison against GNNWR's own coefficients).
+   **4survey**: `CanopyCover` is #1 by THREE converging methods — EN coefficient (2.3x the
+   next-largest on Set2, 2.3x on Set4, but only 1.5x on Set3, where the gap is real but noticeably
+   smaller), XGBoost gain-importance (consistently ~2.6-2.7x across all three sets), and SHAP — the
+   same pattern as RQ2b.
+   **6survey**: EN's own coefficient ranks `CanopyCover` #1 in all three sets (margin over the #2
+   variable: 1.06x on Set2, 1.63x on Set3, 1.21x on Set4 — Set2's margin is thin, within the fold
+   SD of both variables, but the direction holds across all three). GNNWR's own per-plot local
+   coefficients (`coef_*` columns) independently rank it #1 in all three 6survey sets too. XGBoost
+   does not rank it #1 in any 6survey set, by either of its own two attribution views — gain
+   importance (beaten by `cpmt_compactness_ratio` on Set2/Set4, by three thinning-related variables
+   on Set3) and SHAP (beaten by `cpmt_compactness_ratio` on Set2/Set4, `windward_topex` on Set3) —
+   two different views of the same fitted model agreeing with each other, not two independent
+   pieces of evidence.
+   **Reframed**: this is not "one thin SHAP-only reading against three converging methods." It is a
+   genuine 2-vs-1 split by MODEL — EN and GNNWR agree with each other and with 4survey's own
+   reading; XGBoost disagrees with both, consistently, on every 6survey set.
+   **Why XGBoost disagrees on 6survey — a real, checkable candidate, not just a guess**: XGBoost's
+   own 6survey R2 for these sets is close to zero or negative (already reported in the results
+   table above) — the underlying fit itself is barely predictive there. XGBoost's own attribution
+   on 6survey, for any variable, should be trusted less than EN's or GNNWR's on the strength of this
+   alone, since there is very little genuine signal in the fit for gain-importance or SHAP to
+   attribute in the first place. This does not by itself prove EN/GNNWR are right and XGBoost is
+   wrong — only that XGBoost's own R2 gives an independent, non-circular reason to weight it less
+   on this specific cohort.
+   **Not pursued: retuning XGBoost specifically for 6survey.** This is a deliberate scope decision,
+   not an oversight. It matches this project's own broader stance of not retuning RQ2b/RQ3's
+   XGBoost at all (the shared, borrowed config is left as-is throughout — see RQ1 item 1's own note
+   on why only RQ1 got a per-target search). More specifically for RQ3: 6survey is not the primary
+   cohort for its spatial questions in the first place — GNNWR is already established as unreliable
+   there for structural reasons (items 2-3, too few reference compartments), so a better-tuned
+   XGBoost fit on 6survey would not change RQ3's main conclusions, which rest on 4survey throughout.
 2. **`[Importance: 5/5]` GNNWR shows a real, consistent, corroborated edge over EN/XGBoost on
    4survey — but it's not CI-clean, and 6survey is simply unreliable.** (`TEMP_rq3_gnnwr_results`)
    Point estimates favour GNNWR on every 4survey set (table above) — consistent in direction and

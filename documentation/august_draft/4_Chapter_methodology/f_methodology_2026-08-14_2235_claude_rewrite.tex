@@ -639,3 +639,8 @@ Detailed hyperparameter grids and selected values (Appendix~\ref{app:hyperparame
 % note in \S\ref{sec:rq1-models}, the physics-loss misspecification note in \S\ref{sec:rq1-models},
 % the seven cross-cutting items in \S\ref{sec:limitations} above) rather than being duplicated a
 % third time here, which the 12-page budget does not have room for.
+% DISCLOSED LIMITATION (add to main text/appendix): GNNWR's AIC/AICc are approximated via plain
+% feature count rather than the true GWR-corrected effective degrees of freedom, and its F1/F2/F3
+% significance tests are unavailable, because the package's exact hat-matrix computation would
+% need ~54GB at this project's row counts; R2/RMSE (what GNNWR is actually compared against
+% EN/XGBoost on throughout) are computed separately and are unaffected.
