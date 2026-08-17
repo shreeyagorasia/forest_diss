@@ -1,0 +1,76 @@
+## TEMP holding note -- does Q1's degradation require real environmental signal? (2026-08-17)
+
+**Which RQ this closes a gap in, and why**: RQ2a item 1 (environmental conditioning trades
+accuracy between subgroups: it helps the plots the shared Chapman-Richards curve fits worst and
+hurts the plots it already fits best). The results draft flagged this as genuinely open: the
+five-seed reseed check already run confirmed Q4's correction is reproducible across seeds
+(`TEMP_rq2a_residual_reduction_results_2026-08-11.tex`), but could not tell whether Q1's
+degradation reflects a real cost of using environmental information, or is simply what any
+flexible model with output variance would show on Q1 regardless of what it is fed, since Q1 rows
+were selected specifically because the CR baseline's own error was already smallest there.
+
+**Method**: `models/spatial_attribution/rq2a_permutation_check.py`. Reuses
+`rq2a_xgb_check.py`'s own `fit_one_arm()` and `run_reduction_check()`, and
+`rq2_residual_reduction.py`'s `compute_residual_reduction()`, unmodified -- no reimplementation of
+fitting or quartile logic, only a new permutation step before fitting. Set3
+(`nested_set3_gated_terrain_wind_vif`), fixed XGBoost config (n_estimators=500, max_depth=4,
+learning_rate=0.04), same 5-fold spatial_block_kfold split as the real env-conditioned model, both
+cohorts. Before fitting each fold, the whole environmental-column block is permuted with ONE
+shared row-permutation (not one shuffle per column independently, which would additionally
+scramble the environmental variables' own real correlation structure) -- this keeps a real,
+internally-consistent-looking environmental vector attached to every row, just the wrong plot's
+vector. The model still trains on real heights and a real no-environment feature set; only the
+environmental values are fake. Permutation seed = 42 + fold number, so each fold gets its own but
+reproducible fake assignment.
+
+### Results
+
+| Cohort | Arm | Mean reduction (m) | Q1 (best-fit) | Q2 | Q3 | Q4 (worst-fit) |
+|---|---|---:|---:|---:|---:|---:|
+| 4survey | Real environment (`xgb_env_terrain_fixed_...`, already fit by `rq2a_xgb_check.py`) | 1.597±0.330 | -1.207 | 0.507 | 2.255 | 4.833 |
+| 4survey | **Permuted environment (this check)** | 1.219±0.224 | -1.304 | 0.272 | 1.936 | 3.973 |
+| 6survey | Real environment | 0.361±0.183 | -0.723 | -0.020 | 0.572 | 1.614 |
+| 6survey | **Permuted environment (this check)** | 0.248±0.146 | -0.565 | -0.010 | 0.386 | 1.180 |
+
+**Q1's degradation does not require real environmental signal.** Under permuted (scrambled,
+meaningless) environmental features, Q1 still degrades by almost exactly the same amount as under
+the real ones -- 4survey: -1.304m permuted vs. -1.207m real (permuted is if anything slightly
+worse); 6survey: -0.565m permuted vs. -0.723m real (permuted is somewhat less bad, but the same
+direction and a comparable magnitude). A model fed deliberately fake environmental values degrades
+the best-fitting quartile just as much as a model fed the real ones. This is the opposite of what
+"conditioning on real environment causes a real cost on Q1" would predict -- if that were the
+mechanism, permuting the environment away should have made Q1's degradation shrink toward zero,
+and it does not.
+
+**Q4's correction DOES depend on real environmental signal, partially.** Permuting the
+environment away shrinks Q4's correction meaningfully: 4survey 3.973m (permuted) vs. 4.833m (real),
+an 18% reduction; 6survey 1.180m vs. 1.614m, a 27% reduction. The aggregate mean reduction follows
+the same pattern (1.219m vs. 1.597m on 4survey, a 24% reduction; 0.248m vs. 0.361m on 6survey, a
+31% reduction). Real environmental information contributes a genuine, non-trivial share of Q4's
+correction -- permuting it away does not eliminate the correction entirely (a permuted-feature
+model with pure output flexibility still recovers 76-82% of the real model's Q4 correction), so
+Q4's benefit is not purely an artefact of model flexibility either, but real signal clearly adds
+something on top of what flexibility alone provides.
+
+**What this changes about RQ2a item 1's current framing**: the headline currently states
+"environmental conditioning is a real trade-off... it helps most where the shared curve already
+fits worst, and substantially degrades accuracy where it already fits well" -- framing BOTH halves
+(the Q4 help and the Q1 harm) as effects of environmental conditioning specifically. This check
+shows that framing is only half right. Q4's benefit is genuinely, if partially, attributable to
+real environmental signal (confirmed directly, not just consistent with a plausible account). Q1's
+harm is NOT attributable to environmental conditioning specifically -- it happens at close to the
+same magnitude when the "environmental" values fed to the model are pure noise, which means it is
+better described as an inherent cost of giving any flexible model enough capacity to have output
+variance on rows the baseline already fits well, not a specific cost of using real environmental
+data. The "trade-off" is real, but it is a trade-off from adding model flexibility in general, not
+specifically from environmental conditioning -- a materially different claim from what the current
+draft states.
+
+**What this does not establish**: this is one Set (Set3), one model family (XGBoost, fixed
+config), pooled across 5 folds at a single permutation seed per fold, not a full permutation-null
+distribution (e.g. not repeated across many random seeds to build a null band the way
+`compute_residual_morans_i`'s 999-permutation Moran's I test does elsewhere in this project). The
+DNN/PINN versions of RQ2a were not re-tested this way. The direction and rough magnitude of the
+Q1-vs-Q4 asymmetry is clear and consistent across both cohorts, which is reassuring, but this
+should be read as a single, well-targeted control confirming the mechanism, not an exhaustive
+robustness sweep.

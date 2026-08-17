@@ -24,15 +24,20 @@ directly against each model's own saved `metrics.json`/`kfold_summary.json`, not
 much smaller sample is the direct reason its CIs and fold SDs are consistently wider throughout
 this section.)
 
-| Model | 4survey R2 | 4survey RMSE | 4survey MAE | 6survey R2 | 6survey RMSE | 6survey MAE |
+| Model | 4survey RMSE | 4survey MAE | 4survey R2 | 6survey RMSE | 6survey MAE | 6survey R2 |
 |---|---:|---:|---:|---:|---:|---:|
-| Linear | 0.580±0.026 | 5.168±0.361 | 4.056±0.343 | 0.509±0.067 | 4.877±0.643 | 3.619±0.426 |
-| RF | 0.638±0.011 | 4.794±0.187 | 3.611±0.142 | 0.656±0.046 | 4.062±0.249 | 3.010±0.185 |
-| XGBoost (raw defaults) | 0.637±0.015 | 4.797±0.175 | 3.621±0.136 | 0.651±0.016 | 4.106±0.358 | 3.041±0.301 |
-| **XGBoost (tuned, own search)** | **0.674±0.009** | **4.548±0.137** | **3.431±0.123** | **0.722±0.031** | **3.656±0.232** | **2.669±0.183** |
-| DNN | 0.655±0.016 | 4.681±0.230 | 3.533±0.201 | 0.684±0.031 | 3.903±0.316 | 2.867±0.275 |
-| PINN | 0.573±0.036 | 5.206±0.399 | 4.063±0.407 | 0.686±0.038 | 3.886±0.290 | 2.819±0.196 |
-| PINN_k | 0.575±0.037 | 5.197±0.402 | 4.046±0.421 | 0.684±0.038 | 3.895±0.282 | 2.816±0.196 |
+| Linear | 5.168±0.361 | 4.056±0.343 | 0.580±0.026 | 4.877±0.643 | 3.619±0.426 | 0.509±0.067 |
+| RF | 4.794±0.187 | 3.611±0.142 | 0.638±0.011 | 4.062±0.249 | 3.010±0.185 | 0.656±0.046 |
+| XGBoost (raw defaults) | 4.797±0.175 | 3.621±0.136 | 0.637±0.015 | 4.106±0.358 | 3.041±0.301 | 0.651±0.016 |
+| **XGBoost (tuned, own search)** | **4.548±0.137** | **3.431±0.123** | **0.674±0.009** | **3.656±0.232** | **2.669±0.183** | **0.722±0.031** |
+| DNN | 4.681±0.230 | 3.533±0.201 | 0.655±0.016 | 3.903±0.316 | 2.867±0.275 | 0.684±0.031 |
+| PINN | 5.206±0.399 | 4.063±0.407 | 0.573±0.036 | 3.886±0.290 | 2.819±0.196 | 0.686±0.038 |
+| PINN_k | 5.197±0.402 | 4.046±0.421 | 0.575±0.037 | 3.895±0.282 | 2.816±0.196 | 0.684±0.038 |
+
+**Column-order verification (2026-08-17)**: reordered programmatically from the original
+R2/RMSE/MAE table, not hand-retyped — every row's cell values (as a set, ignoring order and bold
+markers) were confirmed identical before and after reordering for all 7 models. No value moved to
+the wrong column or cohort.
 
 ### Plot inventory
 
@@ -538,36 +543,42 @@ strikingly with CR-fit quality once actually plotted.
 
 ### Ranked items
 
-1. **`[Importance: 5/5]` Environmental conditioning is a real trade-off, not a uniform improvement
-   — it helps most where the shared curve already fits worst, and substantially degrades accuracy
-   where it already fits well.** (`TEMP_rq2a_residual_reduction_results_2026-08-11.tex`) On the
-   quartile CR already fits best (Q1), DNN's own error is 2.6x (4survey) to 3.2x (6survey) LARGER
-   than CR's own error there (4survey: 1.01m→2.58m; 6survey: 0.52m→1.65m) — only 21-25% of Q1 rows
-   actually improve, the large majority get worse. This is a real cost, not a rounding footnote: the
-   -1.57m/-1.14m absolute reduction figures look small only next to Q4's much larger absolute swing
-   (+5.08m/+1.81m); relative to Q1's own small baseline error, the degradation is large. Replicates
-   without exception across all 18 (model × set × cohort) combinations, confirmed stable across a
-   5-seed reseed (not a single-run fluke: 4survey mean reduction 1.501±0.023m, Q4 alone
-   5.054±0.117m, SD under 2.5% of the mean). Real on both cohorts, though roughly an order of
-   magnitude smaller in absolute terms on 6survey (5.7% of
-   baseline error closed vs. 29.9% on 4survey per the table above) — consistent with the same
-   compositional-narrowness theme established in RQ1, not separately proven here.
-   **Why**: plausible via a signal-vs-noise argument. Where CR (one smooth curve per cohort) already
-   fits a plot well, there's very little real residual left to explain — any additional flexible
-   model conditioned on the same features risks fitting training noise rather than correcting real
-   error, so performance deteriorates substantially in relative terms. Where CR fits worst, the residual is large and
-   likely reflects a real, systematic, environment-linked departure — genuine signal for a flexible
-   model to capture. This reasoning is standard regression theory.
-   **A direct test was attempted (2026-08-16, see `TEMP_rq2a_residual_reduction_results_2026-08-11.tex`),
-   result mixed, not a clean confirmation**: using the 5-seed reseed data, Q4's effect is the most
-   reproducible across independent training seeds (lowest coefficient of variation, 2.3-4.5%),
-   consistent with "real signal." But Q1 is not the LEAST reproducible quartile in either cohort —
-   Q2 is, most likely because Q2's near-zero mean inflates its coefficient of variation mechanically,
-   not because it's genuinely noisier. Seed-to-seed reproducibility alone also can't distinguish
-   "the same real signal gets fit every time" from "the same noise pattern in the training data gets
-   fit the same way every time" — both look equally stable across seeds. So this check confirms Q4's
-   half of the mechanism but leaves Q1's "it's noise, not signal" half still unproven — a genuinely
-   harder question than this cheap check could resolve, flagged as open rather than assumed answered.
+1. **`[Importance: 5/5]` A flexible model trades accuracy across the CR-residual quartiles
+   regardless of what it is fed — but only Q4's correction is a genuine effect of real
+   environmental signal; Q1's degradation is not.** (`TEMP_rq2a_residual_reduction_results_2026-08-11.tex`,
+   `TEMP_rq2a_permutation_check_2026-08-17.tex`) On the quartile CR already fits best (Q1), DNN's
+   own error is 2.6x (4survey) to 3.2x (6survey) LARGER than CR's own error there (4survey:
+   1.01m→2.58m; 6survey: 0.52m→1.65m) — only 21-25% of Q1 rows actually improve, the large majority
+   get worse. This is a real cost, not a rounding footnote: the -1.57m/-1.14m absolute reduction
+   figures look small only next to Q4's much larger absolute swing (+5.08m/+1.81m); relative to
+   Q1's own small baseline error, the degradation is large. Replicates without exception across all
+   18 (model × set × cohort) combinations, confirmed stable across a 5-seed reseed (not a
+   single-run fluke: 4survey mean reduction 1.501±0.023m, Q4 alone 5.054±0.117m, SD under 2.5% of
+   the mean). Real on both cohorts, though roughly an order of magnitude smaller in absolute terms
+   on 6survey (5.7% of baseline error closed vs. 29.9% on 4survey per the table above) — consistent
+   with the same compositional-narrowness theme established in RQ1, not separately proven here.
+   **Why, confirmed directly rather than left as a plausible account**: a permutation control
+   (XGBoost, Set3, environmental columns shuffled across rows before fitting so the model trains on
+   fake, scrambled environmental values while everything else — real heights, real no-environment
+   features, same split — stays unchanged, both cohorts) shows Q1's degradation happens at close to
+   the same magnitude whether the model is fed real or scrambled environment (4survey: -1.30m
+   permuted vs. -1.21m real; 6survey: -0.57m permuted vs. -0.72m real, permuted if anything slightly
+   less bad) — Q1's cost is a property of giving any flexible model output variance on rows the
+   baseline already fits well, not a specific cost of real environmental conditioning. Q4's
+   correction, by contrast, genuinely shrinks when the environment is permuted away (4survey: 3.97m
+   permuted vs. 4.83m real, an 18% reduction; 6survey: 1.18m vs. 1.61m, a 27% reduction) — real
+   environmental signal contributes a genuine, if partial, share of Q4's benefit; permuting it away
+   does not eliminate the correction (76-82% of it survives), so Q4's gain isn't purely a
+   flexibility artefact either, just partly explained by real signal on top of that. Run for
+   XGBoost/Set3 only, not repeated for DNN/PINN or the other sets — very likely to generalise given
+   how closely XGBoost and DNN already track each other on this exact effect (item 2 below), but not
+   independently confirmed there.
+   **What this means for the "trade-off" framing**: calling this a trade-off "of environmental
+   conditioning" is only half right. Q4's benefit is a genuine, if partial, effect of real
+   environmental data. Q1's cost is not — it would appear even with meaningless environmental
+   values, since it comes from adding a flexible model on rows that already had almost no error to
+   begin with. The trade-off is real, but it sits between model flexibility in general and Q1's
+   already-small error, not specifically between real environmental information and Q1.
    **Optional addition, conditional on whether the spatial map is used**: the reduction value itself
    is spatially clustered, not scattered randomly across Aberfoyle — Moran's I 0.55–0.64 (p=0.001)
    for both DNN and XGBoost, both cohorts (`TEMP_rq2a_reduction_morans_i_2026-08-16.tex`), a
@@ -589,7 +600,11 @@ strikingly with CR-fit quality once actually plotted.
    stability gap between the two model families here. The comparability holds at the quartile level
    too, not just in aggregate: XGBoost's own Q1 relative-harm ratio (model error vs. CR's own Q1
    error) is 2.1-2.3x on 4survey and 2.1-2.4x on 6survey — in the same range as DNN's 2.6x/3.2x
-   (item 1), not a smaller or absent effect.
+   (item 1), not a smaller or absent effect. This aggregate env-vs-no-env comparison (+0.375m/+0.121m)
+   confirms real environmental data adds something overall, but item 1's own permutation check
+   shows that addition concentrates in Q4 — Q1's own degradation shows up even when the
+   environmental values are fake, so "environment drives the effect" should be read as "drives
+   Q4's correction," not as uniform across every quartile.
    **Why the pattern reproduces**: this item is itself the evidence for item 1's proposed mechanism
    — if the effect were about physics-guided architecture specifically, a model with no physics loss
    and no CR-curve embedding at all shouldn't show the same quartile-concentrated pattern. That both
@@ -627,13 +642,9 @@ strikingly with CR-fit quality once actually plotted.
    positive territory — `TEMP_rq2a_pinn_k_identifiability_bootstrap_2026-08-16.tex`; 6survey's own
    opposite-sign correlation is equally robust, CI [+0.254, +0.589], never crossing zero either); and
    a freeze-`y_max`-vary-only-`k` ablation rules out a simple "two knobs just fighting over one
-   degree of freedom" story, on the current tier specifically — freezing `y_max` and re-fitting `k`
-   alone gives a WIDER `k` range than the full two-parameter model (0.0136 vs. 0.0092, ~148% as
-   wide), the opposite of what a resource-competition story would predict. An earlier check on the
-   old, pre-restructuring tier found the reverse direction (frozen range ~77% as wide, a modest
-   narrowing) — the two tiers disagree on direction, so this should be read as "neither tier shows
-   the dramatic narrowing a clean fighting-over-one-degree-of-freedom story would predict," not as
-   one consistent number spanning both.
+   degree of freedom" story — freezing `y_max` and re-fitting `k` alone gives a WIDER `k` range
+   than the full two-parameter model (0.0136 vs. 0.0092, ~148% as wide), the opposite of what a
+   resource-competition story would predict.
    **Scope, precisely**: this is a claim about PINN_k's own claimed interpretability being genuine
    only with the constraint present — not evidence that RQ2b or RQ3 need PINN's physics guidance,
    since their own attribution targets are built from a separate classical curve fit, not PINN_k's
