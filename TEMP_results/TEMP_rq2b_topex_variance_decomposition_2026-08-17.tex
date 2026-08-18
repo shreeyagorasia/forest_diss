@@ -1,0 +1,61 @@
+## TEMP holding note -- does `topex` vary mostly between compartments? (2026-08-17)
+
+**Which RQ this closes a gap in, and why**: RQ2b item 3 (why NLME and Elastic Net disagree on
+`topex`'s coefficient -- strong and stable in NLME (+1.316/+1.323, Set3/Set4), weak and
+sign-flipping in EN (-0.175 Set3, +0.063 Set4) -- while `slope_degrees` is stable in both). The
+results draft flagged a candidate, untested mechanism: NLME has a compartment-level random
+intercept that absorbs compartment-level correlation; Elastic Net has no such term. If `topex`
+varies mostly BETWEEN compartments, a plain regression with no random-effect term has nothing to
+separate `topex`'s real effect from whatever unmeasured compartment-level factors happen to
+correlate with it in a given fold's training data -- a textbook spatial-confounding setup. This
+only holds if the precondition is true: does `topex` actually vary mostly between compartments,
+more than a variable that stays stable (`slope_degrees`) does?
+
+**Method**: `models/spatial_attribution/rq2b_topex_variance_decomposition.py`. One-way
+random-effects ANOVA intraclass correlation (ICC), the standard between/within variance
+decomposition, computed directly on already-loaded 4survey plot data (`load_plots_for_cohort`),
+grouped by `cpmt`. No model fitting -- reads existing columns only. 71,766 plots, 296
+compartments.
+
+### Results
+
+| Variable | ICC (between-compartment share of total variance) |
+|---|---:|
+| `topex` | 0.7430 |
+| `slope_degrees` | 0.6257 |
+
+**The precondition holds, but only partially separates the two variables.** `topex` is indeed
+dominated by between-compartment variance (74.3% of its total variance sits between compartments,
+only 25.7% within) -- a real, checkable basis for the spatial-confounding account: `topex` is
+close to a compartment-level signal, not a plot-level one, so a model with no way to separate
+compartment identity from `topex` itself (Elastic Net) has real room for compartment-level
+confounding to leak into its coefficient in a way that shifts across folds/splits. This is
+consistent with the theory, not merely asserted.
+
+**What this does NOT cleanly establish**: `slope_degrees`, the variable that stays stable across
+both methods, is ALSO substantially between-compartment (62.6%) -- both variables are
+dominated by between-compartment variance, `topex` more so, but not by an order of magnitude.
+A clean story would need `slope_degrees` to be mostly WITHIN-compartment (low ICC) so the
+contrast maps directly onto the stability difference; it does not. The 12-point ICC gap
+(0.743 vs. 0.626) is real and in the expected direction, but on its own it is a modest
+difference, not an obviously sufficient explanation for why `topex` specifically destabilises EN's
+estimate while `slope_degrees` does not.
+
+**A plausible complementary factor, not tested here**: `slope_degrees`'s own coefficient magnitude
+is larger and more consistent across methods than `topex`'s (NLME +0.894/+0.861 vs. EN
++1.230/+0.993, comparable order of magnitude both ways) than `topex`'s own EN estimate
+(-0.175/+0.063, small relative to its own SD). A variable with a strong true signal-to-noise
+ratio needs a much larger confounding shift to flip its estimated sign than a variable whose true
+effect is already marginal. This would mean spatial confounding (supported by the ICC result
+above) combines with `topex`'s own weaker true effect size to produce visible instability, while
+`slope_degrees`'s stronger true effect survives a similar amount of confounding pressure without
+flipping sign. This is a plausible combination of two already-established facts (ICC here;
+coefficient magnitude already in the main results table), not a new, separately tested claim --
+no controlled test isolates signal strength from spatial confounding here.
+
+**Honest bottom line for the write-up**: the theory is not confirmed, but it is more than
+speculation. `topex`'s spatial-confounding precondition is real and directly checked (unlike an
+untested assumption), and the observed magnitude asymmetry (`topex`'s weak true coefficient vs.
+`slope_degrees`'s strong one) is a plausible, literature-consistent complement to it. Neither
+piece is a controlled test of the actual mechanism -- this should be reported as "a
+theoretically grounded, partially evidenced account," not as a settled explanation.

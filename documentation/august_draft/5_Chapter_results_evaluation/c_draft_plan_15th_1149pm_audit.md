@@ -434,8 +434,26 @@ methods: NLME/Elastic Net/XGBoost, none of them PINN).
    predictor's time-resolution and the target's own construction is a real candidate mechanism —
    but this hasn't been isolated as the actual cause, only established as a real, disclosed property
    of the input data. `soilgrids_ph` (a genuinely static soil property, not time-mismatched in the
-   same way) and `topex`'s EN-specific instability (a static terrain feature, same VIF context as
-   its NLME fit, which IS stable) are NOT explained by either hypothesis — genuinely open.
+   same way) is NOT explained by either hypothesis — genuinely open. `topex`'s own EN-specific
+   instability is addressed separately below, by a direct check rather than either of these two
+   candidates.
+   **A direct check of the topex/EN candidate raised above (2026-08-17)**: NLME's spatial-confounding
+   account requires `topex` to vary mostly BETWEEN compartments rather than within them — checked
+   directly via a between/within variance decomposition (intraclass correlation, ICC,
+   `TEMP_rq2b_topex_variance_decomposition_2026-08-17.tex`). The precondition holds: 74.3% of
+   `topex`'s total variance sits between compartments (ICC 0.743), close to a compartment-level
+   signal rather than a plot-level one — real room for a model with no compartment-level term (EN)
+   to have unmeasured compartment-level factors leak into its `topex` coefficient differently
+   across folds. **This does not cleanly separate `topex` from `slope_degrees`, though**:
+   `slope_degrees` (the stable variable) is also substantially between-compartment (ICC 0.626) —
+   both variables are dominated by between-compartment variance, `topex` more so, but by a modest
+   12-point gap, not an order of magnitude. A plausible complementary factor, not separately
+   tested: `slope_degrees`'s own coefficient is larger and more consistent in magnitude across
+   methods than `topex`'s already-marginal EN estimate, so a similar amount of confounding
+   pressure would need to shift `topex`'s weaker signal proportionally further to flip its sign.
+   Read together, this is a theoretically grounded, partially evidenced account, not a settled
+   explanation — the spatial-confounding precondition is real and checked, not assumed, but it
+   does not by itself fully explain why `topex` specifically, and not `slope_degrees`, destabilises.
 4. **`[Importance: 3/5]` Bootstrap CIs temper "which set is best" into a softer claim, while sharpening
    which set is clearly weakest.** Set2 and Set4's XGBoost CIs overlap substantially ([0.355,0.461]
    vs. [0.338,0.438]) — a real point-estimate gap, not a statistically clear-cut one. Set3 is more

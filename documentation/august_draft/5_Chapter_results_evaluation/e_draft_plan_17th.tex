@@ -193,13 +193,16 @@ re-ranks a subset against the "one to two, three at most, per question" budget.
   standing limitation that should be stated plainly wherever RQ2b's numbers are
   presented as stable, not only in a footnote.
 \item \textbf{RQ2b:} why NLME and Elastic Net disagree specifically on \texttt{topex}
-  (stable in one, unstable in the other) is not tested; multicollinearity was checked
-  and ruled out as the explanation, but no alternative explanation has been confirmed.
+  has a theoretically grounded, partially evidenced account (spatial confounding, since
+  \texttt{topex} is 74\% between-compartment variance, a precondition confirmed
+  directly), not a fully settled one: \texttt{slope\_degrees}, which stays stable, is
+  also substantially between-compartment (63\%), so this alone does not cleanly
+  separate the two variables. Report as partially explained, not fully open and not
+  fully resolved.
 \item \textbf{RQ2b:} the static-climatology time-mismatch explanation for the unstable
   climate variables (\texttt{chelsa\_gdd5\_degc}, \texttt{tas\_mean}) is a disclosed
   property of the input data, not a tested cause; \texttt{soilgrids\_ph}'s own
-  instability and \texttt{topex}'s EN-specific instability are not explained by this
-  or any other hypothesis so far.
+  instability is not explained by this or any other hypothesis so far.
 \item \textbf{RQ2b:} why canopy cover carries as much unique signal as the ablation
   shows (R2 drops by roughly a third when it is removed, more than its SHAP-rank
   margin alone would suggest) is not mechanistically explained beyond "it is the most
@@ -338,7 +341,28 @@ the case for retaining Chapman-Richards guidance rests on the narrower claim tha
 preserves a specific interpretability property PINN\_k would otherwise lose, not on
 raw predictive accuracy.
 
-\fig{RQ1 -- paired per-fold R2, XGBoost vs.\ DNN, both cohorts. See working notes \S3.}
+\fig{\textbf{RQ1, Figure 1 -- paired per-fold R2, XGBoost vs.\ DNN.} Plots: XGBoost
+(tuned) vs.\ DNN, Set3, both cohorts, all 5 spatial\_block\_kfold folds. Design: a
+slopegraph, not a bar chart -- two columns ("DNN", "XGBoost"), one line per fold
+connecting that fold's R2 in each model, two panels (one per cohort) so the 5/5 vs.\
+4/5 win split is visible side by side; the one reversed fold (4survey, fold 0) marked
+with a distinct colour/marker. Establishes: that XGBoost's advantage holds fold-by-fold,
+not only on average -- the table's pooled mean$\pm$SD alone cannot distinguish "wins
+consistently, small margin" from "wins on average, flips unpredictably." Answers RQ1
+item 1. No other figure serves this purpose.}
+
+\fig{\textbf{RQ1, Figure 2 -- the physics trade-off (accuracy vs.\ identifiability).}
+Two panels. Panel A (accuracy cost): PINN and PINN\_k, both cohorts, R2 vs.\
+physics/trajectory weight (0, 1, 2), point+error-bar (single-split CI or fold SD), one
+line per model, cohort as facet or colour. Panel B (identifiability benefit): PINN\_k
+only (the only variant with an independently learned $k$), the $y_{\max}/k$
+correlation at each tested weight with its bootstrap CI as an error bar --
+\textbf{scope Panel B to w=0/w=1 only, no confirmed w=2 correlation number exists, leave
+that column empty rather than guess}. Establishes: the "accuracy down, identifiability
+up" trade-off (RQ1 item 5 + RQ2a item 3) as one connected argument -- no table in this
+chapter currently shows the weight-sweep numbers at all, this is the only place the two
+halves of the trade-off appear together rather than in two separate paragraphs the
+reader has to link themselves. Answers RQ1 item 5, bridges to RQ2a item 3.}
 
 % ----------------------------------------------------------------------------
 
@@ -476,16 +500,37 @@ on Set3/Set4, the same sign and comparable magnitude in both. \texttt{topex} is
 strong and consistent within NLME (+1.316/+1.323) but weak and sign-flipping within
 Elastic Net ($-0.175$ Set3, $+0.063$ Set4, both with an SD larger than or comparable
 to the coefficient itself), a genuine disagreement between the two methods rather than
-a shared, confirmed signal. Multicollinearity was checked directly as a possible
-explanation and ruled out: the unstable variables (\texttt{tas\_mean}, VIF 3.44;
+a shared, confirmed signal.
+
+Multicollinearity was checked directly as a possible explanation for the other
+unstable variables and ruled out: the unstable ones (\texttt{tas\_mean}, VIF 3.44;
 \texttt{soilgrids\_ph}, VIF 2.12) do not carry higher VIF than the stable
 \texttt{chelsa\_bio12\_precip\_mm} (VIF 3.91), and \texttt{topex} itself (VIF 2.37) is
 lower than several stable variables. A static 1981--2010 climatology applied
 identically regardless of a plot's actual 2008--2023 survey year is a disclosed
 property of the climate inputs and a plausible contributor to the climate variables'
-instability, though this has not been isolated as the confirmed cause, and it does not
-explain \texttt{soilgrids\_ph} (a genuinely static soil property) or \texttt{topex}'s
-own EN-specific instability at all.
+instability, though this has not been isolated as the confirmed cause. It does not
+explain \texttt{soilgrids\_ph} (a genuinely static soil property), and neither
+hypothesis explains \texttt{topex}'s own EN-specific instability, addressed
+separately below.
+
+A plausible mechanism grounds that instability rather than leaving it a bare
+observation. NLME carries a compartment-level random intercept that absorbs
+compartment-level correlation; Elastic Net has no equivalent term. If \texttt{topex}
+varies mostly between compartments rather than within them, Elastic Net has no way to
+separate its real effect from whatever unmeasured compartment-level factors happen to
+correlate with it in a given fold's training data, a standard spatial-confounding
+setup. That precondition was checked directly rather than assumed: a variance
+decomposition shows 74\% of \texttt{topex}'s total variance sits between compartments
+(an intraclass correlation of 0.74). This does not fully separate \texttt{topex} from
+\texttt{slope\_degrees}, though: \texttt{slope\_degrees} is also mostly
+between-compartment (63\%), so the confounding precondition alone does not explain why
+\texttt{topex} specifically destabilises while \texttt{slope\_degrees} does not.
+\texttt{slope\_degrees}'s own coefficient is also larger and more consistent across
+methods than \texttt{topex}'s already marginal Elastic Net estimate, so a comparable
+amount of confounding pressure would need to shift a weaker signal further,
+proportionally, to flip its sign. Taken together this is a theoretically grounded,
+partially evidenced account, not a fully settled one.
 
 Spatial clustering in the model residuals barely moves as more environmental data is
 added. Moran's I stays in the 0.65--0.74 range from Set1 through Set4 for both EN and
@@ -508,8 +553,33 @@ across independent model families, and a substantial share of the departure's sp
 pattern is not explained by any environmental set tested here, which is the direct
 motivation for testing a spatially-varying model in RQ3.
 
-\fig{RQ2a -- quartile reduction by model and cohort. RQ2b -- coefficient/Moran's
-I/residual-map composite. See working notes \S3.}
+\fig{\textbf{RQ2a -- quartile reduction by model and cohort, with the permutation
+control included.} Plots: DNN and XGBoost (env-conditioned, Set3), both cohorts, mean
+reduction by CR-baseline-error quartile (Q1--Q4), \textbf{plus a third series: the
+permuted-environment XGBoost control from
+\texttt{TEMP\_rq2a\_permutation\_check\_2026-08-17.tex} -- already computed, no new
+fitting needed}. Design: paired points with error bars (fold SD for XGBoost, 5-seed SD
+for DNN -- note directly on the figure, not only the caption, that these are not on the
+same basis), x-axis = quartile, y-axis = mean reduction (m), a horizontal zero line so
+Q1's negative and Q4's positive values read immediately. Establishes: not just the
+quartile split, but the actual mechanism -- real and permuted XGBoost overlap almost
+exactly at Q1 and diverge visibly at Q4, showing the real-vs-flexibility split directly
+rather than requiring the reader to trust the prose. Answers RQ2a item 1. No other
+figure serves this purpose.}
+
+\fig{\textbf{RQ2b -- coefficient/Moran's I/residual-map composite.} Three panels.
+Panel A (attribution): coefficient forest plot, one row per variable (\texttt{CanopyCover},
+both thinning columns, \texttt{slope\_degrees}, \texttt{topex}, the climate/soil
+variables), point = mean, whisker = fold SD, NLME and EN as two colours/markers side by
+side, Set3 and Set4 as two sub-columns -- the visual payoff of the slope-stable/
+topex-unstable contrast, otherwise the reader has to hold four numbers in their head.
+Panel B (spatial clustering doesn't move): Moran's I by set (Set1--Set4), EN and
+XGBoost as two lines, deliberately near-flat -- the flatness is itself the finding.
+Panel C (where the leftover residual sits): a map of Set4/4survey's model residual,
+coloured by magnitude/sign -- this is what motivates RQ3, earning its panel on
+structural grounds, not decoration. Establishes: none of this (coefficients, the
+Moran's I trend, the spatial residual pattern) exists in any table in this chapter, all
+of it is currently text-only. Answers RQ2b items 1--3.}
 
 % ----------------------------------------------------------------------------
 
@@ -626,7 +696,30 @@ target's own construction under a fixed growth-rate assumption rather than to a
 confirmed ecological cause, which should temper how far any single extreme
 \(\Delta y_{\max}^{\text{plot}}\) value is read as a real biological signal.
 
-\fig{RQ3 -- GNNWR edge/spatial-structure/local-coefficient composite. RQ3 --
-deviation map/archetype map/trajectory composite. See working notes \S3.}
+\fig{\textbf{RQ3, Figure 1 -- GNNWR edge/spatial-structure/local-coefficient
+composite.} Three panels. Panel A: pooled R2 by set and model (EN/XGBoost/GNNWR),
+point+CI, 4survey only. Panel B: residual Moran's I by set/model/cohort, paired so the
+4survey decrease and 6survey increase sit side by side -- the independent
+corroboration for Panel A's edge. Panel C: a spatial map of GNNWR's own per-plot local
+coefficient for \texttt{CanopyCover} (its top-ranked variable), coloured by
+coefficient value -- the only way to show what "spatially-varying coefficient" means
+concretely, no prose substitutes for seeing it vary across Aberfoyle. Establishes:
+Panel B is a diagnostic that exists nowhere else visually; Panel C is the one thing in
+the whole chapter that only GNNWR can produce. Answers RQ3 items 2--3.}
+
+\fig{\textbf{RQ3, Figure 2 -- deviation map/archetype map/trajectory composite,
+including the 266-plot pattern.} Three panels. Panel A: a map of
+\texttt{local\_y\_max\_difference} across 4survey, coloured by deviation
+magnitude/sign, with the 266 Tukey-fence-flagged plots marked with a distinct
+outline/marker -- the direct visual for "the pattern scales to hundreds of plots,
+clustered by compartment" (item 6), and shows at a glance whether it clusters
+spatially. Panel B: the compartment archetype map (the six classes from item 9), same
+geography, so a reader can cross-reference Panel A's raw deviation against Panel B's
+classification directly. Panel C: small-multiples trajectories, one per archetype,
+observed height vs.\ age (grey), the fitted local curve, and the yldc benchmark curve
+overlaid -- the only way to make "smooth-but-offset" vs.\ "moderately unstable"
+concrete rather than a label. Establishes: this figure is what lets the outlier-plot
+prose (items 4--9, currently the densest part of the chapter) shorten, rather than the
+other way round. Answers RQ3 items 4--6, 9.}
 
 \end{document}
