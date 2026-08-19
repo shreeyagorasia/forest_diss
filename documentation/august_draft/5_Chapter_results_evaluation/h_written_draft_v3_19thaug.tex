@@ -208,15 +208,9 @@ $R^2=0.655$, unconstrained PINN$_k$ $0.629$, down from a $0.080$ gap at $\lambda
 closes the gap completely -- the unconstrained model even beats the DNN slightly ($0.719$ vs.\
 $0.684$).
 
-The gap narrows at $\lambda=0$, but does not close, and that residual gap is expected, not
-puzzling. PINN's terrain and wind features never reach its height prediction directly -- they pass
-only through a narrow sub-network used solely inside the physics/trajectory loss. At $\lambda=0$
-that loss has zero weight, so the sub-network gets no training signal at all: the unconstrained
-model is effectively a no-environment network, not an equivalent of the DNN, which feeds terrain
-straight into its main trunk. So PINN's weakness has two separate, both now evidenced, causes: an
-architectural bottleneck (terrain only ever reaches predictions through that narrow sub-network),
-and loss competition (the physics/trajectory terms actively pull against accuracy once weighted
-above zero).
+The gap narrows at $\lambda=0$, but does not close: a residual $0.026$ $R^2$ gap to the DNN
+remains on 4survey even with the physics/trajectory loss fully removed. What causes that residual
+gap is not established here.
 
 Physics guidance does change the learned CR parameters. But the evidence that this is a real
 benefit is incomplete. Without guidance ($\lambda=0$), $y_{\max}$ and $k$ collapse to just two

@@ -189,9 +189,16 @@ therefore overstate real-world accuracy -- this is why spatial-block splitting, 
 splitting, is used as the primary evaluation throughout this chapter.
 
 PINN does not show this inflation: its random-split and spatial-split scores are nearly identical
-(4survey: $0.590$ vs.\ $0.584$; 6survey: $0.728$ vs.\ $0.731$). This could come from the physics
-constraint, from PINN's weaker overall fit, or from another architecture difference -- these were
-not tested apart, so no single cause is confirmed.
+(4survey: $0.590$ vs.\ $0.584$; 6survey: $0.728$ vs.\ $0.731$). This is architectural, confirmed
+directly in code (see the physics-weight ablation above): terrain never reaches PINN's trunk, so
+there is nothing terrain-derived for a random split to leak between train and test, regardless of
+$\lambda$. \texttt{dnn\_noenv} -- a plain DNN with no physics loss and, like PINN's trunk, no
+terrain in its input -- confirms this is the reason: it shows the same small gap as PINN ($0.657$
+vs.\ $0.633$ on 4survey), not the terrain-DNN's large one, even though its spatial-block fit
+($0.633$) matches the terrain-DNN's ($0.634$) almost exactly. Matched fit quality with a very
+different split-gap rules out both physics regularisation (\texttt{dnn\_noenv} has none) and a
+weaker overall fit (the two fits are essentially equal) -- the presence of terrain in the trunk is
+what decides the gap.
 
 
 \subsection{Physics-weight ablation}
