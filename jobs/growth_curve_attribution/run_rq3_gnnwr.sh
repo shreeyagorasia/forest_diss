@@ -27,8 +27,15 @@
 #SBATCH --error=logs/rq123_methodology/%x_%j.err
 #SBATCH --time=04:00:00
 #SBATCH --partition=Teaching
-#SBATCH --gres=gpu:h200_1g.18gb:1
+#SBATCH --gres=gpu:nvidia_rtx_a6000:1
 #SBATCH --mem=32G
+# GRES updated 2026-08-20: the H200 MIG slice name this used to request
+# (gpu:h200_1g.18gb:1) does not match this cluster's actual registered GRES string
+# (confirmed via `sinfo -N -o "%.15N %.10T %.30G"`: saxa advertises gpu:h200:1 and
+# gpu:h200_3g.71gb, never gpu:h200_1g.18gb) -- almost certainly why jobs sat
+# unschedulable rather than genuine contention. landonia11 (idle, 8x RTX A6000,
+# 48GB each) is both correctly named and confirmed free, with far more headroom
+# than the ~12.9GB the full/uncapped reference-population run needs.
 
 cd ~/forest_diss
 
