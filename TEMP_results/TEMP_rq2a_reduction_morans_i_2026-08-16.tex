@@ -1,45 +1,55 @@
 ## TEMP holding note — does RQ2a's own residual-reduction value cluster spatially? (2026-08-16)
 
+**`[SUPERSEDED 2026-08-18]`**: k=8 nearest-neighbour method replaced project-wide by a
+semivariogram-informed distance-band method — same change as `TEMP_rq2_attribution_results_2026-08-11.tex`
+and `TEMP_rq3_gnnwr_results_2026-08-11.tex`. **The conclusion below does not just shrink in
+magnitude, it reverses.** Corrected numbers and conclusion follow; original k=8 table kept inline
+for provenance, not for citing.
+
 **Context**: during figure planning, a spatial "help map" for RQ2a (where does environmental
 conditioning help or hurt) was explicitly NOT proposed, because no supporting spatial-clustering
 statistic existed yet for the reduction values themselves — only for raw residuals, computed
 separately for RQ2b/RQ3. This closes that gap.
 
-**Method**: `models/spatial_attribution/rq2a_reduction_morans_i.py`. No new fitting — composes three
-already-existing pieces: `compute_residual_reduction()`
+**Method (re-run 2026-08-18)**: `models/spatial_attribution/rq2a_reduction_morans_i.py`. No new
+fitting — composes three already-existing pieces: `compute_residual_reduction()`
 (`models/spatial_attribution/rq2_residual_reduction.py`, the exact function already behind RQ2a's
 own quartile tables) for the per-row reduction value (`|CR error| - |model error|`);
 `load_plot_coordinates()` (`models/common/geo.py`) for (x, y); `compute_residual_morans_i()`
-(`models/growth_curve_attribution/residual_spatial_autocorrelation_check.py`, k=8 nearest-neighbour
-weights, 999 permutations, seed=42 — the same function and convention already used for RQ2b's and
-RQ3's own residual Moran's I) for the test itself. DNN and XGBoost (both env-conditioned, Set3,
-seed 42/fixed config), both cohorts, pooled across all 5 `spatial_block_kfold` test folds.
+(`models/growth_curve_attribution/residual_spatial_autocorrelation_check.py`, now
+semivariogram-informed distance-band weights, 999 permutations, seed=42, max_distance=5000m,
+4survey re-checked at 10000m since neither model resolved cleanly at 5000m — see below) for the
+test itself. DNN and XGBoost (both env-conditioned, Set3, seed 42/fixed config), both cohorts,
+pooled across all 5 `spatial_block_kfold` test folds.
 
 ### Results
 
-| Cohort | Model | n | Moran's I | p |
-|---|---|---:|---:|---:|
-| 4survey | DNN | 232,292 | +0.6424 | 0.001 |
-| 4survey | XGBoost | 232,292 | +0.6281 | 0.001 |
-| 6survey | DNN | 82,614 | +0.5698 | 0.001 |
-| 6survey | XGBoost | 82,614 | +0.5499 | 0.001 |
+| Cohort | Model | n | Moran's I @5000m | status @5000m | Moran's I @10000m | status @10000m |
+|---|---|---:|---:|---|---:|---|
+| 4survey | DNN | 232,292 | +0.0380 | resolved (range 4802m, 198m from ceiling) | -0.0038 | exceeds_window |
+| 4survey | XGBoost | 232,292 | +0.0401 | exceeds_window (5000m) | -0.0045 | exceeds_window |
+| 6survey | DNN | 82,614 | NaN | no_structure | not re-checked (no_structure is a null, not a narrow-window artifact) | — |
+| 6survey | XGBoost | 82,614 | NaN | no_structure | not re-checked | — |
 
-**The reduction value is substantially spatially clustered, for both models, on both cohorts** —
-Moran's I 0.55–0.64, p at the permutation floor (0.001, the smallest value 999 permutations can
-report) in every case. This is not a marginal or borderline result: it sits in the same range as
-RQ2b's own residual Moran's I (0.65–0.74) and RQ3's (comparable magnitude), both already reported
-as "substantial" spatial clustering elsewhere in this project. Where conditioning helps or hurts is
-not scattered randomly across Aberfoyle — it is a real, strongly spatially-structured pattern, for
-both models and both cohorts alike.
+**The reduction value shows no reliable spatial clustering, for either model, on either cohort —
+the opposite of the original k=8 finding.** 6survey: semivariogram flat even at the 5000m window on
+both models, a genuine null. 4survey: the 5000m-window DNN value (+0.038) looked real but its range
+(4802m) sat suspiciously close to the search ceiling; widening to 10000m, neither model resolves
+even then, and both flip sign toward zero (DNN +0.038→-0.004, XGBoost +0.040→-0.005) — the
+signature of no genuine spatial structure, not of structure at a wider scale. This remains an
+`exceeds_window` (unresolved) result at 10000m, not a formally proven null, but combined with
+6survey's solid null it does not support real spatial structure.
 
-**What this does and doesn't establish**: this confirms the SIGN/MAGNITUDE of the reduction effect
-clusters spatially — consistent with, though not a direct test of, the already-established
-CR-residual-quartile mechanism (RQ2a item 1: conditioning helps where CR fits worst, hurts where it
-fits well) is not scattered evenly across Aberfoyle. Whether the clustering is because "where CR
-fits worst" is itself spatially clustered (a plausible, likely candidate — CR-quartile membership
-was not itself tested for spatial clustering here) or reflects some other spatially-structured
-factor is not distinguished by this check alone. No causal claim is made or supported.
+**What this does and doesn't establish**: does not confirm that where conditioning helps is
+spatially clustered — on the evidence available, it is not. This is a different, separate claim
+from the already-established CR-residual-quartile mechanism (RQ2a item 1: conditioning helps where
+CR fits worst, hurts where it fits well), which is untouched by this correction — that finding
+does not depend on spatial clustering of the reduction value. No causal claim is made either way.
 
-**Implication for the plotting plan**: this now supports a genuine, evidence-based spatial "help
-map" for RQ2a, on the same basis already used to justify RQ2b's and RQ3's own maps — the map would
-show a real, tested spatial pattern, not an unsupported visual.
+**Implication for the plotting plan — reversed**: the planned spatial "help map" for RQ2a is **not
+supported** by this corrected check. Do not build it on the basis of this analysis; the original
+2026-08-16 justification ("this now supports a genuine, evidence-based spatial help map") does not
+hold under the corrected method.
+
+**Original k=8 table (2026-08-16), for provenance only, not for citing**: 4survey DNN +0.6424, XGB
++0.6281; 6survey DNN +0.5698, XGB +0.5499 (all p=0.001, same n as above).

@@ -1,0 +1,521 @@
+% Revised Results and Discussion working draft
+% Short statements are intentional. Expand only where marked TODO.
+
+\chapter{Results and Discussion}
+\label{ch:results}
+
+This chapter answers the three research questions. RQ1 compares top-height prediction under
+spatial-block cross-validation, followed by temporal and diagnostic analyses. RQ2 examines
+persistent plot-level departures from a shared Chapman--Richards (CR) curve. RQ3 examines
+plot-specific asymptotic deviations using global and spatially varying models. Set~3 is used for
+the main RQ1 comparison as a common representative feature set across all model families,
+providing a shared terrain- and wind-conditioned input set. Full feature-set results are reported
+in Appendix~\ref{app:full-results}.
+
+% Checked: Set3 first appears (as "nested_set3_gated_terrain_wind_vif") in the XGBoost
+% hyperparameter search script, dated around the same time RQ1 results were being computed --
+% no evidence it was fixed before test performance was inspected. Wording above uses the
+% conservative "representative feature set" framing rather than a causal "because" justification.
+
+
+%=======================================================================================
+\section{RQ1: Prediction of top height}
+\label{sec:results-rq1}
+
+\subsection{Spatial-block performance}
+
+Tuned XGBoost achieved the lowest mean RMSE and MAE, and the highest mean $R^2$, in both cohorts
+under five-fold spatial-block cross-validation (Table~\ref{tab:results-rq1}). The DNN was the
+strongest neural model in the four-survey cohort. The DNN and PINN had similar point estimates in
+the six-survey cohort.
+
+% Verified: Table~\ref{tab:results-rq1} matches the corrected/verified results table (Set~3,
+% spatial\_block\_kfold, seed 42, tuned XGBoost from the 27-config search) exactly -- no
+% discrepancy found against an earlier table.
+
+\begin{table}[!htbp]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{0.95}
+\begin{tabular}{lccc|ccc}
+\toprule
+& \multicolumn{3}{c|}{Four-survey}
+& \multicolumn{3}{c}{Six-survey} \\
+Model
+& RMSE$\downarrow$ & MAE$\downarrow$ & $R^2\uparrow$
+& RMSE$\downarrow$ & MAE$\downarrow$ & $R^2\uparrow$ \\
+\midrule
+Linear
+& $5.168{\pm}0.361$ & $4.056{\pm}0.343$ & $0.580{\pm}0.026$
+& $4.877{\pm}0.643$ & $3.619{\pm}0.426$ & $0.509{\pm}0.067$ \\
+RF
+& $4.794{\pm}0.187$ & $3.611{\pm}0.142$ & $0.638{\pm}0.011$
+& $4.062{\pm}0.249$ & $3.010{\pm}0.185$ & $0.656{\pm}0.046$ \\
+XGBoost (tuned)
+& $\mathbf{4.548{\pm}0.137}$ & $\mathbf{3.431{\pm}0.123}$ & $\mathbf{0.674{\pm}0.009}$
+& $\mathbf{3.656{\pm}0.232}$ & $\mathbf{2.669{\pm}0.183}$ & $\mathbf{0.722{\pm}0.031}$ \\
+DNN
+& $4.681{\pm}0.230$ & $3.533{\pm}0.201$ & $0.655{\pm}0.016$
+& $3.903{\pm}0.316$ & $2.867{\pm}0.275$ & $0.684{\pm}0.031$ \\
+PINN
+& $5.206{\pm}0.399$ & $4.063{\pm}0.407$ & $0.573{\pm}0.036$
+& $3.886{\pm}0.290$ & $2.819{\pm}0.196$ & $0.686{\pm}0.038$ \\
+PINN-$k$
+& $5.197{\pm}0.402$ & $4.046{\pm}0.421$ & $0.575{\pm}0.037$
+& $3.895{\pm}0.282$ & $2.816{\pm}0.196$ & $0.684{\pm}0.038$ \\
+\bottomrule
+\end{tabular}
+\caption{Five-fold spatial-block performance using Set~3. Values are the mean $\pm$ standard
+deviation of the five fold-level metrics. Each compartment appears in one test fold. The pooled
+held-out samples contain 232{,}292 plot--survey rows from 58{,}073 plots in the four-survey cohort
+and 82{,}614 rows from 13{,}769 plots in the six-survey cohort.}
+\label{tab:results-rq1}
+\end{table}
+
+XGBoost outperformed the DNN in both cohorts: RMSE was 0.133~m (2.8\%) lower on 4survey and
+0.247~m (6.3\%) lower on 6survey. The advantage was larger over the physics-guided models in the
+four-survey cohort. This is consistent with previous findings that boosted trees remain strong on
+heterogeneous tabular data \citep{shwartzziv2021Tabular_C4_NN}. Possible reasons include nonlinear
+thresholds, feature interactions and the limited number of spatially independent compartments.
+These mechanisms were not isolated here.
+
+Tuning effort was not equal between the two: XGBoost was selected from a 27-configuration grid
+search (n\_estimators, max\_depth, learning\_rate), while the DNN used a single fixed architecture
+with no formal hyperparameter search. Part of XGBoost's advantage may therefore reflect a larger
+tuning budget rather than a purely architectural difference, and this should be treated as a
+limitation on the RQ1 model comparison, not just on the RQ1 tuning procedure.
+
+The four-survey cluster-bootstrap intervals did not overlap for the DNN and PINN
+(DNN: $[0.624,0.690]$; PINN: $[0.545,0.607]$). This supports a meaningful performance difference.
+The six-survey intervals overlapped substantially (DNN: $[0.658,0.740]$; PINN:
+$[0.671,0.736]$). The six-survey results therefore do not distinguish these models reliably.
+
+These are pooled $R^2$ 95\% intervals from 1{,}000 cluster-bootstrap resamples of whole
+compartments (resampled with replacement); the interval is the 2.5th--97.5th percentile of the
+resampled pooled $R^2$.
+
+
+\subsection{Cohort and temporal sensitivity}
+
+Model behaviour differed between cohorts. The six-survey cohort covers fewer compartments and a
+narrower elevation range (48 compartments, elevation $102.3\pm47.9$m, range 18--351m) than the
+four-survey cohort (296 compartments, elevation $177.9\pm104.6$m, range 18--561m). Its pooled CR
+fit also has a lower asymptote and faster growth rate ($y_{\max}=44.46$m, $k=0.0233$ vs.
+$y_{\max}=51.96$m, $k=0.0103$). These differences are consistent with sampling a smaller and more
+homogeneous part of Aberfoyle. They do not isolate the cause of the model-performance difference.
+
+Performance decreased under temporal evaluation. The reduction was larger in the six-survey
+cohort. This indicates weaker transfer beyond the training period, but cohort size, coverage and
+composition also differ.
+
+\begin{table}[!htbp]
+\centering
+\small
+\renewcommand{\arraystretch}{1.2}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{llrrr}
+\toprule
+Cohort & Model & Spatial-block $R^2$ & Temporal $R^2$ & Absolute change \\
+\midrule
+4survey & DNN & 0.634 & 0.544 & $-0.090$ \\
+4survey & PINN & 0.584 & 0.290 & $-0.294$ \\
+4survey & PINN$_k$ & 0.588 & 0.289 & $-0.299$ \\
+6survey & DNN & 0.722 & 0.317 & $-0.405$ \\
+6survey & PINN & 0.731 & 0.161 & $-0.570$ \\
+6survey & PINN$_k$ & 0.730 & 0.190 & $-0.540$ \\
+\bottomrule
+\end{tabular}
+\caption{Spatial-block vs.\ temporal-holdout $R^2$, by model and cohort. Training uses survey data
+up to 2012, spatial-block validation uses 2021 data, temporal holdout tests on 2023 data. Only
+$R^2$ was computed for this check; RMSE and MAE are not available from this source
+\fc{(re-run if RMSE/MAE are needed for the final draft)}.}
+\label{tab:results-rq1-temporal}
+\end{table}
+
+The PINN and PINN$_k$ lost far more accuracy under temporal evaluation than the DNN, on both
+cohorts. If the physics constraint improved extrapolation beyond the training period, the opposite
+pattern would be expected: a smaller temporal drop for the physics-guided models, not a larger one.
+This is one further respect in which CR guidance did not deliver its intended benefit in this
+setting, alongside its lack of a spatial-block accuracy advantage (Table~\ref{tab:results-rq1}).
+It does not by itself explain why the constraint fails to generalise better in time; cohort
+composition and the widening gap between training years and the 2023 test survey are also
+plausible contributors and were not separated here.
+
+
+\subsection{Effect of the evaluation split}
+
+The DNN achieved substantially higher $R^2$ under the random plot-level split than under the
+spatial split (4survey: $0.831$ vs.\ $0.634$, a gap of $0.197$; 6survey: $0.844$ vs.\ $0.722$, a
+gap of $0.122$). Nearby training and test plots can share similar stand and environmental
+conditions, so the random split gives an optimistic estimate of spatial transfer. The PINN's
+random-split and spatial-split $R^2$ were nearly identical (4survey: $0.590$ vs.\ $0.584$;
+6survey: $0.728$ vs.\ $0.731$), a near-zero gap rather than a smaller one. This difference in gap
+size is associative, not proven causal: the PINN's physics constraint, its generally weaker fit,
+and other architectural differences between the two models were not tested separately, so no
+single factor can be isolated as the cause. These results support the use of compartment-level
+cross-validation as the primary evaluation.
+
+
+\subsection{Physics-weight ablation}
+
+Increasing the physics and trajectory weights reduced predictive performance. The decrease was
+largest in the four-survey cohort. The effect was smaller in the six-survey cohort.
+
+Physical guidance also changed the learned CR parameters. However, the $\lambda=0$ parameter
+sub-networks received no optimisation signal and collapsed to fold-level constants. Their
+$y_{\max}$--$k$ correlation is therefore not a valid plot-level identifiability control. The
+results show that physical guidance affected parameter estimates, but do not establish that it
+resolved identifiability relative to an otherwise equivalent unconstrained parameter model.
+
+% TODO: Add fold-level parameter summaries for lambda > 0 if they are reliable.
+% TODO: If retained, report the classical CR y_max--k correlation only as contextual evidence.
+% TODO: Move the invalid lambda=0 plot-level CI and bootstrap calculation out of the main chapter.
+
+% FIGURE 1 SPECIFICATION
+% Chart: two-panel paired fold plot.
+% Panel A: four-survey; Panel B: six-survey.
+% x-axis: model; y-axis: fold R2. Join values from the same fold with thin grey lines.
+% Highlight XGBoost, DNN and PINN; mute other baselines.
+% Why: shows whether the headline ranking holds in each spatial fold. Adds information not visible
+% in the mean+-SD table. Avoid another bar chart of the same averages.
+\begin{figure}[!htbp]
+\centering
+\fbox{\parbox{0.92\textwidth}{\centering\vspace{3.0cm}
+TODO FIGURE: paired fold-level $R^2$ comparison for XGBoost, DNN and PINN; one panel per cohort
+\vspace{3.0cm}}}
+\caption{Fold-level spatial performance of the main competing models. Thin lines connect models
+evaluated on the same held-out compartment fold. This shows the consistency of the model ranking,
+rather than repeating the table means.}
+\label{fig:rq1-fold-performance}
+\end{figure}
+
+% FIGURE 2 SPECIFICATION
+% Chart: line plot of lambda against held-out R2.
+% Separate lines for PINN and PINN-k; panels for cohorts.
+% Optional lower panel: a valid parameter-stability measure for lambda > 0 only.
+% Why: directly shows the accuracy--constraint trade-off and whether it is monotonic.
+% Do not plot the invalid lambda=0 parameter correlation as a plot-level estimate.
+
+\paragraph*{Answer to RQ1.}
+Tuned XGBoost gave the strongest spatially held-out predictions in both cohorts. The DNN remained
+competitive, but CR guidance did not improve predictive accuracy. Random plot splitting gave an
+optimistic DNN estimate. The current $\lambda=0$ implementation does not support a controlled
+claim about parameter identifiability.
+
+
+%=======================================================================================
+\subsection{Diagnostic: where environmental models improve on the shared curve}
+\label{sec:results-rq1-cr-reduction}
+
+Environmental models did not improve every observation uniformly. Error reductions were
+concentrated among observations with the largest CR baseline errors. Performance often worsened
+in the best-fitting quartile.
+
+\begin{table}[!htbp]
+\centering
+\scriptsize
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{llrrrr}
+\toprule
+Model & Cohort & CR MAE (m) & Reduction (m) & Reduction (\%) & Rows improved (\%) \\
+\midrule
+DNN, environment & Four-survey & 5.028 & $1.501\pm0.023$ & 29.9 & $64.8\pm4.1$ \\
+DNN, environment & Six-survey & 3.047 & $0.174\pm0.036$ & 5.7 & $52.4\pm4.8$ \\
+XGBoost, environment & Four-survey & 5.028 & $1.597\pm0.330$ & 31.8 & $67.2\pm3.8$ \\
+XGBoost, environment & Six-survey & 3.047 & $0.361\pm0.183$ & 11.8 & $56.0\pm4.6$ \\
+XGBoost, no environment & Four-survey & 5.030 & $1.222\pm0.232$ & 24.3 & $64.5\pm3.2$ \\
+XGBoost, no environment & Six-survey & 3.047 & $0.240\pm0.144$ & 7.9 & $54.8\pm3.0$ \\
+\bottomrule
+\end{tabular}
+\caption{Reduction in absolute error relative to the fold-matched CR baseline. Positive values
+indicate lower error than CR. The DNN uncertainty summarises five seeds; XGBoost uses one fixed
+configuration. These uncertainty terms are therefore not directly equivalent.}
+\label{tab:results-cr-reduction}
+\end{table}
+
+The strongest reductions occurred in Q4, the quartile with the largest CR errors: the model cuts
+Q4 error by 5.08~m on 4survey and 1.81~m on 6survey. Q1 often became less accurate, worsening by
+$2.6\times$ on 4survey and $3.2\times$ on 6survey. However, the quartiles are defined using CR
+error. Q4 has more error available to reduce, while Q1 has little scope for improvement. This
+analysis shows where replacement models differ from CR. It does not alone prove selective
+environmental correction.
+
+The no-environment XGBoost control retained part of the improvement. Environmental inputs added a
+further reduction of 0.375~m in the four-survey cohort and 0.121~m in the six-survey cohort.
+
+The environmental predictors were shuffled as one block, jointly rather than column-by-column, so
+inter-predictor correlations were preserved; the model was then retrained on the shuffled data
+(a training-time, not prediction-time, permutation), with five repeats, one per spatial-block
+fold. Shuffling the environmental predictors left most Q1 degradation intact but reduced the Q4
+gain, reported as the mean reduction across folds $\pm$ its standard deviation. This is consistent
+with two components: a general cost from replacing an already accurate CR prediction, and an
+informative contribution from unshuffled environmental variables among poorly fitted observations.
+This is the evidence that separates the quartile pattern above from a purely mechanical artefact of
+the quartile definition: if Q4's gain were only "more room to improve," it should survive shuffling
+as well as Q1's degradation does, but it does not.
+
+No reliable spatial clustering of error reduction was detected. The six-survey semivariogram
+remained flat within the tested range. In the four-survey cohort, Moran's $I$ approached zero and
+changed sign as the distance window increased. These results do not support a stable geographical
+``help map''.
+
+% Move exact windows, sign changes and the 47-compartment subsampling check to the appendix.
+
+% FIGURE 3 SPECIFICATION
+% Chart: dot-and-line interaction plot, not grouped bars.
+% x-axis: CR-error quartile Q1--Q4; y-axis: mean absolute-error reduction in metres.
+% Panels: four-survey and six-survey.
+% Lines: environment model, no-environment control, shuffled-environment control.
+% Add a horizontal zero line. Positive = improvement; negative = harm.
+% Why: shows the central trade-off, model controls and cohort replication in one figure. The table
+% only gives the aggregate and misses this mechanism.
+\begin{figure}[!htbp]
+\centering
+\fbox{\parbox{0.92\textwidth}{\centering\vspace{3.0cm}
+TODO FIGURE: CR-error quartile against mean error reduction; controls and cohorts shown separately
+\vspace{3.0cm}}}
+\caption{Error reduction relative to CR across quartiles of CR baseline error. The zero line
+separates improvement from degradation. This figure shows whether gains are concentrated among
+observations that depart most from the shared curve.}
+\label{fig:cr-error-quartiles}
+\end{figure}
+
+
+%=======================================================================================
+\section{RQ2: Persistent departure from the shared curve}
+\label{sec:results-rq2}
+
+RQ2 models each plot's mean residual across its four-survey history. Canopy cover and thinning
+variables had the largest attribution values across the tested feature sets and models.
+
+\begin{table}[!htbp]
+\centering
+\scriptsize
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{lcccc}
+\toprule
+Set & Elastic Net $R^2$ [95\% CI] & XGBoost $R^2$ [95\% CI]
+& EN Moran's $I$ & XGB Moran's $I$ \\
+\midrule
+Set1 & 0.220 [0.180, 0.252] & 0.222 [0.183, 0.252] & 0.145 & 0.146 \\
+Set2 & 0.359 [0.310, 0.396] & 0.416 [0.355, 0.461] & 0.105 & 0.032 \\
+Set3 & 0.325 [0.272, 0.365] & 0.375 [0.321, 0.414] & 0.110 & 0.077 \\
+Set4 & 0.358 [0.305, 0.398] & 0.395 [0.338, 0.438] & 0.103 & 0.054 \\
+\bottomrule
+\end{tabular}
+\caption{Held-out attribution of each plot's mean CR residual in the four-survey cohort. Moran's
+$I$ is evaluated using each model's semivariogram-resolved distance band. Full ranges, permutation
+tests and mixed-effects results are reported in Appendix~\ref{app:full-results}.}
+\label{tab:results-rq2}
+\end{table}
+
+Environmental feature sets improved held-out attribution over the structural baseline: every
+feature set's interval clears the baseline-only Set~1 without overlap. Set~2 had the highest
+XGBoost point estimate. Its interval overlapped Set~4, so the results do not establish a
+difference between these feature sets. Terrain-only Set~3, which excludes soil and climate
+predictors, consistently had the lowest point estimates and interval bounds of the three -- soil
+and climate variables therefore add attribution signal beyond terrain and wind exposure alone, and
+a terrain-only feature set is not a sufficient substitute.
+
+Predictors were standardised (mean 0, SD 1) before fitting Elastic Net and the mixed-effects
+model, so their coefficients are metres of mean CR residual per one-SD change in each predictor.
+XGBoost, being tree-based, does not require standardisation; its SHAP values are reported on the
+original response scale, so magnitudes are not directly comparable to the Elastic Net
+coefficients above.
+
+Canopy cover had the largest Elastic Net coefficient and XGBoost SHAP magnitude. Removing it from
+Set~4 reduced held-out $R^2$ in both models \sr{(exact removal-$R^2$ values not added: no ablation
+script matching Set~4's folds and final model version was found this session -- verify before
+citing a number)}. Canopy cover was also moderately correlated with the height response. Its
+importance may reflect stand structure, prior growth and the shared LiDAR source. It is therefore
+treated as a structural control, not an independent environmental driver.
+
+Slope was the only abiotic predictor with a stable direction and substantial magnitude across the
+principal global models. TOPEX was positive in the mixed-effects model but weak and unstable in
+Elastic Net. Because TOPEX varies mainly between compartments, its coefficient may be sensitive to
+unmeasured compartment differences and fold composition. This is a plausible explanation, not an
+isolated causal mechanism.
+
+XGBoost left less residual spatial autocorrelation than Elastic Net as environmental features were
+added, though both start from a similar low-to-moderate baseline. Moran's $I$ falls from 0.146
+(Set~1) to 0.054 (Set~4) for XGBoost, a 63\% relative drop, against only 0.145 to 0.103 for
+Elastic Net, a 29\% relative drop. \ai{Plausible explanation: Elastic Net is linear and additive,
+so it can only remove the linear share of each predictor's spatial signal; any nonlinear or
+interaction effect (e.g.\ a terrain/wind threshold) stays in its residual, and terrain-derived
+predictors are themselves spatially smooth, so that leftover signal still clusters by location.
+XGBoost's tree structure fits such effects directly, removing more of the spatially structured
+signal. This is the same model-flexibility gap the RQ1 XGBoost-vs-DNN result raises -- stated here
+as a hypothesis consistent with the pattern, not directly tested.} \lim{Adding interaction or
+polynomial terms to Elastic Net (or fitting a GAM with the same predictors) would directly test
+this, rather than leaving it untested.}
+
+% Checked: the second-stage model uses statsmodels MixedLM (models/spatial_attribution/nlme.py),
+% a LINEAR mixed model fit to CR residuals (fixed terrain/wind effects, random compartment
+% intercept) -- not a genuinely nonlinear mixed-effects fit. "mixed-effects model" (used
+% throughout this section) is the correct label; "NLME" should not be used for it.
+% TODO: Define the two-stage mixed-effects output in the appendix (fixed/random effect structure,
+% what "mixed-effects model" refers to here) -- exact appendix location not established this
+% session, content above is ready to use.
+
+% FIGURE 4 SPECIFICATION
+% Composite with two connected panels.
+% Panel A: coefficient/SHAP rank plot for only the 6--8 most important features. Show direction for
+% Elastic Net and mixed effects; magnitude for SHAP. Mark predictors with stable sign across folds.
+% Panel B: residual Moran's I by Set for EN and XGBoost, with connected points.
+% Why: Panel A answers what explains departure. Panel B shows what remains spatially unexplained.
+% A residual map may be a small inset only if it reveals a pattern not conveyed by Moran's I.
+
+\paragraph*{Answer to RQ2.}
+Stand structure and management explained more persistent CR departure than any single abiotic
+predictor. Slope was the most stable abiotic association. Environmental features improved held-out
+attribution, but residual spatial autocorrelation remained.
+
+
+%=======================================================================================
+\section{RQ3: Plot-specific asymptotic deviation}
+\label{sec:results-rq3}
+
+RQ3 examines the difference between each plot's fitted asymptote and its yield-class expectation.
+It compares global attribution models with GNNWR, which allows relationships to vary by location.
+
+\begin{table}[!htbp]
+\centering
+\scriptsize
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{lcc|cc|cc}
+\toprule
+& \multicolumn{2}{c|}{Elastic Net $R^2$}
+& \multicolumn{2}{c|}{XGBoost $R^2$}
+& \multicolumn{2}{c}{GNNWR $R^2$} \\
+Set & Four-survey & Six-survey & Four-survey & Six-survey & Four-survey & Six-survey \\
+\midrule
+Set2 & 0.286 [0.241, 0.325] & 0.057 & 0.266 [0.214, 0.308] & 0.031
+& 0.320 [0.270, 0.369] & $0.014\pm0.053$ \\
+Set3 & 0.274 [0.223, 0.316] & 0.031 & 0.281 [0.235, 0.320] & 0.086
+& 0.319 [0.263, 0.365] & $0.054\pm0.055$ \\
+Set4 & 0.240 [0.192, 0.286] & 0.056 & 0.250 [0.201, 0.295] & 0.015
+& 0.294 [0.236, 0.347] & $0.002\pm0.068$ \\
+\bottomrule
+\end{tabular}
+\caption{Held-out $R^2$ for plot-specific asymptotic deviation. Four-survey brackets are 95\%
+cluster-bootstrap intervals. Six-survey GNNWR values are the mean $\pm$ standard deviation across
+three split seeds. Other six-survey entries are single estimates. These uncertainty summaries are
+not directly equivalent.}
+\label{tab:results-rq3}
+\end{table}
+
+GNNWR had the highest four-survey point estimate in all three feature sets. Its confidence
+intervals overlapped those of the global models. The results therefore suggest, but do not
+establish, a predictive advantage. GNNWR also left lower residual Moran's $I$ in every
+four-survey feature set, indicating less residual spatial clustering.
+
+All models performed poorly on the six-survey cohort. No stable residual spatial structure was
+detected within the tested distance windows. This prevents Moran's $I$ from explaining the
+near-zero predictive performance. Matching the compartment count through four-survey subsampling
+did not reproduce the same behaviour. Cohort composition may therefore matter more than
+compartment count alone.
+
+% TODO: move the block below into Appendix~\ref{app:full-results} (exact appendix file/location
+% not established in this session -- content is ready, placement is not).
+% Appendix content -- exact semivariogram ranges, p-values, 10km windows, subsample values:
+%   RQ2 (mean CR residual, 4survey): ranges 1665-1739m (EN), 1385-1675m (XGB), all p=0.001.
+%   RQ3 (asymptote deviation): 4survey ranges 808-1252m, all p=0.001. 6survey: Set3 unresolved
+%     (flat semivariogram) for EN/XGB/GNNWR; Set2/Set4 XGB+GNNWR only resolve after widening to
+%     10000m, landing at I~-0.0002, p=0.05-0.31 (not significant); 6survey EN unresolved in all
+%     3 sets.
+%   47-compartment subsample check (4survey, matching 6survey's compartment count): 3 random
+%     seeds, all resolve cleanly, I=0.18-0.36, ranges 1045-1659m -- rules out compartment count
+%     alone as the explanation for 6survey's unresolvability.
+
+Canopy cover ranked highly in the four-survey global and spatial models. Other feature rankings
+varied between methods. These differences should be interpreted cautiously because each method
+represents spatial structure differently. Six-survey feature importance is not interpreted here:
+held-out $R^2$ for that cohort is near zero (Table~\ref{tab:results-rq3}, $0.014$--$0.086$), so any
+ranking would reflect noise rather than a genuine predictor-outcome relationship.
+
+
+\subsection{Extreme asymptotic deviations}
+
+Tukey fences flagged 266 four-survey plots (0.47\%) and 709 six-survey plots (5.32\%). Their raw
+height trajectories were often plausible, but some fitted asymptotes reached implausible values.
+Fixing the growth-rate and shape parameters can force the fitted asymptote upward when a plot grows
+more slowly than its assigned yield-class curve. Standard raw-height filters do not detect this
+target-construction instability.
+
+Removing flagged plots did not improve predictive performance. Four-survey $R^2$ changed by only
+$-0.002$. Six-survey performance decreased. Exclusion is therefore not supported solely by model
+accuracy, but the fitted asymptotes should not be interpreted as literal biological ceilings.
+
+None of the 266 flagged four-survey plots met the clearfelling or measurement-anomaly rules
+\fc{(exact rule definitions still need writing up in the methodology/appendix, not yet
+documented)}. This rules out active disturbance as the source of these extreme values and
+favours the target-construction explanation above: the flagged asymptotes are an artefact of how
+the target is built, not evidence of real biological ceilings or unrecorded felling events.
+Flagged plots sit closer to compartment boundaries than the population (median 9.4~m vs.\ 28.0~m)
+and were disproportionately poorly fitted in 2008 (75.6\% of flagged plots fit worst in that year,
+vs.\ 47.8\% baseline), pointing toward boundary and yield-class assignment error specifically,
+rather than a single dominant cause. Possible explanations include clipped plot geometry, boundary
+changes, mixed stand conditions and imperfect yield-class assignment. These mechanisms were not
+isolated.
+
+% FIGURE 5 SPECIFICATION
+% Three-panel explanatory figure.
+% A: map of asymptotic deviation, with flagged plots outlined rather than dominating the colour
+% scale. Use a robust symmetric colour scale based on central quantiles.
+% B: three example height--age trajectories: stable fit, moderate deviation, unstable high
+% asymptote. Plot observed heights, fixed-shape fitted curve and yield-class reference.
+% C: compact distribution of deviation by distance-to-boundary group or flagged status.
+% Why: explains what the target means, why extremes occur, and where they occur. This is more
+% informative than another model-score chart.
+\begin{figure}[!htbp]
+\centering
+\fbox{\parbox{0.92\textwidth}{\centering\vspace{3.0cm}
+TODO FIGURE: deviation map, three trajectory archetypes, and boundary comparison
+\vspace{3.0cm}}}
+\caption{Spatial distribution and construction of plot-specific asymptotic deviations. Example
+trajectories distinguish plausible departures from high asymptotes produced by the fixed-shape
+fit. Flagged plots remain in the main analysis.}
+\label{fig:rq3-deviation-examples}
+\end{figure}
+
+% OPTIONAL FIGURE 6 SPECIFICATION
+% Chart: slope chart or dot plot of residual Moran's I for EN, XGBoost and GNNWR across Sets 2--4.
+% Four-survey only. Pair models within each set. Include semivariogram range in caption/table, not
+% encoded in the same chart.
+% Why: supports the spatial-modelling claim without repeating R2 values.
+
+\paragraph*{Answer to RQ3.}
+GNNWR produced the highest four-survey point estimates and the lowest residual spatial
+autocorrelation, but overlapping intervals do not establish a clear predictive advantage. None of
+the models generalised well on the six-survey cohort. Extreme target values were often consistent
+with instability from the fixed-shape asymptote construction and should not be treated as literal
+ecological ceilings.
+
+
+%=======================================================================================
+\section{Overall discussion}
+\label{sec:results-overall-discussion}
+
+Three findings connect the research questions. First, tuned XGBoost provided the strongest
+top-height predictions. Second, CR guidance reduced predictive accuracy under the tested loss
+weights. Third, stand structure and management explained more curve departure than any single
+abiotic predictor, although spatial structure remained.
+
+The weak PINN result does not show that CR theory is unsuitable for forest growth. It shows that
+the tested derivative and trajectory penalties did not improve held-out prediction for these
+data. A pooled CR derivative may constrain local trajectories that differ through management,
+disturbance or site conditions. The DNN may also capture most of the predictable age--environment
+relationship without the additional penalty.
+
+The attribution results describe association, not causation. The data cover one forest. Several
+environmental variables are spatially coarse or model-derived. Management records are incomplete.
+Canopy cover shares its LiDAR source with the response. These limits restrict ecological
+interpretation and transfer beyond Aberfoyle.
+
+% TODO: Expand by one paragraph only:
+% - practical meaning for forest monitoring;
+% - why spatial validation changes the conclusion;
+% - what a future external-site test should evaluate.
+% Keep detailed future experiments for the Conclusion/Future Work chapter.
+

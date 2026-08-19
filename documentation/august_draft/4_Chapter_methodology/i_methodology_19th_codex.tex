@@ -1,0 +1,419 @@
+%=======================================================================================
+% METHODOLOGY REDRAFT -- 2026-08-19
+% This is a separate copy. The original draft is unchanged.
+% Numerical findings belong in Results and Discussion, not here.
+% Long feature lists, search grids and secondary checks belong in the Appendix.
+%=======================================================================================
+
+\chapter{Methodology and experimental design}
+\label{ch:methodology}
+
+This chapter describes how the data in Chapter~\ref{ch:data} were used to answer the research
+questions. It defines the splits, feature sets, models, targets and evaluation procedures. The
+same held-out observations were used when models were compared.
+
+\section{Experimental framework}
+\label{sec:method-framework}
+
+RQ1 tests predictive accuracy. RQ2a tests when environmental conditioning corrects departure
+from a shared growth curve. RQ2b attributes persistent departure from that curve. RQ3 attributes
+plot-specific asymptote deviation and tests whether the associations vary over space.
+
+\begin{table}[!htbp]
+\centering
+\scriptsize
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{p{0.9cm}p{3.5cm}p{3.2cm}p{2.8cm}}
+\toprule
+RQ & Unit and target & Models or comparison & Main evaluation \\
+\midrule
+RQ1 & Plot--survey row; 95th-percentile top height & CR, linear regression, random forest,
+XGBoost, DNN, PINN and PINN-$k$ & Five-fold spatial block CV; temporal and plot-level checks \\
+RQ2a & Plot--survey row; error reduction from the fold-matched CR curve & Conditioned
+DNN, PINN, PINN-$k$ and XGBoost; no-env and permutation controls & Five-fold spatial block
+CV; CR-error quartiles \\
+RQ2b & Plot; mean pooled-CR residual & Elastic Net, XGBoost and two-stage
+mixed-effects model & Five-fold spatial block CV; coefficients, SHAP and residual Moran's $I$ \\
+RQ3 & Plot; difference between fitted and yield-class-implied asymptotes & Elastic Net, XGBoost
+and GNNWR & Five-fold spatial block CV; attribution, Moran's $I$ and target audit \\
+\bottomrule
+\end{tabular}
+\caption{Units, targets and evaluation used for each research question.}
+\label{tab:rq-framework}
+\end{table}
+
+% Keep one high-level pipeline in the main text. Move any detailed pipeline to the Appendix.
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/fig_methodology/method_fig_pipeline-overview.png}
+\caption{Analysis pipeline. The two cohorts feed shared spatial partitions and separate
+RQ-specific feature sets. RQ1 predicts top height, RQ2 examines departure from a shared curve,
+and RQ3 examines plot-specific asymptote deviation.}
+\label{fig:pipeline-overview}
+\end{figure}
+
+\section{Data partitions and leakage control}
+\label{sec:method-splits}
+
+The four-survey cohort is the main cohort. The six-survey cohort is a nested sensitivity cohort
+with longer plot histories but fewer plots and compartments. RQ1 uses plot--survey rows. RQ2b and
+RQ3 use one row per plot. RQ2a evaluates RQ1 predictions at plot--survey level.
+
+\subsection{Evaluation splits}
+
+The spatial block design is the main evaluation. Whole compartments are assigned to folds, so a
+compartment cannot occur in both training and test data. A 60\,m buffer provides a second guard at
+held-out boundaries: training plots within 60\,m of validation or test plots are removed, while
+held-out plots are retained \citep{roberts2017Cross_C5_EVAL}.
+
+For five-fold spatial cross-validation, compartments are balanced by row count. One fold is used
+for testing, the next for validation and the other three for training. Each compartment is tested
+once. Held-out predictions from all folds are pooled for population-level metrics
+\citep{ploton2020Spatial_C5_EVAL}.
+
+Two supporting RQ1 splits were retained. The plot-level split assigns plots at random in a
+60/20/20 ratio and gives an easier, spatially leaky reference. The temporal split trains on 2008
+and 2012, validates on 2021 and tests on 2023 for the four-survey cohort. For the six-survey cohort,
+2002--2012 are used for training, 2021 for validation and 2023 for testing
+\citep{lynch2025Digital_C4_NN}. All primary split assignments use seed 42.
+
+\subsection{Preprocessing}
+
+Continuous variables are standardised using the training partition only. The fitted transform is
+then applied unchanged to validation and test data. Age is scaled separately because its training
+standard deviation is needed to return the PINN derivative to metres per year. Categorical soil
+classes are one-hot encoded. If a required variable is missing, the whole plot trajectory is
+removed rather than retaining an incomplete history. Missing-value counts and plot identifiers
+are reported in Appendix~\ref{app:missing-cells}.
+
+Compartment, sub-compartment and block identifiers are excluded from all model inputs. Two
+neighbour-height variables were also excluded because they were calculated from nearby plots'
+observed heights before splitting and therefore leaked held-out outcomes.
+
+\section{Environmental feature sets}
+\label{sec:feature-sets}
+
+Feature sets are constructed separately for RQ1, RQ2b and RQ3 because their targets differ. The
+same four-step rule is used in each case.
+
+\begin{enumerate}
+\setlength\itemsep{0pt}
+\item Variables with insufficient coverage are removed before ranking.
+\item Deterministic duplicates are removed. For pairs with Spearman $|\rho|\geq0.95$, one
+representative is retained, favouring externally measured variables over derived variables.
+\item Candidates are ranked by the mean rank from univariate Spearman $|\rho|$, permutation
+importance and drop-column change in held-out $R^2$.
+\item Variance inflation factors are reduced iteratively to a threshold of 5
+\citep{obrien2007Caution_C5_EVAL}. Protected stand variables remain in the matrix but still
+contribute to the VIF of other variables.
+\end{enumerate}
+
+The protected baseline comprises canopy cover, time since thinning, its missingness indicator and
+recent thinning. Set~1 contains these variables only. Set~2 adds the ten highest-ranked candidates.
+Set~3 adds the upper half of the terrain and wind candidates. Set~4 extends Set~3 with the upper
+half of the climate, soil and spatial-context candidates. Exact membership and VIF diagnostics are
+given in Appendix~\ref{app:feature-sets}.
+
+Feature membership is fixed once from the designated training partition rather than rebuilt in
+each fold. This keeps the model comparisons on the same inputs. It also means the reported fold
+variation measures model and spatial-split variation, not variation in feature selection.
+
+\section{RQ1: Top-height prediction}
+\label{sec:rq1-method}
+
+RQ1 compares a biological curve, standard tabular models and neural models. The headline
+comparison uses Set~3 and the same five spatial folds. The other feature sets test whether adding
+environmental inputs changes the result.
+
+\subsection{Chapman--Richards baseline}
+
+The Chapman--Richards (CR) curve is
+\begin{equation}
+H(a)=y_{\max}\left(1-e^{-ka}\right)^p,
+\label{eq:cr}
+\end{equation}
+where $H(a)$ is height at age $a$, $y_{\max}$ is the asymptote, $k$ is the growth rate and $p$
+controls curve shape. Non-linear least squares is run from five starting points. The fit with the
+lowest sum of squared errors is retained.
+
+The CR curve is refitted on the training rows of every split and fold. Its parameters are then
+frozen. Validation and test observations therefore do not affect the baseline or the PINN
+guidance derived from it.
+
+\subsection{Conventional models}
+
+Linear regression provides a low-complexity baseline. Random forest provides a bagged tree
+ensemble. XGBoost provides a boosted tree ensemble \citep{chen2016XGBoost_C4_NN}. These models use
+the same RQ1 feature set and held-out folds.
+
+RQ1 XGBoost hyperparameters were selected for the top-height target. Twenty-seven candidate
+configurations were compared across five folds and both cohorts, giving 270 fits. Selection used
+validation $R^2$ only; test results were read after selection. The search space and selected values
+are given in Appendix~\ref{app:hyperparameters}. RQ2b and RQ3 use the existing fixed XGBoost
+configuration instead: depth 4, learning rate 0.04 and at most 500 boosting rounds with early
+stopping. Those attribution models were not retuned.
+
+\subsection{DNN and physics-informed models}
+\label{sec:rq1-neural}
+
+All neural models share a three-layer prediction trunk with 128 units per layer and Leaky-ReLU
+activation. Optimisation uses Adam with learning rate $10^{-4}$, weight decay $10^{-5}$, gradient
+clipping at 1.0, a maximum of 500 epochs, batch size 256 and early stopping with patience 40. The
+DNN minimises
+\begin{equation}
+\mathcal{L}_{\mathrm{data}}=\frac{1}{N}\sum_{i=1}^{N}
+\left(\hat H_i-H_i\right)^2.
+\label{eq:data-loss}
+\end{equation}
+
+The environment-conditioned DNN concatenates the environmental variables to the main input. The
+PINN variants use the same prediction trunk, but environmental variables enter small auxiliary
+networks. The architectures therefore share the same core capacity, while the environmental
+information is routed differently.
+
+The analytical CR derivative is
+\begin{equation}
+H'(a)=y_{\max}pk e^{-ka}\left(1-e^{-ka}\right)^{p-1}.
+\label{eq:cr-derivative}
+\end{equation}
+The physics loss compares this derivative with the network derivative obtained by automatic
+differentiation:
+\begin{equation}
+\mathcal{L}_{\mathrm{phys}}=\frac{1}{N}\sum_{i=1}^{N}
+\left(\frac{\partial\hat H_i}{\partial a_i}-H'(a_i)\right)^2.
+\label{eq:physics-loss}
+\end{equation}
+The network derivative is divided by the training-set age standard deviation before comparison,
+so both terms use metres per year.
+
+The trajectory loss uses consecutive training surveys from the same plot:
+\begin{equation}
+\mathcal{L}_{\mathrm{traj}}=\frac{1}{M}\sum_{j=1}^{M}
+\left(\frac{\hat H_{j,2}-\hat H_{j,1}}{\Delta a_j}-H'(\bar a_j)\right)^2,
+\label{eq:trajectory-loss}
+\end{equation}
+where $\bar a_j$ is the midpoint age. Pairs are formed only when both rows belong to the training
+partition. The total loss is
+\begin{equation}
+\mathcal{L}=\mathcal{L}_{\mathrm{data}}+
+\lambda_{\mathrm{phys}}\mathcal{L}_{\mathrm{phys}}+
+\lambda_{\mathrm{traj}}\mathcal{L}_{\mathrm{traj}}+
+10^{-5}\sum_{\theta}|\theta|.
+\label{eq:total-loss}
+\end{equation}
+The default uses $\lambda_{\mathrm{phys}}=\lambda_{\mathrm{traj}}=1$. Joint weights 0, 1 and 2
+are compared in the ablation. Weight 0 is the physics-disabled control.
+
+The first conditioned PINN changes the asymptote:
+\begin{equation}
+y_{\max}^{(i)}=y_{\max}+f_y(\mathbf{x}_i).
+\label{eq:ymax-adjust}
+\end{equation}
+PINN-$k$ also changes the rate while keeping it positive:
+\begin{equation}
+k^{(i)}=k\exp\!\left(f_k(\mathbf{x}_i)\right).
+\label{eq:k-adjust}
+\end{equation}
+Both auxiliary networks have one 16-unit hidden layer and start near zero. The shape parameter
+$p$ remains fixed in every variant.
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/fig_methodology/method_fig_nn_model_architecture.png}
+\caption{Shared neural prediction trunk and the CR-guided losses. Environmental inputs enter the
+DNN directly, but enter the PINN through the $y_{\max}$ and optional $k$ subnetworks. The physics
+loss uses the instantaneous derivative; the trajectory loss uses changes between observed survey
+pairs.}
+\label{fig:model-architecture}
+\end{figure}
+
+\section{RQ2a: Environmental correction of curve departure}
+\label{sec:rq2a-method}
+
+RQ2a reuses held-out RQ1 predictions. For test row $i$, improvement over the fold-matched CR curve
+is
+\begin{equation}
+d_i=\left|H_i-\hat H_i^{\mathrm{CR}}\right|-
+\left|H_i-\hat H_i^{\mathrm{model}}\right|.
+\label{eq:residual-reduction}
+\end{equation}
+A positive value means that the model is closer to the observed height. The analysis reports mean
+$d_i$, its percentage of mean CR error, and the percentage of rows with $d_i>0$.
+
+Within each held-out fold, rows are ranked by absolute CR error and divided into four equal groups.
+Q1 contains rows where CR fits best; Q4 contains rows where it fits worst. Mean improvement and the
+percentage improved are calculated for each quartile. This is repeated for the environment-
+conditioned DNN, PINN, PINN-$k$ and XGBoost across Sets~2--4 and both cohorts. The Set~3 DNN is
+evaluated over five training seeds. Other RQ2a rows use seed 42; their reported spread is therefore
+fold-to-fold, not seed-to-seed variation.
+
+Two controls isolate the source of any improvement. First, XGBoost is evaluated with and without
+environmental inputs. Second, the environmental values are shuffled across held-out rows while
+the non-environment inputs are kept fixed. The shuffled control preserves each variable's
+distribution but breaks its link to the plot. The same error-reduction calculation is then
+repeated. % VERIFY from the script: confirm that shuffling was within each held-out fold and that
+% the trained model was not refitted. The Results draft currently implies this design.
+
+The spatial pattern of $d_i$ is assessed with Moran's $I$ using the same weights as the residual
+analysis in Section~\ref{sec:evaluation}.
+
+\section{RQ2b: Persistent departure from the shared curve}
+\label{sec:rq2b-method}
+
+RQ2b uses the four-survey cohort. The six-survey cohort has too few compartments for the main
+spatial attribution analysis. For each plot--survey row,
+\begin{equation}
+r_{it}=H_{it}-H(a_{it}),
+\end{equation}
+and the plot target is
+\begin{equation}
+\bar r_i=\frac{1}{T_i}\sum_{t=1}^{T_i}r_{it}.
+\label{eq:mean-cr-residual}
+\end{equation}
+Positive values mark plots that remain above the pooled curve on average. Age is excluded from the
+candidate predictors because it already defines the CR expectation.
+
+Elastic Net and XGBoost are fitted under five-fold compartment CV. Elastic Net selects its penalty
+and $\ell_1$ mixing ratio by cross-validation within the training partition. XGBoost uses the fixed
+configuration stated in Section~\ref{sec:rq1-method}. Pooled out-of-fold $R^2$ measures held-out
+attribution.
+
+A two-stage mixed-effects model is also fitted. Stage~1 constructs $\bar r_i$ from the nonlinear
+CR curve. Stage~2 fits
+\begin{equation}
+\bar r_i=\boldsymbol{\beta}^{\top}\mathbf{x}_i+u_{c[i]}+\varepsilon_i,
+\label{eq:mixed-effects}
+\end{equation}
+where $u_{c[i]}\sim\mathcal{N}(0,\sigma_u^2)$ is a random intercept for compartment. Random slopes
+are not used. Fixed-effect coefficients are estimated by restricted maximum likelihood within
+each training fold. Spatial variance explained is the proportional reduction in compartment
+random-intercept variance relative to the intercept-only model. Coefficients are reported as the
+mean $\pm$ sample SD across folds.
+
+Four checks support interpretation. First, Set~4 is refitted without canopy cover. Second, Pearson
+correlations are calculated between canopy cover and each target. Third, SHAP values
+are recalculated after the canopy-cover removal to test whether another predictor absorbs its
+credit. Fourth, the share of raw variance occurring between compartments is calculated for slope
+and TOPEX to help interpret disagreement between the mixed model and Elastic Net.
+
+Elastic Net coefficients, mixed-effects coefficients and XGBoost mean absolute SHAP values provide
+three attribution views. SHAP is calculated after model selection and does not affect feature-set
+membership. Moran's $I$ is calculated from the pooled held-out Elastic Net and XGBoost residuals.
+
+\section{RQ3: Plot-specific asymptote deviation}
+\label{sec:rq3-method}
+
+RQ3 estimates one asymptote per plot while holding the Forestry Commission rate and shape
+parameters fixed. For plot $i$, define
+\begin{equation}
+g_{it}=\left(1-e^{-p_{4,i}a_{it}}\right)^{p_{5,i}}.
+\end{equation}
+The least-squares fit through the origin is
+\begin{equation}
+\hat y_{\max,i}=\frac{\sum_t H_{it}g_{it}}{\sum_t g_{it}^2}.
+\label{eq:plot-ymax-fit}
+\end{equation}
+The yield-class-implied asymptote is derived from the plot's Forestry Commission parameters:
+\begin{equation}
+y_{\max,i}^{\mathrm{yldc}}=\mathrm{yldc}_i p_{2,i}+p_{1,i}+2p_{3,i}.
+\end{equation}
+The attribution target is
+\begin{equation}
+\Delta y_{\max,i}=\hat y_{\max,i}-y_{\max,i}^{\mathrm{yldc}}.
+\label{eq:local-ymax-diff}
+\end{equation}
+No environmental variable enters this target. Fixing $p_4$ and $p_5$ avoids fitting three curve
+parameters from only four or six observations, but places all shape mismatch into the fitted
+asymptote.
+
+Elastic Net and XGBoost are fitted to $\Delta y_{\max}$ for Sets~2--4. GNNWR adds spatially varying
+coefficients \citep{du2020Geographically_C6_GWR}:
+\begin{equation}
+\hat y_i=\beta_0(s_i)+\sum_j\beta_j(s_i)x_{ij}.
+\label{eq:gnnwr}
+\end{equation}
+For each focal plot, the input to the weighting network is the MinMax-scaled vector of Euclidean
+distances to every training reference plot. The network outputs one multiplicative weight for
+each coefficient and the intercept. These weights modify a frozen global OLS fit. The reported
+runs use the full, uncapped training reference set. Held-out plots use the training reference set;
+no kernel or fixed bandwidth is imposed. All three models use the same five spatial folds.
+
+XGBoost gain is the reduction in training loss produced by splits that use a feature, accumulated
+over the ensemble. Mean absolute SHAP measures the size of a feature's contribution to individual
+predictions \citep{lundberg2017unified}. Gain describes use during tree construction; SHAP
+describes contribution to fitted predictions. RQ3 SHAP values are calculated out of fold and then
+pooled.
+
+\subsection{Target and outlier audit}
+
+The curve-fit population excludes a plot if any consecutive survey interval meets either of these
+rules:
+\begin{itemize}
+\setlength\itemsep{0pt}
+\item clearfell-like: height falls by at least 25\%, canopy cover by at least 70\%, and volume by
+at least 70\%;
+\item measurement-inconsistent: height falls by at least 25\%, while canopy cover falls by no more
+than 10\% and volume does not fall.
+\end{itemize}
+Intervals with a height collapse but neither pattern are labelled ambiguous and retained. Exact
+counts are reported in Results rather than here.
+
+Extreme fitted asymptotes are flagged separately using Tukey fences,
+\begin{equation}
+\left[Q_1-1.5\,\mathrm{IQR},\;Q_3+1.5\,\mathrm{IQR}\right],
+\label{eq:tukey-fences}
+\end{equation}
+calculated within each cohort. % CITATION: add the confirmed BibTeX key for Tukey (1977).
+The flagged plots remain in the main analysis. A removal sensitivity recalculates pooled metrics
+from the saved held-out predictions after excluding them; the models are not refitted.
+
+The audit then checks whether the same plots recur among the worst 1\% of residuals across models
+and sets. It compares their within-plot residual range, distance to compartment boundaries,
+compartment concentration and wind-shelter variables with the full population. To test a known
+survey-boundary concern, the worst-fitting survey year is counted and each flagged plot is refitted
+after removing its 2008 observation. These checks diagnose the derived target; they do not prove
+an ecological cause.
+
+\section{Evaluation and robustness}
+\label{sec:evaluation}
+
+For residual $e_i=H_i-\hat H_i$, the main metrics are
+\begin{align}
+\mathrm{RMSE}&=\sqrt{\frac{1}{N}\sum_i e_i^2}, &
+\mathrm{MAE}&=\frac{1}{N}\sum_i|e_i|, \\
+R^2&=1-\frac{\sum_i e_i^2}{\sum_i(H_i-\bar H)^2}, &
+\mathrm{Bias}&=\frac{1}{N}\sum_i e_i.
+\end{align}
+Positive bias denotes under-prediction. Each table states whether it reports a fold mean or a
+pooled metric. Fold summaries are the mean $\pm$ sample SD across five folds. Pooled metrics are
+calculated once from all out-of-fold predictions. These are not interchangeable.
+
+For the four-survey spatial analyses, 95\% confidence intervals use 2,000 cluster-bootstrap
+resamples of whole compartments. The 2.5th and 97.5th percentiles form the interval. This preserves
+spatial clustering better than resampling individual rows. The smaller six-survey RQ3 results are
+reported as point estimates; GNNWR is also repeated over three split seeds to test sign stability.
+
+A semivariogram measures how quickly residuals become less similar as distance between plots increases; its range is the distance beyond which they are no longer spatially correlated.
+Global Moran's $I$ is calculated from held-out residuals using distance-band weights, with the threshold set by a semivariogram range \ref{app}
+\begin{equation}
+I=\frac{N}{W}
+\frac{\sum_i\sum_j w_{ij}(e_i-\bar e)(e_j-\bar e)}
+{\sum_i(e_i-\bar e)^2}.
+\label{eq:morans-i}
+\end{equation}
+It is used after fitting, not for feature selection. The same rule is applied to RQ2a error
+reduction, RQ2b residuals and the Elastic Net, XGBoost and GNNWR residuals in RQ3.
+
+Neural training variation is assessed over five seeds for the selected RQ1 models. XGBoost and the
+DNN are also compared fold by fold on identical test folds. The physics-weight ablation tests
+weights 0, 1 and 2. For PINN-$k$, parameter separability is assessed by the pooled correlation
+between learned $y_{\max}$ and $k$. Its confidence interval uses the same 2,000 compartment
+bootstrap resamples. These checks distinguish predictive accuracy from parameter stability.
+
+\section{Reproducibility}
+
+Split assignments, feature lists and model settings are saved with each run. Seed 42 is used unless
+a stated reseed is part of the analysis. Full feature membership, hyperparameter searches,
+secondary split results and detailed outlier tables are retained in the Appendix. Methodological
+limitations and their effect on interpretation are evaluated after the results, before the final
+conclusions.

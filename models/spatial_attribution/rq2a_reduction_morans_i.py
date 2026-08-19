@@ -9,8 +9,8 @@
 #   - load_plot_coordinates() (models/common/geo.py) for x/y.
 #   - compute_residual_morans_i() (models/growth_curve_attribution/
 #     residual_spatial_autocorrelation_check.py) for the actual test -- the same function, same
-#     k=8 nearest-neighbour weights, same convention already used for RQ2b's and RQ3's own
-#     residual Moran's I.
+#     semivariogram-informed distance-band weights, same convention already used for RQ2b's and
+#     RQ3's own residual Moran's I.
 #
 # Run as: python -m models.spatial_attribution.rq2a_reduction_morans_i
 
@@ -46,8 +46,9 @@ def main():
         print(f"=== {cohort} ===")
         for name, run in MODELS.items():
             merged = pooled_reduction_with_xy(run, cohort, coordinates)
-            morans_i, p_value, n = compute_residual_morans_i(merged["x"], merged["y"], merged["reduction"])
-            print(f"  {name}: n={n:,}  Moran's I={morans_i:+.4f}  p={p_value:.3f}")
+            morans_i, p_value, n, range_m, range_status = compute_residual_morans_i(merged["x"], merged["y"], merged["reduction"])
+            range_label = f"{range_m:.0f}m" if range_status == "resolved" else f"{range_status} ({range_m:.0f}m ceiling)" if range_status == "exceeds_window" else range_status
+            print(f"  {name}: n={n:,}  Moran's I={morans_i:+.4f}  p={p_value:.3f}  range={range_label}")
         print()
 
 
