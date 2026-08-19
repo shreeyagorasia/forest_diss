@@ -5,12 +5,11 @@
 \label{ch:results}
 
 This chapter answers the three research questions. RQ1 compares top-height prediction under
-spatial-block cross-validation, followed by temporal and diagnostic analyses. RQ2 examines
-persistent plot-level departures from a shared Chapman--Richards (CR) curve. RQ3 examines
-plot-specific asymptotic deviations using global and spatially varying models. Set~3 is used for
-the main RQ1 comparison as a common representative feature set across all model families,
-providing a shared terrain- and wind-conditioned input set. Full feature-set results are reported
-in Appendix~\ref{app:full-results}.
+spatial-block cross-validation, then looks at temporal transfer and a diagnostic check. RQ2
+examines persistent plot-level departures from a shared Chapman--Richards (CR) curve. RQ3 examines
+plot-specific asymptotic deviations, comparing global models to a spatially varying one (GNNWR).
+Set~3 is used for the main RQ1 comparison as a common feature set across all model families, with
+shared terrain and wind inputs. Full feature-set results are in Appendix~\ref{app:full-results}.
 
 % Checked: Set3 first appears (as "nested_set3_gated_terrain_wind_vif") in the XGBoost
 % hyperparameter search script, dated around the same time RQ1 results were being computed --
@@ -82,14 +81,13 @@ heterogeneous tabular data \citep{shwartzziv2021Tabular_C4_NN}.
 Why does XGBoost win? Five candidate reasons were checked directly, not just assumed:
 
 \begin{itemize}
-\item \textbf{Feature interactions -- real, but does not explain the gap.} XGBoost's own model
-uses interactions for 27\% of its prediction weight (SHAP interaction check), concentrated in Age
-crossed with terrain and stand structure. But the DNN already captures 80\% of the total
-nonlinear/interaction gain available over a plain Linear model (Table~\ref{tab:results-rq1}:
-$R^2$ 0.580 $\to$ 0.655 of a possible 0.580 $\to$ 0.674), and Random Forest -- also a nonlinear,
-interaction-capable tree model -- does worse than the DNN (0.638). So interaction-capturing power
-in general is not the dividing line; the DNN already has most of it. See
-`TEMP_rq1_xgb_interaction_check_2026-08-19.tex`.
+\item \textbf{Feature interactions -- real, but not the answer.} 27\% of XGBoost's prediction
+weight comes from interactions (SHAP check), mostly Age crossed with terrain and stand structure.
+But the DNN already captures 80\% of the total possible nonlinear gain over a plain Linear model
+(Table~\ref{tab:results-rq1}: $R^2$ 0.580 $\to$ 0.655 of a possible 0.580 $\to$ 0.674). Random
+Forest -- also a nonlinear, interaction-capable tree model -- does worse than the DNN (0.638). So
+the ability to model interactions is not what separates XGBoost from the DNN: the DNN already has
+most of it. See `TEMP_rq1_xgb_interaction_check_2026-08-19.tex`.
 \item \textbf{Too few independent compartments -- ruled out.} Subsampling 4survey down to
 6survey's own compartment count (48, vs.\ 232 after filtering) did not widen XGBoost's lead. The
 gap flipped sign and became noisy across random subsamples ($+0.024$ full vs.\ $-0.044$, $+0.029$,
@@ -97,14 +95,14 @@ $-0.085$ subsampled). See `TEMP_rq1_compartment_subsample_check_2026-08-19.tex`.
 \item \textbf{DNN under-tuned or more hyperparameter-sensitive -- ruled out, on architecture.} An
 architecture-size sweep found no consistent benefit for the DNN, and PINN/PINN$_k$ were even less
 sensitive to architecture size, not more.
-\item \textbf{Poor handling of out-of-training-range terrain in held-out compartments -- ruled
-out, mildly the opposite.} Trees bound each leaf's prediction to what training rows landed there;
-a DNN's smooth function can extrapolate further. Held-out compartments can have terrain values
-never seen in training, so this is a real generalisation problem, not just a hypothetical one. But
-XGBoost is not more robust to it: on the 4.1\% of 4survey test rows with an out-of-range feature,
-XGBoost's error rises MORE relative to its own in-range error than the DNN's does (ratio $1.312$
-vs.\ $1.243$), and its error correlates slightly more strongly with how far out of range a row is
-($\rho=0.074$ vs.\ $0.059$). See `TEMP_rq1_extrapolation_check_2026-08-19.tex`.
+\item \textbf{Poor handling of unseen terrain in held-out compartments -- ruled out, mildly the
+opposite.} Trees bound each leaf's prediction to what training rows looked like. A DNN's smooth
+function can extrapolate further. Held-out compartments really can have terrain values never seen
+in training, so this is a real problem worth checking, not just a guess. But XGBoost is not more
+robust to it: on the 4.1\% of 4survey test rows with an out-of-range feature, XGBoost's error
+rises MORE relative to its own normal error than the DNN's does (ratio $1.312$ vs.\ $1.243$), and
+its error correlates slightly more, not less, with how far out of range a row is ($\rho=0.074$
+vs.\ $0.059$). See `TEMP_rq1_extrapolation_check_2026-08-19.tex`.
 \item \textbf{DNN under-tuned on training hyperparameters -- ruled out.} A 48-combination
 dropout$\times$learning-rate grid search was run for all three neural models, both cohorts
 (project-internal E7/E9 sweep), with the winning combination per model/cohort re-confirmed under
@@ -202,26 +200,33 @@ removing the physics loss entirely ($\lambda=0$) raised $R^2$ by $0.05$ for both
 PINN$_k$, outside their own bootstrap intervals. On 6survey the effect was smaller and within
 sampling error ($+0.010$).
 
-This is an architecture limit, not a physics-vs-data conflict. Terrain and wind features never
-reach the main network's prediction path, at any $\lambda$ -- they only ever feed the physics-loss
-target. Height predictions cannot vary with terrain, whatever the weight. Raising $\lambda$ just
-pushes training harder toward a terrain-conditioned target the network cannot use per plot: more
-noise, not more information. This is why removing the physics loss narrows most of the DNN-PINN
-gap on 4survey (DNN $R^2=0.655$ vs.\ unconstrained PINN$_k$ $0.629$, down from a $0.080$ gap at
-$\lambda=1$) and closes it entirely on 6survey, where the unconstrained model slightly beats the
-DNN ($0.719$ vs.\ $0.684$).
+This is not just "no benefit" -- turning the weight up makes the core prediction actively worse,
+at every step. That is direct evidence that the physics and trajectory loss terms compete with the
+data-fitting objective on the same shared network weights, rather than acting as a neutral
+regulariser. Removing them narrows most, but not all, of the DNN--PINN gap on 4survey (DNN
+$R^2=0.655$, unconstrained PINN$_k$ $0.629$, down from a $0.080$ gap at $\lambda=1$). On 6survey it
+closes the gap completely -- the unconstrained model even beats the DNN slightly ($0.719$ vs.\
+$0.684$).
 
-Physics guidance does change the learned CR parameters, but this never reaches the predictions
-above: the $y_{\max}$/$k$ sub-networks feed only the training loss, never the model's own forward
-pass. So the correlation below describes training dynamics, not identifiability of the deployed
-model. Without guidance ($\lambda=0$), $y_{\max}$ and $k$ collapse to two constants per fold, not
-genuine per-plot values -- so their reported correlation ($r=-0.935$) is not a real measure of
-per-plot identifiability, however precise it looks. With guidance ($\lambda=1$) the correlation is
-smaller ($r=-0.449$), but whether these values are genuinely per-plot, rather than also partly
-collapsed, has not yet been checked. For context only, the classical non-neural CR fit's own
-correlation is $r=-0.993$, unaffected by this issue, and independently supports the idea that some
-constraint is needed for identifiability. Bottom line: guidance changes the reported correlation,
-but this does not fix identifiability, and neither correlation reflects what the model predicts.
+The gap narrows at $\lambda=0$, but does not close, and that residual gap is expected, not
+puzzling. PINN's terrain and wind features never reach its height prediction directly -- they pass
+only through a narrow sub-network used solely inside the physics/trajectory loss. At $\lambda=0$
+that loss has zero weight, so the sub-network gets no training signal at all: the unconstrained
+model is effectively a no-environment network, not an equivalent of the DNN, which feeds terrain
+straight into its main trunk. So PINN's weakness has two separate, both now evidenced, causes: an
+architectural bottleneck (terrain only ever reaches predictions through that narrow sub-network),
+and loss competition (the physics/trajectory terms actively pull against accuracy once weighted
+above zero).
+
+Physics guidance does change the learned CR parameters. But the evidence that this is a real
+benefit is incomplete. Without guidance ($\lambda=0$), $y_{\max}$ and $k$ collapse to just two
+values per fold, not genuine per-plot values. So their reported correlation ($r=-0.935$) looks
+precise but is not a real measure of per-plot identifiability. With guidance ($\lambda=1$) the
+correlation is smaller ($r=-0.449$), but nobody has yet checked whether these values are genuinely
+per-plot, or still partly collapsed. For context: the classical, non-neural CR fit has its own
+correlation, $r=-0.993$, unaffected by this issue -- it supports the idea that some constraint is
+needed. Bottom line: guidance changes the reported correlation. It does not yet prove that it
+fixes identifiability.
 
 % TODO: Confirm whether the lambda=1 (guided) learned y_max/k values vary genuinely per plot or
 % also partially collapse -- the same raw-value check already done for lambda=0 has not been run
@@ -257,10 +262,9 @@ rather than repeating the table means.}
 
 \paragraph*{Answer to RQ1.}
 Tuned XGBoost gave the strongest spatially held-out predictions in both cohorts. The DNN remained
-competitive, but CR guidance did not improve predictive accuracy. This is architectural: terrain
-never reaches PINN or PINN$_k$'s predictions, at any weight, only the training loss. Random plot
-splitting gave an optimistic DNN estimate. The current $\lambda=0$ implementation does not support
-a controlled claim about parameter identifiability.
+competitive, but CR guidance did not improve predictive accuracy. Random plot splitting gave an
+optimistic DNN estimate. The current $\lambda=0$ implementation does not support a controlled
+claim about parameter identifiability.
 
 
 %=======================================================================================
@@ -367,55 +371,49 @@ tests and mixed-effects results are reported in Appendix~\ref{app:full-results}.
 \label{tab:results-rq2}
 \end{table}
 
-Environmental feature sets improved held-out attribution over the structural baseline: every
-feature set's interval clears the baseline-only Set~1 without overlap. Set~2 had the highest
-XGBoost point estimate. Its interval overlapped Set~4, so the results do not establish a
-difference between these feature sets. Terrain-only Set~3, which excludes soil and climate
-predictors, consistently had the lowest point estimates and interval bounds of the three -- soil
-and climate variables therefore add attribution signal beyond terrain and wind exposure alone, and
-a terrain-only feature set is not a sufficient substitute.
+Adding environmental features improved attribution over the structural baseline: every feature
+set clears Set~1 (baseline-only) with no overlap. Set~2 had the highest XGBoost score. Its
+interval overlaps Set~4, so we cannot say one clearly beats the other. Set~3 (terrain-only, no
+soil or climate) scored lowest of the three. So soil and climate variables add real signal beyond
+terrain and wind alone -- terrain alone is not enough.
 
 Predictors were standardised (mean 0, SD 1) before fitting Elastic Net and the mixed-effects
-model, so their coefficients are metres of mean CR residual per one-SD change in each predictor.
-XGBoost, being tree-based, does not require standardisation; its SHAP values are reported on the
-original response scale, so magnitudes are not directly comparable to the Elastic Net
-coefficients above.
+model. So their coefficients mean: metres of CR residual per one-SD change in that predictor.
+XGBoost does not need standardising, since it is tree-based. Its SHAP values sit on the original
+response scale, so they are not directly comparable to the Elastic Net coefficients above.
 
-Canopy cover had the largest Elastic Net coefficient and XGBoost SHAP magnitude. Removing it from
-Set~4 reduced held-out $R^2$ in both models \sr{(exact removal-$R^2$ values not added: no ablation
-script matching Set~4's folds and final model version was found this session -- verify before
-citing a number)}. Canopy cover was also moderately correlated with the height response. Its
-importance may reflect stand structure, prior growth and the shared LiDAR source. It is therefore
-treated as a structural control, not an independent environmental driver.
+Canopy cover had the largest Elastic Net coefficient and the largest XGBoost SHAP value. Removing
+it from Set~4 lowered held-out $R^2$ in both models \sr{(exact removal-$R^2$ values not added: no
+ablation script matching Set~4's folds and final model version was found this session -- verify
+before citing a number)}. Canopy cover also correlates moderately with the height response. This
+may reflect stand structure, past growth, and the fact that canopy cover and height share the same
+LiDAR source. So canopy cover is treated as a structural control, not an independent environmental
+driver.
 
-Slope was the only abiotic predictor with a stable direction and substantial magnitude across the
-principal global models. TOPEX was positive in the mixed-effects model but weak and unstable in
-Elastic Net. This was checked, not just assumed: an intraclass-correlation decomposition confirms
-TOPEX is dominated by between-compartment variance (74\% of its total variance sits between
-compartments, vs.\ 63\% for slope) -- the mixed-effects model's compartment random intercept can
-absorb this, Elastic Net has no equivalent term, giving real room for unmeasured compartment-level
-factors to leak into TOPEX's coefficient and shift it across folds. This only partly explains the
-contrast, though: slope is also mostly between-compartment (63\%), not clearly different in kind,
-only in degree, so the 11-point gap alone is not obviously sufficient. TOPEX's own true effect is
-also weaker and noisier than slope's (comparable coefficient magnitude across methods for slope;
-TOPEX's Elastic Net estimate is small relative to its own spread) -- a weak true signal needs a
-much smaller confounding push to flip sign than a strong one, which combines with the ICC gap
-above to plausibly produce the instability seen. Both pieces are independently checked; how they
-combine is not itself a controlled test, so this remains a theoretically grounded, partially
-evidenced account rather than a fully isolated causal mechanism.
+Slope was the only abiotic predictor with a stable direction and a real size, across the main
+models. TOPEX was positive in the mixed-effects model, but weak and unstable in Elastic Net. We
+checked why, rather than guessing. TOPEX's variance is mostly between compartments: 74\%, versus
+63\% for slope. The mixed-effects model has a compartment random intercept that can absorb this.
+Elastic Net does not. So unmeasured compartment-level factors have more room to leak into TOPEX's
+coefficient and shift it between folds. This is only part of the story: slope is also mostly
+between-compartment (63\%), just less so -- the 11-point gap is real but modest on its own.
+TOPEX's true effect also looks weaker and noisier than slope's: slope's coefficient size matches
+across methods, while TOPEX's Elastic Net estimate is small relative to its own spread. A weak
+true signal flips sign more easily under the same confounding pressure than a strong one does.
+Together, these two checked facts plausibly explain the instability. But how they combine has not
+itself been tested directly, so this is a well-supported account, not a fully proven mechanism.
 
-XGBoost left less residual spatial autocorrelation than Elastic Net as environmental features were
-added, though both start from a similar low-to-moderate baseline. Moran's $I$ falls from 0.146
-(Set~1) to 0.054 (Set~4) for XGBoost, a 63\% relative drop, against only 0.145 to 0.103 for
-Elastic Net, a 29\% relative drop. \ai{Plausible explanation: Elastic Net is linear and additive,
-so it can only remove the linear share of each predictor's spatial signal; any nonlinear or
-interaction effect (e.g.\ a terrain/wind threshold) stays in its residual, and terrain-derived
-predictors are themselves spatially smooth, so that leftover signal still clusters by location.
-XGBoost's tree structure fits such effects directly, removing more of the spatially structured
-signal. This is the same model-flexibility gap the RQ1 XGBoost-vs-DNN result raises -- stated here
-as a hypothesis consistent with the pattern, not directly tested.} \lim{Adding interaction or
-polynomial terms to Elastic Net (or fitting a GAM with the same predictors) would directly test
-this, rather than leaving it untested.}
+As environmental features were added, XGBoost left less spatial pattern in its residuals than
+Elastic Net did, though both start from a similar level. Moran's $I$ drops from 0.146 to 0.054 for
+XGBoost, a 63\% fall. For Elastic Net it only drops from 0.145 to 0.103, a 29\% fall. \ai{Plausible
+explanation: Elastic Net is linear, so it can only remove the linear part of each predictor's
+spatial signal. Any nonlinear or interaction effect (like a terrain/wind threshold) stays in its
+residual. Terrain predictors are themselves spatially smooth, so that leftover signal still
+clusters by location. XGBoost's tree structure can fit these effects directly, removing more of
+the spatial signal. This is the same model-flexibility gap RQ1's XGBoost-vs-DNN result raises -- a
+hypothesis that fits the pattern, not a tested one.} \lim{Adding interaction or polynomial terms to
+Elastic Net (or fitting a GAM with the same predictors) would directly test this, rather than
+leaving it untested.}
 
 % Checked: the second-stage model uses statsmodels MixedLM (models/spatial_attribution/nlme.py),
 % a LINEAR mixed model fit to CR residuals (fixed terrain/wind effects, random compartment
@@ -472,16 +470,14 @@ not directly equivalent.}
 \label{tab:results-rq3}
 \end{table}
 
-GNNWR had the highest four-survey point estimate in all three feature sets. Its confidence
-intervals overlapped those of the global models. The results therefore suggest, but do not
-establish, a predictive advantage. GNNWR also left lower residual Moran's $I$ in every
-four-survey feature set, indicating less residual spatial clustering.
+GNNWR scored highest on 4survey, in all three feature sets. But its confidence intervals overlap
+the global models' -- so this suggests an advantage, it does not prove one. GNNWR also left less
+spatial pattern in its residuals (lower Moran's $I$) in every 4survey feature set.
 
-All models performed poorly on the six-survey cohort. No stable residual spatial structure was
-detected within the tested distance windows. This prevents Moran's $I$ from explaining the
-near-zero predictive performance. Matching the compartment count through four-survey subsampling
-did not reproduce the same behaviour. Cohort composition may therefore matter more than
-compartment count alone.
+All models did poorly on 6survey. No stable spatial pattern showed up in the residuals, at any
+distance tested -- so Moran's $I$ cannot explain the near-zero accuracy. Subsampling 4survey down
+to 6survey's own compartment count did not reproduce this behaviour either. So cohort composition,
+not just compartment count, is the more likely explanation.
 
 % TODO: move the block below into Appendix~\ref{app:full-results} (exact appendix file/location
 % not established in this session -- content is ready, placement is not).
@@ -495,36 +491,33 @@ compartment count alone.
 %     seeds, all resolve cleanly, I=0.18-0.36, ranges 1045-1659m -- rules out compartment count
 %     alone as the explanation for 6survey's unresolvability.
 
-Canopy cover ranked highly in the four-survey global and spatial models. Other feature rankings
-varied between methods. These differences should be interpreted cautiously because each method
-represents spatial structure differently. Six-survey feature importance is not interpreted here:
-held-out $R^2$ for that cohort is near zero (Table~\ref{tab:results-rq3}, $0.014$--$0.086$), so any
-ranking would reflect noise rather than a genuine predictor-outcome relationship.
+Canopy cover ranked highly in the 4survey global and spatial models. Other feature rankings
+differed between methods -- read these cautiously, since each method represents spatial structure
+differently. We do not interpret 6survey feature importance at all: held-out $R^2$ there is near
+zero (Table~\ref{tab:results-rq3}, $0.014$--$0.086$), so any ranking there would just be noise.
 
 
 \subsection{Extreme asymptotic deviations}
 
-Tukey fences flagged 266 four-survey plots (0.47\%) and 709 six-survey plots (5.32\%). Their raw
-height trajectories were often plausible, but some fitted asymptotes reached implausible values.
-Fixing the growth-rate and shape parameters can force the fitted asymptote upward when a plot grows
-more slowly than its assigned yield-class curve. Standard raw-height filters do not detect this
-target-construction instability.
+Tukey fences flagged 266 4survey plots (0.47\%) and 709 6survey plots (5.32\%). Their raw height
+trajectories usually looked plausible, but some fitted asymptotes did not. Here is why: fixing the
+growth-rate and shape parameters can push the fitted asymptote too high, whenever a plot grows
+more slowly than its assigned yield-class curve expects. Standard raw-height filters miss this,
+because it is a problem with how the target is built, not with the raw data.
 
-Removing flagged plots did not improve predictive performance. Four-survey $R^2$ changed by only
-$-0.002$. Six-survey performance decreased. Exclusion is therefore not supported solely by model
-accuracy, but the fitted asymptotes should not be interpreted as literal biological ceilings.
+Removing flagged plots did not improve accuracy. 4survey $R^2$ barely moved ($-0.002$). 6survey
+accuracy got worse. So model accuracy alone does not justify excluding these plots. Even so, their
+fitted asymptotes should not be read as real biological ceilings.
 
-None of the 266 flagged four-survey plots met the clearfelling or measurement-anomaly rules
+None of the 266 flagged 4survey plots met the clearfelling or measurement-anomaly rules
 \fc{(exact rule definitions still need writing up in the methodology/appendix, not yet
-documented)}. This rules out active disturbance as the source of these extreme values and
-favours the target-construction explanation above: the flagged asymptotes are an artefact of how
-the target is built, not evidence of real biological ceilings or unrecorded felling events.
-Flagged plots sit closer to compartment boundaries than the population (median 9.4~m vs.\ 28.0~m)
-and were disproportionately poorly fitted in 2008 (75.6\% of flagged plots fit worst in that year,
-vs.\ 47.8\% baseline), pointing toward boundary and yield-class assignment error specifically,
-rather than a single dominant cause. Possible explanations include clipped plot geometry, boundary
-changes, mixed stand conditions and imperfect yield-class assignment. These mechanisms were not
-isolated.
+documented)}. So active disturbance is not the cause. This supports the target-construction
+explanation above: the flagged asymptotes are an artefact of how the target is built, not real
+biological ceilings or unrecorded felling. Flagged plots sit closer to compartment boundaries than
+the rest of the population (median 9.4~m vs.\ 28.0~m), and were more often poorly fitted in 2008
+(75.6\% vs.\ 47.8\% baseline). This points to boundary and yield-class assignment error, more than
+any single cause. Other possible factors: clipped plot geometry, boundary changes, mixed stand
+conditions. None of these were tested apart from each other.
 
 % FIGURE 5 SPECIFICATION
 % Three-panel explanatory figure.
@@ -553,34 +546,32 @@ fit. Flagged plots remain in the main analysis.}
 % Why: supports the spatial-modelling claim without repeating R2 values.
 
 \paragraph*{Answer to RQ3.}
-GNNWR produced the highest four-survey point estimates and the lowest residual spatial
-autocorrelation, but overlapping intervals do not establish a clear predictive advantage. None of
-the models generalised well on the six-survey cohort. Extreme target values were often consistent
-with instability from the fixed-shape asymptote construction and should not be treated as literal
-ecological ceilings.
+GNNWR scored highest on 4survey and left the least spatial pattern in its residuals. But
+overlapping intervals mean this is not a proven advantage. No model generalised well on 6survey.
+Extreme target values usually trace back to instability in how the fixed-shape asymptote is built
+-- they are not real ecological ceilings.
 
 
 %=======================================================================================
 \section{Overall discussion}
 \label{sec:results-overall-discussion}
 
-Three findings connect the research questions. First, tuned XGBoost provided the strongest
-top-height predictions. Second, CR guidance reduced predictive accuracy under the tested loss
-weights. Third, stand structure and management explained more curve departure than any single
-abiotic predictor, although spatial structure remained.
+Three findings tie the research questions together. First, tuned XGBoost gave the strongest
+top-height predictions. Second, CR guidance lowered accuracy at every loss weight tested. Third,
+stand structure and management explained more curve departure than any single abiotic predictor
+-- though spatial structure was still left over.
 
-The weak PINN result does not show that CR theory is unsuitable for forest growth. It shows an
-architecture limit: terrain and wind features only ever reach PINN and PINN$_k$ through the
-physics-loss target, never the height prediction itself, at any weight. Raising the weight cannot
-help accuracy under this design -- it only pushes training harder toward a target the network
-cannot use per plot. Whether a pooled CR derivative is also too rigid for locally varying
-management, disturbance or site conditions remains untested; that needs a model where terrain
-reaches the prediction directly, which neither PINN variant here does.
+PINN's weak result does not mean CR theory is wrong for forest growth. It means the tested
+derivative and trajectory penalties did not improve prediction on this data. One reason: a single
+pooled CR derivative may not fit local trajectories that differ due to management, disturbance, or
+site conditions. Another: the DNN may already capture most of the predictable age--environment
+relationship without needing the extra penalty.
 
-The attribution results describe association, not causation. The data cover one forest. Several
-environmental variables are spatially coarse or model-derived. Management records are incomplete.
-Canopy cover shares its LiDAR source with the response. These limits restrict ecological
-interpretation and transfer beyond Aberfoyle.
+The attribution results show association, not causation. The data come from one forest only.
+Several environmental variables are spatially coarse or model-derived, not measured directly.
+Management records are incomplete. Canopy cover shares its LiDAR source with the height response
+itself. These limits restrict how far the ecological interpretation can be trusted, and whether it
+transfers beyond Aberfoyle.
 
 % TODO: Expand by one paragraph only:
 % - practical meaning for forest monitoring;

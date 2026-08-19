@@ -217,6 +217,11 @@ k^{(i)}=k\exp\!\left(f_k(\mathbf{x}_i)\right).
 Both auxiliary networks have one 16-unit hidden layer and start near zero. The shape parameter
 $p$ remains fixed in every variant.
 
+The trunk's prediction never evaluates Equation~\ref{eq:cr} with $y_{\max}^{(i)}$ or $k^{(i)}$;
+these enter only the physics and trajectory losses (Equations~\ref{eq:physics-loss}--
+\ref{eq:trajectory-loss}). Environmental information therefore reaches the trunk only indirectly,
+through those loss gradients, never as a direct input to the prediction itself.
+
 \begin{figure}[!htbp]
 \centering
 \includegraphics[width=\textwidth]{figures/fig_methodology/method_fig_nn_model_architecture.png}
