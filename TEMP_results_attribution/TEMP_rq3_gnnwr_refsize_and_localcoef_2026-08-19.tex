@@ -1,0 +1,132 @@
+## TEMP holding note — GNNWR reference-size exploration + local-coefficient analysis (2026-08-19)
+
+Written while deciding whether a purpose-built reference-density ablation is worth the ~2hr
+cluster cost. Two pieces: (1) what the old `ref6000`/`ref12000`/`ref16000` runs actually tested,
+now analysed for the first time; (2) a first look at the per-plot local coefficients GNNWR already
+saves but nobody had read yet.
+
+### 1. Feature scope: `terrain_wind` / `terrain_wind_plus_management` vs. the current `nested_set2/3/4`
+
+These are TWO DIFFERENT, NOT DIRECTLY COMPARABLE feature-selection approaches used at different
+project stages. Do not cite `ref6000`/`ref12000`/`ref16000` numbers alongside the headline
+`nested_set2/3/4` RQ3 table without this caveat.
+
+**`terrain_wind` / `terrain_wind_plus_management`** — an early, hand-specified scope used only to
+find a GNNWR configuration that would fit on the available cluster GPU (see
+`models/growth_curve_attribution/gnnwr_check.py` header). No VIF screening, no importance ranking
+— just "every terrain and wind column on hand". Columns (confirmed via `coef_*` in the saved
+`test_predictions.csv`):
+
+- `terrain_wind` (17 cols): `elevation`, `slope_degrees`, `northness`, `eastness`,
+  `profile_curvature`, `plan_curvature`, `tpi`, `elevation_roughness`, `ceh_twi`,
+  `solar_radiation_index`, `frost_hollow_flag`, `topex`, `windward_topex`, `whcl`,
+  `gwa_wind_speed_50m`, `tpi_500m`, `local_relief_500m`.
+- `terrain_wind_plus_management` (22 cols): the same 17, plus `CanopyCover`, `Thin`,
+  `time_since_thinning`, `time_since_thinning_missing`, `recent_thinning_5yr`.
+
+**`nested_set2/3/4`** — the current, final feature sets, built via the documented 4-step protocol
+(Methodology §"Environmental feature sets"): coverage screening, Spearman collinearity filtering
+(`|rho| >= 0.95`), composite ranking (mean rank across univariate Spearman, permutation importance,
+drop-column loss), then iterative VIF pruning to <5 with protected stand variables held fixed.
+Set2 = 4 baseline + top-10 ranked candidates; Set3 = Set2 + top-half terrain/wind; Set4 = Set3 +
+top-half climate/soil/spatial-context. These are what every headline number in the RQ3 chapter
+(Table `tab:results-rq3`, the Set2/3/4 rows) actually uses. `nested_set4_gated_all_vif` has 20
+columns (17 `coef_*` visible in a quick header check, likely +3 one-hot categorical expansions —
+not recounted here, see `app:feature-sets`).
+
+**Practical difference**: `terrain_wind` is a superset built by hand, pre-collinearity-screening;
+`nested_set3` is a principled, importance-ranked, VIF-pruned subset. They overlap substantially
+(both terrain/wind-heavy) but are not the same columns, and `terrain_wind`'s R2 (0.09-0.30
+depending on scope, see below) is not comparable to `nested_set3`'s R2 (0.319 pooled, 4survey) —
+different columns, different (single, non-pooled) split, different point in the project's
+evolution.
+
+### 2. Reference-set-size R2, computed 2026-08-19 from already-saved predictions (no retraining)
+
+All four rows below are the SAME single spatial split (11,586 test rows, 4survey), varying only
+`--reference-set-size` (`gnnwr_check.py`'s `DEFAULT_REFERENCE_SET_SIZE = 16_000`). Computed
+directly: `R2 = 1 - sum((y-yhat)^2)/sum((y-ybar)^2)` on `local_y_max_difference` vs.
+`denormalized_pred_result`.
+
+| Reference size | `terrain_wind` R2 | `terrain_wind_plus_management` R2 |
+|---|---:|---:|
+| 6,000 | 0.0914 | 0.2664 |
+| 12,000 | 0.1322 | 0.2931 |
+| 16,000 (default) | 0.1033 | 0.2973 |
+| unlabelled default run | 0.0928 | 0.2953 |
+
+**`plus_management` shows a real, monotonic, plateauing effect**: R2 climbs 0.266 -> 0.293 -> 0.297
+as the reference set grows from 6k to 16k, then flattens (16k vs. the unlabelled default run,
+0.297 vs. 0.295, agree within run-to-run noise). **`terrain_wind` alone is noisy and
+non-monotonic** (12k beats 16k) — plausible single-split, single-seed variance given this scope's
+much weaker signal (R2 0.09-0.13 vs. 0.27-0.30).
+
+**Read for the 6survey reference-density hypothesis**: where the effect is real, it is modest
+(~0.03 R2 from 6k to 16k) and plateaus well below 16k — nowhere near the gap between 4survey
+"works" (0.24-0.32) and 6survey "collapses" (near-zero, sign-unstable across seeds). Reference
+density is plausible as A contributor to 6survey's failure but, on this evidence, unlikely to be
+the WHOLE story by itself. State this more cautiously than "plausible account" in the main
+write-up. A purpose-built ablation on the current `nested_set` scope, capping 4survey's reference
+set to roughly 6survey's own compartment count, would still be the direct test — this exploration
+only bounds the plausible effect size, it does not replace that test.
+
+### 3. Local (per-plot) coefficient analysis — Set4, 4survey, current production output, pooled 5 folds
+
+**Not previously analysed** despite every GNNWR run saving a `coef_<variable>` column per plot.
+Source: `outputs/growth_curve_attribution/gnnwr/gnnwr_nested_set4_gated_all_vif_4survey_reffull_fold{0..4}of5_test_predictions.csv`,
+concatenated, n=56,114.
+
+| Variable | mean | SD | CV (SD/\|mean\|) | corr. with x | corr. with y | sign-flips |
+|---|---:|---:|---:|---:|---:|---:|
+| `CanopyCover` | 23.573 | 5.664 | 0.240 | -0.283 | **+0.427** | 0 / 56,114 |
+| `slope_degrees` | 10.659 | 6.058 | 0.568 | -0.274 | -0.059 | -- |
+| `time_since_thinning` | 2.874 | 4.545 | 1.581 | +0.063 | -0.244 | -- |
+| `dist_to_road` | -3.993 | 8.100 | 2.029 | +0.364 | -0.027 | -- |
+| `topex` | 3.424 | 7.756 | **2.266** | +0.002 | +0.062 | -- |
+
+**`CanopyCover`'s local coefficient is the most stable in the set** (CV 0.24, never changes sign
+across 56,114 plots) and traces a real, simple linear gradient with geography (r=0.43 with
+northing, r=-0.28 with easting) — a concrete, checkable demonstration of "spatially-varying
+coefficient" for the Panel C figure already sketched in the results chapter, not just an aggregate
+R2 comparison. `x`/`y` linear correlation is a cheap first-pass diagnostic for "does this vary
+smoothly/structurally", not a formal spatial-autocorrelation test (Moran's I on the coefficient
+itself would be the rigorous follow-up, not yet run).
+
+**`topex`'s local coefficient is the least stable** (CV 2.27, near-zero correlation with position
+— noisy rather than smoothly patterned). This independently corroborates RQ2b's own finding that
+`topex` sign-flips between Elastic Net and NLME (Section `sec:results-rq2b`) — same variable,
+same instability, now confirmed inside a third, structurally different method (GNNWR's own local
+fits), not just a two-method disagreement.
+
+**Not yet done**: the same table for Set2/Set3 and for 6survey (where GNNWR's own R2 is
+unreliable, so local coefficients there should be read with more caution, if at all); a proper
+Moran's I on the coefficient surfaces themselves rather than the linear x/y proxy; cross-referencing
+these local coefficient means against RQ2b's own Elastic Net coefficients and RQ3's own XGBoost
+SHAP ranks as a single agreement table (Spearman rank correlation across all three methods) rather
+than three separately-stated findings.
+
+### Addendum (2026-08-19, later same day) — category-attribution Moran's I method confirmed correct
+
+Re-ran `python -m models.growth_curve_attribution.run_rq3_category_attribution --cohort 4survey`
+locally (CPU, ~4 min, single spatial-block split, as designed) to resolve the open question below
+about which Moran's I implementation `category_morans_i_before_after()` uses. Output reproduced the
+original 2026-08-11 note's numbers exactly: full-model R2=0.150096/Moran's I=0.152521; terrain
+removed R2=0.096823/Moran's I=0.041663; wind removed 0.147833/0.138173; soil_site removed
+0.124960/0.024525; climate removed 0.129182/0.123585; spatial_position_edge_effects removed
+0.148506/0.042245; stand_structure removed 0.002479/0.022021 (all p=0.001). Confirmed by reading
+`models/xgb_environmental/grouped_analysis.py::residual_morans_i()`: it imports and calls
+`global_morans_i()`/`semivariogram_range()` from `models/spatial_attribution/spatial_autocorrelation.py`
+directly — the same shared, semivariogram-informed function used by RQ2b/RQ3's own corrected
+numbers, not a separate/stale k=8 implementation. **The 0.153/0.042 figures do not need the method
+caveat previously attached to them.** The terrain-removal Moran's I anomaly (removing the
+largest true environmental category lowers, not raises, residual clustering) remains a genuine,
+unexplained open question — confirming the method didn't explain it away.
+
+### Cross-reference
+
+Superseded/current Moran's I methodology and the corrected RQ2b/RQ3 numbers this note builds on:
+`TEMP_results_attribution/TEMP_rq2_attribution_results_2026-08-11.tex`,
+`TEMP_results_attribution/TEMP_rq3_gnnwr_results_2026-08-11.tex`. Category-level (terrain/wind/
+soil/climate) attribution: `TEMP_results_attribution/TEMP_rq3_category_attribution_results_2026-08-11.tex`
+(note: its own Moran's I figures use a separate implementation, not yet confirmed to match the
+semivariogram-informed method used elsewhere — verify before citing alongside the numbers above).
