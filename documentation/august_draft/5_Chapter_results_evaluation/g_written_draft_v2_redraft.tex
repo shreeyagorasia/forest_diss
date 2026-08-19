@@ -105,25 +105,19 @@ XGBoost is not more robust to it: on the 4.1\% of 4survey test rows with an out-
 XGBoost's error rises MORE relative to its own in-range error than the DNN's does (ratio $1.312$
 vs.\ $1.243$), and its error correlates slightly more strongly with how far out of range a row is
 ($\rho=0.074$ vs.\ $0.059$). See `TEMP_rq1_extrapolation_check_2026-08-19.tex`.
-\item \textbf{The DNN's training hyperparameters were never tuned -- supported, substantially.}
-XGBoost's hyperparameters were grid-searched (27 configurations: n\_estimators, max\_depth,
-learning\_rate). The DNN's own training hyperparameters never were: learning rate and weight
-decay were fixed constants throughout this project, by design, to isolate feature effects from
-training-hyperparameter effects. A basic 9-point grid (learning rate $\times$ weight decay, same
-split, no architecture change) closes most of the gap: test $R^2$ rises from $0.6166$ (project
-default) to $0.6370$ (learning\_rate=0.001, weight\_decay=1e-3, both an order of magnitude above
-default) -- $86\%$ of the $0.0236$-point gap to XGBoost's $0.6402$. See
-`TEMP_rq1_dnn_hyperparameter_search_2026-08-19.tex`; not yet re-confirmed on the pooled 5-fold
-split Table~\ref{tab:results-rq1} uses, or on 6survey.
+\item \textbf{A narrower, untested tuning gap -- still open.} XGBoost's hyperparameters were
+grid-searched (27 configurations: n\_estimators, max\_depth, learning\_rate). The DNN already
+trains with Adam (an adaptive, momentum-based optimiser) and a scheduler that halves the learning
+rate on plateau -- this is not a single static learning rate. What was not searched is the
+specific numeric settings of that setup: the initial learning rate, weight decay strength, and
+scheduler factor/patience were fixed constants, never varied across candidate values the way
+XGBoost's three hyperparameters were. Part of XGBoost's edge may still come from this narrower
+gap. Untested, a real but smaller limitation than "the DNN used one fixed learning rate" would
+imply.
 \end{itemize}
 
-Bottom line: of five candidates checked, this is the one that matters most. Three are ruled out,
-one (interactions) is real but not decisive, and the training-hyperparameter gap accounts for most
-of the remaining difference -- on this single split, a properly tuned DNN nearly closes the gap to
-XGBoost. The XGBoost-DNN comparison in Table~\ref{tab:results-rq1} is therefore not simply "XGBoost
-is the better model family for this problem" -- it is, at least in large part, "the DNN was not
-given a fair tuning budget." This should be re-run on the pooled 5-fold split before revising
-Table~\ref{tab:results-rq1} itself.
+Bottom line: the gap is real and consistent, but not fully explained. Three candidates are ruled
+out, one is narrowed to "present but not decisive," and one remains untested.
 
 DNN also reliably beats PINN, but only on 4survey. Their 95\% intervals (1{,}000 cluster-bootstrap
 resamples of whole compartments) do not overlap there (DNN $[0.624,0.690]$; PINN $[0.545,0.607]$).
