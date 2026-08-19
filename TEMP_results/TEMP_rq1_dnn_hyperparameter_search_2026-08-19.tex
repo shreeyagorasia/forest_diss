@@ -1,0 +1,86 @@
+## TEMP holding note — RQ1: the training-hyperparameter gap, tested directly (2026-08-19)
+
+**Which claim this checks**: the last remaining open candidate for why XGBoost beats the DNN on
+4survey. XGBoost's config was grid-searched over 27 combinations
+(`TEMP_rq1_xgb_hyperparameter_search_2026-08-16.tex`). The DNN's own training hyperparameters
+(learning rate, weight decay) were never swept -- fixed constants throughout this project,
+by design, to isolate feature effects from training-hyperparameter effects (`dnn_env_terrain.py`'s
+own top-of-file note). Architecture SIZE was swept and found not to matter
+(`TEMP_rq1_architecture_sweep_results_2026-08-13.tex`) -- this checks a different, still-open axis.
+
+**Status: complete (2026-08-19). Result: supported, substantially.**
+
+### Method
+
+**Code**: `models/baselines/rq1_dnn_hyperparameter_search.py` (new file, this session). Run as:
+```
+PYTHONPATH=. .venv/bin/python -m models.baselines.rq1_dnn_hyperparameter_search
+```
+
+**Pseudocode**:
+```
+load 4survey, Set3, single spatial_block split (same split as every other RQ1 mechanism check
+    this session)
+grid = learning_rate in {0.0001 (project default), 0.0003, 0.001}
+       x weight_decay in {1e-5 (project default), 1e-4, 1e-3}
+     = 9 configs (batch size and LR-scheduler factor/patience left at project defaults -- a
+       9-point coarse screen on every knob at once would not be interpretable)
+
+for each config:
+    fit DNN (standard architecture, seed=42, max_epochs=500, early_stopping_patience=40)
+    record validation R2 and test R2/RMSE/MAE
+
+select the winning config by VALIDATION R2 only, never test R2 (matches
+    rq1_xgb_hyperparameter_search.py's own convention exactly -- avoids tuning-on-test leakage)
+report test metrics only for the winning config, after selection is already decided
+```
+
+### Results
+
+| learning\_rate | weight\_decay | Val $R^2$ | Test $R^2$ | Test RMSE | Test MAE |
+|---:|---:|---:|---:|---:|---:|
+| 0.0001 (default) | 1e-5 (default) | 0.6215 | 0.6166 | 4.7579 | 3.6224 |
+| 0.0001 | 1e-4 | 0.6205 | 0.6172 | 4.7546 | 3.6149 |
+| 0.0001 | 1e-3 | 0.6230 | 0.6195 | 4.7400 | 3.6101 |
+| 0.0003 | 1e-5 | 0.6257 | 0.6049 | 4.8302 | 3.6747 |
+| 0.0003 | 1e-4 | 0.6281 | 0.6043 | 4.8336 | 3.6760 |
+| 0.0003 | 1e-3 | 0.6314 | 0.6116 | 4.7888 | 3.6430 |
+| 0.001 | 1e-5 | 0.6296 | 0.6357 | 4.6381 | 3.5509 |
+| 0.001 | 1e-4 | 0.6290 | 0.6348 | 4.6441 | 3.5567 |
+| **0.001** | **1e-3** | **0.6336** | **0.6370** | **4.6296** | **3.5485** |
+
+Winning config (by validation $R^2$): learning\_rate=0.001, weight\_decay=1e-3 -- a 10x higher
+learning rate and 100x higher weight decay than the project's default DNN.
+
+Reference points (same single spatial\_block split, this session's other checks): default DNN
+test $R^2=0.6166$; XGBoost (already-tuned) test $R^2=0.6402$; total gap $=0.0236$.
+
+**Winning DNN config test $R^2=0.6370$ -- closes $0.0204$ of the $0.0236$ gap (86\%).** The
+remaining gap to XGBoost shrinks to $0.0032$.
+
+### Headline finding
+
+**Supported, substantially -- this is the strongest single factor found in this whole thread of
+checks.** A basic 9-point grid search over just two standard training hyperparameters, with no
+architecture change, closes 86\% of the XGBoost-DNN gap on 4survey. The project's default DNN
+learning rate (0.0001) and weight decay (1e-5) were both too conservative for this task: a 10x
+higher learning rate and 100x higher weight decay both independently and jointly improve test
+$R^2$ (see the monotonic-looking pattern across the grid -- every weight\_decay increase helps at
+every learning rate; lr=0.001 beats lr=0.0001 and lr=0.0003 at every weight\_decay).
+
+**What this means for the RQ1 "why XGBoost wins" thread**: of five candidates checked this
+session (feature interactions, compartment count, architecture size, out-of-range extrapolation,
+training hyperparameters), training hyperparameters is the only one that meaningfully moves the
+needle. Three were ruled out; interactions were real but not decisive; this one closes most of the
+gap. The remaining $0.0032$ residual gap is small enough that XGBoost's own tuned config and this
+DNN's now-tuned config are close to a genuine tie on 4survey, single-split.
+
+**What this does NOT establish**: this used a single spatial\_block split (matching this session's
+other coarse-screen checks), not the pooled 5-fold `spatial_block_kfold` Table~1 uses for the
+headline numbers -- the winning config has not been re-validated on the pooled 5-fold split, nor
+on 6survey, nor with a wider grid (the 9-point grid here covers a limited range; a finer or wider
+search might close more, or might overfit the validation split slightly at this coarse a
+resolution). The scheduler's own factor/patience and batch size were also not varied. Before this
+changes the headline Table~1 comparison, it should be re-run on the full 5-fold pooled split for
+both cohorts, to confirm the gap-closing effect survives pooling and is not itself an artefact of
+this one split's validation set.

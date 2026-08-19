@@ -1,0 +1,70 @@
+## TEMP holding note — RQ1: does out-of-training-range extrapolation explain XGBoost's edge? (2026-08-19)
+
+**Which claim this checks**: a further candidate reason for why XGBoost beats the DNN on
+4survey. Trees split feature space into boxes; each leaf's prediction is bounded by what training
+rows landed there. A DNN predicts with a smooth, continuous function that can extrapolate further
+from the training data. Under `spatial_block` testing, held-out compartments can have
+terrain/environment feature combinations the model never trained on -- a genuine
+out-of-training-range generalisation problem, not just interpolation. If this explains part of
+XGBoost's edge, the DNN's error should be disproportionately worse on test rows with
+out-of-training-range feature values; XGBoost's should not show the same pattern.
+
+**Status: complete (2026-08-19).**
+
+### Method
+
+**Code**: `models/baselines/rq1_extrapolation_check.py` (new file, this session). Run as:
+```
+PYTHONPATH=. .venv/bin/python -m models.baselines.rq1_extrapolation_check
+```
+
+**Pseudocode**:
+```
+load 4survey, Set3, single spatial_block split (same loader/config as the other RQ1 checks this
+    session -- full compartment set, no subsampling)
+fit DNN (standard architecture/hyperparameters) and XGBoost (winning 4survey config) on the same
+    train/test split, get per-row predictions for both
+
+for each of 14 continuous columns (Age, CanopyCover, time_since_thinning, plus all 11 Set3
+    terrain/wind columns) -- excludes binary flags and the categorical thinning_status, which
+    have no continuous "out of range" notion:
+    compute each test row's distance outside the TRAINING min/max, in units of that column's own
+        training SD (so columns on different scales contribute comparably)
+sum across columns -> one extrapolation score per test row; also count how many columns are
+    out-of-range per row
+
+compare: mean |error| for in-range vs. out-of-range test rows, per model
+compare: Spearman correlation between the extrapolation score and |error|, per model
+```
+
+### Results
+
+Single-split sanity check: DNN $R^2=0.6166$, XGBoost $R^2=0.6402$ -- consistent with the other
+single-split checks this session. 1,936 of 46,956 test rows (4.1\%) have at least one
+out-of-training-range feature.
+
+| | In-range (n=45,020) | Out-of-range (n=1,936) | Ratio (out/in) |
+|---|---:|---:|---:|
+| DNN MAE | 3.5865 | 4.4572 | 1.243 |
+| XGBoost MAE | 3.4144 | 4.4782 | 1.312 |
+
+Spearman correlation, extrapolation score vs.\ absolute error: DNN $\rho=0.059$ ($p<10^{-36}$);
+XGBoost $\rho=0.074$ ($p<10^{-57}$).
+
+### Headline finding
+
+**Not supported -- if anything, mildly the opposite of what the hypothesis predicts.** Both
+models degrade on out-of-range rows (expected -- these are genuinely harder rows for anyone), but
+XGBoost's relative degradation is slightly LARGER than the DNN's (ratio 1.312 vs.\ 1.243), and its
+correlation with the extrapolation score is slightly STRONGER (0.074 vs.\ 0.059), not weaker. The
+"tree leaf predictions stay bounded, so XGBoost handles unseen terrain combinations better" story
+does not hold up here -- on this evidence, XGBoost is not more robust to out-of-range test rows
+than the DNN is.
+
+**What this does and doesn't establish**: both correlations are weak in absolute terms
+($\rho<0.08$), and the out-of-range group is small (4.1\% of test rows), so this is not a
+high-powered test of extreme extrapolation. It does rule out this specific mechanism as an
+explanation for the *typical* XGBoost-DNN gap, since only a small minority of test rows are
+affected at all, and even on those rows XGBoost shows no advantage. A larger-scale distribution
+shift (e.g. testing on a genuinely different forest, not just held-out compartments within
+Aberfoyle) was not tested and could behave differently.

@@ -1,0 +1,79 @@
+## TEMP holding note — RQ1: how much of XGBoost's own prediction comes from interactions? (2026-08-19)
+
+**Which claim this checks**: the "nonlinear thresholds and feature interactions" candidate for why
+XGBoost beats the DNN on 4survey (`g_written_draft_v2_redraft.tex`, RQ1 spatial-block-performance
+section). A companion arithmetic check (Linear/RF/DNN/XGBoost $R^2$ ladder, already in Table~1) had
+already weakened this guess: the DNN captures 80\% of the total nonlinear/interaction gain over a
+plain Linear model, and Random Forest (also a nonlinear, interaction-capable tree ensemble) does
+WORSE than the DNN -- so "any nonlinear/interaction-capable model beats the DNN" is not true. This
+check asks a different, more direct question: inside XGBoost's own fitted model, how much of its
+prediction actually comes from feature interactions, versus single-feature main effects?
+
+**Status: complete (2026-08-19).**
+
+### Method
+
+**Code**: `models/baselines/rq1_xgb_interaction_check.py` (new file, this session). Run as:
+```
+PYTHONPATH=. .venv/bin/python -m models.baselines.rq1_xgb_interaction_check
+```
+
+**Pseudocode**:
+```
+load 4survey, Set3 (nested_set3_gated_terrain_wind_vif), single spatial_block split (same loader
+    as rq1_compartment_subsample_check.py)
+fit XGBoost: n_estimators=500, max_depth=6, learning_rate=0.02 -- the same winning 4survey config
+    used everywhere else in this thread of checks
+sample 2,000 rows from the held-out test set (interaction values are O(n * n_features^2), too
+    slow on the full test set)
+compute shap.TreeExplainer(model).shap_interaction_values(sample) -- the standard SHAP
+    decomposition (Lundberg et al. 2018) of each row's prediction into a main-effect term per
+    feature (the interaction matrix's diagonal) plus a pairwise interaction term per feature pair
+    (the off-diagonal, symmetric)
+summarise: mean |main effect| vs. mean |interaction effect| per row, and rank individual feature
+    pairs by mean |interaction| strength
+```
+
+Single-split sanity check: XGBoost's test $R^2$ here is 0.6402 (Table~\ref{tab:results-rq1}'s
+pooled 5-fold value is 0.674 -- same ballpark, expected difference between one split and pooled
+5-fold CV, consistent with the gap seen in the architecture-sweep's own single-split baseline).
+
+### Results
+
+| Quantity | Value |
+|---|---:|
+| Mean total \|main effect\| per row (summed over 22 features) | 11.6213 |
+| Mean total \|interaction effect\| per row (summed over pairs) | 4.2408 |
+| Interaction share of total \|SHAP\| magnitude | 26.7\% |
+
+**Top 5 feature pairs by mean \|interaction\|** (all involve Age or elevation): Age$\times$elevation
+(0.347), Age$\times$CanopyCover (0.263), Age$\times$slope\_degrees (0.231),
+CanopyCover$\times$elevation (0.172), elevation$\times$slope\_degrees (0.137).
+
+**Top 3 features by mean \|main effect\|**: Age (4.458), elevation (1.809), CanopyCover (1.598) --
+unsurprising (Age dominates top-height prediction on its own), but confirms the interaction terms
+above are riding on top of already-strong individual predictors, not substituting for weak ones.
+
+### Headline finding
+
+**Interactions are real and non-trivial inside XGBoost's model (27\% of total \|SHAP\| magnitude),
+concentrated in Age crossed with terrain/stand-structure features (elevation, CanopyCover, slope) --
+consistent with growth trajectories differing by age combined with site conditions, a plausible
+forestry mechanism, not a null result.** This does NOT reverse the earlier arithmetic finding,
+though -- the two checks answer different questions. The Linear/RF/DNN/XGBoost ladder asks "how
+much of the *achievable* nonlinear signal does the DNN already capture" (answer: most of it, 80\%)
+-- a DNN with multiple nonlinear hidden layers is not structurally barred from learning similar
+Age$\times$terrain interactions itself, and evidently captures most of what's there. This check
+asks "does XGBoost's own model actually use interactions" (answer: yes, meaningfully, 27\% of its
+prediction weight) -- confirming interactions are a real, usable signal in this data, without
+establishing that the DNN specifically fails to use them.
+
+**Combined honest read**: interactions are demonstrably present and used by XGBoost (this check),
+but the DNN already recovers most of the total nonlinear gain available (the arithmetic check) --
+so the residual XGBoost-DNN gap (0.019 $R^2$ on 4survey) most plausibly comes from XGBoost
+capturing the *remaining* slice of these Age-crossed-with-terrain interactions somewhat more
+precisely or reliably than this DNN configuration does, not from the DNN missing interactions
+wholesale. This is a narrower, more specific version of the original guess, itself still not
+directly tested (would need e.g. training a DNN variant with explicit Age$\times$feature product
+terms, or a matching SHAP-style attribution on the DNN, to see whether it under-weights exactly
+these pairs) -- flagged as a possible, more targeted follow-up, not run here.

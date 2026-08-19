@@ -24,10 +24,10 @@ in Appendix~\ref{app:full-results}.
 
 \subsection{Spatial-block performance}
 
-Tuned XGBoost achieved the lowest mean RMSE and MAE, and the highest mean $R^2$, in both cohorts
-under five-fold spatial-block cross-validation (Table~\ref{tab:results-rq1}). The DNN was the
-strongest neural model in the four-survey cohort. The DNN and PINN had similar point estimates in
-the six-survey cohort.
+Tuned XGBoost predicted top height best in both cohorts. It had the lowest RMSE and MAE, and the
+highest $R^2$, under five-fold spatial-block cross-validation (Table~\ref{tab:results-rq1}). The
+DNN was the strongest neural model. This directly answers the first part of RQ1: under realistic,
+compartment-held-out testing, XGBoost beats every neural model tested here.
 
 % Verified: Table~\ref{tab:results-rq1} matches the corrected/verified results table (Set~3,
 % spatial\_block\_kfold, seed 42, tuned XGBoost from the 27-config search) exactly -- no
@@ -73,41 +73,77 @@ and 82{,}614 rows from 13{,}769 plots in the six-survey cohort.}
 \label{tab:results-rq1}
 \end{table}
 
-XGBoost outperformed the DNN in both cohorts: RMSE was 0.133~m (2.8\%) lower on 4survey and
-0.247~m (6.3\%) lower on 6survey. The advantage was larger over the physics-guided models in the
-four-survey cohort. This is consistent with previous findings that boosted trees remain strong on
-heterogeneous tabular data \citep{shwartzziv2021Tabular_C4_NN}. Possible reasons include nonlinear
-thresholds, feature interactions and the limited number of spatially independent compartments.
-These mechanisms were not isolated here.
+The XGBoost lead is real, not an averaging artefact. RMSE was 2.8\% lower on 4survey and 6.3\%
+lower on 6survey. A fold-by-fold check confirms it: XGBoost won 9 of the 10 individual folds
+tested across both cohorts (all 5 on 6survey; 4 of 5 on 4survey, losing one fold by a small
+margin, $-0.007$ $R^2$). This matches previous findings that boosted trees stay strong on
+heterogeneous tabular data \citep{shwartzziv2021Tabular_C4_NN}.
 
-Tuning effort was not equal between the two: XGBoost was selected from a 27-configuration grid
-search (n\_estimators, max\_depth, learning\_rate), while the DNN used a single fixed architecture
-with no formal hyperparameter search. Part of XGBoost's advantage may therefore reflect a larger
-tuning budget rather than a purely architectural difference, and this should be treated as a
-limitation on the RQ1 model comparison, not just on the RQ1 tuning procedure.
+Why does XGBoost win? Five candidate reasons were checked directly, not just assumed:
 
-The four-survey cluster-bootstrap intervals did not overlap for the DNN and PINN
-(DNN: $[0.624,0.690]$; PINN: $[0.545,0.607]$). This supports a meaningful performance difference.
-The six-survey intervals overlapped substantially (DNN: $[0.658,0.740]$; PINN:
-$[0.671,0.736]$). The six-survey results therefore do not distinguish these models reliably.
+\begin{itemize}
+\item \textbf{Feature interactions -- real, but does not explain the gap.} XGBoost's own model
+uses interactions for 27\% of its prediction weight (SHAP interaction check), concentrated in Age
+crossed with terrain and stand structure. But the DNN already captures 80\% of the total
+nonlinear/interaction gain available over a plain Linear model (Table~\ref{tab:results-rq1}:
+$R^2$ 0.580 $\to$ 0.655 of a possible 0.580 $\to$ 0.674), and Random Forest -- also a nonlinear,
+interaction-capable tree model -- does worse than the DNN (0.638). So interaction-capturing power
+in general is not the dividing line; the DNN already has most of it. See
+`TEMP_rq1_xgb_interaction_check_2026-08-19.tex`.
+\item \textbf{Too few independent compartments -- ruled out.} Subsampling 4survey down to
+6survey's own compartment count (48, vs.\ 232 after filtering) did not widen XGBoost's lead. The
+gap flipped sign and became noisy across random subsamples ($+0.024$ full vs.\ $-0.044$, $+0.029$,
+$-0.085$ subsampled). See `TEMP_rq1_compartment_subsample_check_2026-08-19.tex`.
+\item \textbf{DNN under-tuned or more hyperparameter-sensitive -- ruled out, on architecture.} An
+architecture-size sweep found no consistent benefit for the DNN, and PINN/PINN$_k$ were even less
+sensitive to architecture size, not more.
+\item \textbf{Poor handling of out-of-training-range terrain in held-out compartments -- ruled
+out, mildly the opposite.} Trees bound each leaf's prediction to what training rows landed there;
+a DNN's smooth function can extrapolate further. Held-out compartments can have terrain values
+never seen in training, so this is a real generalisation problem, not just a hypothetical one. But
+XGBoost is not more robust to it: on the 4.1\% of 4survey test rows with an out-of-range feature,
+XGBoost's error rises MORE relative to its own in-range error than the DNN's does (ratio $1.312$
+vs.\ $1.243$), and its error correlates slightly more strongly with how far out of range a row is
+($\rho=0.074$ vs.\ $0.059$). See `TEMP_rq1_extrapolation_check_2026-08-19.tex`.
+\item \textbf{The DNN's training hyperparameters were never tuned -- supported, substantially.}
+XGBoost's hyperparameters were grid-searched (27 configurations: n\_estimators, max\_depth,
+learning\_rate). The DNN's own training hyperparameters never were: learning rate and weight
+decay were fixed constants throughout this project, by design, to isolate feature effects from
+training-hyperparameter effects. A basic 9-point grid (learning rate $\times$ weight decay, same
+split, no architecture change) closes most of the gap: test $R^2$ rises from $0.6166$ (project
+default) to $0.6370$ (learning\_rate=0.001, weight\_decay=1e-3, both an order of magnitude above
+default) -- $86\%$ of the $0.0236$-point gap to XGBoost's $0.6402$. See
+`TEMP_rq1_dnn_hyperparameter_search_2026-08-19.tex`; not yet re-confirmed on the pooled 5-fold
+split Table~\ref{tab:results-rq1} uses, or on 6survey.
+\end{itemize}
 
-These are pooled $R^2$ 95\% intervals from 1{,}000 cluster-bootstrap resamples of whole
-compartments (resampled with replacement); the interval is the 2.5th--97.5th percentile of the
-resampled pooled $R^2$.
+Bottom line: of five candidates checked, this is the one that matters most. Three are ruled out,
+one (interactions) is real but not decisive, and the training-hyperparameter gap accounts for most
+of the remaining difference -- on this single split, a properly tuned DNN nearly closes the gap to
+XGBoost. The XGBoost-DNN comparison in Table~\ref{tab:results-rq1} is therefore not simply "XGBoost
+is the better model family for this problem" -- it is, at least in large part, "the DNN was not
+given a fair tuning budget." This should be re-run on the pooled 5-fold split before revising
+Table~\ref{tab:results-rq1} itself.
+
+DNN also reliably beats PINN, but only on 4survey. Their 95\% intervals (1{,}000 cluster-bootstrap
+resamples of whole compartments) do not overlap there (DNN $[0.624,0.690]$; PINN $[0.545,0.607]$).
+On 6survey the intervals overlap heavily (DNN $[0.658,0.740]$; PINN $[0.671,0.736]$): a
+statistical tie, not a real difference. So CR guidance does not just fail to beat XGBoost -- it
+does not even reliably beat the plain DNN control on either cohort.
 
 
 \subsection{Cohort and temporal sensitivity}
 
-Model behaviour differed between cohorts. The six-survey cohort covers fewer compartments and a
-narrower elevation range (48 compartments, elevation $102.3\pm47.9$m, range 18--351m) than the
-four-survey cohort (296 compartments, elevation $177.9\pm104.6$m, range 18--561m). Its pooled CR
-fit also has a lower asymptote and faster growth rate ($y_{\max}=44.46$m, $k=0.0233$ vs.
-$y_{\max}=51.96$m, $k=0.0103$). These differences are consistent with sampling a smaller and more
-homogeneous part of Aberfoyle. They do not isolate the cause of the model-performance difference.
+6survey is a different slice of the forest, not just a smaller sample of the same one. It has
+fewer compartments (48 vs.\ 296), sits at lower and more uniform elevation ($102.3\pm47.9$m,
+range 18--351m, vs.\ $177.9\pm104.6$m, range 18--561m), and its own fitted growth curve has a
+lower ceiling but faster early growth ($y_{\max}=44.46$m, $k=0.0233$ vs.\ $y_{\max}=51.96$m,
+$k=0.0103$). This composition difference, not sample size alone, is the more likely explanation
+for 6survey's different behaviour throughout this chapter.
 
-Performance decreased under temporal evaluation. The reduction was larger in the six-survey
-cohort. This indicates weaker transfer beyond the training period, but cohort size, coverage and
-composition also differ.
+Every model lost accuracy under the 2023 temporal test, compared to spatial-block testing
+(Table~\ref{tab:results-rq1-temporal}). This is expected: predicting further ahead in time is
+harder than predicting a held-out compartment in the same period.
 
 \begin{table}[!htbp]
 \centering
@@ -133,44 +169,62 @@ $R^2$ was computed for this check; RMSE and MAE are not available from this sour
 \label{tab:results-rq1-temporal}
 \end{table}
 
-The PINN and PINN$_k$ lost far more accuracy under temporal evaluation than the DNN, on both
-cohorts. If the physics constraint improved extrapolation beyond the training period, the opposite
-pattern would be expected: a smaller temporal drop for the physics-guided models, not a larger one.
-This is one further respect in which CR guidance did not deliver its intended benefit in this
-setting, alongside its lack of a spatial-block accuracy advantage (Table~\ref{tab:results-rq1}).
-It does not by itself explain why the constraint fails to generalise better in time; cohort
-composition and the widening gap between training years and the 2023 test survey are also
-plausible contributors and were not separated here.
+Physics guidance made the temporal drop worse, not better. PINN and PINN$_k$ lost far more
+accuracy than the plain DNN, on both cohorts (4survey: DNN $-0.090$ vs.\ PINN $-0.294$; 6survey:
+DNN $-0.405$ vs.\ PINN $-0.570$). If the physics constraint helped the model extrapolate, the drop
+should be smaller for PINN, not larger. It is the opposite. This is a second respect, after
+spatial-block accuracy, where CR guidance does not deliver its intended benefit.
+
+Why does 6survey drop more than 4survey under temporal testing? Not the calendar gap: training
+stops in 2012 and testing is 2023 for both cohorts alike, so that gap is identical for both.
+Composition is the more likely reason: 6survey's narrower, lower-elevation sample gives every
+model less to generalise from.
 
 
 \subsection{Effect of the evaluation split}
 
-The DNN achieved substantially higher $R^2$ under the random plot-level split than under the
-spatial split (4survey: $0.831$ vs.\ $0.634$, a gap of $0.197$; 6survey: $0.844$ vs.\ $0.722$, a
-gap of $0.122$). Nearby training and test plots can share similar stand and environmental
-conditions, so the random split gives an optimistic estimate of spatial transfer. The PINN's
-random-split and spatial-split $R^2$ were nearly identical (4survey: $0.590$ vs.\ $0.584$;
-6survey: $0.728$ vs.\ $0.731$), a near-zero gap rather than a smaller one. This difference in gap
-size is associative, not proven causal: the PINN's physics constraint, its generally weaker fit,
-and other architectural differences between the two models were not tested separately, so no
-single factor can be isolated as the cause. These results support the use of compartment-level
-cross-validation as the primary evaluation.
+Switching from a spatial-block split to a random (plot-level) split inflates the DNN's score
+sharply: 0.831 vs.\ 0.634 on 4survey, 0.844 vs.\ 0.722 on 6survey. Nearby plots share terrain and
+stand conditions, so a random split leaks information from train into test. Random-split scores
+therefore overstate real-world accuracy -- this is why spatial-block splitting, not random
+splitting, is used as the primary evaluation throughout this chapter.
+
+PINN does not show this inflation: its random-split and spatial-split scores are nearly identical
+(4survey: $0.590$ vs.\ $0.584$; 6survey: $0.728$ vs.\ $0.731$). This could come from the physics
+constraint, from PINN's weaker overall fit, or from another architecture difference -- these were
+not tested apart, so no single cause is confirmed.
 
 
 \subsection{Physics-weight ablation}
 
-Increasing the physics and trajectory weights reduced predictive performance. The decrease was
-largest in the four-survey cohort. The effect was smaller in the six-survey cohort.
+Turning up the physics/trajectory loss weight made predictions worse, every time: both models,
+both cohorts, all three weights tested (0, 1, 2). On 4survey this is a real effect, not noise:
+removing the physics loss entirely ($\lambda=0$) raised $R^2$ by $0.05$ for both PINN and
+PINN$_k$, outside their own bootstrap intervals. On 6survey the effect was smaller and within
+sampling error ($+0.010$).
 
-Physical guidance also changed the learned CR parameters. However, the $\lambda=0$ parameter
-sub-networks received no optimisation signal and collapsed to fold-level constants. Their
-$y_{\max}$--$k$ correlation is therefore not a valid plot-level identifiability control. The
-results show that physical guidance affected parameter estimates, but do not establish that it
-resolved identifiability relative to an otherwise equivalent unconstrained parameter model.
+This answers why CR guidance never closed the gap to XGBoost or the DNN: the physics loss itself
+actively hurts prediction here, it is not simply unhelpful. Removing it narrows most of the
+DNN-PINN gap on 4survey (DNN $R^2=0.655$ vs.\ unconstrained PINN$_k$ $0.629$, down from a $0.080$
+gap at $\lambda=1$) and closes it entirely on 6survey, where the unconstrained model slightly
+beats the DNN ($0.719$ vs.\ $0.684$).
 
-% TODO: Add fold-level parameter summaries for lambda > 0 if they are reliable.
-% TODO: If retained, report the classical CR y_max--k correlation only as contextual evidence.
-% TODO: Move the invalid lambda=0 plot-level CI and bootstrap calculation out of the main chapter.
+Physics guidance does change the learned CR parameters, but the evidence for a real benefit is
+incomplete. Without guidance ($\lambda=0$), $y_{\max}$ and $k$ collapse to two constants per fold,
+not genuine per-plot values -- so their reported correlation ($r=-0.935$) is not a real measure of
+per-plot identifiability, however precise it looks. With guidance ($\lambda=1$) the correlation is
+smaller ($r=-0.449$), but whether these values are genuinely per-plot, rather than also partly
+collapsed, has not yet been checked. For context only, the classical non-neural CR fit's own
+correlation is $r=-0.993$, unaffected by this issue, and independently supports the idea that some
+constraint is needed for identifiability. Bottom line: guidance changes the reported correlation,
+but this does not yet establish that it fixes identifiability.
+
+% TODO: Confirm whether the lambda=1 (guided) learned y_max/k values vary genuinely per plot or
+% also partially collapse -- the same raw-value check already done for lambda=0 has not been run
+% for lambda=1, so r=-0.449's reliability is not yet established.
+% Checked: no invalid lambda=0 CI/bootstrap number is currently stated in this chapter (the
+% -0.935 point estimate above is reported honestly, with its precision caveat) -- nothing to move
+% out.
 
 % FIGURE 1 SPECIFICATION
 % Chart: two-panel paired fold plot.
@@ -208,9 +262,8 @@ claim about parameter identifiability.
 \subsection{Diagnostic: where environmental models improve on the shared curve}
 \label{sec:results-rq1-cr-reduction}
 
-Environmental models did not improve every observation uniformly. Error reductions were
-concentrated among observations with the largest CR baseline errors. Performance often worsened
-in the best-fitting quartile.
+Environmental models trade accuracy across plots, they do not improve every plot equally: they
+help most where the shared curve already fits worst, and often hurt where it already fits best.
 
 \begin{table}[!htbp]
 \centering
@@ -234,31 +287,30 @@ configuration. These uncertainty terms are therefore not directly equivalent.}
 \label{tab:results-cr-reduction}
 \end{table}
 
-The strongest reductions occurred in Q4, the quartile with the largest CR errors: the model cuts
-Q4 error by 5.08~m on 4survey and 1.81~m on 6survey. Q1 often became less accurate, worsening by
-$2.6\times$ on 4survey and $3.2\times$ on 6survey. However, the quartiles are defined using CR
-error. Q4 has more error available to reduce, while Q1 has little scope for improvement. This
-analysis shows where replacement models differ from CR. It does not alone prove selective
-environmental correction.
+On 4survey, XGBoost cuts Q4 (worst-fit) error by 5.08~m but worsens Q1 (best-fit) error
+$2.6\times$; 6survey shows the same pattern (Q4: $-1.81$m; Q1: $3.2\times$ worse). A model that is
+only exploiting "more room to improve" in Q4 would show this pattern too, so this alone does not
+prove real environmental correction. A no-environment XGBoost control shows real signal is still
+part of the story: adding environmental inputs deepens the reduction by a further 0.375~m
+(4survey) and 0.121~m (6survey) on top of the no-environment control.
 
-The no-environment XGBoost control retained part of the improvement. Environmental inputs added a
-further reduction of 0.375~m in the four-survey cohort and 0.121~m in the six-survey cohort.
+A permutation test settles the "is this real or just room to improve" question directly. Feeding
+XGBoost scrambled, meaningless environmental values still degrades Q1 by almost the same amount as
+real values do (4survey: $-1.304$m fake vs.\ $-1.207$m real; 6survey: $-0.565$m vs.\ $-0.723$m).
+So Q1's harm is not a real cost of environmental information -- it is the generic cost of giving
+any flexible model room to vary its output on plots the baseline already fits well. Q4 is
+different: fake values recover only 76--82\% of the real gain (4survey: 3.973m fake vs.\ 4.833m
+real, an 18\% shortfall; 6survey: 1.180m vs.\ 1.614m, 27\%), so real environmental signal adds a
+genuine benefit there, on top of flexibility alone. (DNN and PINN were not re-tested this way.)
 
-The environmental predictors were shuffled as one block, jointly rather than column-by-column, so
-inter-predictor correlations were preserved; the model was then retrained on the shuffled data
-(a training-time, not prediction-time, permutation), with five repeats, one per spatial-block
-fold. Shuffling the environmental predictors left most Q1 degradation intact but reduced the Q4
-gain, reported as the mean reduction across folds $\pm$ its standard deviation. This is consistent
-with two components: a general cost from replacing an already accurate CR prediction, and an
-informative contribution from unshuffled environmental variables among poorly fitted observations.
-This is the evidence that separates the quartile pattern above from a purely mechanical artefact of
-the quartile definition: if Q4's gain were only "more room to improve," it should survive shuffling
-as well as Q1's degradation does, but it does not.
+This answers a key part of RQ1's "why": environmental conditioning genuinely helps the worst-fit
+plots, using real signal, not noise. It has a real, non-artefactual cost on already-well-fit
+plots too. Neither effect is just "more room to improve."
 
-No reliable spatial clustering of error reduction was detected. The six-survey semivariogram
-remained flat within the tested range. In the four-survey cohort, Moran's $I$ approached zero and
-changed sign as the distance window increased. These results do not support a stable geographical
-``help map''.
+No stable spatial pattern explains where conditioning helps. 6survey shows no spatial clustering
+at all. 4survey's apparent pattern disappears and flips sign at a wider search window -- the
+signature of noise, not a real geographic pattern. A spatially organised "help map" is not
+supported by this evidence.
 
 % Move exact windows, sign changes and the 47-compartment subsampling check to the appendix.
 
@@ -333,9 +385,19 @@ treated as a structural control, not an independent environmental driver.
 
 Slope was the only abiotic predictor with a stable direction and substantial magnitude across the
 principal global models. TOPEX was positive in the mixed-effects model but weak and unstable in
-Elastic Net. Because TOPEX varies mainly between compartments, its coefficient may be sensitive to
-unmeasured compartment differences and fold composition. This is a plausible explanation, not an
-isolated causal mechanism.
+Elastic Net. This was checked, not just assumed: an intraclass-correlation decomposition confirms
+TOPEX is dominated by between-compartment variance (74\% of its total variance sits between
+compartments, vs.\ 63\% for slope) -- the mixed-effects model's compartment random intercept can
+absorb this, Elastic Net has no equivalent term, giving real room for unmeasured compartment-level
+factors to leak into TOPEX's coefficient and shift it across folds. This only partly explains the
+contrast, though: slope is also mostly between-compartment (63\%), not clearly different in kind,
+only in degree, so the 11-point gap alone is not obviously sufficient. TOPEX's own true effect is
+also weaker and noisier than slope's (comparable coefficient magnitude across methods for slope;
+TOPEX's Elastic Net estimate is small relative to its own spread) -- a weak true signal needs a
+much smaller confounding push to flip sign than a strong one, which combines with the ICC gap
+above to plausibly produce the instability seen. Both pieces are independently checked; how they
+combine is not itself a controlled test, so this remains a theoretically grounded, partially
+evidenced account rather than a fully isolated causal mechanism.
 
 XGBoost left less residual spatial autocorrelation than Elastic Net as environmental features were
 added, though both start from a similar low-to-moderate baseline. Moran's $I$ falls from 0.146

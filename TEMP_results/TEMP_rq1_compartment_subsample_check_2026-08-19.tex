@@ -1,0 +1,102 @@
+## TEMP holding note — RQ1: does compartment count explain XGBoost's edge over the DNN? (2026-08-19)
+
+**Which claim this checks**: the results chapter lists "the limited number of spatially
+independent compartments" as one of several *possible, untested* reasons XGBoost outperforms the
+DNN (`documentation/august_draft/5_Chapter_results_evaluation/g_written_draft_v2_redraft.tex`,
+RQ1 spatial-block-performance section). If that mechanism is real, XGBoost's advantage over the
+DNN should widen (not stay flat or shrink) when fewer independent compartments are available to
+train on -- the same logic already used for the RQ3 47-compartment subsample check (rules out
+compartment count alone as the explanation for 6survey's unresolvable Moran's $I$; see
+`TEMP_rq2a_reduction_morans_i_2026-08-16.tex`), applied here to a different question.
+
+**Status: complete (2026-08-19).**
+
+### Method
+
+**Code**: `models/baselines/rq1_compartment_subsample_check.py` (new file, this session). Run as:
+```
+PYTHONPATH=. .venv/bin/python -m models.baselines.rq1_compartment_subsample_check
+```
+
+**Pseudocode**:
+```
+load full 4survey table with Set3 (nested_set3_gated_terrain_wind_vif) terrain/wind features
+merged in, via load_split_table_with_terrain() -- same loader run_dnn_env_terrain.py uses
+  (this already applies the project's standard Age/yield-class/missing-feature filtering;
+  232 compartments remain after filtering, not the raw 296)
+
+for each condition in [full compartment set,
+                       48-compartment subsample (seed 101),
+                       48-compartment subsample (seed 102),
+                       48-compartment subsample (seed 103)]:
+    if subsampled:
+        randomly choose 48 of the 232 compartments (numpy default_rng(seed), no replacement)
+        filter the full table down to only rows in those compartments
+    re-run spatial_block_split() fresh on whichever compartments are present (block_col='cpmt',
+        60m buffer, split_seed=42 always -- so only WHICH compartments exist varies between
+        conditions, not the block-shuffle logic itself)
+
+    # both models see the exact same train/val/test rows within this condition
+    fit DNN: standard fixed 128-128-128 architecture, default hyperparameters
+        (lr=0.0001, batch_size=512, weight_decay=1e-5, seed=42), max_epochs=500,
+        early_stopping_patience=40 -- identical to every other DNN fit in this project
+    fit XGBoost: n_estimators=500, max_depth=6, learning_rate=0.02 -- the winning 4survey
+        config from TEMP_rq1_xgb_hyperparameter_search_2026-08-16.tex, held fixed across every
+        condition here (not re-tuned per condition, so only compartment count varies)
+
+    record test R2 for both models and the gap (XGBoost R2 - DNN R2)
+
+compare the full-compartment gap against the mean of the three 48-compartment gaps
+```
+
+**Design choices worth flagging**:
+- Single `spatial_block` split per condition (not pooled 5-fold `spatial_block_kfold`) -- matches
+  this project's established "coarse screen" convention for exploratory checks (e.g. the
+  architecture sweep, `TEMP_rq1_architecture_sweep_results_2026-08-13.tex`), not the more
+  expensive pooled-CV standard used for headline numbers. Read as directionally indicative, not a
+  final-precision estimate.
+- 48 compartments chosen to exactly match 6survey's real compartment count, so this result is
+  directly comparable to 6survey's own real XGBoost-DNN gap (already in Table~\ref{tab:results-rq1}).
+- 3 random seeds for which 48 compartments are kept (matching the RQ3 47-compartment precedent's
+  "3 random seeds" convention), everything else (training seed, split-shuffle seed, both models'
+  hyperparameters) held fixed, so compartment identity is the only thing varying between the three
+  subsample replicates.
+- XGBoost's config is NOT re-tuned per condition -- deliberate, isolates the effect of compartment
+  count on a fixed model, rather than confounding it with "XGBoost gets retuned for less data too."
+
+### Results
+
+| Condition | n compartments | n train/val/test rows | DNN $R^2$ | XGBoost $R^2$ | Gap (XGB $-$ DNN) |
+|---|---:|---|---:|---:|---:|
+| Full compartment set | 232 | 129,536 / 47,056 / 46,956 | 0.6166 | 0.6402 | $+0.0236$ |
+| Subsample, seed 101 | 48 | 22,224 / 9,400 / 11,796 | 0.6808 | 0.6370 | $-0.0438$ |
+| Subsample, seed 102 | 48 | 24,692 / 9,212 / 9,004 | 0.5922 | 0.6209 | $+0.0287$ |
+| Subsample, seed 103 | 48 | 30,684 / 10,840 / 10,716 | 0.6861 | 0.6014 | $-0.0847$ |
+
+Subsampled (n=48) mean gap: $-0.0333$, SD $0.0469$ (across the 3 seeds), vs.\ the full-compartment
+gap of $+0.0236$.
+
+### Headline finding
+
+**Not supported -- the opposite of what the hypothesis predicts.** If limited compartment count
+were what favours XGBoost, the gap should widen (become more positive) as compartments shrink from
+232 to 48. Instead the mean gap flips sign and goes negative ($+0.0236 \to -0.0333$), and the
+individual seeds don't even agree on direction: XGBoost wins at seed 102 (+0.029, similar
+magnitude to the full-compartment gap) but the DNN wins clearly at seeds 101 and 103 ($-0.044$,
+$-0.085$). The seed-to-seed SD (0.047) is roughly double the full-compartment gap's own size --
+at 48 compartments, which specific compartments happen to be sampled dominates the result far more
+than any systematic model-family effect does.
+
+**What this does and doesn't establish**: with only 3 replicates at n=48, this cannot rule out a
+real but small effect hiding inside that noise -- it is not statistical proof of "no effect,
+ever." What it does rule out is the specific, larger claim implied by citing this as a candidate
+explanation for the real full-data XGBoost-DNN gap: there is no consistent, sign-stable widening
+of XGBoost's advantage as compartment count drops, which is the direction the hypothesis actually
+needs. On this evidence, compartment count is better read as adding instability to both models
+alike at low N, not as a mechanism that systematically favours XGBoost. This mirrors the RQ3
+47-compartment precedent's finding (`TEMP_rq2a_reduction_morans_i_2026-08-16.tex`): compartment
+count alone does not explain effects seen on the real 48-compartment 6survey cohort -- something
+about 6survey's actual composition (already documented in
+`TEMP_rq1_cohort_composition_2026-08-15.tex`: lower, more homogeneous elevation range, a
+genuinely different fitted CR curve) is the more likely explanation for the small residual gap
+seen in that direction, not sample size in isolation.
