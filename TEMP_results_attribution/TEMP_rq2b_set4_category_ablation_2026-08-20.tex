@@ -1,0 +1,67 @@
+## Q1 (mean_cr_residual) category ablation, matched to actual Set4 columns (2026-08-20)
+
+Question: can Set4's edge over Set3 be attributed to soil or climate specifically? Set3 vs Set4
+alone can't answer this -- Set4 = Set3 + top-half climate/soil/spatial-context together, so a
+category-level refit ablation on Set4 itself is the direct test. Distinct from
+`notebooks/environmental_data/av1_grouped_category_importance.ipynb` (an earlier check on the
+broader pre-VIF ALL_FEATURE_COLUMNS pool, not Set4's actual 19 columns) -- that one is
+suggestive background only, not usable as the answer here.
+
+### Method
+
+Script: `/Users/shreeyagorasia/.claude/jobs/392cb61a/tmp/q1_category_ablation.py` (copy this
+into the repo if kept for the appendix). Loads RSQ2 Set4 (`nested_set4_gated_all_vif`, the exact
+19 columns the headline Table tab:results-rq2b Set4 row uses), 4survey, single spatial-block
+split (`SPLIT_SEED`, same split every other single-split check in this chapter uses). XGBoost
+fixed config (n_estimators=500, max_depth=4, learning_rate=0.04) -- the same config Q1/Q2
+attribution always uses, not retuned. Refits once per category removed (terrain/wind/soil_site/
+climate/spatial_position_edge_effects/stand_structure), same `CATEGORY_GROUPS` definition Q2's
+own category check uses, expanded to Set4's actual columns.
+
+Set4 columns (19): CanopyCover, time_since_thinning, time_since_thinning_missing,
+recent_thinning_5yr, gwa_weibull_k_50m, slope_degrees, gwa_weibull_a_10m, local_relief_500m,
+eastness, gwa_weibull_a_50m, ceh_twi, whcl, topex, gwa_wind_speed_10m, chelsa_bio12_precip_mm,
+dist_to_road, tas_mean, dist_to_scpt_boundary, soilgrids_ph.
+
+### Result
+
+train rows 38,548, test rows 14,576 (single split).
+
+| Category removed | n columns | R2 | R2 drop from removal |
+|---|---:|---:|---:|
+| (none -- full Set4) | 19 | 0.3142 | -- |
+| terrain | 15 | 0.2416 | +0.0726 |
+| wind | 13 | 0.3081 | +0.0061 |
+| soil_site | 18 | 0.2919 | +0.0223 |
+| **climate** | 17 | **0.3698** | **-0.0556** |
+| spatial_position_edge_effects | 17 | 0.2497 | +0.0646 |
+| stand_structure | 15 | 0.2983 | +0.0159 |
+
+(R2 drop = full-model R2 minus category-removed R2; positive = category helps, negative = category hurts.)
+
+### Read
+
+- **soil_site**: real, modest positive contribution (+0.022 R2 when present). Consistent with a
+  genuine soil-productivity signal, small.
+- **climate**: NEGATIVE contribution -- removing climate (chelsa_bio12_precip_mm, tas_mean)
+  *raises* R2 by 0.056. Climate is actively hurting the Set4 model here, not helping it.
+  Consistent with the earlier av1 notebook's finding (climate's permutation-importance drop was
+  also negative there, on the different ALL_FEATURE_COLUMNS scope) -- now confirmed on the
+  actual production Set4 columns, not just the exploratory pool.
+- **terrain** and **spatial_position_edge_effects** are the two largest positive contributors in
+  Set4 -- bigger than soil, and terrain is already mostly present in Set3 too (Set3 = Set2 +
+  top-half terrain/wind), so this is not the "what Set4 adds over Set3" story either.
+- The "soil and climate add water/nutrient/temperature information Set3 lacks" explanation is
+  **not supported**: soil helps a little, climate actively hurts. If Set4 still edges out Set3
+  in the pooled 5-fold headline table, the mechanism is not "soil+climate add real signal" as a
+  pair -- soil's small real gain must be outweighing climate's real cost, not both categories
+  jointly explaining the edge.
+
+### Caveats
+
+Single spatial-block split, not pooled 5-fold -- this R2 (0.314 full-model) does not match the
+pooled headline Set4 XGBoost R2 (0.395) for that reason, same caveat every other single-split
+check in this chapter already carries. Refit-based ablation (category never available to the
+model), not permutation importance -- a different, arguably more direct test of "does this
+category's presence in Set4 explain part of the gain," but not the same statistic as the av1
+notebook's permutation-based numbers; both point the same direction on climate regardless.

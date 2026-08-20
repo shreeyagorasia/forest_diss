@@ -1,0 +1,154 @@
+## Q2 -- does the fixed-k artifact explain ALL Tukey-flagged plots, or just some? (2026-08-20)
+
+Prompted by a direct challenge to the chapter's own logic: the "10 worst plots -> fixed-k
+mechanism traced -> therefore all 266 flagged plots are artifact, not ecology" chain was only
+directly verified for 5 example plots. This checks the mechanism against every flagged plot
+individually, and characterises the ones it does NOT explain.
+
+### Method
+
+Script: `/Users/shreeyagorasia/.claude/jobs/392cb61a/tmp/q2_outlier_mechanism_check.py`. Loads
+`models/growth_curve_attribution/data.py::load_filtered_growth_curve_table("4survey")` (raw
+per-survey rows, same filtering as production). Refits `y_max_fit` per plot exactly per
+Equation eq:plot-ymax-fit (OLS through the origin, `p4`/`p5` held fixed at yield-class values).
+Applies the same Tukey 1.5*IQR fence (Equation eq:tukey-fences) used in the chapter.
+
+**Artifact-signature test**: for each flagged plot, compare observed growth (height at last
+survey minus height at first survey) against the assigned yield-class benchmark curve's own
+predicted growth over the same age span (`top_height95_yldc_predicted`, already in the table).
+If observed growth is SLOWER than the benchmark predicts, that is the exact signature of the
+traced mechanism (a plot growing slower than its assigned k gets its asymptote inflated to
+compensate, since the fit can't lower k to match the slower reality). If observed growth is NOT
+slower (matches or exceeds the benchmark), the implausible asymptote is not obviously explained
+by this mechanism.
+
+### Result
+
+My own recomputation flags 250/58,112 plots (0.43%) -- close to but not identical to the
+chapter's own reported 266 (0.47%); likely a minor methodology difference (exact filtering
+population, or how y_max_fit is computed) between this recomputation and the original pipeline.
+Directionally consistent, treat the split below as approximate, not pixel-exact.
+
+- **Artifact-consistent** (observed growth slower than assigned benchmark): 179 / 250 (71.6%).
+- **NOT artifact-consistent** (observed growth matches or exceeds benchmark): 71 / 250 (28.4%).
+
+The chapter's current claim ("confirming the mechanism traced above is target construction, not
+a genuine ecological anomaly") only actually holds for the 71.6% majority. The other 28.4% are
+flagged as implausible for a different, untested reason.
+
+### Environmental characterisation of the two subsets
+
+topex, slope, CanopyCover, time_since_thinning, tas_mean, chelsa_bio12_precip_mm pulled for both
+subsets, compared directly against each other (Mann-Whitney U):
+
+| Variable | NOT-artifact median | Artifact-consistent median | MWU p (direct comparison) |
+|---|---:|---:|---:|
+| **topex** | **+2.58** | **-5.48** | **0.0002** |
+| time_since_thinning (mean, % ever-thinned) | 2.05 yrs, 46.5% | 0.78 yrs, 35.2% | 0.051 |
+| chelsa_bio12_precip_mm | 2180.10 | 2163.50 | 0.94 (no real difference) |
+| slope_degrees | 9.93 | 9.02 | not significant (population-level p=0.115) |
+| CanopyCover | 0.80 | 0.69 | not significant (population-level p=0.961) |
+| tas_mean_4survey | 8.44 | 8.44 | not significant |
+
+### Read
+
+A real, interesting split, not previously in the chapter. NOT-artifact-consistent plots sit in
+notably more SHELTERED terrain (positive topex) than artifact-consistent plots (notably more
+EXPOSED, negative topex) -- p=0.0002, the strongest signal found. Plausible account: exposed
+plots that grow slower than their assigned yield class (plausible given exposure suppresses
+growth) get their asymptote artificially inflated by the fixed-k fit -- the already-traced
+mechanism. Sheltered plots that still end up flagged are not explained by that route; a sheltered
+plot growing genuinely fast (also plausible, given exposure's known negative effect on growth)
+would produce a real, biologically-plausible high asymptote that a fixed yield-class benchmark,
+calibrated to typical/average exposure, simply underestimates -- worth stating as a plausible
+account, not confirmed further here.
+
+Thinning history is a weaker, borderline signal (p=0.051, more and more-recent thinning in the
+not-artifact group) -- consistent with thinning genuinely accelerating individual-tree height
+growth beyond what an un-thinned yield-class curve assumes, but underpowered at n=71 to treat as
+resolved.
+
+Precipitation is NOT a real differentiator between the two flagged subsets (p=0.94) -- both
+groups differ similarly from the general population, so precipitation doesn't distinguish WHICH
+mechanism explains a given flagged plot, only that flagged plots in general skew slightly drier
+than the population (a separate, weaker observation, not pursued further here).
+
+### Addendum -- chronic wind-stress candidate flag (same day)
+
+Prompted by a direction error found in the existing windthrow check
+(`TEMP_rq3_outlier_diagnosis_results_2026-08-12.tex`'s "Wind exposure, storm-year signature"
+section): it states flagged plots are "slightly MORE sheltered than the population, the opposite
+of what storm damage would predict," then reports topex flagged median -4.03 vs. population
++0.74 -- since higher topex = more sheltered (established in the Q1 nonlinearity work earlier
+today), -4.03 vs +0.74 is LOWER, i.e. MORE exposed, not more sheltered. The prose contradicts its
+own numbers. That aggregate (-4.03) is consistent with this session's own split: it's the
+71.6%-majority artifact-consistent group (median -5.48, exposed) dominating the aggregate; the
+28.4% not-artifact group is actually sheltered (+2.58).
+
+The current disturbance flags (clearfell: >=25%/70%/70% drops; measurement-inconsistency:
+similar) only catch ABRUPT, catastrophic events. They cannot catch CHRONIC wind stress -- a site
+growing steadily slower than its yield class assumes with no sudden drop at all -- which would
+produce exactly the same "growth deficit vs. benchmark" signature already used to define
+"artifact-consistent" above. Built and tested a new, non-abrupt flag directly:
+**chronic wind-stress candidate = bottom-quartile topex (population threshold -10.07) AND
+growth deficit vs. yield-class benchmark** (same growth-deficit test as above), computed for
+every plot in the population, not just the 250 flagged ones
+(`/Users/shreeyagorasia/.claude/jobs/392cb61a/tmp/q2_windstress_flag_check.py`).
+
+Because "artifact-consistent" already requires growth deficit by construction, the fair
+comparison is against OTHER growth-deficit plots, not the whole population (an unconditional
+population comparison overstates the effect, checked and rejected as circular):
+
+| Group | n | % also high-exposure |
+|---|---:|---:|
+| All growth-deficit plots, population-wide | 20,707 | 29.4% |
+| Artifact-consistent (Tukey-flagged) group | 179 | **41.3%** |
+
+Chi-square, artifact-consistent rate vs. the growth-deficit population baseline: chi2=11.54,
+p=0.0007. Rate ratio 1.40x -- real, statistically significant, but modest: 58.7% of the
+artifact-consistent group is NOT high-exposure, so chronic wind stress does not explain most of
+this group either.
+
+### Read (revised)
+
+Chronic wind exposure is a real, partial contributor to WHY some growth-deficit plots become
+extreme (Tukey-flagged) outliers specifically, not just ordinary growth-deficit plots -- a
+genuine, if modest, enrichment (1.40x, p<0.001) that the current disturbance flags structurally
+cannot detect, since they require an abrupt drop. This does not overturn the fixed-k mechanism
+account (which remains a real, traceable, purely mechanical effect for at least some of these
+plots, per the 5-plot direct trace already in the chapter) -- it adds a second, partial,
+non-exclusive contributor specifically within the "artifact-consistent" group, and corrects the
+existing windthrow note's own direction error. The 28.4% not-artifact-consistent group's own
+sheltered/positive-topex profile is unaffected by this addendum -- that group's story (candidate
+for real, unusually fast growth in good conditions) stands as originally found.
+
+### Addendum -- boundary-clustering test (same day), inconclusive, and why
+
+Tried a further test: does clearfell_like or artifact-consistent status respect sub-compartment
+management boundaries (whole-unit felling) or cross them irregularly (more consistent with
+scattered environmental damage)? Measured, for each flagged plot, what fraction of its own
+sub-compartment (scpt) is also flagged.
+
+Result: both groups look similarly scattered -- clearfell_like median 0.6% of same-unit plots
+also flagged; artifact-consistent median 0.4%. Neither shows the block-shaped, whole-unit
+co-occurrence a complete felling operation would produce.
+
+**This does not mean neither group is management-related.** Felling is not always complete --
+thinning (removing some trees, not the whole stand) and partial/salvage fellings are routinely
+patchy and selective within a management unit by design, not uniform across it. Low within-unit
+clustering is therefore consistent with BOTH a genuine but patchy management intervention and
+genuine scattered environmental disturbance -- this test cannot distinguish the two on spatial
+pattern alone. Resolving it would need felling-licence records or finer within-unit management
+data, neither available here. Reported as a genuinely unresolved limitation, not pushed further.
+
+### Caveats
+
+n=71 for the not-artifact subset -- real but modest statistical power; topex's result is strong
+(p=0.0002) and should hold, thinning's (p=0.051) is borderline and should be read cautiously.
+Recomputed flagged set (250) is close to but not identical to the chapter's reported 266 -- a
+methodology reconciliation, not a full pipeline rerun, would be needed before citing exact
+percentages from this note as chapter numbers without re-deriving them from the actual pipeline.
+The "sheltered plots grow genuinely fast" explanation is plausible and consistent with the wind/
+exposure literature already used elsewhere in this project's background, but not directly tested
+here (would need a free-k refit or an independent growth-rate check on just this subset, not run
+-- time budget).

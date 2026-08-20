@@ -1,0 +1,61 @@
+## Refined disturbance flags -- implementation decision (2026-08-20)
+
+Context: audit of the existing three disturbance flags (`clearfell_like`,
+`measurement_inconsistent`, `ambiguous_disturbance` -- `models/growth_curve_attribution/
+disturbance_checks.py`) found two real gaps: (1) `measurement_inconsistent` assumes canopy/
+volume stability rules out real damage, which doesn't hold for wind-driven top breakage
+specifically; (2) none of the three can see chronic (no-abrupt-drop) underperformance at all,
+which is exactly the pattern behind this session's own chronic-wind-stress finding
+(`TEMP_rq3_flagged_plot_mechanism_split_2026-08-20.tex`).
+
+### Decision: implemented as new, separate, non-invasive code -- not wired into the pipeline
+
+`models/growth_curve_attribution/disturbance_checks_refined.py` (new file). Reason: `clearfell_
+like`/`measurement_inconsistent` currently EXCLUDE plots from curve fitting
+(`exclude_from_curve_fit`), which feeds `y_max_fit` -> both Q1's `mean_cr_residual` and Q2's
+`local_y_max_difference` targets. Changing that exclusion list, even for a small number of
+plots, means every downstream model (Q1's EN/XGBoost/LMM, Q2's EN/XGBoost/GNNWR, both cohorts,
+every feature set) would need refitting to keep the dissertation's own reported numbers
+internally consistent. GNNWR alone is cluster-bound and hours-scale. No retraining capacity
+available before submission -- explicit user decision, not a default assumption.
+
+### What was actually built and verified
+
+1. **Exposure-aware reclassification** (`exposure_aware_measurement_inconsistent()`): same
+   thresholds as the existing rule (height drop >=25%, canopy drop <=10%, volume stable) --
+   only new step is checking each flagged plot's `topex` against the bottom-quartile threshold
+   already used elsewhere this session (-10.07). High-exposure matches get relabelled
+   `possible_wind_damage` instead of `measurement_inconsistent`.
+   - 4survey: 18 / 67 measurement_inconsistent intervals reclassified.
+   - 6survey: 4 / 24 reclassified.
+   - Total plots that would change exclusion status if this were wired in: 22 (18+4) out of
+     71,881 combined (0.03%) -- genuinely small, but small still requires a rerun to report
+     correctly, not a reason to claim the effect without one.
+
+2. **Chronic underperformance candidate** (`chronic_underperformance_candidate()`): cumulative
+   growth (first to last survey) falls short of the yield-class benchmark's own predicted growth
+   over the same span by >=6.17m -- the 90th percentile of deficit magnitude among 4survey's own
+   growth-deficit plots, chosen to be comparably selective to the existing `ambiguous_
+   disturbance` flag (~1.8% of population) without being as narrow as `clearfell_like` (~0.4%).
+   Never excludes anything -- same "kept, not noise" philosophy as `ambiguous_disturbance`.
+   - 4survey: 2,074 / 58,112 flagged (3.57%, matches the calibration target almost exactly).
+   - 6survey: 1,198 / 13,769 flagged (8.70%) -- same absolute threshold, higher rate, because
+     6survey's longer survey history (adds 2002/2006) accumulates more growth-span noise for the
+     same cutoff. **Decision (2026-08-20, user confirmed): calibrate on 4survey only and apply
+     unchanged to 6survey, matching this project's standing convention of treating 4survey as
+     the primary investigation line throughout, with 6survey as a nested sensitivity check, not
+     an equal-weight second cohort.** Not a gap needing further work -- the higher 6survey rate
+     is an expected, documented consequence of that choice, not re-calibrated separately.
+
+### For the Limitations section
+
+The dissertation's reported `clearfell_like`/`measurement_inconsistent` exclusion uses the
+ORIGINAL rules, not these refined ones -- a real, identified improvement was not applied
+retroactively because doing so correctly would require refitting every downstream attribution
+and prediction model that depends on the curve-fit target, which was not feasible within the
+submission timeline. The refined logic is implemented, tested, and its effect on plot COUNT is
+known and small (22 plots, 0.03%); its effect on the actual reported R2/coefficient numbers is
+NOT known, since verifying that is exactly the rerun this decision avoids. Future work: apply
+`disturbance_checks_refined.py`, refit the affected models, and confirm the headline numbers are
+unchanged within existing confidence intervals (expected, given the tiny affected fraction, but
+not yet confirmed).

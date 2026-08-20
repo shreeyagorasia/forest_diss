@@ -1,0 +1,269 @@
+### METHODOLOGY AUDIT (2026-08-20, late night) — verified against code, not just prose
+
+A peer session independently reordered the Methodology chapter into Q1->Q2->Q3 concurrently
+with this audit (same file). Below is the code-verification pass only; the reorder itself was
+their work, not this session's.
+
+**Confirmed correct** (spot-checked directly against source): CR curve fit (5 NLS starting
+points, lowest-SSE selection, `models/chapman_richards/chapman_richards.py`); mean_cr_residual /
+two-stage NLME (REML for coefficients, ML for the separate variance-explained comparison,
+`models/spatial_attribution/nlme.py` -- already disclosed correctly in the live text); XGBoost
+27-config grid (3x3x3, `models/baselines/rq1_xgb_hyperparameter_search.py`); DNN/PINN/PINN-k
+architecture (3x128 units, LeakyReLU, Adam lr 1e-4, weight_decay 1e-5, grad-clip 1.0, L1 1e-5,
+scheduler factor 0.8/patience 15, max_epochs 500/patience 40 -- all identical across every neural
+variant, `models/{dnn,pinn}_*/*.py`); RQ2a/Q3-bridge permutation control and quartile split
+(`models/spatial_attribution/rq2a_permutation_check.py`, `rq2_residual_reduction.py`); GNNWR
+"full, uncapped reference set for every headline result" -- verified directly: every Set2/3/4 x
+4survey/6survey headline file is named `..._reffull_...` in
+`outputs/growth_curve_attribution/gnnwr/`, no capped-reference file mislabelled as headline.
+
+**False alarm, corrected**: initially flagged "batch size 256 shared by all neural architectures"
+as wrong because the DNN module's own default constant is 512 (only PINN/PINN-k default to 256).
+Checked the actual production run logs instead of the source defaults
+(`outputs/run_logs/*rq1_{dnn,pinn}_env_terrain*nested_set3*seed42*fit_success.json`) -- every
+headline Set3 run, DNN included, was launched with `--batch-size 256` explicitly, overriding the
+module default. The text is correct as written. Lesson: verify against the config actually used
+to produce a reported result, not a source file's default value, when the two can differ.
+
+**Real, fixed**: (1) feature-set protocol was undisclosed as 5 steps, not 4 -- an unnamed
+"signal gate" (drop any candidate with univariate |Spearman rho| < 0.10) runs in
+`feature_set_builder.py` alongside collinearity filtering. Added as its own numbered step.
+(2) "searched up to 5000m by default, widened to 10,000m" was stated as a general rule; no code
+anywhere auto-retries at 10,000m -- `semivariogram_range()`/`global_morans_i()` only cap at
+5000m and return `exceeds_window`. The 10,000m numbers that exist came from one manual notebook
+rerun for the specific 6survey GNNWR-vs-global cells that didn't resolve at 5000m. Rescoped to
+that one diagnostic explicitly, not stated as a default.
+
+**PINN methodology trimmed** (per user instruction: GNNWR is now the chapter's most important
+methodological section; PINN gets a paragraph, matching the Results chapter's own brief
+end-of-Q3 treatment). All seven equations kept (data-loss, ymax-adjust, k-adjust, cr-derivative,
+physics-loss, trajectory-loss, total-loss) -- cut was prose only: merged the "environmental
+pathway" and "forward-pass limitation" discussion down to one pointer to
+Section~\ref{sec:rq1-pinn-limitation} instead of restating it twice, and dropped the
+split-leakage diagnostic aside (terrain never reaching the trunk) since Results already carries
+that argument in full in its own "Effect of the evaluation split" paragraph.
+
+**Still open, not fixed**: missing `.bib` file (compile-blocking, still true).
+
+### STATUS UPDATE (2026-08-20, later same night)
+Findings #2 (terrain-Moran's-I anomaly), #3 (stale boundary-distance number), #4 (omitted
+cross-model/GNNWR-null/sub-compartment evidence), and the reference-density ablation (which
+landed and was analysed once the pending job finished -- see new paragraph replacing the old
+`[PENDING ...]` block) have all been applied directly to
+`documentation/refocus_draft/19th_1038_rq2brq3_refocus.tex`, Q2 section. Reference-density
+result: capping 4survey's own reference set down to ~6survey's scale (7,500) does NOT reproduce
+6survey's collapse (R2 stays 0.12-0.34, never sign-flips) -- reference sparsity alone is refuted
+as a *sufficient* explanation, though it may still be a contributing factor; two caveats now in
+the text (non-monotonic R2 vs. reference size; capping count != 6survey's actual narrower
+geographic support). Finding #1 (missing `.bib`) and #5 (6survey homogeneity, still genuinely
+open) were NOT fixed -- #1 needs a citation-verification step not yet run, #5 needs new code, not
+just a saved-output read. Methodology chapter confirmed out of scope tonight (known stale,
+per user).
+
+## Results/Discussion chapter audit (2026-08-20) — scoped-down pass
+
+Audited `documentation/refocus_draft/19th_1038_rq2brq3_refocus.tex`, Results and Discussion
+chapter (lines 777-1183), against the repo's saved outputs. Scope, per user decision tonight:
+Phase 1 audit + A-ranked Q1/Q2 checks answerable from saved outputs only, no new literature
+search, no C-ranked checks. Not a rewrite -- findings to fold in.
+
+### Heads-up: cross-session note
+While this ran, a peer session was live-rsyncing the GNNWR reference-density ablation
+(`ref7500/13000/20000/full`) from the cluster and got a storage-related question mid-transfer.
+That ablation is the chapter's own `[PENDING ...]` placeholder (Q2, after the GNNWR paragraph).
+Deliberately NOT touched here -- avoid two sessions racing to fill the same gap. Everything
+below is outside that scope.
+
+---
+
+### 1. Bibliography is broken -- compile-blocking, fix before anything else
+
+`19th_1038_rq2brq3_refocus.tex:1189` calls `\bibliography{mybibfile}`, expecting
+`documentation/refocus_draft/mybibfile.bib`. No such file exists anywhere in
+`documentation/refocus_draft/` or `documentation/august_draft/`. The only `mybibfile.bib` in the
+repo is `legacy/dissertation_draft_10jul/mybibfile.bib`, and it does NOT contain
+`shwartzziv2021Tabular_C4_NN` (the citation used at line 1144, XGBoost-vs-DNN tabular-data
+claim) -- so even copying that file in would leave one dangling reference. PLAN.md's "compiles
+standalone" claim should be re-checked; as-is, every `\cite{}` in this chapter will render as
+`[?]` or fail depending on the bibtex config. Needs: locate/rebuild the real `.bib` this draft
+should use, add the missing key, confirm compile.
+
+---
+
+### 2. Terrain-removal Moran's I anomaly -- RESOLVED, was a band-width artifact, not a real ecological finding
+
+**The chapter currently reports (Q2, line ~1005-1014):** removing the terrain category
+*lowers* residual Moran's I (0.153 -> 0.042), the opposite of what removing a real
+spatially-structured category should do, flagged explicitly as "an open question."
+
+**What's actually happening:** `category_morans_i_before_after()` -> `residual_morans_i()`
+(`models/xgb_environmental/grouped_analysis.py:186-222`) estimates a *separate* semivariogram
+range per category-removed refit, then feeds that estimate straight into
+`global_morans_i()`'s distance-band width. Checked directly in the saved CSV
+(`outputs/spatial_block/rq3_category_attribution/4survey/category_morans_i_before_after.csv`):
+the full model and wind/climate-removed refits *resolve* a range (1150-1360m), but
+terrain/soil_site/spatial_position_edge_effects/stand_structure-removed refits all hit
+`exceeds_window` and get capped at the 5000m search ceiling instead
+(`spatial_autocorrelation.py:138-139`: `practical_range >= max_distance` -> returns
+`max_distance, "exceeds_window"`). So the "0.153 vs 0.042" comparison is Moran's I measured at a
+~1200m neighbourhood vs. Moran's I measured at a 5000m neighbourhood -- a wider band pools in
+far-apart, weakly-correlated pairs and mechanically pulls the statistic toward zero, independent
+of any real change in spatial structure.
+
+**Direct test run tonight** (not a new pipeline -- reused the same `xgb_fit`/`xgb_predict`
+refit-per-category loop `run_rq3_category_attribution.py` already runs, ~4 min CPU, single
+spatial-block split, script at
+`/Users/shreeyagorasia/.claude/jobs/392cb61a/tmp/fixed_band_morans_check.py`): recomputed Moran's
+I for all 7 refits (baseline + 6 categories removed) at ONE fixed band -- the full model's own
+1196.9m resolved range -- instead of letting each refit pick its own.
+
+| Category removed | Moran's I (own band, as in chapter) | Moran's I (fixed 1197m band) |
+|---|---:|---:|
+| (none -- full model) | 0.153 | 0.149 |
+| terrain | 0.042 | **0.167** |
+| wind | 0.138 | 0.165 |
+| soil\_site | 0.025 | 0.154 |
+| climate | 0.124 | 0.145 |
+| spatial\_position\_edge\_effects | 0.042 | **0.174** |
+| stand\_structure | 0.022 | 0.147 |
+
+At a fixed band, removing terrain *raises* residual Moran's I (0.149 -> 0.167) -- the expected
+direction, not the anomaly. Same for wind and spatial\_position\_edge\_effects (both rise).
+Climate and stand\_structure barely move either way, consistent with Q1's own finding that
+climate is weak/unstable and stand\_structure dominates the mean fit so heavily its refit-without
+residual is close to raw target variance. **The "terrain removal reduces clustering" anomaly does
+not survive a fair (same-band) comparison. It should be reported as resolved, not as an open
+question**, and this actually *strengthens* the Q1->Q2 argument link the chapter is going for
+(terrain genuinely does explain away real spatial structure; Q1 already showed this indirectly
+via the coarser EN-vs-XGBoost Moran's I response, this is the direct category-level
+confirmation). Caveat to carry over: single spatial-block split, one seed, not bootstrapped --
+same limitation the existing category-level numbers already carry, not a new one.
+
+**Recommended fix to the chapter text** (paragraph at line ~1005-1014): replace the
+"unexpectedly lowers... reported here as an open question" framing with the resolved account
+above, and swap in the fixed-band table (or its terrain/edge-effects rows) instead of the
+own-band 0.153/0.042 pair. Drop the "confirmed by re-running it 2026-08-19... no method caveat
+needed here" sentence -- that addendum confirmed the *function being called* was correct, not
+that the comparison was fair; the fixed-band check above is the thing that actually needed
+confirming, and now has been.
+
+---
+
+### 3. Boundary-distance claim (266-plot paragraph) is stale -- cites a retracted n=10 number at population scale
+
+Found via cross-check against `TEMP_rq3_outlier_diagnosis_results_2026-08-12.tex`. Chapter text
+(line ~1034-1038) states the population-wide 266-plot pattern sits "roughly three times closer
+to compartment or block boundaries than a typical plot (median 9.4m vs. 28.0m population-wide)."
+That 9.4m/28.0m ratio is from the original n=10 worst-residual check, not the n=266 population
+check. The source file re-ran this at n=266 scale and **explicitly walks the 3x figure back**:
+only ~2x closer at that scale (weaker), and `dist_to_forest_perimeter` specifically *reverses
+direction* (266-plot median 187.8m > population 165.7m -- flagged plots sit slightly further
+from the forest edge, not closer), with the source's own note: "The original 10 happened to
+over-represent forest-edge cases; that specific claim doesn't hold at scale." The chapter is
+currently citing the number the source itself retracted, in the population-wide sentence where
+it reads as if it were the population-wide finding. Fix: use the actual n=266 ratio (~2x, not
+3x) or drop the exact multiplier and keep only the qualitative "closer to boundaries" claim if
+the source's precise n=266 number isn't handy.
+
+---
+
+### 4. Omitted evidence that would strengthen the 266/709-plot argument (all present in the source, none in the chapter)
+
+From the same cross-check, three findings in `TEMP_rq3_outlier_diagnosis_results_2026-08-12.tex`
+that are stronger than what's currently in the chapter and support the "target-construction
+artifact, not ecology" conclusion the chapter already argues for:
+
+- **Cross-model over-representation**: the 266 flagged plots land in each model's own worst-1%/
+  worst-5% \|residual\| bucket at roughly 36x the chance rate -- independently in Elastic Net
+  (35.7%/59.0%), XGBoost (38.0%/61.3%), and GNNWR (37.6%/57.5%). Three structurally different
+  methods agree these are the hard plots. Stronger than the current "same ~ten plots recur"
+  sentence, which only checks recurrence across feature sets, not across model families.
+- **GNNWR local-coefficient null result**: flagged plots have ~2.7x higher prediction error
+  (21.12m vs. 7.70m) but their GNNWR local coefficients are indistinguishable from control
+  plots'. This is the single most direct piece of evidence for "target-construction artifact,
+  not real spatial/environmental signal" in the whole dataset -- GNNWR's own local weighting,
+  which is sensitive enough to catch topex's instability (Q2's local-coefficient CV table),
+  finds nothing unusual about these plots. Currently absent from the chapter; fits directly
+  after the fixed-k mechanism paragraph as corroboration.
+- **Sub-compartment clustering**: in all 6 heavily-flagged compartments, flagged plots cluster
+  tighter around each other than around their own compartment's centroid -- sharper than the
+  chapter's current "clustered by compartment" phrasing, which reads as compartment-level
+  (i.e. a whole-compartment clerical error) rather than localized-within-compartment (more
+  consistent with a boundary-redraw or local event, not a compartment-wide labelling mistake).
+
+---
+
+### 5. 6survey-vs-4survey homogeneity -- still unresolved, no saved output answers it
+
+User's Q2 ask: is 6survey "more homogeneous" (narrower environmental/spatial support) or just
+"smaller" (fewer plots, same support) -- these are different explanations and the chapter
+currently only offers "fewer compartments" (47 vs. 231) as a "plausible account... not
+confirmed." Checked `TEMP_rq3_compartment_archetype_check_2026-08-16.tex` as the most likely
+existing source -- it is 4survey-only (5 archetype classes, environmental means by archetype),
+contains no 6survey data at all, and does not bear on this question. No other saved output found
+that directly compares plots-per-compartment, environmental variance/range, or target variance
+between the two cohorts. This remains a genuine gap: either a real (cheap: groupby on already-
+loaded tables, no refit) diagnostic should be run, or the chapter's current hedged "plausible,
+not confirmed" framing should stay as-is and this should be named explicitly as a limitation
+rather than implied to be settled. Not run tonight -- flagging for a priority call given time
+budget, since it requires new code (comparing two cohort dataframes), not just reading an
+existing file.
+
+---
+
+### 6. Paragraph-by-paragraph audit (Phase 1)
+
+Overall finding: this chapter does **not** have the "restates table values" problem the generic
+audit brief was written to catch. It already reads as interpretation-first, consistently hedged
+("plausible," "not confirmed," "does not establish"), and most paragraphs already end with a
+tested-and-rejected or tested-and-partially-supported account rather than a bare number list.
+Most rows below are Keep. Flagged rows are the exceptions.
+
+| # | Section | Purpose | Repeats table? | Interpretation? | Verdict | Note |
+|---|---|---|---|---|---|---|
+| 1 | Chapter intro (779-784) | States Q1->Q2->Q3 argument | No | Yes | Keep | -- |
+| 2 | Q1 opener (795-797) | Names canopy/thinning as dominant | No | Yes (qualitative) | Keep | -- |
+| 3 | Canopy cover circularity check (818-834) | Tests + rejects target-leakage explanation | Partial | Yes | Keep | Numbers all load-bearing (effect size, ruling out a mechanism) |
+| 4 | Slope/topex stability (836-842) | Establishes the central Q1 contrast | Partial | Yes | Keep | -- |
+| 5 | Multicollinearity ruled out (844-854) | Tests + rejects VIF explanation | Partial | Yes | Keep | -- |
+| 6 | Spatial-confounding mechanism (856-872) | Proposes + partially evidences ICC account | Partial | Yes | Keep | Model of the template the user wants |
+| 7 | Moran's I response to env. data (874-892) | EN vs XGB divergence, CI caveat | Partial | Yes | Keep | -- |
+| 8 | "For Q1" synthesis (894-899) | Answers the question | No | Yes | Keep | -- |
+| 9 | Q2 opener (920-925) | Recaps Q1's EN/XGB Moran's I numbers as segue | **Yes, restates para 7's own numbers verbatim** | Weak | Shorten | Replace "(0.145 vs. 0.146... 0.103 vs. 0.054)" with a qualitative callback -- "Q1 showed XGBoost erased far more of this clustering than Elastic Net did" |
+| 10 | GNNWR results (946-969) | R2 + CI overlap + independent Moran's I corroboration + 6survey diagnostic | Partial | Yes | Keep | Long, but Q2 is meant to dominate length (PLAN.md decision); every number here is doing distinct work |
+| 11 | Reference-density PENDING (971-976) | Placeholder | -- | -- | Leave alone | Another session is actively filling this |
+| 12 | Ranking depends on cohort (978-993) | EN/XGB/GNNWR disagree on 6survey's top variable | Partial | Yes | Shorten slightly | "2.3x/2.6-2.7x/1.5x" could collapse to "consistently roughly double the next-largest variable" without losing the claim |
+| 13 | Category grouping + terrain-Moran's-I anomaly (995-1014) | Category-level attribution + the anomaly | Partial | Yes, but conclusion is wrong | **Rewrite** | See finding #2 above -- anomaly is resolved, not open |
+| 14 | Ten worst-fitting plots (1016-1038) | Traces fixed-k mechanism directly | Partial | Yes | Keep, but fix one number | Boundary-distance ratio is stale (finding #3); add GNNWR null result + cross-model over-representation (finding #4) here |
+| 15 | Population-scale 266/709 check (1040-1049) | Scales the mechanism to hundreds of plots | Partial | Yes | Keep | Compartment-clustering phrasing could sharpen per finding #4's sub-compartment point |
+| 16 | "For Q2" synthesis (1051-1059) | Answers the question | No | Yes | Keep | -- |
+| 17 | Q3 opener (1096-1100) | Frames the supplementary question | No | Yes | Keep | -- |
+| 18 | Headline claim (1102-1104) | States XGBoost wins, CR doesn't recover gap | Minimal | Yes | Keep | -- |
+| 19 | Fold-by-fold check (1132-1134) | Confirms the win isn't a fluke | Minimal, new number | Yes | Keep | -- |
+| 20 | Five ruled-out explanations (1136-1142) | Condenses ablations into "what was ruled out" | Necessary numbers only | Yes | Keep | Already exactly the format the user asked Q3 to use |
+| 21 | Remaining account + citation (1144) | States the surviving hypothesis, cited | No | Yes | **Fix citation** | `shwartzziv2021Tabular_C4_NN` has no entry in any `.bib` in the repo -- see finding #1 |
+| 22 | Row-level CR correction (1146-1156) | Bridges Q1/Q2 attribution to Q3 prediction | Necessary numbers only | Yes | Keep | Exactly the "bridge" the user's Q3 brief asked for; permutation control is the right move |
+| 23 | Evaluation-split effect (1158-1166) | Diagnoses split leakage via PINN control | Necessary numbers only | Yes | Keep | -- |
+| 24 | Physics-weight ablation (1168) | Tests + reports lambda sweep, names remaining gap | Necessary numbers only | Yes | Keep | -- |
+| 25 | "Answer to Q3" (1170-1171) | Synthesis | No | Yes | Keep | -- |
+| 26 | PINN forward-pass limitation (1173-1180) | Separates intended vs. evaluated architecture | No | Yes | Keep | Already does exactly what the user's PINN brief demanded -- scoped to "this implementation," explicit `\limit{}` tag, states it doesn't implicate Q1/Q2 |
+
+---
+
+### 7. Ranked open questions -- status after tonight
+
+- **A, resolved tonight**: terrain-removal Moran's I anomaly (finding #2).
+- **A, factual bug found and fix identified**: boundary-distance stale number (finding #3).
+- **A, evidence exists but isn't used**: cross-model over-representation, GNNWR local-coefficient
+  null result, sub-compartment clustering (finding #4) -- all in the source file already, just
+  needs writing in.
+- **A, compile-blocking, not yet fixed**: missing `.bib` file (finding #1).
+- **A, still genuinely open**: 6survey vs. 4survey homogeneity -- "smaller N" vs. "narrower
+  support" not distinguished by any saved output (finding #5).
+- **A, in progress elsewhere**: reference-density ablation -- another session is handling this,
+  intentionally not duplicated here.
+- **B/C, not attempted tonight per scope-down decision**: climate/soil coarse-grid diagnostics
+  (CoV, unique raster values, within/between-compartment variance), XGBoost SHAP interaction
+  deep-dive beyond what's already in the ruled-out list, k-refit test on flagged plots (PLAN.md
+  already records this as "parked, out of scope" -- not re-opened here), full literature search
+  for the other Phase-3 topics beyond the one citation already present.

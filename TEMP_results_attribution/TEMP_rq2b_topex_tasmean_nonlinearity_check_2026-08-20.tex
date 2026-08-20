@@ -1,0 +1,160 @@
+## topex / tas_mean nonlinearity + tas_mean ICC check (2026-08-20)
+
+Question: does Elastic Net's linear-only assumption explain topex's (and tas_mean's) sign
+instability, as a mechanism separate from / alongside the spatial-confounding (ICC) account
+already in the chapter? Checked directly, no retraining -- raw data only
+(`data/processed/environmental/plot_environmental_features.parquet`, 4survey, n=71,766).
+
+### Script (reproducible, no saved-model dependency)
+
+```python
+import pandas as pd
+import numpy as np
+from scipy import stats
+
+df = pd.read_parquet('data/processed/environmental/plot_environmental_features.parquet')
+sub = df.dropna(subset=['mean_cr_residual_4survey','tas_mean_4survey','topex','cpmt']).copy()
+
+# 1. coarseness
+print('tas_mean_4survey unique values:', df['tas_mean_4survey'].nunique(), '/', df['tas_mean_4survey'].notna().sum())
+print('topex unique values:', df['topex'].nunique(), '/', df['topex'].notna().sum())
+
+# 2. bivariate linearity check (Pearson vs Spearman)
+for col in ['tas_mean_4survey','topex']:
+    pear = stats.pearsonr(sub[col], sub['mean_cr_residual_4survey'])
+    spear = stats.spearmanr(sub[col], sub['mean_cr_residual_4survey'])
+    print(col, 'pearson', pear[0], 'spearman', spear[0])
+
+# 3. binned means (deciles) -- catches non-monotonic shape Spearman misses
+for col in ['tas_mean_4survey', 'topex']:
+    sub['bin'] = pd.qcut(sub[col], 10, duplicates='drop')
+    print(sub.groupby('bin', observed=True)['mean_cr_residual_4survey'].agg(['mean','count']))
+
+# 4. between-compartment variance share (ICC), same method as topex's existing 74% figure
+def icc(frame, col):
+    total_var = frame[col].var(ddof=0)
+    comp_means = frame.groupby('cpmt')[col].transform('mean')
+    return comp_means.var(ddof=0) / total_var
+
+for col in ['tas_mean_4survey','topex']:
+    print(col, 'between-compartment variance share', icc(sub, col))
+```
+
+### Results
+
+**Coarseness**: tas_mean_4survey = 149 distinct values / 71,766 plots (1km HadUK-Grid).
+topex = 16,839 distinct values / 71,766 (much finer).
+
+**Bivariate Pearson vs Spearman** (crude linearity check -- does NOT catch non-monotonic shape):
+- tas_mean_4survey: pearson r=0.2794, spearman rho=0.2733 -- nearly identical, no flag.
+- topex: pearson r=0.0803, spearman rho=0.0930 -- nearly identical, no flag.
+
+**Binned means** (10 deciles, x=variable value, y=mean of mean_cr_residual_4survey in that bin):
+
+topex deciles (low to high): -2.28, -0.43, -0.12, +0.35, -0.95, +1.34, +1.36, +1.39, +0.16, -0.92.
+Clearly non-monotonic -- down/up/down/up-plateau/down. Not a line, not even a single monotonic
+curve. This is why the crude Pearson/Spearman check above missed it: a wave that nets out near
+zero rank-correlation can still hide large local swings a linear coefficient cannot represent
+with one slope.
+
+tas_mean deciles (coldest to warmest): -3.95, -1.58, -0.85, +0.48, -0.28, +0.77, +0.99, +2.04,
++2.53, -0.09. Mostly rising, but reverses sharply at the warmest decile.
+
+**Between-compartment variance share (ICC)**, same method as the topex 74% figure already in the
+chapter (recomputed here too as a consistency check: 0.7428, matches):
+- topex: 0.7428 (matches chapter's existing 74%)
+- tas_mean_4survey: **0.8933** -- higher than topex, i.e. tas_mean is even more spatially
+  confounded with compartment structure than topex is.
+
+### Read
+
+Two separate, complementary (not competing) mechanisms for topex's EN instability:
+1. Spatial confounding (already in chapter): topex mostly varies between compartments, EN has no
+   random intercept to absorb that, LMM does.
+2. NEW, this check: topex's own relationship with the target is non-monotonic. A single linear EN
+   coefficient is an unstable summary of a wavy shape -- which fold's data samples more of the
+   "up" vs "down" segments can flip the fitted sign. LMM isn't immune to this either (it's still
+   linear in fixed effects) but its random intercept absorbs enough compartment-level structure
+   that the residual relationship it's fitting may be flatter than EN's -- not directly tested
+   here, flagged as a further check if wanted.
+
+tas_mean: both mechanisms apply, and more strongly on the ICC front (89% vs topex's 74%) --
+consistent with tas_mean also being EN-unstable (matches the chapter's own numbers: VIF 3.44,
+named as one of the unstable ones) and gives it an evidenced account, not just an assumed one.
+
+### Addendum (same day) -- soilgrids_ph + chelsa_bio12_precip_mm, completing the check
+
+Ran the same two diagnostics (binned deciles, ICC) on the remaining two named variables in the
+paragraph: soilgrids_ph (unstable) and chelsa_bio12_precip_mm (stable, the actual CHELSA/
+1981-2010 variable). This changes the reading.
+
+**soilgrids_ph**: 13 distinct values total (coarser than tas_mean's 149). ICC = 0.774. Binned
+means (5 bins, qcut collapsed from 10 due to few unique values): -3.18, +0.16, +1.17, +1.70,
+-0.30 -- rises then reverses at the top bin, same non-monotonic shape as topex/tas_mean.
+
+**chelsa_bio12_precip_mm** (stable): ICC = **0.973** -- higher than topex (0.743), tas_mean
+(0.893), AND soilgrids_ph (0.774). Binned means: 2.35, 2.21, 1.70, 1.37, 0.34, -0.45, -1.18,
+-1.21, -0.83, -4.57 -- close to monotonic decreasing, only one small local wiggle. Pearson
+-0.298, Spearman -0.364 -- clearly the strongest bivariate signal of all four variables checked.
+
+**Revised read**: ICC alone does not separate stable from unstable -- the highest-ICC variable of
+the four is stable. What differs: chelsa_bio12_precip_mm has a STRONG, near-linear relationship
+with the target; the three unstable variables (topex, tas_mean, soilgrids_ph) all have WEAK
+bivariate signal (Spearman 0.09-0.27, vs chelsa_bio12's 0.36) AND a non-monotonic/wavy shape.
+Weak + nonlinear -> unstable, regardless of ICC. Strong + near-linear -> stable, even under
+higher spatial confounding than any of the unstable ones. Matches the chapter's own existing
+slope_degrees-vs-topex point (weaker signal needs less confounding pressure to flip sign) --
+this generalises it to all four variables checked, with numbers.
+
+### Second addendum (2026-08-20, later) -- within-compartment decomposition supersedes the
+### "nonlinearity as a separate mechanism" framing above
+
+User's catch: LMM is also a LINEAR model (one coefficient per variable, no curve fit) -- if
+topex's raw non-monotonic shape were the reason EN is unstable, LMM should be unstable too. It
+isn't. The only structural difference between LMM and EN is LMM's compartment random intercept.
+So the "wave" found above is not necessarily a mechanism independent of spatial confounding --
+it may just be what spatial confounding LOOKS like in a raw, pooled bivariate plot.
+
+Tested directly: subtract each compartment's own mean from both the variable and
+mean_cr_residual_4survey (`x - groupby('cpmt').transform('mean')`, both sides), then redo the
+decile/correlation check on these WITHIN-compartment residuals. This is mechanically close to
+what a compartment random intercept absorbs.
+
+| Variable | Raw Spearman | Within-compartment Spearman | Within-compartment shape |
+|---|---:|---:|---|
+| topex | 0.093 | **0.210** (stronger) | Close to monotonic, one small dip -- the wave mostly disappears |
+| tas_mean_4survey | 0.273 | **0.082** (much weaker) | Roughly monotonic, but little signal left |
+| soilgrids_ph | 0.271 | **0.046** (near zero) | No clear shape, signal essentially gone |
+| chelsa_bio12_precip_mm (stable) | -0.364 | -0.114 (weaker, but real) | Still clean, monotonically decreasing |
+
+### Revised read (supersedes the "two independent mechanisms" framing above)
+
+Not two separate, complementary mechanisms (confounding + nonlinearity). One mechanism, three
+different flavours of it:
+
+- **topex**: real within-compartment signal EXISTS and is fairly clean/monotonic (0.210,
+  stronger than the raw 0.093) -- but EN fits the raw, pooled-across-compartments relationship,
+  which looks weaker and wavy because different compartments sit at different points on both
+  topex and the residual. LMM's random intercept removes this pooling artifact and sees the
+  cleaner within-compartment signal directly -- consistent with LMM's coefficient being strong
+  and stable.
+- **tas_mean, soilgrids_ph**: within-compartment signal nearly vanishes (0.082, 0.046) --
+  almost all of their raw bivariate correlation IS the between-compartment difference, not a
+  real, generalisable within-plot relationship. There is little genuine signal for any model to
+  stably estimate a coefficient from in the first place -- EN's instability here reflects real
+  signal scarcity, not (only) a shape problem.
+- **chelsa_bio12_precip_mm** (stable): retains real, clean, monotonic within-compartment signal
+  (-0.114) on top of very high between-compartment variance (0.97 ICC) -- enough genuine local
+  signal to anchor a stable EN coefficient even under heavy confounding.
+
+This is a cleaner, more mechanistically unified account than "confounding OR nonlinearity" --
+whether a variable's raw signal survives a within-compartment decomposition (topex,
+chelsa_bio12_precip_mm) or evaporates (tas_mean, soilgrids_ph) is what predicts EN stability,
+not the raw shape or the raw correlation size alone.
+
+### Caveat
+
+Bivariate/ICC only -- not the actual multivariate Set3/Set4 EN fit (which includes topex/
+tas_mean alongside every other predictor at once). Real, direct evidence, but complementary to,
+not proof of, the specific coefficient behaviour inside the full model. No SHAP-dependence
+(partial, multivariate-adjusted) version of this check has been run.
