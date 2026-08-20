@@ -35,9 +35,9 @@
 #   temp_results_pinn/outputs/full_rerun_cluster/fold_<i>/pinn_<variant>_fixed_summary.json
 #
 # Prerequisite (same as the production pinn_env_terrain job):
-#   outputs/spatial_block_kfold/chapman_richards/4survey/ must already exist on the cluster
-#   (frozen CR params, read-only here), and
-#   data/processed/environmental/plot_environmental_features.parquet must be present.
+#   outputs/spatial_block_kfold/chapman_richards_fold<i>/4survey/params.json must already exist
+#   on the cluster for each fold i in 0-4 (frozen CR params, one directory per fold, read-only
+#   here), and data/processed/environmental/plot_environmental_features.parquet must be present.
 
 #SBATCH --job-name=pinn_fix_temp
 #SBATCH --output=logs/temp_results_pinn/%x_%A_%a.out

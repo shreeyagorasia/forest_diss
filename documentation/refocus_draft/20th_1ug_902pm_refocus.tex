@@ -231,6 +231,28 @@ than introducing a separate comparison.}}
 \label{tab:rq-framework}
 \end{table}
 
+\begin{table}[!ht]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\linewidth}{@{} >{\raggedright\arraybackslash}p{0.20\linewidth} >{\raggedright\arraybackslash}p{0.24\linewidth} >{\raggedright\arraybackslash}X @{}}
+\toprule
+Choice & Alternative(s), not used & Why \\
+\midrule
+CR curve, target/baseline & other growth-curve shapes (Gompertz, logistic) & matches Forestry Commission's own yield-class system; needed for fair Q2 comparison against yield-class benchmark \\
+Spatial-block CV & random split; temporal split & compartments held whole, real management units, not random points; random/temporal kept only as separate leakage/robustness checks, not the main evaluation \\
+Elastic Net & plain Ridge; plain Lasso & Ridge alone: no sparse, "what matters" answer. Lasso alone: picks one of a correlated pair, drops the other, unstable pick. Elastic Net: sparse and stable together \\
+LMM & GAMLSS & real but moderate non-normal residuals (skew $-0.48$, excess kurtosis $0.74$); Python GAMLSS tooling too thin for the size of the problem; would need R or a fragile bridge, not worth the switch \\
+GNNWR, not classical GWR & fixed kernel shape and bandwidth & one bandwidth number picked in advance, same everywhere; real density gap by cohort (231+ vs.\ 47 compartments); GNNWR learns the weighting instead of guessing one number for the whole map \\
+GNNWR, not geographically weighted random forest & geographically weighted random forest & keeps one interpretable coefficient per variable per place; needed to compare directly against EN's and LMM's coefficients, e.g.\ the topex three-way comparison \\
+Fixed rate/shape ($p_4,p_5$), Q2 target & fit all three curve params freely, per plot & avoids overfitting short (4--6 survey) series; cost: forces curve-shape mismatch into the ceiling estimate, drives the extreme values found later \\
+Semivariogram-based Moran's $I$ & $k{=}8$ nearest-neighbour & $k{=}8$ only reaches $\sim$150--200m on this dense $\sim$20m grid, just next-door plots; real terrain/wind/climate structure resolves around 1{,}150--1{,}740m; the semivariogram reads the real scale off the data as a curve, instead of guessing a neighbour count \\
+\bottomrule
+\end{tabularx}
+\caption{\small{Main design choices and the alternatives not used.}}
+\label{tab:design-choices} %TODO, need to add in to relevant places in the methodology (or some of this can be in backgound)
+\end{table}
+
 \paragraph*{Data partitions and leakage control} The primary dataset used the four-survey cohort, while the smaller six-survey cohort served as a sensitivity check with longer observation histories. The unit of analysis varied by research question: Q1 and Q2 used a single aggregated value per plot, whereas Q3 evaluated individual plot-survey observations.
 
 Spatial-block cross-validation was the primary evaluation design. Whole forest compartments were assigned to folds, preventing the same compartment from appearing in both training and testing \cite{roberts2017Cross_C5_EVAL}. Training plots within 60\,m of a validation or test plot were also removed, while all held-out plots were retained. Five folds were balanced approximately by row count. In each rotation, one fold was used for testing, the following fold for validation and the remaining three for training. Each compartment was therefore tested once and predictions from the five test folds were pooled before calculating the overall metrics \cite{ploton2020Spatial_C5_EVAL}.
@@ -276,7 +298,9 @@ Comparing Elastic Net, mixed-model coefficients, and XGBoost SHAP values gives t
 %------------------------------------------------
 \section{Q2: Spatial attribution}
 
-Q1's global models leave significant spatial clustering in their residuals across every feature set (Section~\ref{sec:results-q1-attribution}). This motivates testing if letting the environment-deviation relationship vary across space captures patterns that global models miss. We use Geographically Neural Network-Weighted Regression (GNNWR) \cite{du2020Geographically_C6_GWR} rather than standard GWR because it avoids setting fixed distance kernels or bandwidths, and rather than spatial random forests because it keeps one linear coefficient per feature at each point, matching Q1's models (Section~\ref{sec:background-spatial-eval}). %TODO: potential flaw. 
+Q1's global models leave significant spatial clustering in their residuals across every feature set (Section~\ref{sec:results-q1-attribution}). This motivates testing if letting the environment-deviation relationship vary across space captures patterns that global models miss. We use Geographically Neural Network-Weighted Regression (GNNWR) \cite{du2020Geographically_C6_GWR} rather than standard GWR because it avoids setting fixed distance kernels or bandwidths, and rather than spatial random forests because it keeps one linear coefficient per feature at each point, matching Q1's models (Section~\ref{sec:background-spatial-eval}). Keeping the model linear is deliberate: it isolates spatial variation as one clean factor, separate from model flexibility, which Q1 already tested via XGBoost.
+
+\limit{GNNWR's coefficients are local, but still linear -- one straight line per variable per place, same as Elastic Net, not XGBoost. Q1 and Q3 both find real non-linear, interaction structure in this data. So an unstable or small local coefficient could mean a real spatial difference, or just a straight line fitting a curved relationship badly in that spot -- the two look the same from GNNWR's output alone. Does not affect the main R2 result (model form is held fixed on purpose, to isolate the spatial question); does limit how much any single local coefficient can be trusted on its own. GNNWR here also rescales one frozen global OLS fit per location (a learned multiplier per variable, not an independent local regression) -- a deliberate stability choice, common where local sample density varies, but a narrower constraint than "locally linear" alone implies.}
 
 Q2 fits a separate height ceiling for each plot while fixing the regional Forestry Commission rate and shape values. For plot $i$ at survey $t$, let:
 \begin{align}

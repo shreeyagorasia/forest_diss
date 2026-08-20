@@ -1476,16 +1476,32 @@ but leaves PINN's score essentially unchanged ($0.590$ vs.\ $0.584$) -- exactly
 as expected if terrain genuinely never reaches PINN's trunk to leak. Dropping
 the physics loss entirely closes most, though not all, of the DNN--PINN gap on
 4survey ($0.080$ down to $0.026$); the remaining $0.026$ is unresolved.
+Checked, does routing $y_{\max}^{(i)}/k^{(i)}$ into the prediction actually
+close the gap: a disconnected, isolated follow-up -- architecture and
+hyperparameters otherwise unchanged from the results above, no tuning
+applied, evaluated on the same 4survey spatial\_block\_kfold 5-fold split --
+lets the prediction trunk read $H_i = \text{CR}(y_{\max}^{(i)}, k^{(i)},
+\text{age}_i) + \text{trunk residual}_i$ instead of the trunk alone. Result:
+real, positive movement in both variants -- 4survey 5-fold mean $R^2$ rises
+from $0.573$ to $0.631$ ($y_{\max}$-only fix; recovers 71\% of the $0.082$
+gap to DNN's $0.655$) and from $0.575$ to $0.618$ ($y_{\max}{+}k$ fix;
+recovers 54\% of the $0.080$ gap) -- neither variant matches DNN outright,
+with no tuning applied to either.
 Scope: confined to how the PINN/PINN$_k$ trunk combines its sub-network
 outputs -- does not affect the CR baseline, Linear, RF, XGBoost, DNN, or the
 Q1/Q2 attribution models, none of which route information through this
-pathway. A fix was scoped (adding the CR curve evaluated at the per-plot
-parameters as an explicit prediction term) but not validated within this
-dissertation's timeframe; full architectural detail and the scoped fix are in
+pathway. This follow-up is disconnected from the pipeline that produced
+Table~\ref{tab:results-rq1} -- separate code, separate outputs, not wired
+into any reported number -- and untuned, single-seed, 4survey only; full
+architectural detail and the fixed implementation are in
 Appendix~\ref{chap:appendix}.
-\limit{The results above describe the architecture actually evaluated, not the
-originally intended one -- a corrected implementation could behave
-differently, in either direction, untested here.}
+\limit{The fix closes most, not all, of the gap to DNN, and was tested only
+as a disconnected, untuned, single-seed follow-up (5-fold
+spatial\_block\_kfold, 4survey only) -- not extended to 6survey, not
+hyperparameter-tuned, and not wired into this chapter's reported pipeline.
+Whether tuning would close the remaining gap, and whether the CR term
+contributes real signal or the larger-capacity residual network routes
+around it, are both untested.}
 
 
 
@@ -1595,10 +1611,25 @@ differently, in either direction, untested here.}
 % run-to-run variation between two structurally different networks; not settled further
 % here.
 %
-% -- Scoped fix, full description --
-% A fix was scoped -- adding the CR curve evaluated at the per-plot parameters as an
+% -- Scoped fix, tested as a disconnected follow-up (2026-08-20) --
+% The scoped fix -- adding the CR curve evaluated at the per-plot parameters as an
 % explicit term in the prediction, with the trunk contributing a residual on top of it --
-% but was not validated within the timeframe of this dissertation.
+% was implemented and tested, but only as an isolated, disconnected experiment: separate
+% code (temp_results_pinn/pinn_env_terrain_fix/), separate outputs, no hyperparameter
+% tuning, single seed, 4survey only, not wired into this chapter's reported pipeline or
+% Table tab:results-rq1. Local smoke tests confirmed terrain reaches the prediction and
+% the CR curve behaves correctly at its boundaries before any real-data run. Evaluated on
+% the same 4survey spatial_block_kfold 5-fold split as the headline table, at matched
+% production settings (max_epochs=500, patience=40): y_max-only fix raises 5-fold mean R2
+% from 0.573 to 0.631 (71% of the 0.082 gap to DNN's 0.655 recovered); y_max+k fix raises
+% it from 0.575 to 0.618 (54% of the 0.080 gap recovered). Neither beats DNN outright.
+% Per-fold: y_max-only R2 = 0.674, 0.637, 0.616, 0.602, 0.626 (folds 0-4); y_max+k R2 =
+% 0.649, 0.635, 0.601, 0.597, 0.607. Untested: whether tuning the fixed architecture
+% would close the remaining gap; whether the CR term contributes real signal or the
+% larger-capacity residual network routes around it (PLAN.md's own "Mistake #4"); 6survey;
+% extrapolation risk on out-of-range terrain (PLAN.md's "Mistake #5"). Full method and
+% results: temp_results_pinn/QUICKTEST_RESULTS_2026-08-20.md (40-epoch quicktest) and
+% temp_results_pinn/outputs/full_rerun/, full_rerun_cluster/ (full-epoch 5-fold rerun).
 % =====
 
 %=======================================================================================
