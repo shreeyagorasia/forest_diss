@@ -1,0 +1,202 @@
+% =============================================================================
+% Working extract -- Results, Q2 section only.
+% Extracted from documentation/refocus_draft/20th_1_31_pm_audited.tex on 2026-08-21.
+% Content fragment, NOT a standalone compilable document -- equations/labels it
+% references (e.g. eq:mean-cr-residual, eq:cr) are defined in that file's
+% Methodology chapter, not here.
+% Purpose: isolated iteration on this Q's Results section (claim verification +
+% rewrites) without touching the shared main file. Merge back into
+% 20th_1_31_pm_audited.tex once settled -- do not edit the main file's copy of
+% this section while this working copy is in progress, to avoid divergence.
+% =============================================================================
+
+%=======================================================================================
+% ===================================================================================
+% PLANNING NOTES -- Q2 headline structure, plan-sentence mode (2026-08-21)
+% Not chapter prose -- a working scaffold to rewrite the prose below FROM. Four blocks,
+% two co-equal threads (spatial test + attribution) plus a caveat and a nuance that sit
+% next to the thread they qualify, not ranked/buried. Format: Result -> candidate
+% explanations (checked, ruled out where possible, marked combinable where they're not
+% mutually exclusive) -> Figure -> how I'd talk about it. Delete this block once the
+% prose below is rewritten to match it.
+%
+% --- THREAD A: does a location-aware model actually help? (RQ 2.1, "test") ---
+% Result: a location-aware model (GNNWR) modestly outperforms both forest-wide models,
+%   and two independent diagnostics agree on it -- that agreement is the actual finding.
+% Candidate explanations / checks:
+%   - R2 point estimate higher for GNNWR, every 4-survey set (CONFIRMED, but CIs overlap
+%     -- Set4: GNNWR [0.236,0.347] vs EN [0.192,0.286] -- weak/directional alone)
+%   - Residual Moran's I drops further under GNNWR than best global baseline, every
+%     4-survey set (-24% to -32%, p=0.001) -- independent corroboration (CONFIRMED,
+%     strengthens the R2 reading above)
+%   - Alternative: the Moran's I reduction could just be a locally-linear fit absorbing
+%     structure differently, not genuine spatial non-stationarity (OPEN, not ruled out
+%     -- read Panel B as suggestive, not confirming, per existing AUDIT comment below)
+%   - 6-survey collapse candidate cause = sample size alone (RULED OUT -- downsampling
+%     4survey to matched point counts did not trigger a collapse, R2 stayed 0.12-0.34);
+%     true cause (fewer compartments?) remains OPEN, unresolved
+% Figure: Q2 Figure 1, Panels A+B.
+% How I'd talk about it: point-estimate alone reads as "GNNWR wins" -- lead with why
+%   that's weak (CI overlap), then bring in Panel B as the thing that actually makes it
+%   credible, then flag 6survey as unresolved rather than contradictory.
+%
+% --- CAVEAT (sits next to Thread A, not buried later) ---
+% Result: Delta y_max is not a clean, isolated "ceiling" measurement -- it's better read
+%   as a stand-in for the whole trajectory's deviation from expected growth, because
+%   growth-rate and ceiling differences aren't separable with only 4-6 points per plot.
+% Candidate explanations for the growth-mismatch correlation (r=0.51 Pearson / 0.61
+%   Spearman, FULL ~56k-plot population -- new this session, not yet in any draft):
+%   - Real correlated site-quality effect: better conditions plausibly raise growth rate
+%     and ceiling together (OPEN, plausible, not ruled out)
+%   - Fixed-p4/p5 estimator smearing rate mismatch into the ceiling estimate (OPEN,
+%     plausible, not ruled out)
+%   - Tail-only artifact, bulk of data unaffected (RULED OUT -- correlation essentially
+%     unchanged, 0.509 -> 0.525 Pearson, with the flagged plots excluded entirely)
+%   - The first two explanations are NOT mutually exclusive -- both likely contribute
+%     simultaneously; this data can't separate them (would need a longer series or a
+%     simulation with known ground truth)
+% Figure: PROPOSED Q2 Figure 1, Panel C (currently a standalone diagnostic PNG --
+%   TEMP_results_attribution/TEMP_q2_growth_mismatch_vs_delta_ymax_2026-08-21.png --
+%   not yet a numbered chapter figure). Same figure as Panels A/B so the qualifier sits
+%   right where the claim is made.
+% How I'd talk about it: "here's what the R2/Moran's I above are actually explaining --
+%   and why the extreme values later aren't a sign the target is broken, just that the
+%   estimator is imprecise for short records."
+%
+% --- NUANCE (do the extreme cases undercut Thread B?) ---
+% Result: extreme flagged values aren't just noise -- roughly 3/4 fit the estimator-
+%   artifact story, but a genuine 1/4 look like real environmental signal, not fake.
+% Candidate explanations for the 250 flagged plots with enough data to test (mutually
+%   exclusive -- each plot falls into exactly one, not combinable):
+%   - Artifact-driven: grows slower than yield-class benchmark, forcing an inflated
+%     ceiling (CONFIRMED for 179/250, 71.6% -- exposed terrain, median topex -5.48,
+%     p=0.0007 for chronic wind exposure)
+%   - Genuinely fast growth: matches/exceeds benchmark, does not fit the artifact
+%     signature (CONFIRMED for 71/250, 28.4% -- sheltered terrain, median topex +2.58,
+%     p=0.0002; more recent/frequent thinning, p=0.051)
+%   - Note: this recomputation flags 250/56,114 (0.43%) vs the chapter's own 266
+%     (0.47%), same Tukey-fence method -- OPEN, unreconciled discrepancy, not resolved
+% Figure: the deviation-map/archetype-map/trajectory composite below (currently also
+%   labelled "Q2 Figure 2" -- COLLIDES with Thread B's figure label below, rename one
+%   before this goes further).
+% How I'd talk about it: walk the map (where) -> archetype classes (what pattern) ->
+%   trajectory panel (why -- one visual per mechanism) -> land on "roughly 3 in 4
+%   flagged plots are a fitting artifact, but 1 in 4 are real."
+%
+% --- THREAD B: what does the spatial variation attribute growth to? (RQ 2.1/2.2,
+%     "attribution" -- co-equal with Thread A, not supporting colour under it) ---
+% Result: canopy density is the strongest, most consistent driver, agreed on by every
+%   method. Terrain matters moderately and consistently. Soil is indistinguishable from
+%   noise.
+% Candidate explanations / checks:
+%   - Convergent ranking across 3 independent methods (EN coefficients, XGBoost
+%     SHAP/gain, GNNWR) -- canopy cover ranks first on 4-survey (CONFIRMED)
+%   - 6-survey disagreement candidate cause: genuine cohort difference (OPEN) vs
+%     XGBoost's near-zero R2 there making its own ranking untrustworthy (CONFIRMED as
+%     at least a contributing factor -- R2 = 0.015-0.086 on 6survey, all sets)
+%   - GNNWR local-coefficient stability: CanopyCover positive in 100% of compartments
+%     (CONFIRMED stable); topex only 72% (genuinely mixed spatial effect OR a linear
+%     model straining against a non-linear relationship -- OPEN, can't fully separate)
+%   - NEW this session, live-computed across all 19 Set4 coefficients: slope_degrees
+%     (97% same-sign) and windward_topex (92%) are ALSO highly stable -- better 3rd-map
+%     candidates than plain topex, which is the least stable variable actually plotted
+%     (OPEN opportunity, not yet acted on)
+% Caveat: no figure yet shows the 3-method rank-agreement claim itself -- text-only
+%   right now (this was the "R3-3" item marked optional/cut in the notebook's own plan).
+%   Coefficient maps are also single-seed (seed 42) -- no reseed check exists for
+%   4-survey, unlike the 6-survey R2 cell, which IS 3-seed reseeded. Undisclosed gap.
+% Figure: the local-coefficient-map figure (currently CanopyCover + topex maps) --
+%   COLLIDES with the Nuance block's figure label above, both currently "Q2 Figure 2".
+% How I'd talk about it: "GNNWR is the only model in this chapter that can produce
+%   this -- here's literally what a spatially-varying coefficient looks like, not just
+%   a sentence claiming one exists."
+% ===================================================================================
+
+\section{Q2: Spatial attribution}
+Q1 showed that global models leave notable spatial clustering in the residuals, with XGBoost removing far more autocorrelation than Elastic Net with added environmental data. Q2 directly tests whether letting these relationships vary spatially captures what global models miss (Table~\ref{tab:results-q2}).
+\begin{table}[!htbp]
+\centering
+\scriptsize
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lllllll}
+\toprule
+Set & EN 4survey [CI] & EN 6survey & XGB 4survey [CI] & XGB 6survey & GNNWR 4survey [CI] & GNNWR 6survey \\
+\midrule
+Set2 & 0.286 [0.241, 0.325] & 0.057 & 0.266 [0.214, 0.308] & 0.031 & 0.320 [0.270, 0.369] & $-0.044$ / 0.014$\pm$0.053 \\
+Set3 & 0.274 [0.223, 0.316] & 0.031 & 0.281 [0.235, 0.320] & 0.086 & 0.319 [0.263, 0.365] & 0.058 / 0.054$\pm$0.055 \\
+Set4 & 0.240 [0.192, 0.286] & 0.056 & 0.250 [0.201, 0.295] & 0.015 & 0.294 [0.236, 0.347] & $-0.075$ / 0.002$\pm$0.068 \\
+\bottomrule
+\end{tabular}
+\caption{\small{Attribution of the plot-specific asymptote deviation
+(Equation~\ref{eq:local-ymax-diff}), spatial-block split. 6survey GNNWR column shows
+seed-42 point estimate / three-seed mean$\pm$SD.}}
+\label{tab:results-q2}
+\end{table}
+
+GNNWR's best point estimate ($R^2=0.320$, Set2) is also modest in absolute terms: roughly two-thirds of the variation in $\Delta y_{\max}$ remains unexplained even by the best-performing spatial model. As in Q1, $R^2$ here is not directly comparable to Q1's or Q3's own values, since each predicts a different target.
+
+\textbf{GNNWR outperforms both global baselines on every 4-survey set by point estimate, but the advantage is not statistically distinguishable: bootstrap confidence intervals overlap in every set.} GNNWR achieves higher point estimates than both global baselines across all 4-survey sets, though bootstrap confidence intervals overlap in every set (Set~4: GNNWR [0.236, 0.347] vs.\ EN [0.192, 0.286]). Residual autocorrelation is directionally consistent with this advantage: GNNWR reduces Moran's $I$ beyond the best global baseline across all 4-survey sets (Set~2: $-32.0\%$; Set~3: $-24.7\%$; Set~4: $-23.7\%$; $p = 0.001$). % AUDIT: this is corroborating, not confirming, evidence -- GNNWR fits one linear coefficient per location, so an unstable local coefficient (or a real spatial pattern) can both look the same in a Moran's I reduction; a lower Moran's I on its own does not prove the R2 edge reflects genuine spatial non-stationarity rather than a locally-linear fit absorbing residual structure differently than a global model would. Read as suggestive, not conclusive, corroboration.
+On the 6-survey set, the diagnostic is uninformative because semivariograms fail to resolve, leaving no clear spatial signal to evaluate. \textbf{6-survey's collapse is genuinely unexplained: sample-size alone has been tested and ruled out, but no alternative cause has been confirmed.} While spatial models are sensitive to sample density \cite{brunsdon1996Geographically_C6_GWR} and the 6-survey cohort spans far fewer compartments (47 vs.\ 231), downsampling 4-survey reference points down to 7,500 failed to trigger a similar collapse ($R^2$ stayed positive at 0.12--0.34). Having fewer points alone does not explain the collapse, the ablation reduced point counts evenly across all compartments, whereas the 6-survey dataset is restricted to far fewer compartments to begin with. % AUDIT: this rules out sample size as a *sufficient* cause but does not identify what does explain the collapse -- remains an open limitation, not a resolved one.
+
+\textbf{The same $\sim$10 plots produce the largest residuals across nearly every feature set, cohort, and model family -- a target-construction artifact, not poor feature selection or random noise.}
+The same $\sim$10 plots consistently produce the largest residuals across nearly every feature set and cohort, ruling out poor feature selection as the cause. This recurrence holds across independent model families: flagged plots fall into the worst 1\% and worst 5\% absolute residual buckets at roughly 36 times the rate expected by chance across Elastic Net (35.7\%/59.0\%), XGBoost (38.0\%/61.3\%), and GNNWR (37.6\%/57.5\%).  None of these 10 plots trigger standard data-cleaning filters for disturbance, measurement anomalies, or trajectory instability. Instead, inspecting their trajectories reveals two distinct causes. Half display smooth, consistent growth whose large deviations reflect a mismatch with the baseline yield-class lookup rather than faulty raw heights. The remaining half show sub-threshold curve instability across survey years, producing implausible fitted asymptotes (up to 116\,m despite raw heights of 38.9--46.8\,m). Tracing these asymptotes back to the fitting procedure confirms the mechanism: because the closed-form curve holds the growth-rate parameter fixed to the assigned yield class, a plot growing slower or flatter than assumed is forced into an inflated asymptote. This issue stems directly from target construction rather than raw data quality, meaning simple height filters cannot detect it. Although GNNWR shows 2.7 times higher error on these flagged plots (21.12\,m vs.\ 7.70\,m), its local coefficients remain identical to control plots. This confirms that the large errors are target-construction artifacts rather than real environmental or spatial anomalies.
+%TODO add these rules to the methodlogy
+
+\textbf{The pattern scales well beyond 10 plots: a Tukey-fence check flags 266 plots (4-survey) and 709 plots (6-survey), clustered within compartments, and removing them does not improve model performance.}
+These flagged cases extend beyond a few isolated outliers: a Tukey-fence check on fitted asymptotes flags 0.47\% of the 4-survey cohort (266 plots) and 5.32\% of the 6-survey cohort (709 plots). These plots cluster tightly within their compartments rather than dispersing evenly, pointing to localised conditions rather than compartment-wide labelling errors. However, removing flagged plots does not improve performance: pooled $R^2$ barely shifts in the 4-survey set ($-0.002$) and worsens in the 6-survey set (Elastic Net $-0.027$, XGBoost $-0.037$). Dropping them removes usable signal rather than cleaning noise. None of the 266 plots trigger flags for clearfelling or measurement error, ruling out abrupt catastrophes while leaving chronic, sub-threshold effects possible.
+
+Two further checks test whether these implausible ceilings trace to specific data artefacts rather than the fixed-$k$ mechanism alone. First, refitting each flagged plot's ceiling with its 2008 survey excluded (the earliest 4-survey year, at a known survey-coverage-expansion boundary) moves 236 of 266 plots (89\%) closer to their yield-class expectation -- a real, minor contributing factor, but not large enough to justify excluding 2008 rows from the fit generally, since most of the implausibility remains even without that survey. Second, flagged plots sit roughly twice as close to their compartment and block boundaries as the population median (weaker than an original $\sim$3$\times$ estimate from a much smaller, 10-plot sample, but still real and directional); distance to the outer forest perimeter specifically does not generalise the same way -- the 266-plot median (187.8\,m) is actually farther from the forest edge than the population median (165.7\,m), reversing what the original 10-plot sample suggested. Neither check changes the fixed-$k$ conclusion above; both are minor, partially confirming contributing factors rather than alternative explanations.
+
+\textbf{Testing the fixed-$k$ mechanism against the full flagged population, not just a handful of examples, splits it into two mechanistically distinct groups: most (71.6\%) show the fixed-$k$ artifact signature and sit on exposed terrain; the rest (28.4\%) look like genuinely fast growth on sheltered terrain.}
+This test used a separate, independent recomputation of the Tukey-fence flag rather than the original 266-plot count above -- 250 plots (0.43\% of the cohort), close to but not identical to 266 (0.47\%) because of a minor difference in filtering population between the two computations. The two counts are not meant to match exactly; this test still covers effectively the whole flagged population, not a cherry-picked handful. % AUDIT: the two Tukey-fence recomputations (266 vs. 250) were never reconciled to a single exact count -- both are individually verified against their own source files, and the gap is disclosed as a "minor methodology difference," but neither session traced exactly which ~16 plots differ or why.
+Testing whether the fixed-$k$ mechanism applies across the broader flagged set reveals two distinct groups rather than a single artifact:
+\begin{itemize}
+    \item \textbf{Artifact-driven subset (71.6\%, 179/250):} Plots growing slower than their assigned yield-class benchmark show the direct signature of the fixed-$k$ constraint, where slow growth forces an inflated asymptote. These plots are concentrated on exposed terrain (median $\mathit{topex}$ $-5.48$) with modest evidence of chronic wind exposure ($p = 0.0007$).
+    \item \textbf{Fast-growing subset (28.4\%, 71/250):} Plots whose observed growth matches or exceeds the benchmark curve do not fit the fixed-$k$ artifact explanation. These plots sit in sheltered terrain (median $\mathit{topex}$ $+2.58$, $p = 0.0002$) and have more recent, frequent thinning ($p = 0.051$), suggesting genuinely accelerated growth under favorable local conditions.
+\end{itemize}
+The fixed-$k$ curve-fitting artifact explains most flagged asymptotes in exposed terrain, whereas extreme asymptotes in sheltered areas likely reflect true rapid growth rather than fitting errors (full diagnostics are detailed in Appendix~\ref{app:flagged-plot-split}).
+
+\textbf{Canopy cover ranks first on 4-survey across three converging methods; the 6-survey ranking disagrees, but its XGBoost fit is too weak to trust.}
+Variable importance rankings vary by cohort: canopy cover ranks first in the 4-survey cohort across three converging attribution metrics (Elastic Net coefficients, XGBoost gain importance, and SHAP values), whereas XGBoost disagrees with Elastic Net and GNNWR on the 6-survey cohort. However, because XGBoost achieves near-zero $R^2$ on the 6-survey data (Table~\ref{tab:results-q2}: 0.015--0.086, all sets), its attribution rankings there warrant less confidence. Given GNNWR's established instability on the 6-survey subset, the 4-survey cohort provides the more reliable baseline for addressing Q2's spatial questions. Grouping Set~4 predictors into categories confirms that stand structure dominates overall importance (roughly $3\times$ the next-largest category). Among abiotic groups, terrain provides the largest contribution, while soil is indistinguishable from noise, aligning with the individual variable results above (category-level Moran's $I$ diagnostics, including an adjustment for a bandwidth artifact in the terrain check, are reported in Appendix~\ref{chap:appendix}).
+
+\subsection*{Conclusion}
+Results are consistent with environmental relationships varying spatially, provided there are enough nearby training plots for the spatial-weighting network to learn reliable local patterns -- though this rests on a directional $R^2$ edge with overlapping confidence intervals, corroborated but not confirmed by GNNWR's larger Moran's $I$ reduction (see caveat above). Because having fewer training plots alone does not cause the 6-survey collapse, the difference between cohorts is not just an artifact of total sample size, though what does explain it remains unresolved. Three distinct attribution methods agree that most extreme $\Delta y_{\max}$ deviations arise from target construction under a fixed growth rate rather than real environmental or spatial signal: GNNWR finds normal local coefficients at these locations despite their much larger error, direct evidence against a real cause for that majority.
+
+% AUDIT: added point, not in the original text -- the artifact mechanism itself is not random. The artifact-driven subset is concentrated on exposed terrain (median topex $-5.48$, $p=0.0007$), meaning the fixed-$k$ artifact and a real environmental variable (wind exposure) are confounded with each other: slow growth on exposed terrain both triggers the artifact (via the fixed growth-rate assumption) and is itself plausibly a real biological effect of exposure. When EN/XGBoost/GNNWR attribute $\Delta y_{\max}$ to terrain or wind variables, some unknown share of that attribution could reflect the models learning to predict *when the artifact fires*, not learning genuine biological ceiling differences. Testing whether flagged and unflagged plots respond to wind/terrain variables with different coefficients (not attempted here) would be needed to separate these two readings.
+This mechanism accounts for most, but not all, outliers: unexplained cases sit in sheltered terrain, without the same wind-exposure account. Extreme $\Delta y_{\max}$ values must therefore be interpreted cautiously, as a mix of curve-fitting artifacts and genuine biological growth that this chapter cannot yet fully separate.
+
+The outlier findings above sit alongside the headline $R^2$ numbers, not in tension with them. Of the 56,526 plots in the disturbance-cleaned 4-survey population, 266 (0.47\%) are Tukey-flagged; the remaining 55,849 within Set4's own modelled population (a further, small reduction from Set4's own feature-completeness requirement) is exactly what the headline Set2--4 $R^2$ values already describe: modest but real signal, neither zero nor spectacular. XGBoost's own prediction error across this majority has a median of 6.0\,m, spanning roughly 1.1\,m at the 10th percentile to 15.8\,m at the 90th -- most plots are neither perfectly predicted nor wildly wrong, consistent with an $R^2$ in the 0.24--0.32 range rather than either extreme. The outlier analysis isolates a separate, narrower phenomenon (a target-construction artifact concentrated in a small tail) sitting on top of that general relationship, not replacing or undermining it.
+
+
+\fig{\textbf{Q2, Figure 1 -- GNNWR edge/spatial-structure/local-coefficient
+composite.} Three panels. Panel A: pooled R2 by set and model (EN/XGBoost/GNNWR),
+point+CI, 4survey only. Panel B: residual Moran's I by set/model, 4survey only (mark
+6survey's cells as unresolved/not-significant rather than plotting a misleading point
+value) -- the independent corroboration for Panel A's edge, and the reason 6survey is
+absent rather than shown as a contradictory result. Panel C: a spatial map of GNNWR's
+own per-plot local
+coefficient for \texttt{CanopyCover} (its top-ranked variable), coloured by
+coefficient value -- the only way to show what "spatially-varying coefficient" means
+concretely, no prose substitutes for seeing it vary across Aberfoyle. Establishes:
+Panel B is a diagnostic that exists nowhere else visually; Panel C is the one thing in
+the whole chapter that only GNNWR can produce. Answers Q2 items 2--3.}
+
+\fig{\textbf{Q2, Figure 2 -- deviation map/archetype map/trajectory composite,
+including the 266-plot pattern.} Three panels. Panel A: a map of
+\texttt{local\_y\_max\_difference} across 4survey, coloured by deviation
+magnitude/sign, with the 266 Tukey-fence-flagged plots marked with a distinct
+outline/marker -- the direct visual for "the pattern scales to hundreds of plots,
+clustered by compartment" (item 6), and shows at a glance whether it clusters
+spatially. Panel B: the compartment archetype map (the six classes from item 9), same
+geography, so a reader can cross-reference Panel A's raw deviation against Panel B's
+classification directly. Panel C: small-multiples trajectories, one per archetype,
+observed height vs.\ age (grey), the fitted local curve, and the yldc benchmark curve
+overlaid -- the only way to make "smooth-but-offset" vs.\ "moderately unstable"
+concrete rather than a label. Establishes: this figure is what lets the outlier-plot
+prose (items 4--9, currently the densest part of the chapter) shorten, rather than the
+other way round. Answers Q2 items 4--6, 9.}
+
+
+
+
+%=======================================================================================

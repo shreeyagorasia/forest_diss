@@ -23,12 +23,20 @@ COLOR_EXAMPLE_4SURVEY = "#CC79A7"
 COLOR_EXAMPLE_6SURVEY = "#56B4E9"
 
 # --- Model colours (new for the results chapter, kept fixed everywhere a model appears) ---
-COLOR_XGBOOST = COLOR_CURVE      # "#D55E00" -- vermillion
 COLOR_DNN = COLOR_TRAIN          # "#0072B2" -- blue
 COLOR_PINN = COLOR_TEST          # "#009E73" -- green
 COLOR_PINN_K = "#00594A"         # darker tint of COLOR_TEST, for PINN's own two-parameter variant
-COLOR_EN = COLOR_EXAMPLE_4SURVEY  # "#CC79A7" -- reddish purple
-COLOR_GNNWR = "#F0E442"          # Okabe-Ito yellow -- unused elsewhere in the palette
+
+# 2026-08-21: EN/XGBoost/GNNWR moved off the Okabe-Ito palette (was pink/orange/yellow -- flagged
+# as visually confusing, and the 8-colour Okabe-Ito set was already fully claimed by the other
+# role/split colours above, leaving no room to pick 3 more distinct hues within it). No longer
+# constrained to a colorblind-safe palette by request -- picked purely for mutual distinctness
+# from each other and from every colour already in use above (blue/orange/green/grey/vermillion/
+# reddish-purple/sky-blue). Lightened to pastel tints same day after the first pass (firebrick/
+# violet/navy) was flagged as too dark.
+COLOR_XGBOOST = "#E8817A"        # pastel coral red
+COLOR_EN = "#B892C9"              # pastel purple
+COLOR_GNNWR = "#7FC9C4"          # pastel teal
 
 MODEL_COLORS = {
     "XGBoost": COLOR_XGBOOST,
