@@ -1,0 +1,861 @@
+% MSc dissertation example file, February 2022
+%
+% Leave one of the documentclass lines uncommented to match your degree.
+% You may remove the logo option if it causes problems.
+% Do not change any other options.
+% \documentclass[logo,msc,adi]{infthesis}     % Adv Design Inf
+% \documentclass[logo,msc,ai]{infthesis}      % AI
+% \documentclass[logo,msc,cogsci]{infthesis}  % Cognitive Sci
+% \documentclass[logo,msc,cs]{infthesis}      % Computer Sci
+% \documentclass[logo,msc,cyber]{infthesis}   % Cyber Sec
+% \documentclass[logo,msc,datasci]{infthesis} % Data Sci
+% \documentclass[logo,msc,di]{infthesis}      % Design Inf
+% \documentclass[logo,msc,dsti]{infthesis}    % Data Sci TI
+% \documentclass[logo,msc,inf]{infthesis}     % Informatics
+\documentclass[logo,msc,ai]{infthesis}           % degree unspecified, do not change except to add your degree
+%%%%%%%%%%%%%%%%%%%%%%%%
+% Understand any problems and seek approval before assuming it's ok to remove ugcheck.
+% \usepackage{msccheck}
+\usepackage{msccheck} 
+
+% Include any packages you need below, but don't include any that change the page
+% layout or style of the dissertation. By including the ugcheck package above,
+% you should catch most accidental changes of page layout though.
+
+\usepackage{microtype} % recommended, but you can remove if it causes problems
+\usepackage{xcolor} %remove later this is used for helping edit and draft
+\usepackage{caption}
+\usepackage{subcaption} %subcaptions for plots and figures next to each other. 
+\usepackage{amsmath}  %Check we are allowed
+\usepackage{amssymb} %Check we are allowed
+\usepackage{amsfonts} %Check we are allowed
+\usepackage{booktabs} %Check we are allowed
+\usepackage{graphicx} %Check we are allowed
+\usepackage{tabularx}
+\usepackage{float}
+\usepackage{underscore} %Check we are allowed
+
+
+%%% Colour commands - delete for final draft 
+% - Editing Macros (Hierarchy of Importance) -
+% 1. FACT CHECK (Critical): Red commands immediate attention for potential inaccuracies.
+\newcommand{\fc}[1]{\textcolor{red}{[FactC: #1]}} 
+% 2. CITE (High): Orange highlights missing evidence or attribution.
+\newcommand{\ct}[1]{\textcolor{orange}{[CITE: #1]}} 
+% 3. APPENDIX (Medium): Blue indicates structural moves (shifting text out of the main body).
+\newcommand{\app}[1]{\textcolor{blue}{[APP: #1]}} 
+% 4. SMALL REWORD (Low): Teal is for minor stylistic edits, mirroring your friend's setup.
+\newcommand{\sr}[1]{\textcolor{teal}{[Sreword: #1]}}
+% 5. FIGURE (Low): Purple is for figure-related notes (refer to figure, create figure, etc.).
+\newcommand{\fig}[1]{\textcolor{purple}{[FIG: #1]}}
+% 6. redraft (Low): fix immediadtely marker suggestions and corrections
+\newcommand{\fiximm}[1]{\textcolor{brown}{[AI: #1]}}
+% 7. LIMITATION (Low): Move to limiations 
+\newcommand{\limit}[1]{\textcolor{cyan}{[LIM: #1]}}
+
+%=======================================================================================
+\begin{document}
+\begin{preliminary}
+
+\title{Physics-informed prediction and spatial attribution of forest top-height growth using repeated LiDAR surveys}
+%TODO: DRAFT DIFFERENT VERSIONS OF THE TITLE AND PICK AGAIN AT THE END
+
+\author{Shreeya Gorasia}
+
+\date{\today}
+%=======================================================================================
+
+\abstract{TODO: FILL IN}
+
+%TODO: writing: Comeback to this section when the entire report is done 
+%=======================================================================================
+
+\maketitle
+
+\newenvironment{ethics}
+   {\begin{frontenv}{Research Ethics Approval}{\LARGE}}
+   {\end{frontenv}\newpage}
+
+\begin{ethics}
+This project was planned in accordance with the Informatics Research
+Ethics policy. It did not involve any aspects that required approval
+from the Informatics Research Ethics committee.
+
+\standarddeclaration
+\end{ethics}
+
+%TODO: writing: Comeback to this section when the entire report is done 
+%=======================================================================================
+
+\begin{acknowledgements}
+Any acknowledgements go here.
+\end{acknowledgements}
+
+%TODO: writing: Comeback to this section when the entire report is done 
+%=======================================================================================
+
+\tableofcontents
+\end{preliminary}
+
+%TODO: check: Comeback to this when entire report is done and check it and make it fits in one page
+%=======================================================================================
+\chapter{Introduction}  \label{ch:intro}
+
+
+\paragraph*{Motivation and problem context}
+A Forest Digital Twin is a wider long-term goal for the forestry sector: a dynamic digital representation of forest systems that can support monitoring, forecasting and management planning ~ a shift from static, periodic assessment toward adaptive, data-driven planning. The aim is to combine repeated observations, simulation, and machine-learning(ML) and artificial intelligence (AI) to represent forests as changing systems \cite{baskent2026Review_C1_SS, buonocore2022Proposal_C1_SS}. This is increasingly vital as managers face climate-driven risks—such as extreme storms, destructive winds, and severe summer heatwaves that trigger wildfires and alter growth patterns. At the same time, global forestry is shifting toward continuous cover management, requiring more flexible stand-level models \cite{ForestResearch2009Evidence_C1_SS}. 
+
+Sitka spruce (\textit{Picea sitchensis}) is Britain's primary commercial species, covering approximately 50\% of managed forests \cite{ForestResearch2026Sitka_C1_SS} and contributing roughly \pounds1.1 billion annually to Scotland's economy \cite{ScottishForestry2026Future_C1_SS, mason2011Sitka_C1_SS}. The study focuses on Aberfoyle in Trossachs, Scotland, a Sitka spruce-dominated region with 21 years of repeated LiDAR coverage. Featuring varied topography with exposed, windy ridges to sheltered valleys, providing variation that causes different growth trajectories in different areas of the forest. 
+
+
+% Height, LiDAR and shared growth relationship
+Top height is a key measure of stand development, commonly used in forestry models to estimate downstream metrics like timber volume and site productivity \cite{ForestResearch2026Sitka_C1_SS}, and now can be accurately captured at scale using airborne LiDAR scans \cite{suarezminguez2008Practical_C1_SS}. For most tree species, including Sitka spruce, height development over time is modelled by the Chapman-Richards equation \cite{pommerening2015Methods_C2_CR}, a sigmoid growth curve, with its parameters fixed to represent a stand's maximum height potential and its speed of growth. A fixed parameter curve only captures the average population trend, but local trajectories can deviate from this baseline, due to factors like terrain, climate, soil, wind exposure, and active management all critically constrain or enhance a stand's actual development \cite{socha2023Higher_C1_SS, cameron2015Building_C1_SS}. This creates two related questions: whether local departures from this shared curve are associated with identifiable environmental and management conditions, and whether independent attribution methods agree on which conditions matter.
+
+Foresters need to know if a stand's assigned yield class still holds, or which local factors push growth off track. This dissertation tests whether letting these environment--growth relationships vary across space captures local growth patterns that fixed regional curves miss. Flexible machine learning models can also learn these patterns directly from data without fixed curve assumptions; we test deep neural networks (DNNs) and gradient-boosted trees (XGBoost) as a supplementary check on top-height predictions.
+
+\paragraph*{Research gap and Contribution}
+While repeated airborne laser scanning has been applied to model forest height growth and productivity \cite{janiec2023Development_C1_SS}, limited evidence exists on whether local environmental conditions are associated with departures from Sitka spruce's shared height-growth curve, and whether different attribution methods identify consistent conditions. Many current remote-sensing models do not account for spatial dependence between nearby-identical trees, leading to data leakage and inflated performance estimates \cite{Karasiak2022Spatial_C5_EVAL, ploton2020Spatial_C5_EVAL, lynch2025Digital_C4_NN}. Relying on black-box neural networks without explainable AI limits their use for stakeholders who require interpretable insights to support decision-making.
+
+This dissertation focuses on a specific part of the Digital Twin pipeline: using attribution methods to explain local growth deviations. It evaluates whether allowing these relationships to vary across space uncovers patterns that a single global model misses, and tests as a secondary step whether this information improves top-height prediction. Geographically Neural Network-Weighted Regression (GNNWR) serves as the primary model for the spatial attribution analysis. 
+
+\section{Objectives and Research Questions}
+
+Answering all three questions below first required cleaning and combining repeated forest
+inventory and LiDAR scan records with multi-source geospatial rasters (terrain, wind, climate
+and soil) into one unified modelling dataset (Chapter~\ref{ch:data}).
+
+\begin{table}[!ht]
+\footnotesize
+\setlength{\tabcolsep}{4pt}\renewcommand{\arraystretch}{1.0}
+\begin{tabularx}{\linewidth}{@{} >{\raggedright\bfseries}p{0.18\linewidth} >{\raggedright\arraybackslash}X @{}}
+\noalign{\hrule height 1pt}
+\textbf{Research Question} & \textbf{Objective, Sub-objectives \& Own Contribution} \\
+\noalign{\hrule height 0.6pt}
+\textbf{Q1:} Persistent Curve-Departure Attribution & \textbf{(1.1)} Identify environmental and management conditions tied to a plot's persistent deviation from the shared growth curve. \newline \textbf{(1.2)} Test whether environmental drivers of curve departures
+remain consistent across Elastic Net, mixed-effects, and XGBoost models. \newline \textbf{Contribution:} Highlights which conditions drive persistent growth departures and maps where model families agree or diverge. \\
+\hline
+\textbf{Q2:} Spatial Attribution & \textbf{(2.1)} Test spatially varying relationships (GNNWR) and residual spatial autocorrelation, under spatial cross-validation, against structure missed by global Q1 models. \newline \textbf{(2.2)} Assess plot-level reliability,
+separating genuine environmental trends from noise and target artefacts. \newline \textbf{Contribution:} Determines if spatial variation enhances attribution and sets boundaries on reading individual extremes as biological signals. \\
+\hline
+\textbf{Q3:} Prediction \& Physics Guidance & \textbf{(3.1)} Evaluate whether environmental signals and Chapman-Richards constraints improve top-height predictions across standard and neural models, under spatial cross-validation. \newline \textbf{(3.2)} Test
+whether attribution signals from Q1 and Q2 improve predictive accuracy. \newline \textbf{Contribution:} Identifies the top-performing spatial baseline and clarifies the exact performance impact of the physics-informed approach. \\
+\noalign{\hrule height 1pt}
+\end{tabularx}
+\label{tab:aims_objectives}
+\end{table}
+
+\paragraph*{What each question actually measures}
+Q1 asks whether a stand's tendency to sit persistently above or below the shared growth curve, averaged across its full survey history, lines up with identifiable environmental or management conditions -- terrain, wind exposure, soil, or thinning history. Q2 narrows this to one number per plot: the gap between a plot's own fitted height ceiling and the ceiling its assigned yield class would predict, written $\Delta y_{\max}$ (defined in full in Chapter~\ref{ch:methodology}). A positive $\Delta y_{\max}$ means the plot's own growth implies a higher ceiling than its yield class assumes; a negative value means a lower one. Q2 then tests whether the conditions behind this gap vary from place to place, rather than acting the same way everywhere. Q3 asks a more direct question: how accurately can top height itself be predicted, and does adding environmental information or a physics-based growth-curve constraint improve that prediction.
+
+For a forester, these matter in a practical order. Q1 and Q2 flag which stands are behaving unusually and which local conditions are plausibly responsible. Q2 specifically tests whether a stand's assigned yield class still holds, or needs revising. Q3 tests whether any of this environmental information is worth using in a prediction tool for ongoing monitoring, not only for after-the-fact explanation.
+
+\paragraph*{Main Finding:}
+TODO
+%=======================================================================================
+%=======================================================================================
+\chapter{Related Work and Background}
+
+\section*{Shared growth models}
+Top height tracks upper-canopy development and serves as a standard metric of forest growth and site productivity. Multi-temporal airborne LiDAR surveys now allow top height to be estimated consistently across broad landscapes, though uncertainty persists in young stands, open canopies, and edge boundaries \cite{ForestResearch2026Sitka_C1_SS, suarezminguez2008Practical_C1_SS}
+
+The Chapman--Richards model describes height trajectories using a flexible sigmoid curve parametrised by an asymptotic ceiling ($y_{\max}$), an intrinsic growth rate ($k$), and a shape exponent ($p$). While a single population curve offers a useful baseline, it cannot capture varying local site conditions and management histories \cite{richards1959Flexible_C2_CR, pommerening2015Methods_C2_CR, mason2011Sitka_C1_SS}
+
+Site-conditioned models address this limitation by allowing environmental predictors to adjust curve parameters. However, fitting multiple parameters from short observation series can cause parameter trade-off's, as different combinations of $y_{\max}$, $k$, and $p$ yield similar height predictions over narrow age windows \cite{scolforo2013Dominant_C2_CR, socha2021Regional_C2_CR, rennolls1995Forest_C2_CR}. Mean residual departure from a shared curve and departure in fitted asymptotes capture related yet distinct aspects of productivity: the former tracks whether a stand consistently sits above or below the population mean, whereas the latter reflects site-specific height ceilings while holding rate and shape fixed.
+
+\paragraph*{Environmental controls}
+Sitka spruce productivity responds strongly to elevation, wind exposure, soil moisture, and soil fertility. In upland northern Britain, General Yield Class falls by roughly $3.2\text{--}4.0\,\mathrm{m^3\,ha^{-1}\,yr^{-1}}$ per 100\,m rise in elevation, driven by lower temperatures and increased wind exposure \cite{worrell1990Productivity1_C1_SS}. Studies of Irish plantations similarly show peak productivity on moist, nutrient-rich sites, with sharp declines on drought-prone or waterlogged soils \cite{farrelly2011Sitka_C1_SS}.
+
+Landscape-scale modelling integrates forest inventory data with spatial layers. Early UK research combined sub-compartment records with terrain and soil maps using principal component analysis and linear regression to predict yield classes \cite{bateman1998Using_C1_SS}. More recent studies pair LiDAR metrics with climate, topographic, and edaphic rasters. Because predictor importance varies across spatial resolutions and extents \cite{fricker2019More_C3_LID}, and coarse soil layers often correlate poorly with local soil conditions \cite{miller2024Assessing_C2_CR}, the literature confirms broad environmental controls on growth without establishing a universal hierarchy of drivers across scales.
+
+\paragraph*{Global attribution}
+Global models assume a single environment--growth relationship across the entire study area. Because findings depend heavily on assumptions regarding linearity, interactions, and collinearity, comparing diverse model families helps determine whether an observed ecological association is robust or an artifact of model structure.
+
+Linear mixed-effects models (LMMs) isolate population-level fixed effects from grouped, hierarchically structured site variation \cite{harrison2018Brief_LMM, socha2016Assessment_C2_CR}. However, their fixed effects remain globally linear and additive unless interaction terms are explicitly parameterised. Elastic Net applies combined $L_1$ variable selection and $L_2$ shrinkage to handle collinear predictors, though its estimates remain constrained by linear functional assumptions \cite{zou2005Regularization_C4_NN}.
+
+Gradient-boosted decision trees capture complex, non-linear environmental relationships and high-order feature interactions \cite{puliti2023Tree_C2_CR, chen2016XGBoost_C4_NN}. When paired with SHAP, tree models reveal non-linear thresholds that linear models miss \cite{lundberg2017Unified_C7_XAI}. But SHAP values reflect feature attribution within the model rather than biological causality, and importance can be partitioned arbitrarily among correlated predictors \cite{aas2021Explaining_C7_XAI}. Few studies systematically benchmark linear, mixed-effects, and tree-based attribution models on the exact same growth-departure targets.
+
+\paragraph*{Spatially varying attribution}
+Spatial autocorrelation describes spatial clustering in observations or model residuals, whereas spatial non-stationarity refers to geographic shifts in the underlying process itself. Residual spatial autocorrelation can signal omitted environmental predictors, incorrect model functional form, boundary edge effects, or genuine non-stationarity. 
+
+Geographically Weighted Regression (GWR) models spatial variation by fitting local linear regressions weighted by proximity, producing interpretable local coefficient maps \cite{brunsdon1996Geographically_C6_GWR, wheeler2005Multicollinearity_C6_GWR}. Multiscale GWR (MGWR) further relaxes this by allowing different covariates to operate at distinct spatial bandwidths [24].
+
+Geographically Neural Network-Weighted Regression (GNNWR) replaces predefined distance kernels with a learned neural weighting sub-network \cite{du2020Geographically_C6_GWR}. While this flexible weighting captures non-linear spatial dependencies, it reduces transparency and requires strict spatial validation. 
+
+\paragraph*{Physics-guided prediction}
+Physics-informed neural networks (PINNs) regularise model training by adding domain-specific differential equations or conservation laws to the empirical loss function [28]. In forestry applications, process-guided networks have integrated biological growth, competition, and mortality models \cite{pichler2025Inferring_C4_NN}.
+
+However, multi-objective loss landscapes present optimisation trade-offs: gradient imbalances between empirical and physics losses can stall convergence or cause empirical signals to dominate training \cite{wang2021Understanding_C4_NN}. Furthermore, strongly penalising deviations from an approximate or misspecified population curve risks pulling local predictions toward an inaccurate mean.
+
+\paragraph*{Residual spatial evaluation}
+Standard predictive metrics (e.g., $R^2$, RMSE) evaluate average accuracy but fail to identify whether prediction errors remain geographically clustered. Residual spatial autocorrelation provides a critical diagnostic: persistent residual clustering indicates unmodeled spatial structure. Global Moran's $I$ evaluates residual autocorrelation against a spatial weights matrix, where reductions in absolute $I$ indicate weaker spatial clustering \cite{moran1950Notes_c5_eval, kim2021Predicting_C5_EVAL}. However, metric interpretation depends directly on the chosen spatial weights and distance thresholds. Moreover, global Moran's $I$ cannot detect cancelling local spatial clusters, and lower autocorrelation does not necessarily indicate a smaller overall error variance.
+
+\section{Research Gap and Contributions}
+Although environmental factors clearly drive forest growth, it remains uncertain whether identified drivers stay consistent across linear, mixed-effects, and non-linear models on the same data. Additionally, neural spatial models are rarely evaluated across held-out forest blocks, and the predictive value of physics-guided constraints remains unproven.
+
+This work addresses these gaps through three contributions:
+\begin{enumerate}
+\setlength\itemsep{0pt}
+\item \textbf{Global attribution (Q1):} Tests whether environmental drivers of curve departures remain consistent across Elastic Net, mixed-effects, and XGBoost models.
+\item \textbf{Spatial attribution (Q2):} Tests spatially varying relationships using GNNWR and residual spatial autocorrelation under spatial cross-validation.
+\item \textbf{Prediction and physics guidance (Q3):} Evaluates whether environmental signals and Chapman--Richards constraints improve top-height predictions in standard and neural models.
+\end{enumerate}
+This framework separates what drives growth deviations, whether those effects vary across space, and whether they improve prediction.
+
+%=======================================================================================
+%=======================================================================================
+\chapter{Data} \label{ch:data}
+This chapter describes the data used for model training and evaluation, including cohort construction, feature engineering and the main data limitations. Table~\ref{tab:data_summary} summarises the predictor and target variables, their sources and temporal coverage. The rationale for feature selection, data splitting and model evaluation is given in Chapter~\ref{ch:methodology}.
+
+\section{Study area and cohort coverage}
+The dataset covers approximately $16\text{~km} \times 12\text{~km}$ of Aberfoyle and contains 795,645 raw plot observations across six survey years (2002--2023). The records contain airborne laser scanning (ALS)-derived variables, including canopy cover and height percentiles, alongside stand and management fields such as planting year and known felling history (Table~\ref{tab:data-fields}). 
+Figure~\ref{fig:data-study-area} shows the study-area topography, the spatial coverage of both cohorts, and an example of standard and boundary-clipped plots.
+
+\begin{figure}[!htbp]
+\includegraphics[
+    width=1.05\textwidth,
+    height=0.48\textheight,
+    keepaspectratio
+]{figures/fig_data/aberfoyle_area.png}
+\caption{\small{Left:Aberfoyle study area. Middle: cohort coverage, Right: plot-level detail}}
+\label{fig:data-study-area}
+\end{figure}
+
+Due to a LiDAR coverage increase of $37\text{~km}^2$ between 2006 and 2008, two nested cohorts were created (Figure~\ref{fig:cohort_coverage_funnel}): a \emph{4-survey} ($\in \{2008, 2012, 2021, 2023\}$) and a \emph{6-survey} ($\in \{2002, 2006, 2008, 2012, 2021, 2023\}$). The former has broad spatial coverage, while the latter extends temporal trajectories. Sequential filters required complete survey presence, pure Sitka spruce, planting between 1850 and the survey year, ages $0\text{--}200$ years, heights $0\text{--}60\text{~m}$ (ecological max; \cite{mason2011Sitka_C1_SS}), and age $\ge 30$ in 2023 to avoid unreliable young-stand heights (Table~\ref{tab:data-cleaning-funnel} \cite{suarezminguez2008Practical_C1_SS}).
+
+
+\begin{table}[!htbp]
+\centering
+\scriptsize
+\begin{tabular}{lrrrr}
+\toprule
+& \multicolumn{2}{c}{4-survey} & \multicolumn{2}{c}{6-survey} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Stage & Plots & Removed & Plots & Removed \\
+\midrule
+0. Raw dataset
+& 230,359 & -- & 230,359 & -- \\
+1. Cohort years present
+& 230,345 & 0.01\% & 230,359 & 0.00\% \\
+2. Complete survey coverage
+& 112,782 & 51.04\% & 18,781 & 91.85\% \\
+3. Sitka spruce only
+& 72,395 & 35.81\% & 13,897 & 26.01\% \\
+4. Valid planting year
+& 71,766 & 0.87\% & 13,897 & 0.00\% \\
+5. Plausible age (0--200 years)
+& 71,766 & 0.00\% & 13,897 & 0.00\% \\
+6. Plausible height (0--60 m)
+& 71,766 & 0.00\% & 13,897 & 0.00\% \\
+7. Mature stands (age $\geq 30$ in 2023)
+& \textbf{58,112} & 19.03\%
+& \textbf{13,769} & 0.92\% \\
+\bottomrule
+\end{tabular}
+\caption{\small{Plots left after each filter. Percentages show the share removed from the previous row, rather than from the raw dataset. Figure~\ref{fig:data-study-area} shows the final spatial coverage.}}
+\label{tab:data-cleaning-funnel}
+\end{table}
+
+%------------------------------------------------
+\section{Response variable and derived attribution targets}
+
+The base measurement every target in this dissertation is built from is the plot-level 95th
+percentile ALS return height above ground (\texttt{elev\_\allowbreak percentile\_\allowbreak
+95th}) per survey. Three distinct targets are derived from it: the raw height itself (Q3,
+prediction); the mean deviation from the shared Chapman--Richards growth curve, averaged across
+a plot's full survey history (Q1, persistent attribution); and the deviation between a plot's
+own fitted asymptote and its yield-class-implied asymptote (Q2, spatial attribution). How the
+shared curve is fitted and each derived target is constructed is defined in
+Chapter~\ref{ch:methodology}. Records also supply planting year, management history, and Forest
+Research yield and volume estimates (Table~\ref{tab:data-fields}). To prevent data leakage, any
+fields derived directly from the height target were excluded from prediction inputs.
+
+\begin{table}[!htbp]
+\scriptsize
+
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{0.95}
+\begin{tabular}{
+    >{\raggedright\arraybackslash}p{2.6cm}
+    >{\raggedright\arraybackslash}p{7.0cm}
+    >{\raggedright\arraybackslash}p{3.2cm}
+}
+\hline
+Field & Meaning or derivation & Role in this study \\
+\hline
+\texttt{elev\_\allowbreak percentile\_\allowbreak 95th} & 95th percentile of ALS return heights above ground, used without correction & Response variable \\
+\texttt{Top\_Height95} & $=\texttt{elev\_percentile\_95th}\times1.1$; Forest Research's own corrected height estimate & Retained for reporting but not modelled \\
+\texttt{plyr}, \texttt{Age} & Planting year; \texttt{Age} = survey year $-$ \texttt{plyr} & Input feature; used for data cleaning \\
+\texttt{yldc} & An existing Forest Research yield-class field, not calculated from this project's LiDAR-derived height response & Excluded from prediction inputs; used to construct Q2's own attribution target \\
+\texttt{whcl} & Ordinal Forest Research windthrow hazard class, 0-6 & Management descriptor \\
+\texttt{CanopyCover} & Canopy-cover fraction from the same ALS survey and processing step as the height response & Input feature \\
+\texttt{Thin}, \texttt{last\_thinn}, \texttt{next\_thin\_} & Thinning history; \texttt{Thin} is binary (1 if the stand has been thinned, 0 if never thinned); \texttt{last\_thinn}/\texttt{next\_thin\_} record the last and next thinning years & Input feature \\
+\texttt{Vol95}, \texttt{area}, \texttt{g1}, \texttt{g3} & Forest Research volume estimate, calculated from height, plot area and canopy cover & Used for disturbance screening \\
+% Full role note (moved out of the table -- was overflowing the 3.2cm column):
+% GYCspec95: excluded from prediction, calculation incorporates the height response, target leakage.
+% p1-p5: excluded from prediction inputs for the same reason, but p4/p5 are deliberately used, held
+% fixed, to construct Q2's yield-class-implied asymptote -- excluded and load-bearing are not the
+% same thing.
+\texttt{GYCspec95}, \texttt{p1-p5} & General Yield Class, calculated directly from a plot's own measured height (\texttt{Top\_Height95}) & Excluded (target leakage); \texttt{p4}/\texttt{p5} also held fixed for Q2's target \\
+\hline
+\end{tabular}
+\caption{\small{Target, stand and management fields provided by Forest Research.}}
+\label{tab:data-fields}
+\end{table}
+%------------------------------------------------
+\section{Derived terrain, wind, climate and soil variables}
+\label{sec:data-environmental}
+
+Each plot was matched with external terrain, wind, climate, and soil variables (Table~\ref{tab:data-env-sources}). Appendix~\ref{tab:data-env-variables_detail_app} defines each variable.
+
+\begin{table}[!htbp]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.05}
+
+\begin{tabular}{
+    >{\raggedright\arraybackslash}p{2.0cm}
+    >{\raggedright\arraybackslash}p{4.2cm}
+    >{\raggedright\arraybackslash}p{2.3cm}
+    >{\raggedright\arraybackslash}p{4.0cm}
+}
+\hline
+Data family & Source and resolution & Time basis & Variables used \\
+\hline
+
+Terrain
+& OS Terrain 50, 50\,m \cite{ordnancesurveyTerrain50_C3_LID}
+& Static
+& Elevation, slope, aspect, northness and eastness \\
+
+Soil
+& CEH Natural Capital, 50\,m \cite{feeney2026CEHNaturalCapital_C3_LID}; SoilGrids v2.0, 250\,m \cite{poggio2021SoilGrids_C3_LID}
+& Static
+& Pedotope, drainage, texture and soil pH \\
+
+Wind exposure
+& Global Wind Atlas, 250\,m \cite{davis2023GlobalWindAtlas_C3_LID}
+& 2006--2015 climate
+& Long-term wind speed and exposure \\
+
+Observed wind
+& MIDAS Open weather stations \cite{metoffice2019MIDASOpen_C3_LID}
+& Survey intervals
+& Mean and extreme wind conditions \\
+
+Long-term climate
+& CHELSA v2.1, 1\,km \cite{karger2017CHELSA_C3_LID}
+& 1981--2010 climate
+& Growing degree days and precipitation \\
+
+Matched climate
+& HadUK-Grid, 1\,km \cite{hollis2019HadUKGrid_C3_LID}
+& Cohort years
+& Temperature and frost \\
+
+Spatial context
+& OS Open Roads and Open Rivers, vector data
+\cite{ordnancesurveyOpenRoads_C3_LID,ordnancesurveyOpenRivers_C3_LID}
+& Static
+& Distance to roads, rivers and forest edges \\
+
+\hline
+\end{tabular}
+
+\caption{\small{External data sources used in the analysis. Values were matched to plot centres. ``Static'' means one fixed value per plot location, used unchanged for every survey year that plot appears in -- not recalculated per year. Full source, resolution, coverage and extraction details are given in Appendix~\ref{app:data-sources}.}}
+\label{tab:data-env-sources}
+\end{table}
+
+The Global Wind Atlas gives long-term modelled wind: one fixed value per plot location, drawn from its 2006--2015 wind climatology raster, not recalculated per survey year -- every survey a plot appears in (2002--2023) uses the same Global Wind Atlas value. TOPEX measures terrain shelter (also static, one value per location). MIDAS is different: it is not a static climate layer but a set of storm and wind statistics (peak gust, 95th-percentile gust and mean wind, hours above a gust threshold, independent storm count, time since the last major storm) computed directly from three weather stations' hourly observations, calculated separately for each survey-to-survey interval -- not a difference between intervals, but a fresh summary of the real weather recorded within each interval's own date range. CHELSA describes long-term climate from 1981 to 2010 \cite{karger2017CHELSA_C3_LID} (also one fixed value per plot, not survey-year-specific). HadUK-Grid temperature and frost values were averaged across each cohort's survey years \cite{hollis2019HadUKGrid_C3_LID}. % AUDIT: OS Open Roads/Open Rivers has no stated data-vintage in this project's own downloaded package docs -- the raw file's own download timestamp is ~July 2026, meaning distance-to-road/river/forest-edge values reflect a recent road/river network applied retroactively to all survey years back to 2002, not a network matched to each plot's own survey year. Minor for rivers (stable), more relevant for roads (forestry access tracks can be built within this timeframe) -- worth stating as an explicit limitation rather than leaving the vintage unstated.
+
+
+%=======================================================================================
+%=======================================================================================
+\chapter{Methodology and Experimental Framework} \label{ch:methodology}
+\section{Experimental framework}
+Q1 attributes a plot's deviation from the baseline growth curve to environmental and management factors. Q2 tests whether spatially varying relationships capture what global models miss. Finally, Q3 evaluates whether these signals improve top-height predictions.
+
+\begin{table}[!ht]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+
+\begin{tabularx}{\linewidth}{@{} l >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X @{}}
+\toprule
+Q & Unit and target & Models or comparison & Main evaluation \\
+\midrule
+Q1 & Plot; mean pooled-CR residual & Elastic Net, XGBoost and two-stage
+mixed-effects model & Five-fold spatial block CV; coefficients, SHAP and residual Moran's $I$ \\
+Q2 & Plot; difference between fitted and yield-class-implied asymptotes & Elastic Net, XGBoost
+and GNNWR & Five-fold spatial block CV; attribution, Moran's $I$ and target audit \\
+Q3 & Plot--survey row; 95th-percentile top height, and row-level error reduction against the
+fold-matched CR curve & CR, linear regression, random forest, XGBoost, DNN, PINN and PINN-$k$
+& Five-fold spatial block CV; random-split and PINN forward-pass diagnostics; CR-error-quartile
+correction with permutation control \\
+\bottomrule
+\end{tabularx}
+\caption{\small{Units, targets and evaluation used for each question. Q3's row-level CR-error-quartile
+check reuses Q3's own model predictions (conditioned DNN, PINN, PINN-$k$ and XGBoost) rather
+than introducing a separate comparison.}}
+\label{tab:rq-framework}
+\end{table}
+
+\paragraph*{Data partitions and leakage control} The primary dataset used the four-survey cohort, while the smaller six-survey cohort served as a sensitivity check with longer observation histories. The unit of analysis varied by research question: Q1 and Q2 used a single aggregated value per plot, whereas Q3 evaluated individual plot-survey observations.
+
+Spatial-block cross-validation was the primary evaluation design. Whole forest compartments were assigned to folds, preventing the same compartment from appearing in both training and testing \cite{roberts2017Cross_C5_EVAL}. Training plots within 60\,m of a validation or test plot were also removed, while all held-out plots were retained. Five folds were balanced approximately by row count. In each rotation, one fold was used for testing, the following fold for validation and the remaining three for training. Each compartment was therefore tested once and predictions from the five test folds were pooled before calculating the overall metrics \cite{ploton2020Spatial_C5_EVAL}.
+
+\begin{figure}[!htbp]
+\includegraphics[width=\textwidth]{figures/fig_methodology/method_fig-splits-combined_draft.png}
+\caption{Evaluation data-splitting strategies: (A) random plot-level split and (B) compartment-level spatial-block split with a 60\,m buffer.}
+\label{fig:splits-combined}
+\end{figure} %change so its just compartment level split (no need to talk about random or spatial block as we never talk about it in results. 
+
+Continuous variables were scaled using the training data and applied to the validation and test sets. Age was scaled on its own so PINN outputs could be turned into metres per year. Soil types were converted into binary categories. Compartment and block IDs were left out of the models. Two neighbour-height variables were also dropped because they were made using nearby plot heights before the split, which could leak test answers.
+
+
+\section{Q1: Explaining growth deviations}
+Q1 uses the four-survey cohort because the six-survey cohort has too few compartments for spatial analysis. For each plot at survey $t$, the gap from expected height is:
+\begin{equation}
+r_{it}=H_{it}-H(a_{it}),
+\end{equation}
+which gives the average error per plot over time:
+\begin{equation}
+\bar r_i=\frac{1}{T_i}\sum_{t=1}^{T_i}r_{it}.
+\label{eq:mean-cr-residual}
+\end{equation}
+Positive values mark plots that grow faster than the shared baseline curve (defined in Section~\ref{sec:rq1-method}). Stand age is left out of the input features since the baseline curve already uses it.
+
+We test Elastic Net and XGBoost using five-fold spatial cross-validation. Elastic Net tunes its penalty settings on each training fold using an inner loop. XGBoost uses the same tuned settings as Q2 (tree depth 4, learning rate 0.04, up to 500 rounds, with early stopping), chosen after checks showed default settings dropped pooled $R^2$ by 0.07--0.09). Models are scored using pooled test $R^2$.
+
+To account for plots grouped within compartments, we also fit a two-stage mixed model. Stage~1 gets $\bar r_i$ from the baseline curve. Stage~2 fits:
+\begin{equation}
+\bar r_i=\boldsymbol{\beta}^{\top}\mathbf{x}_i+u_{c[i]}+\varepsilon_i,
+\label{eq:mixed-effects}
+\end{equation}
+where $u_{c[i]}\sim\mathcal{N}(0,\sigma_u^2)$ is a random compartment intercept. Fixed effects are fit using restricted maximum likelihood (REML). To test how much compartment variance the features explain, we switch both models to standard maximum likelihood (ML), because REML numbers cannot be fairly compared when models have different numbers of fixed effects. We report values as mean $\pm$ standard deviation across folds.
+
+Four checks help explain the results: (1) Fit Set~4 without canopy cover. (2) Check correlations between canopy cover and each target. (3)Re-run SHAP values without canopy cover to see if other features take its place. (4) Measure how much slope and TOPEX vary between compartments versus within them.
+
+Comparing Elastic Net, mixed-model coefficients, and XGBoost SHAP values gives three clear views of what drives growth. We also run Moran's $I$ on held-out errors to check for leftover spatial clustering (Section~\ref{sec:eval-robustness}).
+
+% \ai{Proposed additional evaluation, not yet run: every Q1 number above (coefficients, $R^2$, Moran's $I$) reflects a single spatial-block split-seed (42). Q2's GNNWR is already reseeded three times to test sign stability (Section~\ref{sec:q2-method}); repeating that reseed for Q1's Elastic Net and XGBoost, reusing the same five-fold compartment assignments under different seeds, would test whether the slope/TOPEX stability contrast reported in Section~\ref{sec:results-q1-attribution} holds up outside one particular fold assignment, directly answering a gap already flagged in this project's own audit notes rather than leaving it a single-seed number reported as if stable.}
+% run Q1 across multiple split seeds to confirm fold stability, matching Q2.}
+
+%------------------------------------------------
+\section{Q2: Spatial attribution}
+
+Q1's global models leave clear spatial clustering in their residuals, prompting us to test whether spatially varying relationships can capture what global models miss. We use GNNWR \cite{du2020Geographically_C6_GWR} because it learns spatial weights without a pre-chosen neighbourhood distance, while keeping a single linear coefficient per variable, matching Q1's linear setup.
+
+While GNNWR estimates local linear coefficients, its predictions remain straight-line adjustments to a frozen global baseline. Given the non-linearities and feature interactions observed in Q1 and Q3, an unstable local coefficient could reflect a linear fit poorly approximating a curved relationship rather than true spatial variation. This does not undermine the main $R^2$ comparison—where model form is held constant to isolate spatial effects—but individual local coefficients should not be viewed on their own as definitive evidence of spatial processes.
+
+Q2 fits a separate height ceiling for each plot while fixing the regional Forestry Commission rate and shape values. $p_1$--$p_5$ are Forest Research's own regression coefficients, tabulated per species and region, that convert a General Yield Class number into a full Chapman--Richards curve: $p_4$ is the shared growth rate, $p_5$ is the shared curve-shape exponent, and $p_1$--$p_3$ combine (Equation~\eqref{eq:yldc-asymptote} below) to give the yield-class-implied height ceiling. This project did not derive these coefficients; it uses Forest Research's own values. For plot $i$ at survey $t$, let:
+\begin{align}
+g_{it} &= \left(1-e^{-p_{4,i}a_{it}}\right)^{p_{5,i}}, \label{eq:git-curve} \\
+\hat y_{\max,i} &= \frac{\sum_t H_{it}g_{it}}{\sum_t g_{it}^2}, \label{eq:plot-ymax-fit} \\
+y_{\max,i}^{\mathrm{yldc}} &= \mathrm{yldc}_i p_{2,i}+p_{1,i}+2p_{3,i}, \label{eq:yldc-asymptote} \\
+\Delta y_{\max,i} &= \hat y_{\max,i}-y_{\max,i}^{\mathrm{yldc}}. \label{eq:local-ymax-diff}
+\end{align}
+To construct the attribution target, Q2 fits a plot-specific height ceiling while fixing the regional Forestry Commission rate ($p_{4,i}$) and shape ($p_{5,i}$) parameters to avoid overfitting short series (4--6 surveys). For plot $i$ at survey $t$, the growth term $g_{it}$ is given by Equation~\eqref{eq:git-curve}, and fitting through the origin via ordinary least squares yields the estimated asymptote $\hat y_{\max,i}$ in Equation~\eqref{eq:plot-ymax-fit}. The standard yield-class benchmark $y_{\max,i}^{\mathrm{yldc}}$ is derived from regional lookup parameters in Equation~\eqref{eq:yldc-asymptote}. The final target, $\Delta y_{\max,i}$ (Equation~\eqref{eq:local-ymax-diff}), is the difference between these two ceilings. This formulation isolates growth deviations from environmental features, though fixing $p_4$ and $p_5$ forces any local curve-shape mismatch into $\hat y_{\max,i}$, causing the extreme values analysed below.
+
+$\Delta y_{\max,i}$ is a single value per plot, not per survey: one number summarising a plot's whole observed history against its yield-class expectation. A positive value means the plot's own fitted ceiling sits above what its assigned yield class predicts; a negative value means it sits below. $\hat y_{\max,i}$ is an estimated summary of the fitted curve, not the plot's observed maximum recorded height. Plots with short or narrow-age-range survey histories give a less reliable $\hat y_{\max,i}$, since the fit is anchored on fewer points.
+
+Elastic Net and XGBoost are trained on $\Delta y_{\max}$ using Sets~2--4, following Q1's training setup (Section~\ref{sec:q1-method}). GNNWR is also fit to capture spatial variation [1]:
+\begin{equation}
+\hat y_i=\beta_0(s_i)+\sum_j\beta_j(s_i)x_{ij}.
+\label{eq:gnnwr}
+\end{equation}
+For location $s_i$, the spatial-weighting network takes scaled distances to all training reference plots and predicts multipliers that adjust a frozen global baseline. All main runs use the full, uncapped training set without fixed bandwidths across the five spatial folds.
+
+\subsection*{Hardware limits and adjustments}
+Two GPU limits affected GNNWR. First, taking distance vectors to all $\sim$31,000 training plots initially ran out of GPU memory. An early test capped reference plots proportionally across compartments; resolving a second bottleneck later allowed full, uncapped runs for all headline results. A separate test (Section~\ref{sec:results-q2-spatial}) re-applies this cap to check if sample sparsity explains six-survey instability. Second, GNNWR's built-in tool builds a classical GWR hat matrix for AIC and F-tests, which exceeded memory on large runs. We disabled this matrix for large datasets; this does not affect reported $R^2$ or RMSE, but means AIC values use raw feature counts and classical F-tests are omitted. Neither issue affects Elastic Net or XGBoost.
+
+Feature importance is measured using XGBoost split gain and test-fold SHAP values [2]. A separate check groups features into terrain, wind, soil, climate, and spatial-location categories to measure each group's impact on $R^2$ and residual Moran's $I$ (Set~4, 4-survey cohort).
+
+\subsection*{Target and outlier audit}
+To remove bad data, plots are dropped if consecutive surveys match either rule:
+\begin{itemize}
+\setlength\itemsep{2pt}
+\item \textbf{Clearfell:} Top height drops $\ge 25\%$, canopy cover drops $\ge 70\%$, and standing volume drops $\ge 70\%$.
+\item \textbf{Measurement error:} Top height drops $\ge 25\%$, while canopy cover drops $\le 10\%$ and volume does not drop.
+\end{itemize}
+Plots with large height drops that match neither rule are kept.
+
+Extreme fitted ceilings are flagged using standard Tukey $1.5\,\mathrm{IQR}$ fences [3]:
+\begin{equation}
+\left[Q_1 - 1.5\,\mathrm{IQR},\; Q_3 + 1.5\,\mathrm{IQR}\right],
+\label{eq:tukey-fences}
+\end{equation}
+calculated per cohort, matching past growth-model cleaning steps [4]. Flagged plots remain in main runs, but a sensitivity test checks metrics when excluding them from saved test predictions.
+
+The audit checks if the worst 1\% and 5\% of residual plots recur across Elastic Net, XGBoost, and GNNWR. It tests their residual ranges, GNNWR coefficients, boundary distances, spatial grouping, and wind shelter against normal plots, and re-fits them without 2008 data to see if errors stem from target construction rather than true ecological signals.
+
+%------------------------------------------------
+\section{Q3: Prediction and physics guidance}
+
+Q3 tests whether environmental signals improve top-height predictions and evaluates what physics-informed neural networks add. It compares a growth curve baseline, standard tabular models, and neural networks on Set~3 across the five spatial folds, with other sets testing the effect of adding environmental inputs.
+
+\subsection{Chapman--Richards (CR) baseline}
+\begin{equation}
+H(a) = y_{\max}\left(1 - e^{-ka}\right)^p,
+\label{eq:cr}
+\end{equation}
+where $H(a)$ is height at age $a$, $y_{\max}$ is the height asymptote, $k$ is the growth rate, and $p$ controls curve shape. All three parameters are fit freely by non-linear least squares on each training fold and frozen, keeping test folds fully independent.
+
+\subsection*{Conventional models}
+We test three baselines: linear regression, random forest, and XGBoost [1]. For Q3, XGBoost was tuned across 27 parameter settings over five folds using validation $R^2$ (Appendix~\ref{app:hyperparameters}).
+
+\subsection{DNN and physics-informed models}
+All neural networks use a three-layer trunk (128 units per layer, Leaky-ReLU) trained with Adam (learning rate $10^{-4}$, weight decay $10^{-5}$, batch size 256, early stopping). The standard DNN minimizes mean squared error ($\mathcal{L}_{\mathrm{data}} = \frac{1}{N}\sum (\hat H_i-H_i)^2$). In the conditioned DNN, environmental variables feed directly into the input. In PINN models, they feed into auxiliary networks that guide the loss functions instead of the prediction trunk.
+
+Equations~\eqref{eq:cr-derivative}--\eqref{eq:total-loss} define the physics-informed loss framework:
+\begin{align}
+H'(a) &= y_{\max}pk e^{-ka}\left(1-e^{-ka}\right)^{p-1}, \label{eq:cr-derivative} \\
+\mathcal{L}_{\mathrm{phys}} &= \frac{1}{N}\sum_{i=1}^{N}\left(\frac{\partial\hat H_i}{\partial a_i}-H'(a_i)\right)^2, \label{eq:physics-loss} \\
+\mathcal{L}_{\mathrm{traj}} &= \frac{1}{M}\sum_{j=1}^{M}\left(\frac{\hat H_{j,2}-\hat H_{j,1}}{\Delta a_j}-H'(\bar a_j)\right)^2, \label{eq:trajectory-loss} \\
+\mathcal{L} &= \mathcal{L}_{\mathrm{data}} + \lambda_{\mathrm{phys}}\mathcal{L}_{\mathrm{phys}} + \lambda_{\mathrm{traj}}\mathcal{L}_{\mathrm{traj}} + 10^{-5}\sum_{\theta}|\theta|. \label{eq:total-loss}
+\end{align}
+Equation~\eqref{eq:cr-derivative} gives the theoretical growth rate. Equation~\eqref{eq:physics-loss} penalizes gaps between this rate and network derivatives ($\partial\hat H_i/\partial a_i$). Equation~\eqref{eq:trajectory-loss} penalizes differences across consecutive surveys from the same plot at midpoint age $\bar a_j$. The total loss in Equation~\eqref{eq:total-loss} balances these terms ($\lambda_{\mathrm{phys}}=\lambda_{\mathrm{traj}}=1$ by default; 0 disables physics). 
+
+For conditioned PINNs, auxiliary networks adjust plot parameters:
+\begin{equation}
+y_{\max}^{(i)} = y_{\max}+f_y(\mathbf{x}_i), \quad k^{(i)} = k\exp\!\left(f_k(\mathbf{x}_i)\right).
+\label{eq:param-adjust}
+\end{equation}
+\limit{In the evaluated implementation, $y_{\max}^{(i)}$ and $k^{(i)}$ guide the loss terms rather than passing directly into the prediction trunk; see Section~\ref{sec:rq1-pinn-limitation}.}
+
+\subsection*{Row-level curve correction}
+\label{sec:rq2a-method}
+To test whether environmental inputs improve single plot--survey predictions, we measure absolute error reduction against the CR baseline:
+\begin{equation}
+d_i = \left|H_i-\hat H_i^{\mathrm{CR}}\right| - \left|H_i-\hat H_i^{\mathrm{model}}\right|.
+\label{eq:residual-reduction}
+\end{equation}
+Positive $d_i$ indicates improvement. Test rows are split into baseline-error quartiles (Q1 best fit, Q4 worst fit) to see where gains concentrate. Two Set~3 XGBoost controls isolate this effect: removing environmental variables, and refitting from scratch on permuted environmental data. Spatial clustering of $d_i$ is checked with Moran's $I$.
+
+\section{Evaluation and robustness}
+\label{sec:eval-robustness}
+
+Model accuracy is evaluated using RMSE, MAE, $R^2$, and Bias ($e_i = H_i - \hat H_i$):
+\begin{equation}
+\mathrm{RMSE}=\sqrt{\tfrac{1}{N}\textstyle\sum e_i^2}, \quad
+\mathrm{MAE}=\tfrac{1}{N}\textstyle\sum |e_i|, \quad
+R^2=1-\tfrac{\sum e_i^2}{\sum (H_i-\bar H)^2}, \quad
+\mathrm{Bias}=\tfrac{1}{N}\textstyle\sum e_i.
+\label{eq:eval-summary}
+\end{equation}
+Positive bias indicates under-prediction. We report fold-level means ($\pm\text{SD}$) or pooled metrics across all out-of-fold predictions. For the 4-survey cohort, $R^2$ $95\%$ confidence intervals are calculated using 1,000 compartment bootstrap resamples.
+
+Residual spatial autocorrelation is measured using global Moran's $I$:
+\begin{equation}
+I=\frac{N}{W}\frac{\sum_i\sum_j w_{ij}(e_i-\bar e)(e_j-\bar e)}{\sum_i(e_i-\bar e)^2}.
+\label{eq:morans-i}
+\end{equation}
+Spatial weights ($w_{ij}$) use binary, row-standardised distance bands matched to each model's semivariogram range (up to 5,000\,m; 999 permutations), subsampling 5,000 rows where necessary for computational efficiency. Moran's $I$ is omitted if semivariance is flat, and marked provisional if semivariance rises past 5,000\,m. Distances are reported alongside all values.
+
+\limit{Global Moran's $I$ detects spatial structure without identifying its cause, and equal-and-opposite local clusters may go undetected. A lower Moran's $I$ reflects less clustering, not lower overall error variance.}
+
+Neural stability is checked over five seeds. For PINN-$k$, parameter separability is measured by the correlation between predicted $y_{\max}$ and $k$ (2,000 compartment bootstrap resamples).
+
+
+
+
+
+
+
+
+
+%=======================================================================================
+%=======================================================================================
+\chapter{Results} \label{ch:results}
+This chapter answers three questions in order. Q1 links long-term growth shifts to environment and management, checking if different models agree. Q2 tests whether local patterns explain what global models miss. Q3 tests if these signals improve top-height prediction and evaluates a physics-informed network.
+
+\section{Q1: What explains a plot's persistent departure from the shared curve?}
+
+Restricting to the 4survey cohort and modelling each plot's mean departure across its
+full survey history directly (Table~\ref{tab:results-q1}), canopy cover and thinning
+history dominate the attribution in every set and every method tested.
+
+\begin{table}[!htbp]
+\centering
+\scriptsize
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lrlll}
+\toprule
+Set & n rows & EN R2 [95\% CI] & XGB R2 [95\% CI] & LMM spatial variance explained \\
+\midrule
+Set1 (baseline only) & 71{,}766 & 0.220 [0.180, 0.252] & 0.222 [0.183, 0.252] & 0.016$\pm$0.078 \\
+Set2 & 71{,}766 & 0.359 [0.310, 0.396] & 0.416 [0.355, 0.461] & 0.204$\pm$0.066 \\
+Set3 & 71{,}727 & 0.325 [0.272, 0.365] & 0.375 [0.321, 0.414] & 0.049$\pm$0.048 \\
+Set4 & 71{,}330 & 0.358 [0.305, 0.398] & 0.395 [0.338, 0.438] & 0.175$\pm$0.064 \\
+\bottomrule
+\end{tabular}
+\caption{\small{Attribution of the persistent mean curve residual (Equation~\ref{eq:mean-cr-residual}),
+4survey only, spatial-block split.}}
+\label{tab:results-q1}
+\end{table}
+
+These $R^2$ values are modest in absolute terms: even the best set (Set2, XGBoost, $R^2=0.416$) leaves more than half the variation in a plot's persistent curve departure unexplained by the tested environmental and management features. The value of these models lies in identifying which conditions are associated with departures, not in precisely predicting how large a given plot's departure will be. $R^2$ is not directly comparable between Q1 and Q2, or between Q1/Q2 and Q3: each predicts a different target with different underlying variance, so a higher or lower number in one section does not by itself mean a stronger or weaker model.
+
+% AUDIT: the table above reports only pooled R2/CI and LMM variance-explained. The coefficient values, SHAP ranks, VIF, ICC and within-compartment correlation numbers that carry the actual argument below appear nowhere in a table or figure -- currently text-only. The commented-out \fig{} composite sketch further below already scopes the fix (coefficient forest plot + Moran's I by set + residual map); building it would let a good share of the numeric prose below shorten in favour of "see Figure X."
+\subsection{Discussion}
+\textbf{Canopy cover and thinning history dominate the attribution in every feature set and both methods -- but because canopy cover comes from the same LiDAR pipeline as the height targets, this could just be the target restated in different units.} Canopy cover carries the largest or near-largest Elastic Net coefficient in every set (Set4: +1.943$\pm$0.034) and ranks first by mean $|$SHAP$|$ in every XGBoost set (1.375--1.442). Because canopy cover is drawn from the same LiDAR pipeline as the height targets themselves, its correlation with all three of this project's own targets was checked directly rather than assumed benign: Pearson correlations of 0.35-0.47, moderate rather than the target restated in different units. Removing canopy cover from Set4 and refitting drops R2 by roughly a third for both models (EN: 0.350 to 0.231, XGBoost: 0.388 to 0.249), a larger effect than its SHAP margin alone (1.2--1.7x over the next variable) would suggest, meaning it carries signal nothing else in the set backfills; the variable most likely to absorb the gap, $\mathit{dist}_{\text{to\_road}}$, does not (its own SHAP value moves slightly the wrong way, 1.003 to 0.869), which rules out simple correlation-driven credit transfer as the mechanism without explaining why canopy cover carries this much unique signal in the first place. The defensible reading is to treat canopy cover and thinning as baseline stand-structure controls, expected to dominate by construction, and to look at the true environmental variables' contribution beyond that baseline as the actual attribution question. 
+
+%TODO: DEFINE ABIOTIC IN THE INTRO OR RELATED WORK.
+\textbf{Among abiotic (non-biological, environmental) predictors, only slope is stable across methods; topex (a wind-exposure measure) splits the two models -- a genuine disagreement, not a shared signal.}
+Among abiotic predictors, only $\mathit{slope\_degrees}$ was stable across both methods, showing consistent positive effects in LMM (+0.894/+0.861) and Elastic Net (+1.230/+0.993) across Sets~3 and 4. In contrast, $\mathit{topex}$ revealed a clear split: LMM found a strong, stable positive link (+1.316/+1.323), whereas Elastic Net yielded weak estimates that flipped signs ($-0.175$ in Set~3 to $+0.063$ in Set~4) with high variance. This reflects a genuine disagreement between models rather than a robust, shared signal. A few reasons below were explored: 
+
+First, multicollinearity was evaluated using variance inflation factors (VIF): all unstable predictors ($\mathit{tas\_mean}$, 3.44; $\mathit{soilgrids\_ph}$, 2.12; $\mathit{topex}$, 2.37) show lower VIF values than the stable $\mathit{chelsa\_bio12\_precip\_mm}$ (3.91), confirming that collinearity does not track instability. 
+Second, climatological timing mismatch was examined. While CHELSA features use a static 1981--2010 normal against 2008--2023 survey dates, $\mathit{chelsa\_bio12\_precip\_mm}$ remains stable; conversely, the unstable $\mathit{tas\_mean}$ is derived from HadUK-Grid and averaged over actual survey years. Temporal mismatch therefore fails to separate stable from unstable variables: static features can be stable ($\mathit{chelsa\_bio12\_precip\_mm}$) or unstable ($\mathit{topex}$, $\mathit{soilgrids\_ph}$), while dynamic features can also destabilise. 
+Neither multicollinearity nor climate timing explains why $\mathit{soilgrids\_ph}$(a static soil trait that does not change through survey years) is unstable.
+%TODO: add this static or changing through survey years in the data table. 
+
+A third possible reason is spatial confounding. Unlike LMM, Elastic Net does not group data by compartment. If a variable mainly changes from one compartment to the next, Elastic Net can easily confuse it with other unmeasured local factors. We checked this by measuring between-compartment variation (ICC). The unstable variables all scored high: $\mathit{topex}$ (0.74), $\mathit{soilgrids\_ph}$ (0.77), and $\mathit{tas\_mean}$ (0.89). However, the stable rainfall variable ($\mathit{chelsa\_bio12\_precip\_mm}$) scored even higher at 0.97. This shows that high spatial variation alone does not make a variable unstable; it makes confounding possible, but is not enough to cause it by itself.
+
+%---
+\textbf{One mechanism explains all three cases: whether a real local signal survives removing between-compartment differences.} % AUDIT: this account was built and tested on the same data that produced the instability finding it explains -- a plausible, evidenced mechanism, but not validated on an independent split. Read as the best-evidenced account so far, not a fully confirmed one.
+Because both models assume linear relationships, raw non-linearity alone cannot be the cause; the key difference is LMM's compartment random intercept. Mean-centring variables and targets within each compartment isolates this local signal directly:
+
+\begin{itemize}
+    \item $\mathit{topex}$ shows a real local signal: its within-compartment correlation rises from 0.09 to 0.21 and becomes monotonic. LMM captures this local effect via random intercepts, whereas Elastic Net pools the data and confuses the signal.
+    \item $\mathit{tas\_mean}$ and $\mathit{soilgrids\_ph}$ show almost no local signal: within-compartment correlations collapse from 0.27 to 0.08 and 0.05. Their raw correlations are between-compartment artifacts, leaving no real relationship to estimate reliably.
+    \item $\mathit{chelsa\_bio12\_precip\_mm}$ maintains a clean, monotonic local link ($-0.11$ vs.\ $-0.36$ raw), which anchors a stable Elastic Net coefficient despite high spatial variance.
+\end{itemize}
+
+Apparent non-linearity in the pooled data is therefore a byproduct of spatial confounding. Variables with genuine local effects stay stable or resolve under random-intercept models, while those driven by between-compartment differences break down (see Appendix~\ref{app:nonlinearity-check}).
+%---
+
+\textbf{Both models leave significant spatial clustering in their residuals, but XGBoost removes far more of it than Elastic Net as environmental data is added.} All feature sets leave significant spatial autocorrelation in their residuals (distance-band Moran's $I$ at 1385--1739\,m, $p = 0.001$). However, the models remove this clustering at very different rates: Elastic Net drops residual autocorrelation by only 29\% (0.145 $\to$ 0.103), whereas XGBoost reduces it by 63\% (0.146 $\to$ 0.054). This divergence stems from XGBoost's ability to model non-linear interactions automatically \cite{zou2005Regularization_C4_NN}, though its flexibility could also capture spatial noise. Unmodelled clustering persists in both models, pointing to unmeasured environmental factors, resolution limits, or another spatially varying processes \cite{gaspard2019Residual_C5_EVAL}. Set~3 (terrain-only) is the weakest feature set. A category refit ablation on Set~4 shows that soil adds only a small gain ($+0.022$ $R^2$), whereas climate actively reduces accuracy ($-0.056$ $R^2$). Terrain and spatial edge effects drive most of Set~4's advantage. While forest productivity generally relies on mixed biophysical inputs \cite{bontemps2014Predictive_C2_BG}, climate data introduced instability rather than predictive benefit (full ablation in Appendix~\ref{app:category-ablation}). Every environmental set's $R^2$ confidence interval clears the baseline (Set~1) with no overlap, confirming the value of environmental features. However, XGBoost's intervals for Set~2 and Set~4 overlap ([0.355, 0.461] vs.\ [0.338, 0.438]), making their relative ranking inconclusive.
+
+% AUDIT: this file previously carried two near-duplicate "For Q1" synthesis paragraphs (a leftover from the multi-session file reorganisation); merged into one below, given its own subsection per the requested structure.
+
+\begin{figure}[!htbp]
+\includegraphics[width=\textwidth]{figures/fig_results/q1_attribution_composite.png}
+\caption{% AUDIT: placeholder caption -- image file exists (built recently) but has not yet been described or interpreted in text. Needs: what each panel shows, and how it relates to the coefficient/VIF/ICC findings below (see the table-vs-discussion mismatch note above the results table).
+--- headline result in caption form : then what each graph is and how to read it. }
+\label{fig:q1-attribution-composite}
+\end{figure}
+
+
+% \fig{\textbf{Q1 -- coefficient/Moran's I/residual-map composite.} Three panels.
+% Panel A (attribution): coefficient forest plot, one row per variable (\texttt{CanopyCover},
+% both thinning columns, \texttt{slope\_degrees}, \texttt{topex}, the climate/soil
+% variables), point = mean, whisker = fold SD, LMM and EN as two colours/markers side by
+% side, Set3 and Set4 as two sub-columns -- the visual payoff of the slope-stable/
+% topex-unstable contrast, otherwise the reader has to hold four numbers in their head.
+% Panel B (spatial clustering responds unevenly to environmental data): Moran's I by set
+% (Set1--Set4), EN and XGBoost as two lines -- EN nearly flat, XGBoost dropping
+% substantially, the divergence between the two lines is the finding, not a shared trend.
+% Panel C (where the leftover residual sits): a map of Set4/4survey's model residual,
+% coloured by magnitude/sign -- this is what motivates Q2, earning its panel on
+% structural grounds, not decoration. Establishes: none of this (coefficients, the
+% Moran's I trend, the spatial residual pattern) exists in any table in this chapter, all
+% of it is currently text-only. Answers Q1 items 1--3.}
+
+
+%maybe when we comapre differencce ebtween 4 survey and 6 survey, we can say that as 6 survey is morehomogenous, we know it has a sifferent CR fit, then (((this oudlbe a reaosn or justifcation) for something)) 
+
+\subsection*{Conclusion}
+Stand structure and management account for most of a plot's deviation from the baseline curve; among abiotic variables, only slope is consistently stable across methods. Instability elsewhere depends on whether a genuine local signal survives between-compartment pooling: LMM recovers a real local relationship for topex that Elastic Net obscures, whereas tas\_mean and soilgrids\_ph are largely between-compartment artifacts. At the category level, soil adds a slight gain while climate harms performance. Significant spatial autocorrelation persists in both models' residuals (Moran's $I$ falls 29\% in EN vs.\ 63\% in XGBoost), so global environmental features do not capture all spatial structure -- directly motivating the spatially varying model tested in Q2.
+
+%=======================================================================================
+\section{Q2: Spatial attribution}
+Q1 showed that global models leave notable spatial clustering in the residuals, with XGBoost removing far more autocorrelation than Elastic Net with added environmental data. Q2 directly tests whether letting these relationships vary spatially captures what global models miss (Table~\ref{tab:results-q2}).
+\begin{table}[!htbp]
+\centering
+\scriptsize
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lllllll}
+\toprule
+Set & EN 4survey [CI] & EN 6survey & XGB 4survey [CI] & XGB 6survey & GNNWR 4survey [CI] & GNNWR 6survey \\
+\midrule
+Set2 & 0.286 [0.241, 0.325] & 0.057 & 0.266 [0.214, 0.308] & 0.031 & 0.320 [0.270, 0.369] & $-0.044$ / 0.014$\pm$0.053 \\
+Set3 & 0.274 [0.223, 0.316] & 0.031 & 0.281 [0.235, 0.320] & 0.086 & 0.319 [0.263, 0.365] & 0.058 / 0.054$\pm$0.055 \\
+Set4 & 0.240 [0.192, 0.286] & 0.056 & 0.250 [0.201, 0.295] & 0.015 & 0.294 [0.236, 0.347] & $-0.075$ / 0.002$\pm$0.068 \\
+\bottomrule
+\end{tabular}
+\caption{\small{Attribution of the plot-specific asymptote deviation
+(Equation~\ref{eq:local-ymax-diff}), spatial-block split. 6survey GNNWR column shows
+seed-42 point estimate / three-seed mean$\pm$SD.}}
+\label{tab:results-q2}
+\end{table}
+
+GNNWR's best point estimate ($R^2=0.320$, Set2) is also modest in absolute terms: roughly two-thirds of the variation in $\Delta y_{\max}$ remains unexplained even by the best-performing spatial model. As in Q1, $R^2$ here is not directly comparable to Q1's or Q3's own values, since each predicts a different target.
+
+\textbf{GNNWR outperforms both global baselines on every 4-survey set by point estimate, but the advantage is not statistically distinguishable: bootstrap confidence intervals overlap in every set.} GNNWR achieves higher point estimates than both global baselines across all 4-survey sets, though bootstrap confidence intervals overlap in every set (Set~4: GNNWR [0.236, 0.347] vs.\ EN [0.192, 0.286]). Residual autocorrelation is directionally consistent with this advantage: GNNWR reduces Moran's $I$ beyond the best global baseline across all 4-survey sets (Set~2: $-32.0\%$; Set~3: $-24.7\%$; Set~4: $-23.7\%$; $p = 0.001$). % AUDIT: this is corroborating, not confirming, evidence -- GNNWR fits one linear coefficient per location, so an unstable local coefficient (or a real spatial pattern) can both look the same in a Moran's I reduction; a lower Moran's I on its own does not prove the R2 edge reflects genuine spatial non-stationarity rather than a locally-linear fit absorbing residual structure differently than a global model would. Read as suggestive, not conclusive, corroboration.
+On the 6-survey set, the diagnostic is uninformative because semivariograms fail to resolve, leaving no clear spatial signal to evaluate. \textbf{6-survey's collapse is genuinely unexplained: sample-size alone has been tested and ruled out, but no alternative cause has been confirmed.} While spatial models are sensitive to sample density \cite{brunsdon1996Geographically_C6_GWR} and the 6-survey cohort spans far fewer compartments (47 vs.\ 231), downsampling 4-survey reference points down to 7,500 failed to trigger a similar collapse ($R^2$ stayed positive at 0.12--0.34). Having fewer points alone does not explain the collapse, the ablation reduced point counts evenly across all compartments, whereas the 6-survey dataset is restricted to far fewer compartments to begin with. % AUDIT: this rules out sample size as a *sufficient* cause but does not identify what does explain the collapse -- remains an open limitation, not a resolved one.
+
+\textbf{The same $\sim$10 plots produce the largest residuals across nearly every feature set, cohort, and model family -- a target-construction artifact, not poor feature selection or random noise.}
+The same $\sim$10 plots consistently produce the largest residuals across nearly every feature set and cohort, ruling out poor feature selection as the cause. This recurrence holds across independent model families: flagged plots fall into the worst 1\% and worst 5\% absolute residual buckets at roughly 36 times the rate expected by chance across Elastic Net (35.7\%/59.0\%), XGBoost (38.0\%/61.3\%), and GNNWR (37.6\%/57.5\%).  None of these 10 plots trigger standard data-cleaning filters for disturbance, measurement anomalies, or trajectory instability. Instead, inspecting their trajectories reveals two distinct causes. Half display smooth, consistent growth whose large deviations reflect a mismatch with the baseline yield-class lookup rather than faulty raw heights. The remaining half show sub-threshold curve instability across survey years, producing implausible fitted asymptotes (up to 116\,m despite raw heights of 38.9--46.8\,m). Tracing these asymptotes back to the fitting procedure confirms the mechanism: because the closed-form curve holds the growth-rate parameter fixed to the assigned yield class, a plot growing slower or flatter than assumed is forced into an inflated asymptote. This issue stems directly from target construction rather than raw data quality, meaning simple height filters cannot detect it. Although GNNWR shows 2.7 times higher error on these flagged plots (21.12\,m vs.\ 7.70\,m), its local coefficients remain identical to control plots. This confirms that the large errors are target-construction artifacts rather than real environmental or spatial anomalies.
+%TODO add these rules to the methodlogy
+
+\textbf{The pattern scales well beyond 10 plots: a Tukey-fence check flags 266 plots (4-survey) and 709 plots (6-survey), clustered within compartments, and removing them does not improve model performance.}
+These flagged cases extend beyond a few isolated outliers: a Tukey-fence check on fitted asymptotes flags 0.47\% of the 4-survey cohort (266 plots) and 5.32\% of the 6-survey cohort (709 plots). These plots cluster tightly within their compartments rather than dispersing evenly, pointing to localised conditions rather than compartment-wide labelling errors. However, removing flagged plots does not improve performance: pooled $R^2$ barely shifts in the 4-survey set ($-0.002$) and worsens in the 6-survey set (Elastic Net $-0.027$, XGBoost $-0.037$). Dropping them removes usable signal rather than cleaning noise. None of the 266 plots trigger flags for clearfelling or measurement error, ruling out abrupt catastrophes while leaving chronic, sub-threshold effects possible.
+
+\textbf{The 250 plots with enough data to test split into two mechanistically distinct groups: most (71.6\%) show the fixed-$k$ artifact signature and sit on exposed terrain; the rest (28.4\%) look like genuinely fast growth on sheltered terrain.}
+Testing whether the fixed-$k$ mechanism applies across the broader flagged set reveals two distinct groups rather than a single artifact:
+\begin{itemize}
+    \item \textbf{Artifact-driven subset (71.6\%, 179/250):} Plots growing slower than their assigned yield-class benchmark show the direct signature of the fixed-$k$ constraint, where slow growth forces an inflated asymptote. These plots are concentrated on exposed terrain (median $\mathit{topex}$ $-5.48$) with modest evidence of chronic wind exposure ($p = 0.0007$).
+    \item \textbf{Fast-growing subset (28.4\%, 71/250):} Plots whose observed growth matches or exceeds the benchmark curve do not fit the fixed-$k$ artifact explanation. These plots sit in sheltered terrain (median $\mathit{topex}$ $+2.58$, $p = 0.0002$) and have more recent, frequent thinning ($p = 0.051$), suggesting genuinely accelerated growth under favorable local conditions.
+\end{itemize}
+The fixed-$k$ curve-fitting artifact explains most flagged asymptotes in exposed terrain, whereas extreme asymptotes in sheltered areas likely reflect true rapid growth rather than fitting errors (full diagnostics are detailed in Appendix~\ref{app:flagged-plot-split}).
+
+\textbf{Canopy cover ranks first on 4-survey across three converging methods; the 6-survey ranking disagrees, but its XGBoost fit is too weak to trust.}
+Variable importance rankings vary by cohort: canopy cover ranks first in the 4-survey cohort across three converging attribution metrics (Elastic Net coefficients, XGBoost gain importance, and SHAP values), whereas XGBoost disagrees with Elastic Net and GNNWR on the 6-survey cohort. However, because XGBoost achieves near-zero $R^2$ on the 6-survey data (Table~\ref{tab:results-q2}: 0.015--0.086, all sets), its attribution rankings there warrant less confidence. Given GNNWR's established instability on the 6-survey subset, the 4-survey cohort provides the more reliable baseline for addressing Q2's spatial questions. Grouping Set~4 predictors into categories confirms that stand structure dominates overall importance (roughly $3\times$ the next-largest category). Among abiotic groups, terrain provides the largest contribution, while soil is indistinguishable from noise, aligning with the individual variable results above (category-level Moran's $I$ diagnostics, including an adjustment for a bandwidth artifact in the terrain check, are reported in Appendix~\ref{chap:appendix}).
+
+\subsection*{Conclusion}
+Results are consistent with environmental relationships varying spatially, provided there are enough nearby training plots for the spatial-weighting network to learn reliable local patterns -- though this rests on a directional $R^2$ edge with overlapping confidence intervals, corroborated but not confirmed by GNNWR's larger Moran's $I$ reduction (see caveat above). Because having fewer training plots alone does not cause the 6-survey collapse, the difference between cohorts is not just an artifact of total sample size, though what does explain it remains unresolved. Three distinct attribution methods agree that most extreme $\Delta y_{\max}$ deviations arise from target construction under a fixed growth rate rather than real environmental or spatial signal: GNNWR finds normal local coefficients at these locations despite their much larger error, direct evidence against a real cause for that majority.
+
+% AUDIT: added point, not in the original text -- the artifact mechanism itself is not random. The artifact-driven subset is concentrated on exposed terrain (median topex $-5.48$, $p=0.0007$), meaning the fixed-$k$ artifact and a real environmental variable (wind exposure) are confounded with each other: slow growth on exposed terrain both triggers the artifact (via the fixed growth-rate assumption) and is itself plausibly a real biological effect of exposure. When EN/XGBoost/GNNWR attribute $\Delta y_{\max}$ to terrain or wind variables, some unknown share of that attribution could reflect the models learning to predict *when the artifact fires*, not learning genuine biological ceiling differences. Testing whether flagged and unflagged plots respond to wind/terrain variables with different coefficients (not attempted here) would be needed to separate these two readings.
+This mechanism accounts for most, but not all, outliers: unexplained cases sit in sheltered terrain, without the same wind-exposure account. Extreme $\Delta y_{\max}$ values must therefore be interpreted cautiously, as a mix of curve-fitting artifacts and genuine biological growth that this chapter cannot yet fully separate.
+
+
+\fig{\textbf{Q2, Figure 1 -- GNNWR edge/spatial-structure/local-coefficient
+composite.} Three panels. Panel A: pooled R2 by set and model (EN/XGBoost/GNNWR),
+point+CI, 4survey only. Panel B: residual Moran's I by set/model, 4survey only (mark
+6survey's cells as unresolved/not-significant rather than plotting a misleading point
+value) -- the independent corroboration for Panel A's edge, and the reason 6survey is
+absent rather than shown as a contradictory result. Panel C: a spatial map of GNNWR's
+own per-plot local
+coefficient for \texttt{CanopyCover} (its top-ranked variable), coloured by
+coefficient value -- the only way to show what "spatially-varying coefficient" means
+concretely, no prose substitutes for seeing it vary across Aberfoyle. Establishes:
+Panel B is a diagnostic that exists nowhere else visually; Panel C is the one thing in
+the whole chapter that only GNNWR can produce. Answers Q2 items 2--3.}
+
+\fig{\textbf{Q2, Figure 2 -- deviation map/archetype map/trajectory composite,
+including the 266-plot pattern.} Three panels. Panel A: a map of
+\texttt{local\_y\_max\_difference} across 4survey, coloured by deviation
+magnitude/sign, with the 266 Tukey-fence-flagged plots marked with a distinct
+outline/marker -- the direct visual for "the pattern scales to hundreds of plots,
+clustered by compartment" (item 6), and shows at a glance whether it clusters
+spatially. Panel B: the compartment archetype map (the six classes from item 9), same
+geography, so a reader can cross-reference Panel A's raw deviation against Panel B's
+classification directly. Panel C: small-multiples trajectories, one per archetype,
+observed height vs.\ age (grey), the fitted local curve, and the yldc benchmark curve
+overlaid -- the only way to make "smooth-but-offset" vs.\ "moderately unstable"
+concrete rather than a label. Establishes: this figure is what lets the outlier-plot
+prose (items 4--9, currently the densest part of the chapter) shorten, rather than the
+other way round. Answers Q2 items 4--6, 9.}
+
+
+
+
+%=======================================================================================
+\section{Q3: Prediction and physics guidance}
+\label{sec:results-q3}
+Q1 and Q2 established that a plot's persistent deviation from the shared growth curve carries a real, if partial and spatially variable, environmental attribution signal. This supplementary section returns to the dissertation's primary question: does this signal translate into a predictive advantage for top height itself, and can deep neural networks exploit it more effectively than tree-based ensembles like XGBoost? Across all models, cohorts, and spatial-block splits, tuned XGBoost delivers the most accurate top-height predictions. CR loss guidance does not help the neural network match XGBoost's accuracy at any tested weight ($\lambda$), but it still successfully separates the asymptote ($y_{\max}$) from the growth rate ($k$).
+
+\subsection{Results: top-height prediction:}
+\begin{table}[!htbp]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lrrrrrr}
+\toprule
+& \multicolumn{3}{c}{Four-survey} & \multicolumn{3}{c}{Six-survey} \\
+\cmidrule(lr){2-4} \cmidrule(lr){5-7}
+Model & RMSE${\downarrow}$ & MAE${\downarrow}$ & $R^2{\uparrow}$ & RMSE${\downarrow}$ & MAE${\downarrow}$ & $R^2{\uparrow}$ \\
+\midrule
+Linear & $5.168{\pm}0.361$ & $4.056{\pm}0.343$ & $0.580{\pm}0.026$ & $4.877{\pm}0.643$ & $3.619{\pm}0.426$ & $0.509{\pm}0.067$ \\
+RF & $4.794{\pm}0.187$ & $3.611{\pm}0.142$ & $0.638{\pm}0.011$ & $4.062{\pm}0.249$ & $3.010{\pm}0.185$ & $0.656{\pm}0.046$ \\
+XGBoost (tuned) & $\mathbf{4.548{\pm}0.137}$ & $\mathbf{3.431{\pm}0.123}$ & $\mathbf{0.674{\pm}0.009}$ & $\mathbf{3.656{\pm}0.232}$ & $\mathbf{2.669{\pm}0.183}$ & $\mathbf{0.722{\pm}0.031}$ \\
+DNN & $4.681{\pm}0.230$ & $3.533{\pm}0.201$ & $0.655{\pm}0.016$ & $3.903{\pm}0.316$ & $2.867{\pm}0.275$ & $0.684{\pm}0.031$ \\
+PINN$^*$ & $4.842{\pm}0.321$ & $3.689{\pm}0.289$ & $0.631{\pm}0.027$ & -- & -- & -- \\
+PINN-$k^*$ & $4.927{\pm}0.302$ & $3.745{\pm}0.271$ & $0.618{\pm}0.023$ & -- & -- & -- \\
+\bottomrule
+\end{tabular}
+\caption{\small{Model comparison for top-height prediction, Set3, spatial\_block\_kfold,
+per-fold mean $\pm$ SD across five folds. 4survey n=232{,}292 row-years (58{,}073
+plots, after an additional terrain/wind feature-completeness filter reduces the base
+58{,}112-plot cohort from Table~\ref{tab:data-cleaning-funnel} by 39 plots); 6survey n=82{,}614 row-years (13{,}769 plots). Table shows pooled mean $\pm$ SD across all folds, and margin reflects the full split rather than single folds.
+$^*$PINN/PINN-$k$: the originally implemented forward pass did not carry
+$y_{\max}/k$ to the prediction itself, only to auxiliary loss terms; the
+4survey figures shown here use a corrected forward pass that fixes this (see
+``PINN: interpretability and current standing'' below). Unlike every other
+row, this corrected architecture received no hyperparameter tuning. 6survey
+was not rerun with the correction (--).}}
+\label{tab:results-q3}
+\end{table}
+
+\subsection{Discussion}
+\textbf{XGBoost consistently outperforms the DNN across both cohorts, winning 9 of the 10 spatial folds tested.}
+This section evaluates the direct comparison between XGBoost and the standard DNN, where environmental features feed directly into top-height predictions. Across both cohorts, XGBoost consistently outperforms the DNN. Evaluating individual spatial cross-validation folds confirms this is not an artifact of pooling: XGBoost achieves higher accuracy in 9 of the 10 folds (all 5 folds on the 6-survey cohort, and 4 of 5 on the 4-survey cohort, trailing the remaining fold by only $-0.007$ $R^2$). Four candidate explanations account for this performance gap:
+
+\begin{itemize}
+\item \textbf{Feature interactions (insufficient explanation):} XGBoost allocates 27\% of its SHAP prediction weight to interactions (primarily Age crossed with terrain and stand structure). However, DNN already captures 80\% of the nonlinear gain above the linear baseline ($R^2$ 0.580 $\to$ 0.655 out of a possible 0.674; Table~\ref{tab:results-q3}), and Random Forest underperforms the DNN ($R^2 = 0.638$). Interaction capacity alone therefore does not explain the margin.
+\item \textbf{Compartment sample size (ruled out):} Subsampling the 4-survey cohort down to 48 compartments (matching the 6-survey count) did not widen XGBoost's lead; the $R^2$ difference fluctuated between $-0.085$ and $+0.029$ across random subsets, compared to $+0.024$ on full data.
+\item \textbf{Architecture-size under-tuning (ruled out):} Sweeps across five network sizes showed no consistent gains for DNN.
+\item \textbf{Terrain extrapolation in held-out compartments (ruled out):} On the 4.1\% of 4-survey test plots with out-of-range terrain values, XGBoost degraded more relative to its in-range error than DNN did (error ratio 1.312 vs.\ 1.243; correlation with out-of-range distance $\rho=0.074$ vs.\ $0.059$).
+\item \textbf{Training hyperparameter under-tuning (ruled out):} A 48-configuration sweep over dropout and learning rate yielded no meaningful gains for neural models under 5-fold cross-validation (within $\pm0.008$ $R^2$ of default baselines). Similarly, XGBoost's 27-configuration tuning shifted $R^2$ by only 0.002-0.004, confirming that neither model family had substantial untapped hyperparameter headroom.
+\end{itemize}
+
+The remaining theory is that, boosted-tree ensemble like XGBoost are better suited to this tabular task than the neural network architecture, which aligns with standard literature on gradient-boosted trees outperforming deep learning on heterogeneous tabular data \cite{shwartzziv2021Tabular_C4_NN}.
+
+
+% AUDIT: no results paragraph discusses the physics-weight ($\lambda_{\mathrm{phys}}$) ablation, even though Methodology's Equations~\eqref{eq:physics-loss}--\eqref{eq:total-loss} introduce the framework it would cover. A verified version of this paragraph existed in an earlier session (see documentation/handover_2026-08-21.md) but is not present in this file -- needs re-inserting or re-verifying before submission.
+
+\paragraph*{Does environmental conditioning correct the curve at row level?}
+\textbf{Environmental conditioning helps most where the shared curve already fits worst, and a permutation control shows this is partly a genuine environmental effect, not just added model flexibility.}
+Evaluating row-level corrections against the fold-matched Chapman-Richards baseline (Equation~\ref{eq:residual-reduction}) shows that environmental conditioning reduces error unevenly. The gains concentrate heavily in the worst-fitting quartile (reducing error by up to 5.08\,m in the 4-survey cohort % AUDIT: exact source of "5.08m" not confirmed against TEMP_rq2a_residual_reduction_results_2026-08-11.tex -- nearest matching values there are Set2's 5.054m and the headline Set3 model's 4.833m; re-trace before submission
+), whereas the best-fitting quartile degrades slightly. A permutation control with shuffled environmental features reveals that the worst-quartile improvement shrinks by 18--27\% rather than disappearing entirely, while the best-quartile penalty persists at a similar magnitude. This indicates that correcting large errors relies partly on genuine environmental signals, whereas the slight cost in the best-fitting quartile reflects a general flexibility penalty of more complex models rather than an issue specific to environmental conditioning.
+
+% Option 2: Short & Crisp (Simpler Phrasing)
+\paragraph*{PINN: interpretability and current standing.}
+\label{sec:rq1-pinn-limitation}
+\textbf{PINN and PINN-$k$ trail both DNN and XGBoost on raw accuracy; their value here is the interpretable per-plot growth parameters they produce, not top predictive performance.}
+On the 4-survey dataset, PINN ($R^2 = 0.631$) and $\text{PINN}_k$ ($R^2 = 0.618$) trail the tuned DNN ($0.655$) and XGBoost ($0.674$), though both close most of the gap seen in earlier uncorrected runs (Appendix~\ref{chap:appendix}). Unlike the DNN and XGBoost, which underwent extensive parameter sweeps, the PINN was evaluated without hyperparameter tuning. The key benefit of the PINN is interpretability rather than top accuracy. It estimates plot-specific biological parameters ($y_{\max}^{(i)}$ and $k^{(i)}$), letting auxiliary networks adjust a population-level Chapman--Richards baseline using local environmental conditions. Figure~\ref{fig:pinn-example-plot} shows this behaviour for an example held-out plot, comparing observed heights against both the population baseline and the plot's predicted growth curve.
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.7\textwidth]{figures/fig_results/q3_pinn_example_plot_curve.png}
+\caption{One held-out 4-survey plot (fold 0, ID 119937, 4 survey observations, ages
+53--68), showing the fixed PINN-$k$'s learned per-plot curve ($y_{\max}^{(i)}=52.3$,
+$k^{(i)}=0.0145$) against the shared population curve ($y_{\max}=52.0$, $k=0.0101$).
+This plot is a consistent, moderate over-grower relative to the population curve; the
+model's own prediction tracks it closely across all four observations rather than
+defaulting to the population baseline. One illustrative example, not a claim of
+representativeness -- selection criteria in
+\texttt{temp\_results\_pinn/pinn\_env\_terrain\_fix/run\_example\_plot\_curve.py}.}
+\label{fig:pinn-example-plot}
+\end{figure}
+% AUDIT: as of this audit, neither results_figures_q3_rq1.ipynb nor results_figures_q2_rq3.ipynb contains the generating code for this figure. The PNG exists and matches the numbers in this caption, but notebook provenance should be reconfirmed before submission -- likely a side effect of concurrent editing sessions on this repo.
+
+\limit{PINN models were run untuned on a single seed using the 4-survey cohort only. Systematic tuning and testing whether the residual network overrides the Chapman--Richards term remain areas for future work.}
+
+
+
+\subsection*{Conclusion}
+Tuned XGBoost gives the strongest predictions in both cohorts; the DNN stays competitive; CR guidance does not improve accuracy for the architecture actually tested. In absolute terms, the best model (XGBoost, 4-survey) explains about 67\% of the variance in top height, with a mean absolute error of about 3.4\,m and a root-mean-square error of about 4.5\,m -- a moderate, practically useful level of accuracy for flagging stands that may be worth a closer look, not a substitute for direct measurement of an individual stand.
+
+What the negative PINN result establishes: encoding Chapman--Richards structure into the network's loss did not, under the tested single seed and without hyperparameter tuning, improve raw prediction accuracy over a plain conditioned DNN or XGBoost. It does not establish that physics guidance cannot help -- an untuned single-seed run is a weak test of that -- but it does establish that PINN's practical value in this project lies in the interpretable per-plot growth parameters ($y_{\max}^{(i)}$, $k^{(i)}$) it produces as a byproduct, not in a predictive-accuracy advantage.
+
+For forestry practice, this points to a two-tier use: XGBoost or the DNN as the more accurate tool for flagging which stands' predicted top height diverges most from their yield-class expectation, and the PINN's per-plot parameters as a more interpretable, if less accurate, way to see how a specific stand's growth is currently trending relative to a physically meaningful curve -- useful for explaining a flagged stand to a non-technical user, not for the initial flagging itself.
+
+% AUDIT: this dissertation's title foregrounds "physics-informed prediction," but the physics-informed result above is negative, single-seed, untuned, and was built on a genuine forward-pass bug for part of the project (see PINN paragraph above). Worth a deliberate decision -- either the title's emphasis changes, or the Conclusion chapter should state plainly that physics guidance remains an open question here, not a demonstrated contribution.
+
+
+
+
+%=======================================================================================
+%=======================================================================================
+\chapter{Conclusion and Future Work} \label{ch:conc}
+
+%=======================================================================================
+%=======================================================================================
+% AUDIT: no .bib file exists anywhere for this draft (only a stale legacy copy at legacy/dissertation_draft_10jul/mybibfile.bib, which is also missing at least one currently-cited key, shwartzziv2021Tabular_C4_NN). Compile-blocking -- every \cite{} will render as [?] or fail until this is resolved.
+\bibliographystyle{plain}
+\bibliography{mybibfile}
+%=======================================================================================
+
+\appendix
+\chapter{Appendix}  \label{chap:appendix}
+% \TODO: create appendix secions and labels for each section.
+% AUDIT: this empty chapter is referenced by 7 unresolved \ref{} calls in the main text and will render as broken (??) links until built: app:hyperparameters, app:nonlinearity-check, app:category-ablation, app:flagged-plot-split, chap:appendix (used generically twice), tab:data-env-variables_detail_app, app:data-sources. Source material for each already exists in TEMP_results/ and TEMP_results_attribution/ -- transcription, not new analysis. Deliberately left as a to-do for a later pass, not expanded here.
+
+
+
+%=======================================================================================
+\end{document}
+%=======================================================================================
+

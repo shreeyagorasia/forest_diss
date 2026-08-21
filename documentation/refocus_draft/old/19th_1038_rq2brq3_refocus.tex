@@ -1388,17 +1388,19 @@ Linear & $5.168{\pm}0.361$ & $4.056{\pm}0.343$ & $0.580{\pm}0.026$ & $4.877{\pm}
 RF & $4.794{\pm}0.187$ & $3.611{\pm}0.142$ & $0.638{\pm}0.011$ & $4.062{\pm}0.249$ & $3.010{\pm}0.185$ & $0.656{\pm}0.046$ \\
 XGBoost (tuned) & $\mathbf{4.548{\pm}0.137}$ & $\mathbf{3.431{\pm}0.123}$ & $\mathbf{0.674{\pm}0.009}$ & $\mathbf{3.656{\pm}0.232}$ & $\mathbf{2.669{\pm}0.183}$ & $\mathbf{0.722{\pm}0.031}$ \\
 DNN & $4.681{\pm}0.230$ & $3.533{\pm}0.201$ & $0.655{\pm}0.016$ & $3.903{\pm}0.316$ & $2.867{\pm}0.275$ & $0.684{\pm}0.031$ \\
-PINN$^*$ & $5.206{\pm}0.399$ & $4.063{\pm}0.407$ & $0.573{\pm}0.036$ & $3.886{\pm}0.290$ & $2.819{\pm}0.196$ & $0.686{\pm}0.038$ \\
-PINN-$k^*$ & $5.197{\pm}0.402$ & $4.046{\pm}0.421$ & $0.575{\pm}0.037$ & $3.895{\pm}0.282$ & $2.816{\pm}0.196$ & $0.684{\pm}0.038$ \\
+PINN$^*$ & $4.842{\pm}0.321$ & $3.689{\pm}0.289$ & $0.631{\pm}0.027$ & -- & -- & -- \\
+PINN-$k^*$ & $4.927{\pm}0.302$ & $3.745{\pm}0.271$ & $0.618{\pm}0.023$ & -- & -- & -- \\
 \bottomrule
 \end{tabular}
 \caption{Model comparison for top-height prediction, Set3, spatial\_block\_kfold,
 per-fold mean $\pm$ SD across five folds. 4survey n=232{,}292 row-years (58{,}073
 plots); 6survey n=82{,}614 row-years (13{,}769 plots). Table shows pooled mean $\pm$ SD across all folds, and margin reflects the full split rather than single folds.
-$^*$PINN/PINN-$k$: the implemented forward pass does not carry environmental
-information to the prediction itself, only to auxiliary loss terms -- see
-``PINN: what it did and did not test'' below. Results are for the architecture
-as implemented, not as intended.}
+$^*$PINN/PINN-$k$: the originally implemented forward pass did not carry
+$y_{\max}/k$ to the prediction itself, only to auxiliary loss terms; the
+4survey figures shown here use a corrected forward pass that fixes this (see
+``PINN: what it did and did not test'' below). Unlike every other row, this
+corrected architecture received no hyperparameter tuning. 6survey was not
+rerun with the correction (--).}
 \label{tab:results-rq1}
 \end{table}
 
@@ -1459,49 +1461,45 @@ For Q3: tuned XGBoost gives the strongest predictions in both cohorts; the DNN
 stays competitive; CR guidance does not improve accuracy for the architecture
 actually tested.
 
-\paragraph*{PINN: what it did and did not test.}
+\paragraph*{PINN: interpretability and where it stands.}
 \label{sec:rq1-pinn-limitation}
-Result: PINN and PINN$_k$ underperform XGBoost and roughly trail the DNN, at
-every tested physics-loss weight -- raising the weight only made predictions
-worse (setting it to zero gave a real 0.05 $R^2$ gain on 4survey).
-Why: a genuine implementation limitation, not evidence against physics-informed
-modelling generally. The prediction trunk's forward pass never carries the
-per-plot adjusted asymptote or growth rate through to the output -- only the
-physics and trajectory loss terms see them -- identified after these results
-were produced, not designed as a controlled ablation.
-Checked, two independent diagnostics supporting this reading rather than just
-asserting it: a random (non-spatial) split sharply inflates the DNN's score
-(4survey: $0.831$ vs.\ $0.634$, since random splits leak spatial information)
-but leaves PINN's score essentially unchanged ($0.590$ vs.\ $0.584$) -- exactly
-as expected if terrain genuinely never reaches PINN's trunk to leak. Dropping
-the physics loss entirely closes most, though not all, of the DNN--PINN gap on
-4survey ($0.080$ down to $0.026$); the remaining $0.026$ is unresolved.
-Checked, does routing $y_{\max}^{(i)}/k^{(i)}$ into the prediction actually
-close the gap: a disconnected, isolated follow-up -- architecture and
-hyperparameters otherwise unchanged from the results above, no tuning
-applied, evaluated on the same 4survey spatial\_block\_kfold 5-fold split --
-lets the prediction trunk read $H_i = \text{CR}(y_{\max}^{(i)}, k^{(i)},
-\text{age}_i) + \text{trunk residual}_i$ instead of the trunk alone. Result:
-real, positive movement in both variants -- 4survey 5-fold mean $R^2$ rises
-from $0.573$ to $0.631$ ($y_{\max}$-only fix; recovers 71\% of the $0.082$
-gap to DNN's $0.655$) and from $0.575$ to $0.618$ ($y_{\max}{+}k$ fix;
-recovers 54\% of the $0.080$ gap) -- neither variant matches DNN outright,
-with no tuning applied to either.
-Scope: confined to how the PINN/PINN$_k$ trunk combines its sub-network
-outputs -- does not affect the CR baseline, Linear, RF, XGBoost, DNN, or the
-Q1/Q2 attribution models, none of which route information through this
-pathway. This follow-up is disconnected from the pipeline that produced
-Table~\ref{tab:results-rq1} -- separate code, separate outputs, not wired
-into any reported number -- and untuned, single-seed, 4survey only; full
-architectural detail and the fixed implementation are in
-Appendix~\ref{chap:appendix}.
-\limit{The fix closes most, not all, of the gap to DNN, and was tested only
-as a disconnected, untuned, single-seed follow-up (5-fold
-spatial\_block\_kfold, 4survey only) -- not extended to 6survey, not
-hyperparameter-tuned, and not wired into this chapter's reported pipeline.
-Whether tuning would close the remaining gap, and whether the CR term
-contributes real signal or the larger-capacity residual network routes
-around it, are both untested.}
+Result: PINN and PINN$_k$ underperform both DNN and XGBoost on 4survey
+(Table~\ref{tab:results-rq1}: $0.631$ and $0.618$ $R^2$ vs.\ DNN's $0.655$
+and XGBoost's $0.674$), though both close most of the gap to DNN that an
+earlier, uncorrected version of this architecture left open (Appendix
+\ref{chap:appendix} has the full account of that correction).
+Why: unlike every other row in Table~\ref{tab:results-rq1}, PINN/PINN$_k$
+received no hyperparameter tuning -- DNN's 48-configuration sweep and
+XGBoost's 27-configuration sweep are both reported above, PINN was evaluated
+at its original, untuned settings only, single seed, single feature set.
+Whether the model's Chapman-Richards term contributes real predictive
+signal, or the larger-capacity residual network routes around it regardless,
+is also untested.
+So what: the case for PINN here is not raw accuracy -- interpretability is.
+Each plot gets its own predicted $y_{\max}^{(i)}$ and $k^{(i)}$, not just a
+single number for the whole cohort. In principle this should sit close to
+the population Chapman-Richards curve most of the time (Table~\ref{tab:results-rq1}'s
+frozen $y_{\max}$/$k$ anchor), with the sub-networks learning, from terrain
+and wind alone, when and how far to tweak it for a given plot -- something
+XGBoost and the DNN cannot offer, since neither exposes a per-plot growth
+parameter at all.
+Checked: %CHECK -- example plot [ID pending, run in progress], comparing its
+own observed height trajectory against (a) the population curve and (b) the
+curve implied by this plot's own predicted $y_{\max}^{(i)}$/$k^{(i)}$, to
+show this is a real, plot-specific adjustment and not just noise around the
+population anchor.
+\fig{Example plot: observed height-vs-age points for one held-out 4survey
+plot, the population-level Chapman-Richards curve, and this plot's own
+learned curve from its predicted $y_{\max}^{(i)}$/$k^{(i)}$ -- shows what the
+sub-networks actually learned for a real plot, not just the aggregate $R^2$.}
+Remaining: whether tuning the architecture would close more of the gap to
+DNN/XGBoost is a plausible, untested next step.
+\limit{PINN/PINN$_k$ were evaluated once, untuned, on 4survey only (5-fold
+spatial\_block\_kfold), single seed -- not extended to 6survey, not
+hyperparameter-tuned. Whether tuning would close the remaining gap to
+DNN/XGBoost, and whether the Chapman-Richards term contributes real signal
+or the larger-capacity residual network routes around it, are both
+untested.}
 
 
 
@@ -1605,24 +1603,29 @@ around it, are both untested.}
 % across both models and cohorts. Setting lambda=0 raised R2 by 0.05 on 4survey (a real
 % gain) and by +0.010 on 6survey (within noise). The physics loss directly hurts accuracy
 % by fighting the data fit on shared weights. Dropping the physics loss cuts the 4survey
-% DNN-PINN gap from 0.080 down to 0.026 (DNN 0.655 vs. unconstrained PINN_k 0.629), and
-% it closes the gap on 6survey (0.719 vs. 0.684). The remaining 0.026 gap's cause is
-% unresolved -- plausibly PINN_k's extra sub-network parameters, plausibly ordinary
-% run-to-run variation between two structurally different networks; not settled further
-% here.
+% DNN-PINN gap from 0.080 down to 0.030 (DNN 0.655 vs. unconstrained PINN_k 0.625,
+% 5-fold spatial_block_kfold mean -- verified against outputs/run_logs/, 2026-08-20; a
+% single-split ablation run gives a nearby but not identical 0.632, not used here since
+% DNN's own 0.655 is itself a kfold mean), and it edges past DNN on 6survey (0.694 vs.
+% 0.684, a much smaller margin than an earlier draft's 0.719 -- also corrected
+% 2026-08-20). The remaining 0.030 gap's cause is unresolved -- plausibly PINN_k's extra
+% sub-network parameters, plausibly ordinary run-to-run variation between two
+% structurally different networks; not settled further here.
 %
-% -- Scoped fix, tested as a disconnected follow-up (2026-08-20) --
+% -- Scoped fix, now the reported 4survey PINN/PINN-k result (2026-08-20) --
 % The scoped fix -- adding the CR curve evaluated at the per-plot parameters as an
 % explicit term in the prediction, with the trunk contributing a residual on top of it --
-% was implemented and tested, but only as an isolated, disconnected experiment: separate
-% code (temp_results_pinn/pinn_env_terrain_fix/), separate outputs, no hyperparameter
-% tuning, single seed, 4survey only, not wired into this chapter's reported pipeline or
-% Table tab:results-rq1. Local smoke tests confirmed terrain reaches the prediction and
+% was implemented, tested, and its 4survey 5-fold numbers now populate
+% Table tab:results-rq1's PINN/PINN-k rows directly (6survey left blank, not rerun).
+% Code lives separately (temp_results_pinn/pinn_env_terrain_fix/, not under models/),
+% but the resulting 4survey numbers are the reported ones, not a disconnected aside --
+% still no hyperparameter tuning applied, single seed. Local smoke tests confirmed
+% terrain reaches the prediction and
 % the CR curve behaves correctly at its boundaries before any real-data run. Evaluated on
 % the same 4survey spatial_block_kfold 5-fold split as the headline table, at matched
 % production settings (max_epochs=500, patience=40): y_max-only fix raises 5-fold mean R2
-% from 0.573 to 0.631 (71% of the 0.082 gap to DNN's 0.655 recovered); y_max+k fix raises
-% it from 0.575 to 0.618 (54% of the 0.080 gap recovered). Neither beats DNN outright.
+% from 0.573 to 0.631 (70.5% of the 0.082 gap to DNN's 0.655 recovered); y_max+k fix
+% raises it from 0.575 to 0.618 (53.5% of the 0.080 gap recovered). Neither beats DNN.
 % Per-fold: y_max-only R2 = 0.674, 0.637, 0.616, 0.602, 0.626 (folds 0-4); y_max+k R2 =
 % 0.649, 0.635, 0.601, 0.597, 0.607. Untested: whether tuning the fixed architecture
 % would close the remaining gap; whether the CR term contributes real signal or the
