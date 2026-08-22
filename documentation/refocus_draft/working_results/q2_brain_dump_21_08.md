@@ -1,8 +1,15 @@
 # Q2 brain dump — what's actually true, what's shaky, what's new
 
-Written 2026-08-21. Plain language, for you to read and decide what's convincing before any of
-this goes in the dissertation. Marked **NEW** where I ran a real test this pass that wasn't in the
-draft before. Everything else is re-checked against saved files, not re-derived from scratch.
+Written 2026-08-21, updated 2026-08-22. Plain language, for you to read and decide what's
+convincing before any of this goes in the dissertation. Marked **NEW** where I ran a real test
+this pass that wasn't in the draft before, **UPDATE (08-22)** where the 08-22 pass changed or
+corrected an 08-21 finding. Everything else is re-checked against saved files, not re-derived from
+scratch.
+
+**Queued but not back yet** (submitted to the cluster 2026-08-22, results not rsynced): GNNWR
+CanopyCover-only (Set4, 5-fold), a 2-seed reseed check of the 4-survey coefficient map, and a
+saturation-transform check (see section 8, below). Nothing below assumes their results — this file
+only reflects what's actually been run and checked locally. Come back to this file once they land.
 
 ## The story Q2 is supposed to tell
 
@@ -24,10 +31,11 @@ story turns out to hinge overwhelmingly on one variable — more than anyone had
 | GNNWR beats EN/XGBoost on every 4-survey set (point estimate) | **True** | Confirmed, unchanged |
 | ...but the edge is statistically solid (CIs don't overlap) | **False** | Confirmed false — CIs overlap everywhere |
 | Moran's I drop backs up the R² edge | **True, but weak corroboration** | Still just "suggestive," see below — NEW test adds a reason to stay cautious |
-| GNNWR's edge = genuine spatially-varying environmental relationships | **Partly true, mostly unresolved** | **NEW**: GNNWR only closes ~22% of the available compartment-level gap — see "why GNNWR wins" below |
+| GNNWR's edge = genuine spatially-varying environmental relationships | **Mostly false** | **UPDATE (08-22)**: GNNWR without CanopyCover scores 0.049 — statistically the same as EN/XGBoost without it. GNNWR's entire edge over global models is riding on CanopyCover specifically, not on environmental variables in general — see "why GNNWR wins" below |
 | CanopyCover is the top variable, not circular (not just the target restated) | **True** | Confirmed, correlation 0.35–0.47 range (Q1); **NEW for Q2**: 0.47 |
-| CanopyCover "matters a lot" for Q2 | **Understatement** | **NEW**: it's ~80% of the model's entire explanatory power, worse than Q1 |
+| CanopyCover "matters a lot" for Q2 | **Understatement** | **NEW**: it's ~80% of the model's entire explanatory power, worse than Q1 — and this is now confirmed true for GNNWR too, not just EN/XGBoost |
 | Terrain matters moderately, soil is noise | **True but needs a huge caveat** | Only true within the ~5% of R² left after CanopyCover — see below |
+| GNNWR's linear-per-location structure is why it can't use terrain/climate signal | **Plausible, live — corrects an 08-21 overstatement** | **UPDATE (08-22)**: SHAP-dependence plots show real, clean, *non-linear* (saturating) structure for windward_topex and slope_degrees — my earlier "linearity probably isn't the blocker" read was premature, see below |
 | $\Delta y_{max}$ cleanly measures "ceiling difference" | **False** | Confirmed: entangled with growth-rate mismatch across the whole population, not just outliers |
 | 6-survey collapse = sample size | **False, ruled out** | Confirmed ruled out; true cause still unknown |
 | The ~10/266/709-plot outlier story (fixed-$k$ artifact) | **True, well-tested** | Solid — this is the best-evidenced part of the chapter |
@@ -35,56 +43,107 @@ story turns out to hinge overwhelmingly on one variable — more than anyone had
 
 ---
 
-## 1. Why does GNNWR actually win? (NEW investigation)
+## 1. Why does GNNWR actually win? (NEW investigation, UPDATE 08-22: now a decisive answer)
 
 The draft says GNNWR's R² edge is "corroborated but not confirmed" by its bigger Moran's I drop,
 with an honest caveat that this doesn't prove genuine spatial non-stationarity. I wanted a sharper
-answer than "maybe." Here's a real test.
+answer than "maybe." Two tests, run a day apart — the second one settles it.
 
-**The idea**: if GNNWR is mostly just learning "this compartment tends to run high/low" — a
-location-level *average* effect, similar to what a compartment random intercept would do — then
-most of its edge should be recoverable just by shifting each compartment's predictions by that
-compartment's own average error. If GNNWR is doing something richer (the *relationship* between
-CanopyCover/terrain and the ceiling genuinely differs by place, not just the average level), the
-edge should be harder to explain by a simple shift.
-
-**What I did**: took Elastic Net's actual Set4 predictions, and asked: what would $R^2$ be if you
-"cheated" and corrected each plot's prediction using its own compartment's average leftover error
-(computed from the same test data — this is a diagnostic ceiling, not a real model; a real model
-can't see test-set answers, so treat this as an upper bound, not an achievable score).
-
-**Result**:
+**Test A (08-21, diagnostic only)**: if GNNWR is mostly just learning "this compartment tends to
+run high/low" — a location-level *average* effect, similar to what a compartment random intercept
+would do — then most of its edge should be recoverable just by shifting each compartment's
+predictions by that compartment's own average error. Took Elastic Net's actual Set4 predictions
+and computed what $R^2$ would be with a "cheating" per-compartment correction (uses test-set
+answers directly — an upper bound, not an achievable score):
 - EN's real Set4 $R^2$: 0.240
-- **That diagnostic ceiling (perfect compartment-average correction): 0.538** — more than double
-- GNNWR's real Set4 $R^2$: 0.294
+- Diagnostic ceiling (perfect compartment-average correction): **0.538** — more than double
+- GNNWR's real Set4 $R^2$: 0.294 — only about a fifth of the way from 0.240 to that ceiling
 
-So there's a *lot* of real, compartment-level structure sitting in the data that a global model
-completely misses (0.240 → 0.538 is a huge gap). GNNWR only recovers about a fifth of that gap
-(0.240 → 0.294, against a ceiling of 0.538). That's not nothing — it means GNNWR is doing
-*something* real — but it's a much more modest achievement than "GNNWR captures the spatial
-structure." It captures a small slice of a much bigger pool of structure that's sitting right
-there, unexplained, by any of this chapter's models.
+This established there's a lot of real compartment-level structure sitting unexplained, and that
+GNNWR only captures a modest slice of it — but it couldn't say *what* GNNWR's slice actually is.
 
-**Does GNNWR's top coefficient actually vary, or is it flat?** Checked directly (GNNWR's own
-saved per-plot `coef_CanopyCover` values, Set4, pooled 5 folds): mean 23.6, SD 5.7, always
-positive, coefficient of variation ≈ 0.24 (i.e. it swings by roughly ±24% of its average value
-across plots). So it's not a frozen constant dressed up as a "local" model — the strength of the
-CanopyCover-to-ceiling relationship genuinely differs from place to place, it just never flips
-sign. This is reassuring for "GNNWR is learning something," but doesn't resolve how much of that
-24% swing is genuine environmental heterogeneity vs. GNNWR's nearest-neighbour weighting just
-smoothing over locally similar plots (which would also produce a varying-but-never-flipping
-coefficient, without needing a real causal explanation).
+**Test B (08-22, decisive)**: you ran the CanopyCover-dropped GNNWR ablation on the cluster and
+rsynced it back. Result: **GNNWR without CanopyCover scores $R^2=0.049$** (fold-mean
+0.026±0.067) — statistically the same as EN (0.042) and XGBoost (0.061) without CanopyCover. All
+three collapse to the same near-zero floor.
 
-**Honest summary for the dissertation**: GNNWR's edge is real but small, and demonstrably captures
-only a modest fraction of the spatial structure that's actually there. This is a *stronger*,
-more specific caveat than the current draft's "suggestive not confirming" line — worth swapping in.
+This is the direct answer Test A couldn't give: **GNNWR's entire edge over the global models is
+riding on CanopyCover specifically.** Take it away, and GNNWR gains *zero* advantage from being
+spatially aware — it does no better than a plain global model on the remaining 18 terrain/climate/
+soil variables. So the honest story isn't "environmental relationships vary spatially and GNNWR
+captures that" (what the current draft implies) — it's closer to "how CanopyCover's relationship
+to ceiling height varies by place is the one thing GNNWR is demonstrably picking up; for genuine
+environmental variables (terrain, climate, soil), there's barely any signal for any method, local
+or global, to work with."
+
+**Does GNNWR's CanopyCover coefficient actually vary, or is it flat?** Checked directly (GNNWR's
+own saved per-plot `coef_CanopyCover` values, Set4, pooled 5 folds): mean 23.6, SD 5.7, always
+positive, coefficient of variation ≈ 0.24 (swings by roughly ±24% of its average value across
+plots). Not a frozen constant dressed up as "local" — the strength of the CanopyCover-to-ceiling
+relationship genuinely differs from place to place, it just never flips sign. Doesn't resolve
+whether that 24% swing is genuine environmental heterogeneity or GNNWR's nearest-neighbour
+weighting smoothing over locally similar plots — but it's real variation, not nothing.
+
+**Is GNNWR's structural linearity part of the problem? (UPDATE 08-22 — corrects an 08-21 miss)**
+The 08-21 pass of this file argued the opposite of what I now think: it compared XGBoost's R²
+without CanopyCover (0.061) to EN's (0.042), both near zero, and used that as evidence AGAINST
+"linearity is the blocker" — reasoning that a flexible non-linear global model should have found
+more signal than a linear one did, if there were much to find. **That was premature.** A quick
+SHAP-dependence check (plotting each plot's SHAP value against its own raw feature value, from the
+same no-CanopyCover XGBoost fit) shows `windward_topex` and `slope_degrees` both have clean,
+tight, clearly *non-linear* (saturating) relationships — slope's effect rises steeply from 0–15°
+then flattens completely above that; windward_topex has a similar S-shaped curve. Not noise.
+
+So there is real non-linear structure in the data that XGBoost can see and GNNWR structurally
+cannot (GNNWR is local-*linear* — one straight line per location, just a different straight line
+in different places; a saturating curve like slope's gets mangled by any single straight-line fit,
+local or global). This doesn't overturn the CanopyCover-dominance finding above, but it does mean
+"GNNWR's spatial machinery isn't finding environmental signal" and "GNNWR's linearity is part of
+why" can both be true simultaneously. The two aren't competing explanations — they likely compound:
+even the modest environmental signal that exists is shaped in a way a local-linear model handles
+poorly. **Checked**: building a genuine non-linear + spatially-varying model isn't available in
+this project's toolkit (the `gnnwr` package only ships linear-in-features architectures) and would
+be new methodology development — realistically days of work, not recommended given the timeline.
+
+**Why did we expect GNNWR to work at all, given Q1 already found non-linear relationships?**
+(genuinely worth stating explicitly, since it's easy to conflate two different assumptions.)
+There are two separate "linear" questions here, and GNNWR only relaxes one of them:
+1. *Is a feature's effect on the target a straight line, at a given location?* (e.g. does height
+   rise proportionally with slope, or saturate?) GNNWR does **not** fix this — at every location it
+   still predicts a linear combination of the raw features, same limitation as EN.
+2. *Does a coefficient's strength change smoothly/simply as you move across the map, or in a more
+   complex pattern?* This is what GNNWR's spatial-weighting sub-network was built to relax — it's
+   a genuine neural network (not a fixed distance-decay kernel like classical GWR), so it can learn
+   flexible, non-linear spatial weighting patterns.
+
+GNNWR was chosen to test #2 — whether the *strength* of a relationship differs by place — not to
+fix #1. That's a legitimate reason to try it, independent of the non-linearity already known from
+Q1. What likely limits it in practice: if a relationship (like slope's saturating curve) is
+non-linear *and* both ends of that curve show up within the same local neighborhood (very plausible
+— slope varies within a compartment, not just between compartments), a single local straight line
+can only approximate the neighborhood's *average* sensitivity, not the curve's shape. So a
+well-justified spatial model can still underperform when the underlying relationship is curved and
+that curvature isn't cleanly separated by geography. Worth stating both halves in the dissertation:
+why GNNWR was a reasonable choice, and precisely what kind of signal it structurally cannot reach
+even when the choice was reasonable.
+
+**Honest summary for the dissertation**: GNNWR's edge is real, small, and now decisively shown to
+depend entirely on CanopyCover — not on any broader ability to capture spatially-varying
+environmental relationships. Whatever non-linear terrain signal exists (windward_topex, slope) is
+real but structurally out of GNNWR's reach either way. This is a much sharper, more specific
+finding than the current draft's "suggestive not confirming" line — worth rewriting the whole
+"why GNNWR wins" framing around, not just swapping in a caveat.
 
 ---
 
 ## 2. Is CanopyCover really holding the model together? (NEW — and yes, more than Q1)
 
 This exact question was asked and answered for Q1's target. It was never asked for Q2's target,
-even though Q2's target uses the same variable. It should have been — the answer is more extreme.
+even though Q2's target uses the same variable. It should have been — the answer is more extreme,
+and (UPDATE 08-22, see section 1 above) it's now confirmed true for GNNWR too, not just EN/XGBoost
+— GNNWR without CanopyCover also collapses to $R^2=0.049$, the same near-zero floor as the global
+models. CanopyCover isn't just the top variable in this chapter's global models — it's the entire
+reason any of the three methods, including the spatially-aware one, gets meaningfully above zero.
 
 **Ablation (already run this session, verified again here)**: dropping CanopyCover from Set4 and
 refitting on Q2's own target ($\Delta y_{max}$):
@@ -235,15 +294,26 @@ saying so directly rather than presenting them as unrelated.
 ## 7. Open worries — genuinely unresolved, said plainly
 
 - **6-survey collapse**: sample size ruled out, true cause unknown. Fewer compartments (47 vs 231)
-  is the leading unexplored candidate but untested here.
+  is the leading candidate; deliberately not being pursued further (your call — 6-survey isn't
+  carrying narrative weight either way, its R² is ~0 across all three methods already). Leave as an
+  explicitly acknowledged, un-investigated limitation, not a resolved one.
 - **266 vs 250 flagged-plot count**: disclosed discrepancy, never traced to the exact ~16 plots
   that differ.
 - **Growth-rate vs. ceiling entanglement (#4)**: cannot be cleanly separated with 4–6 survey points
   per plot. Real limitation of the data, not a fixable bug.
-- **GNNWR's edge — genuine spatial heterogeneity vs. smoothing artifact**: narrowed by the new
-  compartment-ceiling test (only ~22% of available structure captured) and the coefficient-CV
-  check (real variation, never flips sign) — but not fully resolved. A cleaner test would need
-  something like comparing GNNWR to a plain compartment-fixed-effects model, not attempted here.
+- **GNNWR's edge — RESOLVED (08-22)**: entirely dependent on CanopyCover, confirmed directly by
+  ablation (0.294 → 0.049 without it, same floor as EN/XGBoost). No longer open.
+- **Is CanopyCover's ~24% coefficient swing genuine environmental heterogeneity, or GNNWR's
+  nearest-neighbour smoothing?**: still open — the ablation confirms CanopyCover is *where* the
+  signal is, not *why* it varies spatially. Would need a comparison to a plain compartment-fixed-
+  effects model to separate; not attempted.
+- **Non-linearity capping GNNWR's environmental signal**: live and evidenced (SHAP-dependence
+  check, 08-22), not fully resolved — real for windward_topex/slope_degrees, but how much of the
+  CanopyCover ablation result it explains vs. genuine spatial-strength variation isn't separable
+  with this project's toolkit. Stated as a real, disclosed limitation, not chased further (would
+  need new non-linear+spatial methodology, days of work).
 - **SHAP redistribution after the CanopyCover ablation**: real but partial — some variables rise
   40–60%, but overall $R^2$ still collapses. Doesn't cleanly resolve to "real independent signal"
   or "pure artifact" — said that way above, not forced to a verdict.
+- **Queued, not yet run**: GNNWR CanopyCover-only (does CanopyCover alone reach close to 0.294?)
+  and a 2-seed reseed check of the 4-survey coefficient map. Come back to this file once rsynced.
