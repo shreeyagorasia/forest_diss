@@ -27,7 +27,7 @@ L1_COEFFICIENT = 1e-5
 LEARNING_RATE = 0.0001
 LR_SCHEDULER_FACTOR = 0.8
 LR_SCHEDULER_PATIENCE = 15
-BATCH_SIZE = 512
+BATCH_SIZE = 256  # matches PINN/PINN-k's default -- changed from 512 on 2026-08-22 for a fair batch-size comparison; kept paired with dnn_env_terrain.py's default, per that file's own note
 
 # L2 penalty built into the optimizer itself (distinct from L1_COEFFICIENT
 # above, which is added to the loss manually) -- a second, standard way to

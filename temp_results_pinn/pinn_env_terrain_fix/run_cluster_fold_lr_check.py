@@ -1,23 +1,22 @@
-# Lambda (physics-loss weight) ablation for the CORRECTED (fixed-forward-pass) PINN-k -- a light
-# copy of run_cluster_fold.py, varying --physics-weight instead of --feature-set, fixed to Set3
-# (nested_set3_gated_terrain_wind_vif, the set with the already-trusted, corrected Table 3
-# numbers at physics_weight=1.0) so this ablation is directly comparable to the existing result.
+# Tests whether the DNN's Aug-19 hyperparameter finding (learning_rate=0.001, weight_decay=1e-3
+# closes 86% of its gap to XGBoost -- TEMP_results/TEMP_rq1_dnn_hyperparameter_search_2026-08-19.tex)
+# transfers to the CORRECTED (fixed-forward-pass) PINN/PINN-k. Both models share the exact same
+# defaults as the DNN (learning_rate=0.0001, weight_decay=1e-5), so this is a direct transfer
+# check, not a fresh grid search -- deliberately not re-sweeping PINN's own hyperparameters from
+# scratch. Fixed to Set3 (nested_set3_gated_terrain_wind_vif), the set with the already-trusted
+# Table 3 numbers at the OLD defaults, so results are directly comparable. Physics_weight (lambda)
+# stays at the current default (1.0) here -- the lambda ablation is a separate, later step, and
+# will use whichever learning_rate/weight_decay this check finds is best.
 #
-# Writes to a separate, clearly-named directory (CORRECTED_2026-08-22_lambda_ablation/) -- cannot
-# collide with the existing Set3 result (full_rerun_cluster/) or the Set2/Set4 sweep
-# (CORRECTED_2026-08-22_pinn_set_sweep/).
-#
-# Purpose: the OLD lambda ablation already in the main draft ("Testing lambda_phys in {0,1,2}...")
-# used the pre-fix architecture and is explicitly disclosed as such -- not valid evidence for the
-# corrected model. This reruns the same idea with the real, corrected code, PINN-k only (the
-# flagship variant), so the result can actually be trusted and then used as the physics_weight
-# for the Set2/Set4 sweep.
+# Isolation: writes to a new, separate output directory (CORRECTED_2026-08-22_lr_check/) --
+# cannot collide with the existing Set3 result (full_rerun_cluster/), the lambda ablation
+# (CORRECTED_2026-08-22_lambda_ablation/), or the Set2/Set4 sweep (CORRECTED_2026-08-22_pinn_set_sweep/).
 #
 # Run directly (cluster login node, tiny settings, to smoke-test before a real sbatch submit):
-#   PYTHONPATH=. python temp_results_pinn/pinn_env_terrain_fix/run_cluster_fold_lambda_ablation.py \
-#     --fold-index 0 --physics-weight 0.5 --max-epochs 3 --patience 2
+#   PYTHONPATH=. python temp_results_pinn/pinn_env_terrain_fix/run_cluster_fold_lr_check.py \
+#     --fold-index 0 --variant k --max-epochs 3 --patience 2
 #
-# Normally launched via temp_results_pinn/jobs/run_pinn_fix_lambda_ablation_cluster.sh (sbatch).
+# Normally launched via temp_results_pinn/jobs/run_pinn_fix_lr_check_cluster.sh (sbatch).
 
 import argparse
 import json
@@ -43,11 +42,9 @@ from models.common.torch_data import (
     load_trajectory_pairs,
     select_device,
 )
-from temp_results_pinn.pinn_env_terrain_fix import pinn_env_terrain_k_fix as pinn_module
-from temp_results_pinn.pinn_env_terrain_fix.pinn_env_terrain_k_fix import fit, predict, predict_y_max, predict_k
 
-OUTPUT_DIR = Path(__file__).resolve().parents[1] / "outputs" / "CORRECTED_2026-08-22_lambda_ablation"
-FEATURE_SET = "nested_set3_gated_terrain_wind_vif"  # fixed -- directly comparable to the trusted lambda=1.0 Table 3 number
+OUTPUT_DIR = Path(__file__).resolve().parents[1] / "outputs" / "CORRECTED_2026-08-22_lr_check"
+FEATURE_SET = "nested_set3_gated_terrain_wind_vif"  # fixed -- directly comparable to Table 3's Set3 number
 
 
 def unscale(scaled_tensor, scaler):
@@ -57,31 +54,31 @@ def unscale(scaled_tensor, scaler):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fold-index", type=int, required=True, help="0-4, which spatial_block_kfold fold to hold out as test.")
-    parser.add_argument("--physics-weight", type=float, required=True, help="lambda_phys to test, e.g. 0, 0.5, 1.0, 2.0.")
+    parser.add_argument("--variant", choices=["ymax", "k"], required=True, help="'ymax' = y_max-only fix, 'k' = y_max+k fix.")
+    parser.add_argument("--learning-rate", type=float, default=0.001, help="DNN's winning value (project default is 0.0001).")
+    parser.add_argument("--weight-decay", type=float, default=1e-3, help="DNN's winning value (project default is 1e-5).")
     parser.add_argument("--cohort", default="4survey")
     parser.add_argument("--split-type", default="spatial_block_kfold")
     parser.add_argument("--n-folds", type=int, default=5)
     parser.add_argument("--max-epochs", type=int, default=500)
     parser.add_argument("--patience", type=int, default=40)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--learning-rate", type=float, default=0.0001, help="Project default -- override once the LR-transfer check (run_cluster_fold_lr_check.py) finds a better value.")
-    parser.add_argument("--weight-decay", type=float, default=1e-5, help="Project default -- override once the LR-transfer check finds a better value.")
     parser.add_argument("--batch-size", type=int, default=256, help="Matches PINN's own default -- set explicitly (not relying on the module default) so it's recorded in the summary JSON.")
     args = parser.parse_args()
 
     if not (0 <= args.fold_index < args.n_folds):
         raise ValueError(f"--fold-index must be in [0, {args.n_folds}), got {args.fold_index}")
 
-    lambda_label = f"lambda{args.physics_weight}".replace(".", "p")
-    fold_dir = OUTPUT_DIR / lambda_label / f"fold_{args.fold_index}"
+    fold_dir = OUTPUT_DIR / args.variant / f"fold_{args.fold_index}"
     fold_dir.mkdir(parents=True, exist_ok=True)
-    summary_path = fold_dir / "pinn_k_fixed_summary.json"
+    summary_path = fold_dir / f"pinn_{args.variant}_lr_check_summary.json"
     if summary_path.exists():
-        print(f"{summary_path} already exists -- delete it first to redo this fold/lambda. Exiting without retraining.")
+        print(f"{summary_path} already exists -- delete it first to redo this fold/variant. Exiting without retraining.")
         return
 
     device = select_device()
-    print(f"Device: {device}  Fold: {args.fold_index}  physics_weight (lambda): {args.physics_weight}  Feature set: {FEATURE_SET}")
+    print(f"Device: {device}  Fold: {args.fold_index}  variant={args.variant}  "
+          f"learning_rate={args.learning_rate}  weight_decay={args.weight_decay}")
 
     feature_columns = ENV_TERRAIN_FEATURE_SETS[FEATURE_SET]
     cr_params = load_cr_params(args.cohort, args.split_type, split_seed=SPLIT_SEED, held_out_fold=args.fold_index)
@@ -117,8 +114,16 @@ def main():
     n_other_features = other_train.shape[1]
     n_terrain_features = terrain_train.shape[1]
 
+    if args.variant == "ymax":
+        from temp_results_pinn.pinn_env_terrain_fix import pinn_env_terrain_fix as pinn_module
+        from temp_results_pinn.pinn_env_terrain_fix.pinn_env_terrain_fix import fit, predict
+    else:
+        from temp_results_pinn.pinn_env_terrain_fix import pinn_env_terrain_k_fix as pinn_module
+        from temp_results_pinn.pinn_env_terrain_fix.pinn_env_terrain_k_fix import fit, predict
+
     # weight_decay is a module-level constant inside build_optimizer, not a fit() kwarg -- same
-    # monkeypatch pattern used in run_cluster_fold_lr_check.py, restored after training.
+    # monkeypatch pattern already used and validated by the DNN's Aug-19 sweep script, restored
+    # after training.
     original_weight_decay = pinn_module.WEIGHT_DECAY
     pinn_module.WEIGHT_DECAY = args.weight_decay
     try:
@@ -129,35 +134,26 @@ def main():
             pair_tensors, terrain_pairs, cr_params, scaler_age, scaler_height,
             n_other_features, n_terrain_features, device, args.seed,
             max_epochs=args.max_epochs, early_stopping_patience=args.patience,
-            physics_weight=args.physics_weight,  # <-- the thing being ablated; trajectory_weight stays at its default
             learning_rate=args.learning_rate,
             batch_size=args.batch_size,
         )
     finally:
         pinn_module.WEIGHT_DECAY = original_weight_decay
+
     preds = unscale(predict(model, age_test, other_test, terrain_test), scaler_height)
     target_unscaled = unscale(target_test, scaler_height)
     metrics = compute_metrics(target_unscaled, preds)
     elapsed = time.time() - t0
 
-    # Also record parameter separability (y_max_i vs k_i correlation) -- a real physics-loss
-    # ablation should check whether raising lambda actually improves the thing physics loss is
-    # meant to improve (trajectory consistency / sensible separated parameters), not just R2.
-    y_max_per_row = predict_y_max(model, terrain_test, cr_params["y_max"]).cpu().numpy().flatten()
-    k_per_row = predict_k(model, terrain_test, cr_params["k"]).cpu().numpy().flatten()
-    import numpy as np
-    param_correlation = float(np.corrcoef(y_max_per_row, k_per_row)[0, 1])
+    print(f"fold {args.fold_index} variant={args.variant}: R2={metrics['r2']:.4f} RMSE={metrics['rmse']:.4f} "
+          f"MAE={metrics['mae']:.4f} ({len(history)} epochs, {elapsed:.1f}s)")
 
-    print(f"fold {args.fold_index} lambda={args.physics_weight}: R2={metrics['r2']:.4f} RMSE={metrics['rmse']:.4f} "
-          f"MAE={metrics['mae']:.4f} param_corr(y_max,k)={param_correlation:.4f} ({len(history)} epochs, {elapsed:.1f}s)")
-
-    history.to_csv(fold_dir / "pinn_k_fixed_history.csv", index=False)
+    history.to_csv(fold_dir / f"pinn_{args.variant}_lr_check_history.csv", index=False)
     with open(summary_path, "w") as f:
         json.dump({**metrics, "n_epochs": len(history), "elapsed_seconds": elapsed,
-                   "fold_index": args.fold_index, "physics_weight": args.physics_weight,
-                   "param_correlation_ymax_k": param_correlation,
+                   "fold_index": args.fold_index, "variant": args.variant,
                    "learning_rate": args.learning_rate, "weight_decay": args.weight_decay,
-                   "batch_size": args.batch_size}, f, indent=2)
+                   "batch_size": args.batch_size, "feature_set": FEATURE_SET}, f, indent=2)
     print(f"Saved -> {summary_path}")
 
 

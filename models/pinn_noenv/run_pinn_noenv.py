@@ -301,7 +301,8 @@ def main():
     parser.add_argument(
         "--batch-size", type=int, default=BATCH_SIZE,
         help=(
-            f"Main training batch size. Default {BATCH_SIZE} -- 4x smaller than dnn_noenv's 512, "
+            f"Main training batch size. Default {BATCH_SIZE} -- smaller than dnn_noenv's current "
+            "default (256, as of 2026-08-22 -- was 512 when this comparison was first made), "
             "never tuned/matched before; exposed here specifically to test whether that mismatch "
             "(not the physics terms) explains a DNN-vs-PINN convergence difference."
         ),

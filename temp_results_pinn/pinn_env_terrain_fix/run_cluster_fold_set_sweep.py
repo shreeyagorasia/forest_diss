@@ -66,6 +66,10 @@ def main():
     parser.add_argument("--max-epochs", type=int, default=500, help="Matches production DEFAULT_MAX_EPOCHS -- same as the Set3 run this is meant to be comparable to.")
     parser.add_argument("--patience", type=int, default=40, help="Matches production DEFAULT_EARLY_STOPPING_PATIENCE.")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--learning-rate", type=float, default=0.0001, help="Project default -- override with the winning value from run_cluster_fold_lr_check.py once known.")
+    parser.add_argument("--weight-decay", type=float, default=1e-5, help="Project default -- override with the winning value from run_cluster_fold_lr_check.py once known.")
+    parser.add_argument("--physics-weight", type=float, default=1.0, help="Project default -- override with the winning lambda from run_cluster_fold_lambda_ablation.py once known.")
+    parser.add_argument("--batch-size", type=int, default=256, help="Matches PINN's own default -- set explicitly (not relying on the module default) so it's recorded in the summary JSON.")
     args = parser.parse_args()
 
     if not (0 <= args.fold_index < args.n_folds):
@@ -118,18 +122,31 @@ def main():
     n_terrain_features = terrain_train.shape[1]
 
     if args.variant == "ymax":
+        from temp_results_pinn.pinn_env_terrain_fix import pinn_env_terrain_fix as pinn_module
         from temp_results_pinn.pinn_env_terrain_fix.pinn_env_terrain_fix import fit, predict
     else:
+        from temp_results_pinn.pinn_env_terrain_fix import pinn_env_terrain_k_fix as pinn_module
         from temp_results_pinn.pinn_env_terrain_fix.pinn_env_terrain_k_fix import fit, predict
 
-    t0 = time.time()
-    model, _, history = fit(
-        age_train, other_train, terrain_train, target_train,
-        age_val, other_val, terrain_val, target_val,
-        pair_tensors, terrain_pairs, cr_params, scaler_age, scaler_height,
-        n_other_features, n_terrain_features, device, args.seed,
-        max_epochs=args.max_epochs, early_stopping_patience=args.patience,
-    )
+    # weight_decay is a module-level constant inside build_optimizer, not a fit() kwarg -- same
+    # monkeypatch pattern used in run_cluster_fold_lr_check.py, restored after training.
+    original_weight_decay = pinn_module.WEIGHT_DECAY
+    pinn_module.WEIGHT_DECAY = args.weight_decay
+    try:
+        t0 = time.time()
+        model, _, history = fit(
+            age_train, other_train, terrain_train, target_train,
+            age_val, other_val, terrain_val, target_val,
+            pair_tensors, terrain_pairs, cr_params, scaler_age, scaler_height,
+            n_other_features, n_terrain_features, device, args.seed,
+            max_epochs=args.max_epochs, early_stopping_patience=args.patience,
+            physics_weight=args.physics_weight,
+            learning_rate=args.learning_rate,
+            batch_size=args.batch_size,
+        )
+    finally:
+        pinn_module.WEIGHT_DECAY = original_weight_decay
+
     preds = unscale(predict(model, age_test, other_test, terrain_test), scaler_height)
     target_unscaled = unscale(target_test, scaler_height)
     metrics = compute_metrics(target_unscaled, preds)
@@ -141,7 +158,9 @@ def main():
     history.to_csv(fold_dir / f"pinn_{args.variant}_fixed_history.csv", index=False)
     with open(summary_path, "w") as f:
         json.dump({**metrics, "n_epochs": len(history), "elapsed_seconds": elapsed,
-                   "fold_index": args.fold_index, "variant": args.variant, "feature_set": args.feature_set}, f, indent=2)
+                   "fold_index": args.fold_index, "variant": args.variant, "feature_set": args.feature_set,
+                   "learning_rate": args.learning_rate, "weight_decay": args.weight_decay,
+                   "physics_weight": args.physics_weight, "batch_size": args.batch_size}, f, indent=2)
     print(f"Saved -> {summary_path}")
 
 
