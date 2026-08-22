@@ -1,16 +1,19 @@
-# Re-runs the DNN on all 5 spatial_block_kfold folds (Set3, the Table 3 feature set) at the
-# hyperparameter config the Aug-19 single-split sweep found best: learning_rate=0.001,
-# weight_decay=1e-3 (see TEMP_results/TEMP_rq1_dnn_hyperparameter_search_2026-08-19.tex).
+# Re-runs the DNN on all 5 spatial_block_kfold folds (Set3, the Table 3 feature set), one
+# process per fold so the cluster can run all 5 in parallel, with learning_rate/weight_decay/
+# batch_size all overridable and recorded in the summary JSON.
 #
-# Why this script exists: that sweep only checked ONE train/val/test split, not proper 5-fold
-# spatial_block_kfold CV -- so its test R2=0.6370 is not yet a fair, Table-3-comparable number
-# (Table 3's current DNN row, R2=0.655+/-0.016, is averaged over 5 folds at the OLD defaults,
-# learning_rate=0.0001/weight_decay=1e-5 -- confirmed from the actual logged run_metadata.json,
-# not just the module's stated defaults). This script closes that gap: same winning config,
-# proper 5-fold CV, one process per fold so the cluster can run all 5 in parallel.
+# History: originally written to test the Aug-19 single-split sweep's winning config
+# (learning_rate=0.001, weight_decay=1e-3 -- see
+# TEMP_results/TEMP_rq1_dnn_hyperparameter_search_2026-08-19.tex). Result (2026-08-22, proper
+# 5-fold CV, batch_size=256): flat-to-worse (0.6426 vs the trusted 0.6550) -- the Aug-19 win was
+# a batch_size=512 artefact, not a real improvement at Table 3's actual batch_size=256. See
+# temp_results_pinn/RESULTS_TABLE.md #3 for the full writeup. Defaults below reverted to the
+# project's original values accordingly; use --output-dir-name to point at a fresh directory
+# whenever hyperparameters differ from a previous run.
 #
-# Isolation: writes to a new, separate output directory -- CANNOT collide with or overwrite the
-# existing Table 3 DNN results (outputs/spatial_block_kfold/rq1_dnn_env_terrain_..._seed42/).
+# Isolation: writes to a new, separate output directory (outputs/<output-dir-name>/) -- CANNOT
+# collide with or overwrite the existing Table 3 DNN results
+# (outputs/spatial_block_kfold/rq1_dnn_env_terrain_..._seed42/).
 #
 # Run directly (cluster login node, tiny settings, to smoke-test before a real sbatch submit):
 #   PYTHONPATH=. python models/baselines/rq1_dnn_tuned_cluster_fold.py \
@@ -41,7 +44,7 @@ from models.common.splits import SPLIT_SEED
 from models.dnn_env_terrain import dnn_env_terrain as dnn_module
 from models.dnn_env_terrain.dnn_env_terrain import fit as fit_dnn, predict as predict_dnn
 
-OUTPUT_DIR = Path(__file__).resolve().parents[2] / "outputs" / "CORRECTED_2026-08-22_dnn_tuned_cluster"
+OUTPUT_DIR_ROOT = Path(__file__).resolve().parents[2] / "outputs"
 FEATURE_SET = "nested_set3_gated_terrain_wind_vif"  # Table 3's feature set, so this is directly comparable
 
 
@@ -52,9 +55,10 @@ def unscale(scaled_tensor, scaler):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fold-index", type=int, required=True, help="0-4, which spatial_block_kfold fold to hold out as test.")
-    parser.add_argument("--learning-rate", type=float, default=0.001, help="Winning value from the Aug-19 sweep (project default is 0.0001).")
-    parser.add_argument("--weight-decay", type=float, default=1e-3, help="Winning value from the Aug-19 sweep (project default is 1e-5).")
-    parser.add_argument("--batch-size", type=int, default=256, help="Forced to 256 (DNN's own default is 512) so DNN and PINN/PINN-k are trained with exactly the same batch size -- a fair comparison, set explicitly rather than relying on either file's default.")
+    parser.add_argument("--learning-rate", type=float, default=0.0001, help="Project default. The Aug-19 'tuned' value (0.001) was tested 2026-08-22 and found to be flat-to-worse at batch_size=256 -- see temp_results_pinn/RESULTS_TABLE.md #3.")
+    parser.add_argument("--weight-decay", type=float, default=1e-5, help="Project default. The Aug-19 'tuned' value (1e-3) was tested 2026-08-22 and found to be flat-to-worse at batch_size=256 -- see temp_results_pinn/RESULTS_TABLE.md #3.")
+    parser.add_argument("--batch-size", type=int, default=256, help="DNN's module default (changed from 512 on 2026-08-22 to match PINN/PINN-k's default for a fair comparison).")
+    parser.add_argument("--output-dir-name", default="CORRECTED_2026-08-22_dnn_tuned_cluster", help="Which subdirectory of outputs/ to write to -- change this whenever batch_size/learning_rate/weight_decay differ from a previous run, so results never collide.")
     parser.add_argument("--cohort", default="4survey")
     parser.add_argument("--split-type", default="spatial_block_kfold")
     parser.add_argument("--n-folds", type=int, default=5)
@@ -66,7 +70,7 @@ def main():
     if not (0 <= args.fold_index < args.n_folds):
         raise ValueError(f"--fold-index must be in [0, {args.n_folds}), got {args.fold_index}")
 
-    fold_dir = OUTPUT_DIR / f"fold_{args.fold_index}"
+    fold_dir = OUTPUT_DIR_ROOT / args.output_dir_name / f"fold_{args.fold_index}"
     fold_dir.mkdir(parents=True, exist_ok=True)
     summary_path = fold_dir / "dnn_tuned_summary.json"
     if summary_path.exists():
@@ -74,7 +78,8 @@ def main():
         return
 
     device = select_device()
-    print(f"Device: {device}  Fold: {args.fold_index}  learning_rate={args.learning_rate}  weight_decay={args.weight_decay}")
+    print(f"Device: {device}  Fold: {args.fold_index}  learning_rate={args.learning_rate}  "
+          f"weight_decay={args.weight_decay}  batch_size={args.batch_size}")
 
     feature_columns = ENV_TERRAIN_FEATURE_SETS[FEATURE_SET]
     split_df = load_split_table_with_terrain(

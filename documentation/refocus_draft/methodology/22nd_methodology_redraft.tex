@@ -161,12 +161,12 @@ Each feature group's contribution to $R^2$ is measured by permutation importance
 % this project; they appear specific to Q2's own plot-level asymptote-fitting population, which
 % would make Methodology the correct home, not the Data chapter. Confirm before moving.
 To remove bad data, plots are dropped if consecutive surveys match either rule:(1) Clearfell: Top height drops $\ge 25\%$, canopy cover drops $\ge 70\%$, and standing volume drops $\ge 70\%$.
-(2) Measurement error: Top height drops $\ge 25\%$, while canopy cover drops $\le 10\%$ and volume does not drop. Plots with large height drops that match neither rule are kept. Extreme fitted ceilings ($\hat{y}_{\max,i}$) are identified using Tukey's $1.5\,\mathrm{IQR}$ rule \cite{tukey1977exploratory}: % Tukey (1977)
+(2) Measurement error: Top height drops $\ge 25\%$, while canopy cover drops $\le 10\%$ and volume does not drop. Plots with large height drops that match neither rule are kept. Extreme fitted ceilings ($\hat{y}_{\max,i}$) are identified using Tukey's $1.5\,\mathrm{IQR}$ rule \cite{tukey1977Exploratory_C5_EVAL}: % Tukey (1977) -- NB: mybibfile.bib has a near-duplicate entry (tukey1977exploratory_C5_EVAL, lowercase e) for the same book; dedupe before submission, this cites the capital-E one.
 \begin{equation}
 \left[Q_1 - 1.5\,\mathrm{IQR},\; Q_3 + 1.5\,\mathrm{IQR}\right].
 \label{eq:tukey-fences}
 \end{equation}
-Fences are set separately per cohort following standard forest growth modelling practices \cite{weiskittel2011forest}. % Weiskittel et al. (2011)
+Fences are set separately per cohort following standard forest growth modelling practices \cite{weiskittel2011forest_C1_SS}. % Weiskittel et al. (2011)
 Flagged plots are retained in primary runs, but evaluated in a sensitivity test by removing them from test predictions.
 
 The audit checks if the top 1\% and 5\% largest residual plots overlap across Elastic Net, XGBoost, and GNNWR. We test their spatial distribution, distance to stand edges, wind shelter, and local coefficients against standard plots, and refit them without 2008 data, to assess whether extreme errors are associated with fitting artifacts, disturbance, or other environmental conditions -- these checks can flag an association, not establish a causal ecological trend. Which plots are flagged, and what that implies, is reported in Results.

@@ -1,16 +1,20 @@
-# Tests whether the DNN's Aug-19 hyperparameter finding (learning_rate=0.001, weight_decay=1e-3
-# closes 86% of its gap to XGBoost -- TEMP_results/TEMP_rq1_dnn_hyperparameter_search_2026-08-19.tex)
-# transfers to the CORRECTED (fixed-forward-pass) PINN/PINN-k. Both models share the exact same
-# defaults as the DNN (learning_rate=0.0001, weight_decay=1e-5), so this is a direct transfer
-# check, not a fresh grid search -- deliberately not re-sweeping PINN's own hyperparameters from
-# scratch. Fixed to Set3 (nested_set3_gated_terrain_wind_vif), the set with the already-trusted
-# Table 3 numbers at the OLD defaults, so results are directly comparable. Physics_weight (lambda)
-# stays at the current default (1.0) here -- the lambda ablation is a separate, later step, and
-# will use whichever learning_rate/weight_decay this check finds is best.
+# Tests learning_rate/weight_decay/batch_size overrides for the CORRECTED (fixed-forward-pass)
+# PINN/PINN-k against the trusted Set3 baseline. Fixed to Set3
+# (nested_set3_gated_terrain_wind_vif), the set with the already-trusted Table 3 numbers, so
+# results are directly comparable. Physics_weight (lambda) stays at the current default (1.0)
+# here -- the lambda ablation is a separate, later step.
 #
-# Isolation: writes to a new, separate output directory (CORRECTED_2026-08-22_lr_check/) --
-# cannot collide with the existing Set3 result (full_rerun_cluster/), the lambda ablation
-# (CORRECTED_2026-08-22_lambda_ablation/), or the Set2/Set4 sweep (CORRECTED_2026-08-22_pinn_set_sweep/).
+# History: originally tested the DNN's Aug-19 hyperparameter finding (learning_rate=0.001,
+# weight_decay=1e-3 -- TEMP_results/TEMP_rq1_dnn_hyperparameter_search_2026-08-19.tex) for
+# transfer to PINN. Result (2026-08-22, batch_size=256): flat-to-worse for both variants (see
+# temp_results_pinn/RESULTS_TABLE.md #3) -- the Aug-19 win turned out to be a batch_size=512
+# artefact specific to that sweep, not a real improvement. Defaults below reverted to the
+# project's original values accordingly. Use --output-dir-name to point at a fresh directory
+# whenever hyperparameters differ from a previous run (e.g. testing batch_size=512 next).
+#
+# Isolation: writes to outputs/<output-dir-name>/ -- cannot collide with the existing Set3
+# result (full_rerun_cluster/), the lambda ablation (CORRECTED_2026-08-22_lambda_ablation/), or
+# the Set2/Set4 sweep (CORRECTED_2026-08-22_pinn_set_sweep/).
 #
 # Run directly (cluster login node, tiny settings, to smoke-test before a real sbatch submit):
 #   PYTHONPATH=. python temp_results_pinn/pinn_env_terrain_fix/run_cluster_fold_lr_check.py \
@@ -43,7 +47,7 @@ from models.common.torch_data import (
     select_device,
 )
 
-OUTPUT_DIR = Path(__file__).resolve().parents[1] / "outputs" / "CORRECTED_2026-08-22_lr_check"
+OUTPUT_DIR_ROOT = Path(__file__).resolve().parents[1] / "outputs"
 FEATURE_SET = "nested_set3_gated_terrain_wind_vif"  # fixed -- directly comparable to Table 3's Set3 number
 
 
@@ -55,21 +59,22 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fold-index", type=int, required=True, help="0-4, which spatial_block_kfold fold to hold out as test.")
     parser.add_argument("--variant", choices=["ymax", "k"], required=True, help="'ymax' = y_max-only fix, 'k' = y_max+k fix.")
-    parser.add_argument("--learning-rate", type=float, default=0.001, help="DNN's winning value (project default is 0.0001).")
-    parser.add_argument("--weight-decay", type=float, default=1e-3, help="DNN's winning value (project default is 1e-5).")
+    parser.add_argument("--learning-rate", type=float, default=0.0001, help="Project default. The Aug-19 DNN-sweep-derived value (0.001) was tested 2026-08-22 and found flat-to-worse -- see temp_results_pinn/RESULTS_TABLE.md #3.")
+    parser.add_argument("--weight-decay", type=float, default=1e-5, help="Project default. The Aug-19 DNN-sweep-derived value (1e-3) was tested 2026-08-22 and found flat-to-worse -- see temp_results_pinn/RESULTS_TABLE.md #3.")
     parser.add_argument("--cohort", default="4survey")
     parser.add_argument("--split-type", default="spatial_block_kfold")
     parser.add_argument("--n-folds", type=int, default=5)
     parser.add_argument("--max-epochs", type=int, default=500)
     parser.add_argument("--patience", type=int, default=40)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--batch-size", type=int, default=256, help="Matches PINN's own default -- set explicitly (not relying on the module default) so it's recorded in the summary JSON.")
+    parser.add_argument("--batch-size", type=int, default=256, help="PINN's own default -- set explicitly (not relying on the module default) so it's recorded in the summary JSON.")
+    parser.add_argument("--output-dir-name", default="CORRECTED_2026-08-22_lr_check", help="Which subdirectory of outputs/ to write to -- change this whenever batch_size/learning_rate/weight_decay differ from a previous run, so results never collide.")
     args = parser.parse_args()
 
     if not (0 <= args.fold_index < args.n_folds):
         raise ValueError(f"--fold-index must be in [0, {args.n_folds}), got {args.fold_index}")
 
-    fold_dir = OUTPUT_DIR / args.variant / f"fold_{args.fold_index}"
+    fold_dir = OUTPUT_DIR_ROOT / args.output_dir_name / args.variant / f"fold_{args.fold_index}"
     fold_dir.mkdir(parents=True, exist_ok=True)
     summary_path = fold_dir / f"pinn_{args.variant}_lr_check_summary.json"
     if summary_path.exists():
