@@ -70,28 +70,57 @@ for the (now superseded) Aug-19 sweep this was checking.
 
 ## 3b. Batch-size check: 256 vs 512, at original lr/weight_decay (2026-08-22)
 
-**Status: PENDING** -- scripts built and smoke-tested, not yet submitted. DNN, PINN, and PINN-k
-all together (never testing one model's batch size in isolation, so the pairing rationale in #3
-stays intact either way this resolves). Same scripts as #3, reused via new CLI flags
+**Status: DNN half DONE, PINN half PENDING (jobs still running on cluster).** DNN, PINN, and
+PINN-k all together (never testing one model's batch size in isolation, so the pairing rationale
+in #3 stays intact either way this resolves). Same scripts as #3, reused via new CLI flags
 (`--batch-size 512 --output-dir-name CORRECTED_2026-08-22_{dnn,pinn}_bs512_check`).
+
+| Model | batch_size=256 (trusted/step 3) | batch_size=512 | Delta |
+|---|---:|---:|---:|
+| DNN | 0.6550 +/- 0.016 | 0.6552 +/- 0.016 | ~0 (no difference) |
+| PINN-k | 0.6178 | 0.6185 +/- 0.021 (5/5 folds) | ~0 (no difference) |
+| PINN (y_max) | 0.6308 | 0.6406 (3/5 folds, PARTIAL -- not final) | pending |
+
+**Conclusion: batch_size=512 is not worth adopting.** DNN and PINN-k both show a flat null.
+batch_size=512 is also strictly more expensive for PINN -- higher per-epoch cost (~11.3s/epoch
+vs ~8s/epoch) AND no reduction in epochs needed (48-102 epochs vs the usual ~87), so it's a
+pure cost with no offsetting speed or accuracy benefit. The partial y_max number above looks
+higher but is missing exactly the two folds (3, 4) that were PINN-k's worst-performing folds at
+512 -- likely to regress toward parity once complete, not confirmed as a real gain. **Decision:
+keep batch_size=256 for the lambda ablation and Set2/Set4 sweep** (already PINN's natural
+default, already what Table 3 uses -- no re-run needed). Will update this row if the final 2
+y_max folds meaningfully change the picture, but this is not blocking further work.
 
 - Scripts: same as #3 (`rq1_dnn_tuned_cluster_fold.py`, `run_cluster_fold_lr_check.py`), now with
   `--batch-size` and `--output-dir-name` exposed so results never collide with #3's batch_size=256
   results.
-- Output (once run): `outputs/CORRECTED_2026-08-22_dnn_bs512_check/fold_<i>/dnn_tuned_summary.json`,
-  `temp_results_pinn/outputs/CORRECTED_2026-08-22_pinn_bs512_check/<variant>/fold_<i>/pinn_<variant>_lr_check_summary.json`
+- Output: `outputs/CORRECTED_2026-08-22_dnn_bs512_check/fold_<i>/dnn_tuned_summary.json` (all 5
+  folds in), `temp_results_pinn/outputs/CORRECTED_2026-08-22_pinn_bs512_check/<variant>/fold_<i>/pinn_<variant>_lr_check_summary.json`
+  (still running)
 
 ## 4. Lambda (physics-loss weight) ablation
 
-**Status: PENDING** -- not yet submitted. Will use the ORIGINAL lr=0.0001/weight_decay=1e-5
-(since step 3 found no improvement from tuning these), batch_size=256, Set3, PINN-k only.
-lambda in {0, 0.5, 2.0} (lambda=1.0 already exists as the trusted Table 3 PINN-k number, see #1).
+**Status: PENDING** -- not yet submitted. Uses the ORIGINAL lr=0.0001/weight_decay=1e-5 (since
+step 3 found no improvement from tuning these), batch_size=256, Set3, **both variants** (plain
+PINN and PINN-k). lambda in {0, 0.25, 0.5, 0.75, 1.5, 2.0, 3.0} (lambda=1.0 already exists as
+the trusted Table 3 number for both variants, see #1) -- 70 jobs total (7 lambdas x 5 folds x 2
+variants).
+
+PINN-k is the interpretability-story variant (personalizes both y_max and k per plot) and is
+the one whose winning lambda will carry forward into the Set2/Set4 sweep. Plain PINN is included
+here for a complete picture across both Table 3 rows, but per-variant note: plain PINN
+consistently OUTPERFORMS PINN-k on raw R2 in every test run so far (Table 3: 0.631 vs 0.618;
+LR-check: 0.6303 vs 0.6142; batch_size=512: 0.6406 partial vs 0.6185) -- PINN-k's value is
+interpretability/mechanistic completeness (two personalized curve parameters), not accuracy.
+Plain PINN's own lambda ablation is informational only; its Set2/Set4 run will stay at the
+untuned lambda=1.0 default regardless of what this ablation finds for it.
 
 - Script: `temp_results_pinn/pinn_env_terrain_fix/run_cluster_fold_lambda_ablation.py`
 - Job: `temp_results_pinn/jobs/run_pinn_fix_lambda_ablation_cluster.sh`
-- Output (once run): `temp_results_pinn/outputs/CORRECTED_2026-08-22_lambda_ablation/lambda<X>/fold_<i>/pinn_k_fixed_summary.json`
+- Output (once run): `temp_results_pinn/outputs/CORRECTED_2026-08-22_lambda_ablation/lambda<X>/<variant>/fold_<i>/pinn_<variant>_fixed_summary.json`
 - Also records `param_correlation_ymax_k` (correlation between predicted y_max_i and k_i per
-  plot) as a second metric, not just R2.
+  plot) as a second metric for the k variant only -- not meaningful for plain PINN (no k
+  sub-network there).
 
 ## 5. Set2/Set4 environment feature-set sweep -- "does more environment help PINN?"
 

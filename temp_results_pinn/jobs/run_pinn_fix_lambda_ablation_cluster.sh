@@ -1,34 +1,36 @@
 #!/bin/bash
 #
-# Lambda (physics-loss weight) ablation for the CORRECTED PINN-k -- same GPU/toolchain convention
-# as the other proven PINN cluster jobs. Fixed to Set3 (directly comparable to the trusted
-# lambda=1.0 Table 3 number), PINN-k only. Writes to a separate output directory
+# Lambda (physics-loss weight) ablation for the CORRECTED PINN/PINN-k -- same GPU/toolchain
+# convention as the other proven PINN cluster jobs. Fixed to Set3 (directly comparable to the
+# trusted lambda=1.0 Table 3 number). Writes to a separate output directory
 # (CORRECTED_2026-08-22_lambda_ablation/) -- cannot collide with anything else.
 #
 # Run on the ICF cluster from the project root:
 #
 #   cd ~/forest_diss
 #
-#   # One fold, one lambda:
-#   sbatch temp_results_pinn/jobs/run_pinn_fix_lambda_ablation_cluster.sh 0 0.5
+#   # One fold, one variant, one lambda:
+#   sbatch temp_results_pinn/jobs/run_pinn_fix_lambda_ablation_cluster.sh 0 k 0.5
 #
-#   # All 5 folds for one lambda (job array):
-#   sbatch --array=0-4 temp_results_pinn/jobs/run_pinn_fix_lambda_ablation_cluster.sh "" 0.5
+#   # All 5 folds for one variant+lambda (job array):
+#   sbatch --array=0-4 temp_results_pinn/jobs/run_pinn_fix_lambda_ablation_cluster.sh "" k 0.5
 #
-#   # Full ablation -- 4 lambda values x 5 folds = 20 jobs (lambda=1.0 already exists at
-#   # full_rerun_cluster/ + full_rerun/, no need to rerun it here, but included for a clean,
-#   # single-source comparison if you'd rather not mix directories):
-#   sbatch --array=0-4 temp_results_pinn/jobs/run_pinn_fix_lambda_ablation_cluster.sh "" 0
-#   sbatch --array=0-4 temp_results_pinn/jobs/run_pinn_fix_lambda_ablation_cluster.sh "" 0.5
-#   sbatch --array=0-4 temp_results_pinn/jobs/run_pinn_fix_lambda_ablation_cluster.sh "" 1.0
-#   sbatch --array=0-4 temp_results_pinn/jobs/run_pinn_fix_lambda_ablation_cluster.sh "" 2.0
+#   # Full ablation, both variants -- 7 lambda values x 5 folds x 2 variants = 70 jobs
+#   # (lambda=1.0 already exists at full_rerun_cluster/ + full_rerun/ for both variants, no need
+#   # to rerun it here):
+#   for VARIANT in ymax k; do
+#     for LAMBDA in 0 0.25 0.5 0.75 1.5 2.0 3.0; do
+#       sbatch --array=0-4 temp_results_pinn/jobs/run_pinn_fix_lambda_ablation_cluster.sh "" "${VARIANT}" "${LAMBDA}"
+#     done
+#   done
 #
 # Arguments:
 #   fold_index      0-4. Leave blank ("") when submitting with --array.
-#   physics_weight  lambda_phys to test (e.g. 0, 0.5, 1.0, 2.0). Required.
+#   variant         ymax or k. Required.
+#   physics_weight  lambda_phys to test (e.g. 0, 0.25, 0.5, 0.75, 1.5, 2.0, 3.0). Required.
 #
 # Results:
-#   temp_results_pinn/outputs/CORRECTED_2026-08-22_lambda_ablation/lambda<X>/fold_<i>/pinn_k_fixed_summary.json
+#   temp_results_pinn/outputs/CORRECTED_2026-08-22_lambda_ablation/lambda<X>/<variant>/fold_<i>/pinn_<variant>_fixed_summary.json
 
 #SBATCH --job-name=pinn_fix_lambda
 #SBATCH --output=logs/temp_results_pinn/%x_%A_%a.out
@@ -48,15 +50,18 @@ mkdir -p logs/temp_results_pinn
 export PYTHONPATH="$(pwd)"
 
 FOLD_INDEX=${1:-${SLURM_ARRAY_TASK_ID:-0}}
-PHYSICS_WEIGHT=${2:?"physics_weight is required, e.g. 0, 0.5, 1.0, 2.0"}
+VARIANT=${2:?"variant is required: ymax or k"}
+PHYSICS_WEIGHT=${3:?"physics_weight is required, e.g. 0, 0.25, 0.5, 0.75, 1.5, 2.0, 3.0"}
 
-echo "--- PINN-k lambda ablation (temp_results_pinn) job start ---"
+echo "--- PINN lambda ablation (temp_results_pinn) job start ---"
 echo "Node: $(hostname)"
 echo "Fold index: ${FOLD_INDEX}"
+echo "Variant: ${VARIANT}"
 echo "Physics weight (lambda): ${PHYSICS_WEIGHT}"
 
 python -u temp_results_pinn/pinn_env_terrain_fix/run_cluster_fold_lambda_ablation.py \
   --fold-index "${FOLD_INDEX}" \
+  --variant "${VARIANT}" \
   --physics-weight "${PHYSICS_WEIGHT}"
 
-echo "--- PINN-k lambda ablation (temp_results_pinn) job end ---"
+echo "--- PINN lambda ablation (temp_results_pinn) job end ---"

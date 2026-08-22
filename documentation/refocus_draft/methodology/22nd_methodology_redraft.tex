@@ -187,7 +187,7 @@ where $H(a)$ is height at age $a$, $y_{\max}$ is the height asymptote, $k$ is th
 We test three baselines: linear regression, random forest, and XGBoost \cite{chen2016XGBoost_C4_NN}. For Q3, XGBoost was tuned across 27 parameter settings over five folds using validation $R^2$ (Appendix~\ref{app:hyperparameters}).
 
 \subsection{DNN and physics-informed models}
-All neural networks use a three-layer trunk (128 units per layer, Leaky-ReLU) trained with Adam (learning rate $10^{-4}$, weight decay $10^{-5}$, batch size 256, early stopping). The standard DNN minimizes mean squared error ($\mathcal{L}_{\mathrm{data}} = \frac{1}{N}\sum (\hat H_i-H_i)^2$). In the conditioned DNN, environmental variables feed directly into the input. In PINN models, they feed into auxiliary networks that guide the loss functions instead of the prediction trunk.
+All neural networks use a three-layer trunk (128 units per layer, Leaky-ReLU) trained with Adam (learning rate $10^{-4}$, weight decay $10^{-5}$, batch size 256, early stopping). The standard DNN minimizes mean squared error ($\mathcal{L}_{\mathrm{data}} = \frac{1}{N}\sum (\hat H_i-H_i)^2$). In the conditioned DNN, environmental variables feed directly into the input. In PINN models, they feed into auxiliary networks that adjust each plot's own growth-curve parameters, shaping both the prediction and the loss functions.
 
 Equations~\eqref{eq:cr-derivative}--\eqref{eq:total-loss} define the physics-informed loss framework:
 \begin{align}
@@ -203,16 +203,14 @@ For conditioned PINNs, auxiliary networks adjust plot parameters:
 y_{\max}^{(i)} = y_{\max}+f_y(\mathbf{x}_i), \quad k^{(i)} = k\exp\!\left(f_k(\mathbf{x}_i)\right).
 \label{eq:param-adjust}
 \end{equation}
-\limit{In the auxiliary-networks-only implementation, $y_{\max}^{(i)}$ and $k^{(i)}$ condition the physics and trajectory loss terms but do not pass directly into the prediction trunk; the prediction remains the trunk's own output. See Section~\ref{sec:rq1-pinn-limitation}.
-%TODO: flagged for a decision, not resolved here -- this note describes the ORIGINAL PINN
-% forward pass. A later session (documentation/handover_2026-08-21.md) built and verified a
-% fixed forward pass (prediction = CR(y_max_i, k_i, age) + trunk residual) and its 4-survey
-% numbers are now the ones reported in Table~\ref{tab:rq-framework}'s parallel Results table --
-% but this Methodology section still only describes the original, unfixed architecture. Needs
-% a decision: describe both (original limitation, then the fix actually used for headline
-% numbers), or update this section to describe the fixed architecture as primary with the
-% original noted as a limitation of the wider PINN literature/earlier iteration.
-}
+Each sub-network ($f_y$, $f_k$) is small and fixed by design, not swept: one hidden layer, 16 units -- its only job is turning a plot's terrain features into one number, not learning a complex function. Trunk and sub-networks train together, as one parameter list under one Adam optimiser, one learning rate, one weight decay -- there is no separate tuning step per component. The one lever that does target the sub-networks' influence is $\lambda_{\mathrm{phys}}$: it weights the loss term their output feeds into, relative to the data loss on the final prediction.
+
+The prediction itself is the Chapman--Richards curve evaluated at the plot's own adjusted parameters, plus a residual from the trunk:
+\begin{equation}
+\hat H_i = y_{\max}^{(i)}\left(1-e^{-k^{(i)}a_i}\right)^{p} + \text{trunk residual}.
+\label{eq:pinn-prediction}
+\end{equation}
+$y_{\max}^{(i)}$ and $k^{(i)}$ therefore shape the prediction directly, not only the physics and trajectory loss terms.
 
 \subsection*{Row-level curve correction}
 \label{sec:rq2a-method}
