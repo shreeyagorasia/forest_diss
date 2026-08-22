@@ -271,6 +271,7 @@ def run_gnnwr(
     held_out_fold: int | None = None,
     k_folds: int = DEFAULT_K_FOLDS,
     raw_columns: list[str] | None = None,
+    compartment_subset: list | None = None,
 ):
     # Imported here, not at module level -- gnnwr pulls in torch, and this module's
     # build_scope_table()/subsample_reference_set() are useful even where torch isn't installed
@@ -382,6 +383,18 @@ def run_gnnwr(
         )
     if held_out_fold is not None:
         print(f"  K-fold spatial CV: fold {held_out_fold} of {k_folds} held out as test (seed={split_seed})")
+
+    # compartment_subset (added 2026-08-22): restricts the table to a specific list of compartment
+    # IDs, applied AFTER the spatial train/val/test split is computed above -- so buffer/block
+    # logic is unaffected, this only removes rows belonging to compartments outside the subset.
+    # Built for the 6-survey-collapse investigation: tests whether GNNWR's R2 collapses when
+    # restricted to FEW compartments at FULL point density (matching 6survey's 47-compartment
+    # count), as opposed to the already-tested "fewer points, same ~231 compartments" ablation,
+    # which did NOT trigger a collapse. Default None preserves existing behaviour exactly.
+    if compartment_subset is not None:
+        before_rows = len(table)
+        table = table[table["cpmt"].isin(compartment_subset)].copy()
+        print(f"  compartment_subset: restricted to {len(compartment_subset)} compartments, {len(table):,} of {before_rows:,} rows kept")
 
     train = table[table["split"] == "train"].copy()
     val = table[table["split"] == "val"].copy()
