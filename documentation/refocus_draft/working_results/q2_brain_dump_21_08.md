@@ -6,10 +6,11 @@ this pass that wasn't in the draft before, **UPDATE (08-22)** where the 08-22 pa
 corrected an 08-21 finding. Everything else is re-checked against saved files, not re-derived from
 scratch.
 
-**Queued but not back yet** (submitted to the cluster 2026-08-22, results not rsynced): GNNWR
-CanopyCover-only (Set4, 5-fold), a 2-seed reseed check of the 4-survey coefficient map, and a
-saturation-transform check (see section 8, below). Nothing below assumes their results — this file
-only reflects what's actually been run and checked locally. Come back to this file once they land.
+**Queued, partially back** (submitted to the cluster 2026-08-22): GNNWR CanopyCover-only is 3/5
+folds back (partial result in section 1 below, not final); the 2-seed reseed check and the
+saturation-transform check are still fully pending. Nothing below treats the partial CanopyCover-
+only result as final, or assumes anything about the still-pending experiments. Come back to this
+file once the rest land.
 
 ## The story Q2 is supposed to tell
 
@@ -24,13 +25,90 @@ story turns out to hinge overwhelmingly on one variable — more than anyone had
 
 ---
 
+## Headline story map — re-audited 08-22, after everything above
+
+The chapter has accumulated a lot of findings across many passes. This is the reflection pass: what
+should the actual sequence of headline claims be, now that every earlier finding has to survive
+contact with the later, sharper ones? Ordered as they should appear in the Discussion, each with its
+evidence anchor and, where it exists, its Q1 link. Wording strength matches verdict (clear answer /
+suggestive / ruled out / no answer yet), per the review framework.
+
+**0. $\Delta y_{max}$ is not a clean ceiling measurement — it is entangled with growth-rate mismatch
+across the whole population, not just its outliers (section 4).** Comes first because everything
+downstream depends on it: the curve-fitting procedure holds each plot's growth rate fixed to its
+yield class, so a rate mismatch leaks into the fitted ceiling instead of disappearing. Evidence:
+r=0.51 Pearson across all ~56,000 plots, confirmed not a tail-only artifact (0.509→0.525 excluding
+flagged plots). Clear answer, not suggestive — this one is solid.
+
+**1. GNNWR outperforms both global baselines on every 4-survey set by point estimate, but the
+advantage is not statistically distinguishable — confidence intervals overlap in every set.**
+Unchanged from the original draft, still the right opening empirical claim once the target caveat
+is on the table. Suggestive, not confirming — CIs overlap, said plainly.
+
+**2. GNNWR's advantage is entirely explained by CanopyCover, not a general ability to capture
+spatially-varying environmental relationships (section 1, Test B).** The single most important new
+finding this pass, and it should be a headline of its own, not folded into a caveat: without
+CanopyCover, GNNWR collapses to $R^2=0.049$ — statistically the same floor as EN (0.042) and
+XGBoost (0.061). Clear answer, decisively tested (ablation), not inferred.
+
+**3. Link to Q1 — the same 15 non-canopy environmental variables that added real signal in Q1 add
+almost nothing in Q2, and the target explains why, not weaker biology (new synthesis, ties
+sections 2 and 4 together).** Q1's own baseline-vs-full comparison (CanopyCover+thinning only vs.
+Set4) shows +0.138/+0.173 R² from the 15 terrain/climate/soil variables. The identical comparison
+for Q2 (computed this pass: baseline EN=0.201/XGB=0.209 vs. full Set4 EN=0.240/XGB=0.250) shows
+only +0.039/+0.041 — roughly a quarter of Q1's gain. This isn't the variables mattering less
+biologically; headline 0 explains it structurally: Q2's target is far noisier, so there's less
+clean signal left for anything but the one variable (CanopyCover) most directly tied to the real
+LiDAR-derived structure. This is exactly the kind of cross-chapter connective claim worth stating
+explicitly rather than leaving Q1 and Q2 as two disconnected attribution stories.
+
+**4. Terrain variables show a real, if modest, non-linear association with $\Delta y_{max}$; soil
+is indistinguishable from noise — but this entire ranking is read off the small remaining budget
+after CanopyCover (sections 1's SHAP-dependence check + section 2).** Softened from the original
+draft's plainer "terrain matters moderately" — now specifically says non-linear (windward_topex,
+slope_degrees both show clean saturating SHAP-dependence curves, not noise) and specifically says
+small budget (CanopyCover carries ~80-90% of the model's total signal). Both halves matter: real,
+but small and shape-constrained by GNNWR's own structural linearity.
+
+**5. Link to Q1 — where local coefficients can be compared, the stability pattern matches: topex is
+the least stable terrain variable in both chapters, slope_degrees is consistently stable in both
+(section 3).** GNNWR's own per-plot coefficient sign-stability (topex ~72%, slope ~95-97%) lines up
+with Q1's EN/LMM sign-disagreement finding for the same two variables. Worth stating as
+cross-chapter consistency, not coincidence — the same underlying variables behave the same way
+regardless of which target (curve-residual or ceiling-difference) or which method (EN/LMM vs.
+GNNWR) is used to look at them.
+
+**6. The outlier story scales beyond a handful of plots, and it's the extreme tail of headline 0,
+not a separate phenomenon (section 5).** 266 (4-survey, 0.47%) / 709 (6-survey, 5.32%) plots via
+Tukey fence; the full-population split test found 71.6% fit the fixed-$k$ artifact signature
+(exposed terrain), 28.4% look like genuinely fast, real growth (sheltered terrain). This is the
+best-evidenced part of the chapter — say so, and say explicitly that it's headline 0's mechanism at
+a smaller, more extreme scale, not a disconnected finding.
+
+**7. 6-survey's collapse is acknowledged but not chased (section 8) — a disclosed limitation, not
+a resolved one, and deliberately not a headline.** Sample size ruled out as the cause; true cause
+(likely fewer compartments) left untested by your own call, since 6-survey carries no narrative
+weight either way (R²≈0 there for all three methods already). One sentence in the chapter, not a
+sub-story.
+
+**Conclusion shape this suggests**: location-aware modelling helps, but only through the one
+variable most directly tied to real observed structure (CanopyCover) — genuine environmental
+heterogeneity, if it exists at all beyond that, is out of reach for every method tested here, for
+two compounding and disclosed reasons: the target's own estimator noise (headline 0) and GNNWR's
+structural linearity (section 1's two-linearities discussion). Neither is fully resolved, both are
+tested and quantified rather than asserted, and the future-work section (7) says precisely what a
+real fix would cost. This is a defensible, honest chapter conclusion — it just needs to say clearly
+that it found the *limits* of spatial attribution here, not spatial attribution itself.
+
+---
+
 ## Verdict map
 
 | Claim | Verdict | Confidence after this pass |
 |---|---|---|
 | GNNWR beats EN/XGBoost on every 4-survey set (point estimate) | **True** | Confirmed, unchanged |
 | ...but the edge is statistically solid (CIs don't overlap) | **False** | Confirmed false — CIs overlap everywhere |
-| Moran's I drop backs up the R² edge | **True, but weak corroboration** | Still just "suggestive," see below — NEW test adds a reason to stay cautious |
+| Moran's I drop backs up the R² edge | **True, but weak corroboration** | Still just "suggestive" — and now (UPDATE 08-22) likely reflects the same CanopyCover-specific effect as the R² edge, not a broader spatial-non-stationarity signal, since the ablation shows GNNWR has nothing else to draw on |
 | GNNWR's edge = genuine spatially-varying environmental relationships | **Mostly false** | **UPDATE (08-22)**: GNNWR without CanopyCover scores 0.049 — statistically the same as EN/XGBoost without it. GNNWR's entire edge over global models is riding on CanopyCover specifically, not on environmental variables in general — see "why GNNWR wins" below |
 | CanopyCover is the top variable, not circular (not just the target restated) | **True** | Confirmed, correlation 0.35–0.47 range (Q1); **NEW for Q2**: 0.47 |
 | CanopyCover "matters a lot" for Q2 | **Understatement** | **NEW**: it's ~80% of the model's entire explanatory power, worse than Q1 — and this is now confirmed true for GNNWR too, not just EN/XGBoost |
@@ -40,6 +118,8 @@ story turns out to hinge overwhelmingly on one variable — more than anyone had
 | 6-survey collapse = sample size | **False, ruled out** | Confirmed ruled out; true cause still unknown |
 | The ~10/266/709-plot outlier story (fixed-$k$ artifact) | **True, well-tested** | Solid — this is the best-evidenced part of the chapter |
 | 71.6%/28.4% split (artifact vs. real fast growth) | **True, tested on full flagged population** | Solid |
+| Q1's "environmental variables add real signal beyond CanopyCover" finding transfers to Q2 | **False** | **NEW**: Q1's baseline→Set4 gain is +0.138/+0.173 R²; Q2's identical comparison (computed this pass) is only +0.039/+0.041 — about a quarter. Same variables, very different targets — doesn't transfer |
+| Freeing $k$ per plot (no shrinkage) would fix the entangled-target problem | **False, tested directly** | **NEW**: 9x more implausible ceilings (42.4% vs. current 4.6%), no R² gain. Shrinkage, not free fit, is the only version worth pursuing |
 
 ---
 
@@ -75,6 +155,17 @@ captures that" (what the current draft implies) — it's closer to "how CanopyCo
 to ceiling height varies by place is the one thing GNNWR is demonstrably picking up; for genuine
 environmental variables (terrain, climate, soil), there's barely any signal for any method, local
 or global, to work with."
+
+**CanopyCover-only GNNWR — partial result (08-22, 3 of 5 folds back, not final).** Completes the
+ablation matrix from the other direction: does CanopyCover *alone* reach close to the full Set4
+$R^2$? Partial 3-fold pooled result: **$R^2 \approx 0.246$** — much closer to the full-Set4 number
+(0.294) than to the without-CanopyCover floor (0.049). CanopyCover alone recovers roughly 80% of
+the total gain over that floor; the other 18 variables add about +0.048 on top of CanopyCover
+(0.246→0.294) — almost exactly the same size as what they contribute *alone*, without CanopyCover
+present (0.049), suggesting they contribute a small, roughly fixed, independent amount of signal
+either way, not something CanopyCover is masking or absorbing. Reinforces the existing conclusion
+rather than complicating it. Individual folds ranged 0.225–0.270, so treat 0.246 as directional,
+not final — folds 3–4 land tomorrow, revisit then.
 
 **Does GNNWR's CanopyCover coefficient actually vary, or is it flat?** Checked directly (GNNWR's
 own saved per-plot `coef_CanopyCover` values, Set4, pooled 5 folds): mean 23.6, SD 5.7, always
@@ -183,10 +274,15 @@ redistributing importance among near-noise features once the one dominant signal
 "terrain quietly does real independent work that CanopyCover was masking."
 
 **What this means for "terrain matters moderately, soil is noise"**: technically still true as
-stated (within the model that includes CanopyCover), but the fair caveat is that this whole
-ranking exists inside a very small remaining budget — CanopyCover is carrying ~80–90% of the
-model's total signal, and the "terrain vs. soil" ordering is being read off what's left in the
-other ~10–20%. Worth saying explicitly, the same way Q1 now does for its own CanopyCover finding.
+stated (within the model that includes CanopyCover), but needs two caveats stacked together, not
+one. First, this whole ranking exists inside a very small remaining budget — CanopyCover is
+carrying ~80–90% of the model's total signal, and the "terrain vs. soil" ordering is being read off
+what's left in the other ~10–20%. Second (UPDATE 08-22, see section 1's SHAP-dependence check):
+what terrain signal exists there is genuinely non-linear (clean saturating curves for
+windward_topex and slope_degrees, not noise), which caps how much of it GNNWR's local-*linear*
+structure can actually use even where it's real. "Terrain matters moderately" should read as "a
+real but small and shape-constrained non-linear signal," not a plain magnitude statement. Worth
+saying explicitly, the same way Q1 now does for its own CanopyCover finding.
 
 ---
 
@@ -291,7 +387,110 @@ saying so directly rather than presenting them as unrelated.
 
 ---
 
-## 7. Open worries — genuinely unresolved, said plainly
+## 7. What would actually move the ceiling (future work material)
+
+Two different levers, worth keeping separate in the dissertation's future-work section — one is
+cheap and already queued, the other is the more honest "real" answer.
+
+**Cheap, queued 2026-08-22 (not back yet)**: feed GNNWR pre-saturated inputs instead of raw ones.
+GNNWR is structurally local-*linear* — it cannot represent a curve, even one whose strength varies
+smoothly across space (see section 1's two-different-linearities discussion). The SHAP-dependence
+check found `slope_degrees` and `windward_topex` both have genuine saturating (steep-then-flat)
+relationships to the target, not noise. So: `slope_degrees` was capped at 15° and `windward_topex`
+clipped to $[-12, 6]$ (knots chosen by eye from the SHAP plot, not a separate validation split —
+disclosed as a real shortcut, fine for a quick robustness probe, not for a headline claim), and
+GNNWR refit on Set4 with those two columns swapped in, everything else unchanged. No new
+architecture, no new package — same GNNWR, transformed inputs. This directly tests whether
+linearity (not just CanopyCover-dominance) was costing GNNWR real signal. Results not back yet.
+
+**The more honest, higher-leverage answer**: even if the transform above helps, the entangled-
+target finding (section 4) suggests the real ceiling on this whole chapter is the *target*, not the
+model. $\Delta y_{max}$ bakes in growth-rate-mismatch noise because the curve-fitting procedure
+holds each plot's growth rate fixed to its yield class rather than fitting it freely.
+
+**Would simply freeing $k$ per plot fix this? Checked (08-22) -- not necessarily, and here's a real
+number why not.** Every plot in the 4-survey cohort is observed across the exact same 15-year
+window (age span has zero variance across all 71,766 rows), and **42% of plots are never observed
+past age 40** -- their entire observed record sits in the steep, still-rising part of the growth
+curve, nowhere near where it flattens toward its ceiling. For those plots, freely fitting *both*
+$k$ and $y_{max}$ from 4 points on a still-climbing curve is a genuinely poorly-determined problem:
+a slower rate with a higher ceiling and a faster rate with a lower ceiling can produce almost the
+same rising trajectory over a young, non-asymptotic window -- the data can't tell them apart. This
+is almost certainly *why* the original method fixed $k$ to the yield class in the first place, not
+an oversight. So freeing $k$ trades one problem (rate-mismatch smearing into the ceiling) for
+another (unstable, poorly-identified fits for a large share of the population) -- not a strict
+improvement, a genuine trade-off.
+
+**Tested directly (08-22), not just argued theoretically -- the trade-off is real and decisive.**
+Built a cheap pilot: fit each plot's own $(y_{max}, k)$ freely via per-plot non-linear least
+squares, NO shrinkage (the crude, fast version of the idea -- `rq3_free_k_pilot_check.py`, ~3
+minutes to run, no cluster needed). Result:
+
+| Method | Plots with an implausible ceiling ($<5$m or $>60$m) |
+|---|---|
+| Current (fixed-$k$) | 2,596 / 56,526 = **4.6%** |
+| Free-$k$, no shrinkage | 23,971 / 56,526 = **42.4%** |
+
+Freeing $k$ without shrinkage produces roughly **9x more** physically implausible ceilings than the
+current method -- confirming the identifiability argument above with real data, more severely than
+even the 42%-never-observed-past-40 estimate suggested (only 25% of the extreme cases were
+young/short-window plots -- the instability is broader than that one specific risk factor). Worse,
+it doesn't pay for itself: XGBoost on the free-$k$ target (CanopyCover included, restricted to the
+32,350 plots with a non-implausible fit) scored $R^2=0.219\pm0.037$ -- not an improvement on the
+current method's $R^2=0.250$, if anything slightly lower (population and column-count differences
+mean this comparison isn't fully clean, so don't lean hard on the direction, just note it's not a
+win either). **Conclusion: naive free-$k$ is not worth pursuing on its own merits** -- it trades a
+well-characterised 4.6% artifact problem for a much worse 42.4% implausibility problem, for no R²
+gain. This is real evidence *for* the shrinkage approach specifically (not "freeing $k$" in
+general) being the only version of this idea worth the multi-day cost below, if pursued at all.
+
+**The better middle path**: partial pooling / shrinkage, not a binary fixed-vs-free choice. A
+nonlinear mixed-effects model where $k$ has a population-level distribution and each plot's own $k$
+is a shrunk deviation from it -- pulled hard toward the yield-class value for plots with little
+identifying information (the 42% that never approach their ceiling), allowed to deviate more freely
+for plots with better curve coverage. This project already has mixed-effects (LMM) tooling built
+for other targets; this would extend the same idea to the growth-curve-fitting stage itself, not
+introduce an unrelated technique. **Cost**: a full, properly-validated nonlinear mixed-effects
+implementation is real new statistical infrastructure -- nothing in this project's toolkit does
+this today, and getting it to converge sensibly across ~56,000 plots / 231 compartments, handling
+the 42%-identifiability problem cleanly, is realistically days of work, same order as the non-
+linear-GNNWR estimate above -- not recommended given the timeline. A cheaper approximation (fit
+each plot's own $k$/$y_{max}$ independently via ordinary nonlinear least squares, then shrink $k$
+toward its yield-class value with a simple precision-weighted formula, not a full mixed-model
+solver) is closer to a day of focused work -- still non-trivial, not a "quick cluster job" like
+what's already queued in this chapter.
+
+**A trap worth naming if this is ever pursued**: fixing the target and then re-running the *same*
+attribution models (EN/LMM/GNNWR/XGBoost) doesn't cleanly tell you what was wrong if results are
+still weak. Two separate limitations sit at two different pipeline stages -- the target's own noise
+(this section), and the attribution models' structural linearity (the linearity discussion above) --
+and fixing one does not isolate the other. The clean way to tell them apart: a 2x2 comparison, old
+target vs. new (shrinkage) target, crossed with linear (EN) vs. non-linear (XGBoost) attribution.
+If XGBoost's edge over EN *widens* on the new target, real non-linear signal was being masked by
+target noise before, and linearity is now the live bottleneck. If both stay flat and CanopyCover
+still dominates the same way, that points to genuinely low environmental signal, not a modelling
+artifact. Worth stating this as the honest diagnostic path, not attempting it now.
+
+**Does XGBoost have the target-noise problem too? Yes, directly -- already evidenced, not just
+inferred.** The growth-rate/ceiling entanglement lives in the target itself, built before any
+attribution model sees the data. Whether EN, LMM, GNNWR, or XGBoost predicts $\Delta y_{max}$ from
+environmental features, all four are predicting the same noisy quantity -- XGBoost's non-linear
+flexibility helps it fit non-linear *environment-to-target* relationships, but does nothing to fix
+noise baked in upstream. This is exactly why XGBoost without CanopyCover only reached $R^2=0.061$,
+barely above linear EN's 0.042 -- if XGBoost's flexibility could rescue signal a noisy target was
+hiding, that gap should have been much bigger. It wasn't. The target-noise problem is shared
+equally by every attribution model in this chapter, linear or not.
+
+A purpose-built architecture for the *attribution* half of this problem, if pursued anyway
+(separate from the target-noise fix above): a shared non-linear "backbone" (small MLP or GBM) for
+the feature-target shape, plus a low-dimensional per-compartment embedding for spatial variation in
+strength -- separates the two problems (shape vs. place) that GNNWR's single local-linear layer
+currently has to solve at once. Not attempted here; flagged as a real direction, not a promise it
+would work, given the target-noise ceiling described above.
+
+---
+
+## 8. Open worries — genuinely unresolved, said plainly
 
 - **6-survey collapse**: sample size ruled out, true cause unknown. Fewer compartments (47 vs 231)
   is the leading candidate; deliberately not being pursued further (your call — 6-survey isn't
@@ -315,5 +514,9 @@ saying so directly rather than presenting them as unrelated.
 - **SHAP redistribution after the CanopyCover ablation**: real but partial — some variables rise
   40–60%, but overall $R^2$ still collapses. Doesn't cleanly resolve to "real independent signal"
   or "pure artifact" — said that way above, not forced to a verdict.
-- **Queued, not yet run**: GNNWR CanopyCover-only (does CanopyCover alone reach close to 0.294?)
-  and a 2-seed reseed check of the 4-survey coefficient map. Come back to this file once rsynced.
+- **GNNWR CanopyCover-only**: partially back (3/5 folds, 08-22) — $R^2\approx0.246$, directionally
+  confirms CanopyCover alone gets most of the way to the full 0.294 (see section 1). Not final;
+  revisit once folds 3–4 land.
+- **Still queued, not yet run**: a 2-seed reseed check of the 4-survey coefficient map, and the
+  saturation-transform check (does capping slope/windward_topex help GNNWR at all). Come back to
+  this file once rsynced.

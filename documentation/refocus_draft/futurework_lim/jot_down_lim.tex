@@ -1,0 +1,5 @@
+% Option 1: Direct & Academic (Recommended for a Discussion/Limitations section)
+\textbf{Cohort population discrepancy across research questions.}
+Due to pipeline timing, the stand maturity filter (age $\ge 30$ in 2023; $N = 58{,}112$) was applied in Q2 and Q3, whereas Q1 models were trained on the broader pre-filter population ($N = 71{,}766$). A sensitivity check on Set~4 indicates that restricting Q1 to mature stands increases $R^2$ by 0.05--0.07 (Elastic Net: $0.358 \to 0.406$; XGBoost: $0.395 \to 0.460$). Consequently, Q1's reported headline performance is conservative relative to the mature cohort, though relative feature importance rankings and model stability comparisons remain unaffected.
+
+\limit{PINN models were run untuned on a single seed using the 4-survey cohort only. Systematic tuning and testing whether the residual network overrides the Chapman--Richards term remain areas for future work.}
