@@ -1,0 +1,60 @@
+% Intro chapter -- 2026-08-22. Same content as the current canonical Intro
+% (documentation/refocus_draft/20th_1_31_pm_audited.tex, chapter Introduction), unchanged
+% except Q3's objectives/table row and its "what this question measures" sentence, updated to
+% match the narrative shift agreed this session: model comparison (XGBoost/DNN/PINN/PINN-k,
+% which wins and why, now that the PINN forward-pass fix works) leads; environment-improves-
+% accuracy is now the secondary point, not the headline framing. Everything else (motivation,
+% research gap, Q1/Q2 rows) is untouched -- not part of what was flagged as needing a change.
+% "Main Finding" left as TODO, same as the source -- not something this session can fill in.
+
+\chapter{Introduction}  \label{ch:intro}
+
+
+\paragraph*{Motivation and problem context}
+A Forest Digital Twin is a wider long-term goal for the forestry sector: a dynamic digital representation of forest systems that can support monitoring, forecasting and management planning ~ a shift from static, periodic assessment toward adaptive, data-driven planning. The aim is to combine repeated observations, simulation, and machine-learning(ML) and artificial intelligence (AI) to represent forests as changing systems \cite{baskent2026Review_C1_SS, buonocore2022Proposal_C1_SS}. This is increasingly vital as managers face climate-driven risks—such as extreme storms, destructive winds, and severe summer heatwaves that trigger wildfires and alter growth patterns. At the same time, global forestry is shifting toward continuous cover management, requiring more flexible stand-level models \cite{ForestResearch2009Evidence_C1_SS}.
+
+Sitka spruce (\textit{Picea sitchensis}) is Britain's primary commercial species, covering approximately 50\% of managed forests \cite{ForestResearch2026Sitka_C1_SS} and contributing roughly \pounds1.1 billion annually to Scotland's economy \cite{ScottishForestry2026Future_C1_SS, mason2011Sitka_C1_SS}. The study focuses on Aberfoyle in Trossachs, Scotland, a Sitka spruce-dominated region with 21 years of repeated LiDAR coverage. Featuring varied topography with exposed, windy ridges to sheltered valleys, providing variation that causes different growth trajectories in different areas of the forest.
+
+
+% Height, LiDAR and shared growth relationship
+Top height is a key measure of stand development, commonly used in forestry models to estimate downstream metrics like timber volume and site productivity \cite{ForestResearch2026Sitka_C1_SS}, and now can be accurately captured at scale using airborne LiDAR scans \cite{suarezminguez2008Practical_C1_SS}. For most tree species, including Sitka spruce, height development over time is modelled by the Chapman-Richards equation \cite{pommerening2015Methods_C2_CR}, a sigmoid growth curve, with its parameters fixed to represent a stand's maximum height potential and its speed of growth. A fixed parameter curve only captures the average population trend, but local trajectories can deviate from this baseline, due to factors like terrain, climate, soil, wind exposure, and active management all critically constrain or enhance a stand's actual development \cite{socha2023Higher_C1_SS, cameron2015Building_C1_SS}. This creates two related questions: whether local departures from this shared curve are associated with identifiable environmental and management conditions, and whether independent attribution methods agree on which conditions matter.
+
+Foresters need to know if a stand's assigned yield class still holds, or which local factors push growth off track. This dissertation tests whether letting these environment--growth relationships vary across space captures local growth patterns that fixed regional curves miss. Flexible machine learning models can also learn these patterns directly from data without fixed curve assumptions; we test deep neural networks (DNNs) and gradient-boosted trees (XGBoost) as a supplementary check on top-height predictions.
+
+\paragraph*{Research gap and Contribution}
+While repeated airborne laser scanning has been applied to model forest height growth and productivity \cite{janiec2023Development_C1_SS}, limited evidence exists on whether local environmental conditions are associated with departures from Sitka spruce's shared height-growth curve, and whether different attribution methods identify consistent conditions. Many current remote-sensing models do not account for spatial dependence between nearby-identical trees, leading to data leakage and inflated performance estimates \cite{Karasiak2022Spatial_C5_EVAL, ploton2020Spatial_C5_EVAL, lynch2025Digital_C4_NN}. Relying on black-box neural networks without explainable AI limits their use for stakeholders who require interpretable insights to support decision-making.
+
+This dissertation focuses on a specific part of the Digital Twin pipeline: using attribution methods to explain local growth deviations. It evaluates whether allowing these relationships to vary across space uncovers patterns that a single global model misses, and tests as a secondary step whether this information improves top-height prediction. Geographically Neural Network-Weighted Regression (GNNWR) serves as the primary model for the spatial attribution analysis.
+
+\section{Objectives and Research Questions}
+
+Answering all three questions below first required cleaning and combining repeated forest
+inventory and LiDAR scan records with multi-source geospatial rasters (terrain, wind, climate
+and soil) into one unified modelling dataset (Chapter~\ref{ch:data}).
+
+\begin{table}[!ht]
+\footnotesize
+\setlength{\tabcolsep}{4pt}\renewcommand{\arraystretch}{1.0}
+\begin{tabularx}{\linewidth}{@{} >{\raggedright\bfseries}p{0.18\linewidth} >{\raggedright\arraybackslash}X @{}}
+\noalign{\hrule height 1pt}
+\textbf{Research Question} & \textbf{Objective, Sub-objectives \& Own Contribution} \\
+\noalign{\hrule height 0.6pt}
+\textbf{Q1:} Persistent Curve-Departure Attribution & \textbf{(1.1)} Identify environmental and management conditions tied to a plot's persistent deviation from the shared growth curve. \newline \textbf{(1.2)} Test whether environmental drivers of curve departures
+remain consistent across Elastic Net, mixed-effects, and XGBoost models. \newline \textbf{Contribution:} Highlights which conditions drive persistent growth departures and maps where model families agree or diverge. \\
+\hline
+\textbf{Q2:} Spatial Attribution & \textbf{(2.1)} Test spatially varying relationships (GNNWR) and residual spatial autocorrelation, under spatial cross-validation, against structure missed by global Q1 models. \newline \textbf{(2.2)} Assess plot-level reliability,
+separating genuine environmental trends from noise and target artefacts. \newline \textbf{Contribution:} Determines if spatial variation enhances attribution and sets boundaries on reading individual extremes as biological signals. \\
+\hline
+\textbf{Q3:} Prediction \& Physics Guidance & \textbf{(3.1)} Compare standard and neural models -- including a corrected physics-informed network -- on top-height prediction under spatial cross-validation, testing which architecture performs best and why. \newline \textbf{(3.2)} Evaluate whether environmental signals and Chapman-Richards constraints improve predictive accuracy, and whether attribution signals from Q1 and Q2 add further value. \newline \textbf{Contribution:} Identifies the top-performing prediction model and clarifies what a physics-informed constraint actually adds -- accuracy, interpretable per-plot growth parameters, or neither. \\
+\noalign{\hrule height 1pt}
+\end{tabularx}
+\label{tab:aims_objectives}
+\end{table}
+
+\paragraph*{What each question actually measures}
+Q1 asks whether a stand's tendency to sit persistently above or below the shared growth curve, averaged across its full survey history, lines up with identifiable environmental or management conditions -- terrain, wind exposure, soil, or thinning history. Q2 narrows this to one number per plot: the gap between a plot's own fitted height ceiling and the ceiling its assigned yield class would predict, written $\Delta y_{\max}$ (defined in full in Chapter~\ref{ch:methodology}). A positive $\Delta y_{\max}$ means the plot's own growth implies a higher ceiling than its yield class assumes; a negative value means a lower one. Q2 then tests whether the conditions behind this gap vary from place to place, rather than acting the same way everywhere. Q3 asks a more direct question: which model predicts top height most accurately, why, and whether adding environmental information or a physics-based growth-curve constraint changes that picture -- either through better accuracy or more interpretable per-plot growth parameters.
+
+For a forester, these matter in a practical order. Q1 and Q2 flag which stands are behaving unusually and which local conditions are plausibly responsible. Q2 specifically tests whether a stand's assigned yield class still holds, or needs revising. Q3 tests whether any of this environmental information -- or a physically meaningful model -- is worth using in a prediction tool for ongoing monitoring, not only for after-the-fact explanation.
+
+\paragraph*{Main Finding:}
+TODO
