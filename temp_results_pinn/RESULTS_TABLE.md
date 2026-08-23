@@ -347,6 +347,62 @@ reproduces -- not a model weakness at inputs it hasn't seen.
 - Job: `temp_results_pinn/jobs/run_compartment1129_cross_fold_check_cluster.sh`
 - Output: `temp_results_pinn/outputs/CORRECTED_2026-08-23_mechanism_checks/compartment1129_cross_fold/fold_<i>/summary.json`
 
+## 11. Compartment-level y_max deviation map -- pooled across all 5 folds
+
+**Status: DONE (2026-08-23).** Built the Block D main-text figure. Pools all 5 folds' TEST-set
+predictions (each compartment is the test set in exactly one of the 5 folds under
+`spatial_block_kfold`, so pooling gives every plot in the forest exactly one genuine held-out
+prediction -- same approach Q1's own maps already use). Confirmed clean: 58,073 pooled rows ->
+58,073 unique plots, matching the full 4-survey cohort exactly, no duplicates or gaps.
+
+**Read**: shows both halves of the story at once -- a broad, mild warm-toned background across
+most of the forest (consistent with the 77%-above-population finding, section 2) with a small
+number of genuinely dark-red hotspots standing out from it (compartment 1129 and the two
+secondary compartments, section 9).
+
+- Script: `temp_results_pinn/pinn_env_terrain_fix/run_ymax_population_check_allfolds.py` (folds
+  1-4; fold 0 already existed from section 2's check) +
+  `temp_results_pinn/pinn_env_terrain_fix/build_q3_redraft_figures.py::build_compartment_map()`
+- Output: `figures/fig_results/q3_pinn_ymax_deviation_map.png`
+- Raw fold data: `temp_results_pinn/outputs/CORRECTED_2026-08-23_mechanism_checks/ymax_population_check/fold_{1,2,3,4}/predictions.csv`
+
+## 12. Finding 5: do errors cluster by age or height, DNN vs. PINN vs. PINN-k?
+
+**Status: DONE (2026-08-23).** All three models' fold-0 test-set predictions now exist on the
+same 46,032 rows (confirmed identical age/height ranges). Real finding, opposite of the
+hypothesised direction -- PINN's curve structure does NOT make it more robust at the extremes;
+it makes it worse.
+
+| Age band | n | DNN MAE | PINN MAE | PINN-k MAE |
+|---|---:|---:|---:|---:|
+| 15-30 | 13,338 | 2.50 | 2.53 | 2.51 |
+| 30-45 | 21,879 | 3.12 | 3.13 | 3.22 |
+| 45-60 | 7,919 | 4.13 | 3.84 | 4.16 |
+| 60-75 | 1,973 | 5.06 | 5.28 | 5.48 |
+| 75-93 | 923 | 6.16 | 6.59 | **7.01** |
+
+| Height band | n | DNN MAE | PINN MAE | PINN-k MAE |
+|---|---:|---:|---:|---:|
+| 0-10m | 4,874 | **3.43** | 4.28 | 4.05 |
+| 10-20m | 18,796 | 2.94 | 2.83 | 2.82 |
+| 20-30m | 17,949 | 3.11 | 3.02 | 3.28 |
+| 30-47m | 4,413 | 5.01 | 4.74 | 5.09 |
+
+**Finding**: at the oldest ages (75-93) and shortest heights (0-10m), DNN clearly outperforms
+both PINN variants -- PINN-k is ~14% worse than DNN at 75-93. At mid-range ages/heights, all
+three are close, sometimes with plain PINN edging ahead. **Connects directly to section 9/10's
+compartment-1129 finding, not a coincidence**: the implausible-curve failure mode there was
+specifically about extrapolating far past the ages a plot actually had observations for. Same
+mechanism here as a general pattern -- a personalised curve fit mostly to typical-range data
+extrapolates poorly at the tails (very old, very short/young stands), where DNN's unconstrained
+fit does comparatively better.
+
+- Script: `temp_results_pinn/pinn_env_terrain_fix/run_finding5_age_height_error_analysis.py`
+- Data: DNN (`outputs/spatial_block_kfold/rq1_dnn_env_terrain_..._seed42/4survey/fold_0/predictions.csv`),
+  plain PINN (`temp_results_pinn/outputs/example_curve/plain_pinn_fixed_full_predictions.csv`,
+  built by `run_finding5_plain_pinn_export.py`), PINN-k (`temp_results_pinn/outputs/example_curve/pinn_k_fixed_full_predictions.csv`,
+  built by `run_finding5_pinn_k_export.py`)
+
 ---
 
 ## Legacy / do-not-cite

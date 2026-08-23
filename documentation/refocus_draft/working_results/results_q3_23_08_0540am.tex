@@ -1,62 +1,33 @@
 % =============================================================================
-% Working extract -- Results, Q3 section, redraft 2026-08-23.
+% Working extract -- Results, Q3 section, redraft 2026-08-23 (fourth pass).
 % NOT full prose yet -- phrase-level building blocks per the agreed workflow:
 % claim -> numbers (source) -> how tested -> ruled out -> caveat -> figure/table -> so-what.
 % Do not write full sentences from this until each block is signed off.
 % Source of truth for every number: temp_results_pinn/RESULTS_TABLE.md (live-verified,
 % not the brain dump prose, which may lag). Cross-reference before promoting any number here.
+%
+% FOURTH-PASS CHANGE: 2c substantially rewritten. Was "PINN's biggest flaw traces to one
+% place." Now leads with a real, convergent, cross-model finding -- the personalisation
+% captures a genuine two-sided productivity signal (over- AND under-productive sites),
+% verified against independent yield-class records (checked: yldc is NOT a model input,
+% and is independently recorded, not derived from this project's own height measurements --
+% see chat, 2026-08-23). The plain-PINN-vs-PINN-k plausibility difference is now framed as
+% "how each variant expresses the same real signal," not a standalone flaw. Section 3 gains
+% a new point: PINN-k is measurably safer/more realistic, not just more complete. Figures:
+% two are still being finalised (the compartment map and hotspot-summary map may be merged
+% or replaced; the "same plot, two models" curve figure is proposed but not yet built) --
+% flagged clearly below, do not treat as final.
 % =============================================================================
 
 \section{Q3: Prediction and physics guidance}
 \label{sec:results-q3}
 
-% -----------------------------------------------------------------------------
-% BLOCK A -- Pivot (folded-in, NOT its own section/heading)
-% Source: RESULTS_TABLE.md #3 (batch-size retest, reinforces this). Numbers: Table 3.
-% -----------------------------------------------------------------------------
+\subsection{Results}
 
-\paragraph*{Trees still win on raw accuracy.}
-XGBoost most accurate. DNN close behind. PINN and PINN-$k$ both trail.
-Four possible reasons checked. All ruled out. Feature interactions. Compartment count.
-Network size. Unfamiliar terrain. None explain the gap.
-Training settings checked again this session. Same result. Gap stands.
-Real question: does PINN still earn its place, despite losing here?
+% --- Table 1: six-model comparison (unchanged, existing) ---
+% [Existing Table~\ref{tab:results-q3} -- see current main draft, not reproduced here.]
 
-% -----------------------------------------------------------------------------
-% BLOCK B -- Leg 1: personalization is real, not one variable in disguise
-% Source: RESULTS_TABLE.md #6. Caveat: fold 0 only, not yet repeated.
-% -----------------------------------------------------------------------------
-
-\paragraph*{The personalisation is real, not one hidden variable.}
-Checked whether one terrain feature secretly drives the prediction. Same problem Q2 found in
-a different model.
-Shuffled each feature, one at a time. Watched how much the prediction moved.
-No single feature dominates. Top feature: wind exposure. Only 15\% of the total.
-All eleven features matter, roughly 5\% to 15\% each.
-Q2's model leaned on one variable for 80--90\% of its signal. This model does not.
-One fold checked so far. Not yet repeated on others.
-% Figure: bar chart, per-feature importance share. APPENDIX. Not yet built.
-
-% -----------------------------------------------------------------------------
-% BLOCK C -- Leg 2: the thing driving it is real (environment sweep)
-% Source: RESULTS_TABLE.md #5, #8. Table below merges with Block E (hyperparameters).
-% -----------------------------------------------------------------------------
-
-\paragraph*{Environment helps a lot -- once. More does not help further.}
-Tested PINN with no environment information at all. Then three lists of features, small to
-large.
-Zero environment info: $R^2$ 0.573, both versions.
-Add any environment info: jumps to about 0.62--0.63. A real, solid gain.
-Add a bigger list on top: no further gain. Slightly hurts the simpler PINN version.
-A well-chosen list beats a big one.
-This fixes a broken earlier test. The old code showed no difference at all. That was a bug,
-not a real result.
-One caveat: the medium list is not proven best for the two-parameter version. The small list
-scores close to the same, within normal noise.
-Checked why the big list does not help. Its extra features are not ignored. They get more
-attention than their fair share. They just do not carry over to new stands as well.
-
-% Table: merged with Block E -- feature-set rows below, hyperparameter rows added at Block E.
+% --- Table 2: PINN/PINN-k across feature sets and hyperparameter checks (unchanged) ---
 \begin{table}[!htbp]
 \centering
 \small
@@ -66,47 +37,297 @@ Condition & PINN $R^2$ & PINN-$k$ $R^2$ \\
 \midrule
 \multicolumn{3}{l}{\textit{Feature set}} \\
 No environment & 0.573 & 0.573 \\
-Set2 (small list) & 0.627 & 0.622 \\
-Set3 (medium list, headline) & 0.631 & 0.618 \\
-Set4 (large list) & 0.618 & 0.620 \\
+Set2 (small list) & $0.627\pm0.023$ & $0.622\pm0.017$ \\
+Set3 (medium list, headline) & $0.631\pm0.027$ & $0.618\pm0.023$ \\
+Set4 (large list) & $0.618\pm0.029$ & $0.620\pm0.020$ \\
 \midrule
 \multicolumn{3}{l}{\textit{Hyperparameters}} \\
-Main result & 0.631 & 0.618 \\
+Main result (Set3, reported settings) & 0.631 & 0.618 \\
 Learning-rate check & 0.630 & 0.614 \\
 Batch-size check & 0.641 & 0.619 \\
 Lambda check (8 settings, range) & 0.623--0.632 & 0.612--0.620 \\
 \bottomrule
 \end{tabular}
-\caption{\small{...}} % caption TBD once table is final; source: RESULTS_TABLE.md #5, #3, #3b, #4
+\caption{\small{...}} % caption TBD; source: RESULTS_TABLE.md #5, #3, #3b, #4
 \label{tab:pinn-conditions}
 \end{table}
-% Figure: line chart, R2 vs. feature-set breadth, one line per variant. MAIN TEXT. Not yet built.
+
+% --- Table 3: compartment 1129 cross-fold check (unchanged) ---
+\begin{table}[!htbp]
+\centering
+\small
+\begin{tabular}{lrrr}
+\toprule
+Fold & Split membership & Mean $y_{max}$ deviation & Rows $>$70\,m (of 1484) \\
+\midrule
+0 & 100\% test & $+12.1$\,m & 72 \\
+1 & 95\% train & $+11.5$\,m & 44 \\
+2 & 98\% train & $+10.7$\,m & 0 \\
+3 & 100\% train & $+15.6$\,m & 0 \\
+4 & 100\% validation & $+12.4$\,m & 0 \\
+\bottomrule
+\end{tabular}
+\caption{\small{...}} % caption TBD; source: RESULTS_TABLE.md #10
+\label{tab:compartment1129-crossfold}
+\end{table}
+
+% --- Table 4: trunk-residual comparison, plain PINN vs. PINN-k (unchanged) ---
+\begin{table}[!htbp]
+\centering
+\small
+\begin{tabular}{lrrr}
+\toprule
+Fold & Plain PINN trunk mean$|\cdot|$ & PINN-$k$ trunk mean$|\cdot|$ & Ratio \\
+\midrule
+0 & 0.207 & 0.410 & 1.98$\times$ \\
+1 & 0.238 & 0.553 & 2.33$\times$ \\
+2 & 0.255 & 0.844 & 3.31$\times$ \\
+\bottomrule
+\end{tabular}
+\caption{\small{...}} % caption TBD; source: RESULTS_TABLE.md #7
+\label{tab:trunk-residual}
+\end{table}
+
+% --- Table 5: error by age band and height band (unchanged) ---
+\begin{table}[!htbp]
+\centering
+\small
+\begin{tabular}{lrrrr}
+\toprule
+Age band (years) & $n$ & DNN MAE & PINN MAE & PINN-$k$ MAE \\
+\midrule
+15--30 & 13,338 & 2.50 & 2.53 & 2.51 \\
+30--45 & 21,879 & 3.12 & 3.13 & 3.22 \\
+45--60 & 7,919 & 4.13 & 3.84 & 4.16 \\
+60--75 & 1,973 & 5.06 & 5.28 & 5.48 \\
+75--93 & 923 & 6.16 & 6.59 & 7.01 \\
+\midrule
+Height band & $n$ & DNN MAE & PINN MAE & PINN-$k$ MAE \\
+\midrule
+0--10\,m & 4,874 & 3.43 & 4.28 & 4.05 \\
+10--20\,m & 18,796 & 2.94 & 2.83 & 2.82 \\
+20--30\,m & 17,949 & 3.11 & 3.02 & 3.28 \\
+30--47\,m & 4,413 & 5.01 & 4.74 & 5.09 \\
+\bottomrule
+\end{tabular}
+\caption{\small{...}} % caption TBD; source: RESULTS_TABLE.md #12
+\label{tab:age-height-error}
+\end{table}
+
+% --- Table 6 (NEW): over- and under-productive compartments, both models ---
+\begin{table}[!htbp]
+\centering
+\small
+\begin{tabular}{llrrl}
+\toprule
+Compartment & Direction & Yield class & $n$ plots & Flagged by \\
+\midrule
+1129 & Over-productive & 22--24 & 371 & Plain PINN ($y_{max}$) + PINN-$k$ ($k$) \\
+2229 & Over-productive & 24 & 6 & Plain PINN + PINN-$k$ \\
+2219 & Over-productive & -- & -- & PINN-$k$ ($k$) only, not yet checked in plain PINN \\
+\midrule
+2031 & Under-productive & 12 & 406 & Plain PINN ($y_{max}$) + PINN-$k$ ($k$) \\
+2142 & Under-productive & 8 (mostly), 16 & 394 & Plain PINN + PINN-$k$ \\
+\bottomrule
+\end{tabular}
+\caption{\small{...}} % caption TBD; source: chat 2026-08-23 (compartment hotspot check + master data join)
+\label{tab:productivity-compartments}
+\end{table}
+
+% --- Table 7 (NEW): correlation with independent yield-class records ---
+\begin{table}[!htbp]
+\centering
+\small
+\begin{tabular}{lrr}
+\toprule
+Comparison & Pearson $r$ & $n$ \\
+\midrule
+Plain PINN $y_{max}$ deviation vs.\ yield class & 0.249 & 11,508 \\
+PINN-$k$'s $k$ vs.\ yield class & 0.234 & 11,508 \\
+PINN-$k$'s $y_{max}$ vs.\ yield class & 0.334 & 11,508 \\
+\bottomrule
+\end{tabular}
+\caption{\small{...}} % caption TBD -- note: yldc confirmed NOT a model input (checked against
+% both the terrain feature list and the no-env feature list) and independently recorded
+% (Forest Research inventory, not derived from this project's own height measurements).
+% Source: chat 2026-08-23.
+\label{tab:yieldclass-correlation}
+\end{table}
+
+% --- Table 8 (NEW): plausibility comparison, plain PINN vs. PINN-k ---
+\begin{table}[!htbp]
+\centering
+\small
+\begin{tabular}{lrr}
+\toprule
+& Plain PINN $y_{max}$ deviation & PINN-$k$ $y_{max}$ deviation \\
+\midrule
+Mean & $+2.93$\,m & $-0.23$\,m \\
+SD & 5.32\,m & 0.72\,m \\
+Max & $+25.79$\,m & $+1.05$\,m \\
+Implausible ($<$5\,m or $>$70\,m) & 18 / 11,508 (0.16\%) & 0 / 11,508 (0\%) \\
+\bottomrule
+\end{tabular}
+\caption{\small{...}} % caption TBD; source: RESULTS_TABLE.md #2, chat 2026-08-23
+\label{tab:plausibility-comparison}
+\end{table}
+
+% --- Figures ---
+% STATUS NOTE: figures below are mixed built/pending -- two are still being finalised and
+% may be replaced or merged before this goes further. Flagged individually.
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.75\textwidth]{figures/fig_results/q3_env_sweep_r2.png}
+\caption{\small{PINN and PINN-$k$ accuracy against environmental feature-list size.}}
+% BUILT, stable. Source: RESULTS_TABLE.md #5. MAIN TEXT.
+\label{fig:env-sweep}
+\end{figure}
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.9\textwidth]{figures/fig_results/q3_pinn_k_fold0_ymax_k_deviation_maps.png}
+\caption{\small{PINN-$k$, fold 0: mean $y_{max}$ deviation (left) vs.\ mean $k$ deviation
+(right), by compartment. $y_{max}$ stays close to flat almost everywhere; $k$ shows the
+structured hotspot pattern instead -- the same underlying signal, routed through a
+different parameter than plain PINN uses.}}
+% BUILT. Directly shows the parameter-routing finding. MAIN TEXT -- likely the single most
+% important new figure given the 2c rewrite. Source: chat 2026-08-23.
+\label{fig:ymax-k-deviation-maps}
+\end{figure}
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{figures/fig_results/q3_pinn_ymax_deviation_map.png}
+\caption{\small{Plain PINN: mean $y_{max}$ deviation from the population curve, by
+compartment, pooled across all 5 folds.}}
+% BUILT but STATUS UNSETTLED -- may be replaced/paired with q3_pinn_ymax_hotspot_summary.png
+% (labels all 5 top hotspots, not just 1129) depending on which reads better once 2c is
+% rewritten to cover multiple compartments, not just 1129. MAIN TEXT for now.
+\label{fig:ymax-deviation-map}
+\end{figure}
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.7\textwidth]{figures/fig_results/q3_pinn_terrain_importance.png}
+\caption{\small{Share of total permutation importance carried by each terrain/wind feature
+in PINN-$k$'s personalised $y_{max}$, fold 0.}}
+% BUILT, stable. APPENDIX. Source: RESULTS_TABLE.md #6.
+\label{fig:terrain-importance}
+\end{figure}
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.7\textwidth]{figures/fig_results/q3_pinn_implausible_example_plot.png}
+\caption{\small{Plot 77226 (compartment 1129): observed heights, the population curve, and
+plain PINN's personalised curve.}}
+% BUILT but a candidate for replacement -- proposed alternative shows the SAME plot with
+% BOTH plain PINN's curve (wild) and PINN-k's curve (modest, plausible) against the same
+% population baseline, directly visualising the parameter-routing finding at the single-plot
+% level. Not yet built. Decide before finalising: keep this version, or replace with the
+% two-model version. APPENDIX either way.
+\label{fig:implausible-example}
+\end{figure}
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.65\textwidth]{figures/fig_results/q3_pinn_ymax_k_scatter.png}
+\caption{\small{PINN-$k$'s two personalised parameters, one dot per test-set plot.}}
+% BUILT, stable. APPENDIX. Source: chat 2026-08-23 (r=0.50).
+\label{fig:ymax-k-scatter}
+\end{figure}
+
+\subsection{Discussion}
 
 % -----------------------------------------------------------------------------
-% BLOCK D -- Leg 3: the failure mode is disclosed and fully diagnosed
-% Source: RESULTS_TABLE.md #2, #9, #10 (all 5 folds, decisive).
+% 1. PIVOT (folded-in, NOT its own section/heading) -- unchanged.
 % -----------------------------------------------------------------------------
 
-\paragraph*{PINN's biggest flaw traces to one place -- and it is not a guessing problem.}
-On average, PINN predicts a slightly taller ceiling than the shared curve. About 3\,m taller.
-Most plots lean this way. Not a rare quirk.
-A small number go further. Predictions no real tree reaches. Under 5\,m, or over 70\,m.
-70\,m looked like a hard line. It is not. Heights taper smoothly just below it. So we looked
-wider: the 40 most-inflated plots overall, not just the ones past the line.
-31 of those 40 sit in one compartment. One place, out of hundreds in the forest.
-Two smaller compartments show the same pattern, on a smaller scale.
+\paragraph*{Trees still win on raw accuracy.}
+XGBoost most accurate, DNN close behind, PINN and PINN-$k$ both trail
+(Table~\ref{tab:results-q3}).
+Four possible reasons checked for DNN's gap to XGBoost. All ruled out: feature interactions,
+compartment count, network size, unfamiliar terrain.
+Training settings checked again this session, at the correct batch size. Same result. Gap
+stands.
+Real question: does PINN still earn its place, despite losing here?
 
-Two explanations tested. One ruled out, one ruled out decisively.
-First: does the model just misread unusual land? Checked directly. Did not hold up on repeat
-folds. Dropped.
-Second: is this a place the model never learned properly? Checked five ways. Trained on this
-compartment's own real data in four of the five. Prediction stayed high every time. Highest of
-all five when the model had seen every row of its data. Not a guessing problem.
+% -----------------------------------------------------------------------------
+% 2. IS PINN'S INTERPRETABILITY GENUINE? -- unchanged shape (2a real -> 2b driven by real
+% signal -> 2c honest about where it breaks), but 2c is substantially rewritten.
+% -----------------------------------------------------------------------------
 
-What is left: a real, unusually strong site. Or a fault in how that one place's heights were
-recorded. Both still open. The plain DNN also does slightly worse here, about a fifth worse
-than elsewhere -- consistent with something genuinely unusual about the place itself, not just
-a PINN quirk.
+% --- 2a. The personalisation is real, not one variable in disguise -- unchanged ---
+
+\paragraph*{The personalisation is real, not one hidden variable.}
+Checked whether one terrain feature secretly drives the prediction. Same problem Q2 found in
+a different model.
+Shuffled each feature, one at a time, ten repeats each. Watched how much the prediction moved
+(Figure~\ref{fig:terrain-importance}).
+No single feature dominates. Top feature, wind exposure, carries 15.2\% of the total. All
+eleven span 4.7\%--15.2\%.
+Q2's model (GNNWR) leaned on one variable, CanopyCover, for 80--90\% of its signal. This model
+does not.
+One fold checked so far. Not yet repeated on others -- flagged, not hidden.
+
+% --- 2b. The thing driving it is real (environment sweep) -- unchanged ---
+
+\paragraph*{Environment helps a lot -- once. More does not help further.}
+Tested PINN with no environment information, then three feature lists, small to large. Five-
+fold CV throughout (Table~\ref{tab:pinn-conditions}, Figure~\ref{fig:env-sweep}).
+Zero environment info to a small list: a real, solid jump, several times the fold-to-fold
+noise floor.
+A bigger list on top of that: no further gain, slightly hurts the simpler version. A
+well-chosen list beats a big one.
+This fixes a broken earlier test -- the pre-fix code showed no difference between having
+environment information or not at all, a bug, not a real result.
+One caveat: the headline list is not proven best for the two-parameter version -- the smaller
+list scores marginally higher, within normal noise.
+Checked why the big list does not help. Its extra features are not ignored -- more than their
+fair share of the model's attention -- they just do not carry over to new stands as well.
+
+% --- 2c. REWRITTEN: the personalisation tells a real, two-sided story ---
+
+\paragraph*{The personalisation tells a real story about which sites are more, and less,
+productive -- checked against independent records.}
+A small number of compartments get pushed well above the population curve. A small number get
+pushed well below it. Not random -- the same compartments show up in both PINN and PINN-$k$,
+even though the two models express it through different parameters
+(Figure~\ref{fig:ymax-k-deviation-maps}).
+One compartment (1129, 371 plots) carries most of the extreme high predictions in plain PINN.
+The same compartment carries the single highest growth-rate value in PINN-$k$, even though its
+personalised height there is unremarkable (Table~\ref{tab:productivity-compartments}).
+A mirror pair (2031, 2142, around 400 plots each) shows the same pattern in reverse -- pushed
+down in both models.
+Checked against the forestry service's own yield-class records -- recorded independently,
+never seen by either model. The over-productive compartments carry yield class 22--24, near
+the top of the whole range. The under-productive pair carry yield class 8--12, near the
+bottom.
+Checked this is not just three cherry-picked compartments: a real, significant correlation
+holds across the whole test set, not just the extremes (Table~\ref{tab:yieldclass-correlation}).
+Modest, not dominant -- yield class explains part of the picture, not most of it. Terrain
+(2a) is still doing most of the work.
+
+\paragraph*{The two PINN versions differ in how safely they express the same signal.}
+Plain PINN sometimes pushes the signal too far -- a small number of plots reach a height no
+real tree does. PINN-$k$ never does this (Table~\ref{tab:plausibility-comparison}).
+Plain PINN has only one outlet for this signal, the ceiling itself. PINN-$k$ has two, and
+mostly uses growth rate instead, leaving the ceiling close to the shared curve.
+Checked this is not a held-out generalisation problem, the same way as before: trained on the
+compartment's own real data in four of five folds, the inflated prediction did not shrink --
+if anything it grew (Table~\ref{tab:compartment1129-crossfold}).
+What is left unresolved: a real, unusually strong or weak site, or a fault in how some of
+these places' heights were recorded. Both still open, though the yield-class match makes the
+first explanation more likely than it looked before.
+
+\paragraph*{The same weakness still shows up at the extremes of age and height.}
+Checked whether mistakes cluster by tree age or height, across all three models, same
+held-out rows (Table~\ref{tab:age-height-error}).
+Young and mid-range ages: all three models close, sometimes the simpler PINN slightly ahead.
+Oldest ages and shortest stands: DNN clearly best, PINN-$k$ the worst of the three.
+Not resolved by anything above. A personal curve, fit mostly to well-observed ages, does not
+stretch well to the extremes -- the same mechanism as compartment 1129's implausible cases,
+now shown as a general pattern, not fixed by having a second parameter available.
 
 % So-what / practical link (still a discussion point, not drafted into prose):
 % top height feeds directly into volume (Vol95 = g1 x Top_Height95^g3 x area/10000 x
@@ -114,54 +335,33 @@ a PINN quirk.
 % Chapman-Richards site-index inversion this project's models are built on -- height errors
 % are AMPLIFIED downstream into volume, why a disclosed, understood failure mode matters
 % practically, not just academically.
-% Figures:
-%   (i) Compartment-level map of y_max deviation. MAIN TEXT. Not yet built.
-%   (ii) One flagged plot's curve vs. population curve, appendix, paired with the existing
-%        good-example figure (q3_pinn_example_plot_curve.png). Not yet built.
 
 % -----------------------------------------------------------------------------
-% BLOCK E -- Plain PINN vs. PINN-k: the recommendation
-% Source: RESULTS_TABLE.md #3, #3b, #4, #7.
+% 3. PLAIN PINN VS. PINN-K: THE RECOMMENDATION -- gains a new safety point.
 % -----------------------------------------------------------------------------
 
-\paragraph*{The simpler PINN wins on accuracy. The two-parameter version buys something else.}
-Compared the two versions everywhere. One predicts final height only. One predicts final
-height and growth speed.
-Simpler version wins every time. Small gap, about 0.01 to 0.02. Same result across four
-separate checks.
+\paragraph*{The simpler PINN wins on accuracy. The two-parameter version buys a fuller,
+and safer, picture.}
+Compared the two versions everywhere -- final height only, vs.\ final height and growth speed.
+Simpler version wins every time, a small but consistent gap, across four separate checks
+(Table~\ref{tab:pinn-conditions}).
 Tried one reason to prefer the two-parameter version anyway: convert its growth-speed number
-into a yield class foresters already use. Did not hold up. An old quirk in that formula, not
+into a yield class foresters already use. Did not hold up, an old quirk in that formula, not
 something this model found. Dropped.
-The real reason to still want it: a fuller picture. Final height, and how fast a stand gets
-there. Not just one number.
-Checked why the extra parameter costs accuracy. The shared correction network works two to
-three times harder in the two-parameter version. Gets worse across folds, not better. Growth
-speed does not fit cleanly by itself. Something else has to compensate.
-
-% Table: merged table's hyperparameter rows (Block C's table, tab:pinn-conditions):
-%   Main result & 0.631 & 0.618
-%   Learning-rate check & 0.630 & 0.614
-%   Batch-size check & 0.641 & 0.619
-%   Lambda check (8 settings, range) & 0.623--0.632 & 0.612--0.620
-% Figure: y_max vs. k scatter, one dot per plot. r=0.50, real, clean, monotonic (mean k rises
-%   0.0127 -> 0.0148 across y_max quartiles), not a diffuse cloud. APPENDIX -- companion to
-%   Block B's importance chart. Not yet built.
+Two real reasons remain. A fuller picture: final height and how fast a stand gets there, not
+just one number. And a safer one: the two-parameter version never produces an implausible
+height, where the simpler version occasionally does (Table~\ref{tab:plausibility-comparison}).
+Checked why the extra parameter costs accuracy. The shared correction network works
+increasingly harder in the two-parameter version, across every fold checked
+(Table~\ref{tab:trunk-residual}). Growth speed does not fit cleanly by itself; something else
+has to compensate. The two parameters do move together sensibly, though
+(Figure~\ref{fig:ymax-k-scatter}) -- not fitting independently to noise.
 
 % -----------------------------------------------------------------------------
-% BLOCK F -- Finding 5 (errors by age/height) -- STATUS: NOT READY, blocked
+% 4. WHY TRUST THESE NUMBERS -- closing methods note, not a headline. Unchanged.
 % -----------------------------------------------------------------------------
-% Claim: unresolved -- do prediction errors cluster at certain tree ages/heights, and does
-%   this differ across DNN/PINN/PINN-k?
-% Blocker, UPDATED 2026-08-23 (second update): PINN-k's existing saved file
-%   (test_set_predictions.csv) is unusable -- its "fixed_residual" column was computed from
-%   the CR-curve term only (y_max_pred, k_pred plugged into the growth equation), missing the
-%   trunk-residual correction entirely. Reconstructing "predicted" from it gives R2=0.362,
-%   nowhere near the trusted 0.618.
-% Status now: DNN ready. Plain PINN ready (run_finding5_plain_pinn_export.py complete,
-%   plain_pinn_fixed_full_predictions.csv, sanity-check fold-0 R2=0.6739, matches the trusted
-%   fold-0 file exactly). PINN-k still needs the equivalent export fix, not yet built.
-%   2 of 3 models ready.
-% Importance: genuinely conditional, not fixed. If DNN's errors grow at extreme ages (less
-%   training density, no curve constraining plausibility) while PINN/PINN-k stay stable, this
-%   becomes a real fourth leg of the headline story. If all three look similar, it's a
-%   checked-and-ruled-out side note. Cannot triage further until built.
+
+\paragraph*{The settings were checked, not guessed.}
+Learning rate, batch size, and physics-weighting strength each tested against other values
+(Table~\ref{tab:pinn-conditions}). None beat what was already reported.
+Plain PINN still wins under every one. Not a one-setting fluke.

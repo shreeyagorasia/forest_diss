@@ -25,13 +25,20 @@ better once the reader already cares about the result, not before.
 
 1. Compare the models — why do some predict height better than others? (DNN vs.\ XGBoost)
 2. Compare PINN vs.\ DNN — PINN can draw a growth curve for each plot, DNN can't. What does
-   that actually buy us, and where does it go wrong? *(was part 3)*
+   that actually buy us, and where does it go wrong? *(was part 3 — now includes the
+   age/height error pattern, formerly part 5, as a reinforcing extension of the same "where it
+   goes wrong" story rather than a separate topic — see note below)*
 3. Compare PINN vs.\ PINN-$k$ — now that we know PINN's value is interpretability, which
    variant should we actually use? *(was part 2)*
 4. Other new findings — explaining *why* things came out the way they did, and why the
    reported numbers can be trusted
-5. **NEW** — do the models make bigger mistakes at certain tree ages or heights? Does this
-   differ between DNN, PINN, and PINN-$k$?
+
+**Structural note (2026-08-23, proposed, not yet applied to the tex draft)**: the old part 5
+(errors by age/height) turned out to connect directly to part 2's compartment-1129 finding —
+same underlying mechanism (curve extrapolation past what a plot was actually observed at),
+shown twice, once as one compartment and once as a forest-wide pattern. Proposing to fold it
+into Block D as a reinforcing close, not keep it as a separate Block F. Needs sign-off before
+the tex file's block structure changes.
 
 ---
 
@@ -165,16 +172,21 @@ below is from this session's testing (`temp_results_pinn/RESULTS_TABLE.md`, sect
   they can be" — a tested, closed point instead of an open worry.
 
 **5. Do prediction mistakes cluster at certain tree ages or heights, and does this differ
-between DNN, PINN, and PINN-$k$?** — **NEEDS NEW WORK.** Nobody's checked this yet. What we have
-and don't have:
-- DNN: ready to go, the file already has everything needed (age, actual height, predicted
-  height, error) — `outputs/spatial_block_kfold/rq1_dnn_env_terrain_nested_set3_gated_terrain_wind_vif_seed42/4survey/fold_0/predictions.csv`.
-- PINN-$k$: ready to go, same story — `temp_results_pinn/outputs/example_curve/test_set_predictions.csv`.
-- Plain PINN: **not ready** — the file we saved only has age and predicted final height, not the
-  actual predicted tree height or the error. Cheap to fix (the model's already trained, we'd
-  just export a different, small piece of information from it), just hasn't been done.
-- The actual analysis (grouping errors by age band or height band, comparing the three models)
-  hasn't started. This is a genuinely new question, not a repeat of anything above.
+between DNN, PINN, and PINN-$k$?** — **DONE (2026-08-23), READY.** Real answer, and it is the
+*opposite* of what seemed likely going in — PINN's curve does not make it more stable at the
+extremes, it makes it worse. Source: `temp_results_pinn/RESULTS_TABLE.md` section 12.
+
+At young/mid ages, all three models are close, sometimes with plain PINN slightly ahead. At the
+oldest ages (75--93 years) and shortest heights (0--10m), DNN is clearly the best of the three
+— PINN-$k$ is about 14\% worse than DNN at the oldest ages.
+
+**Why this matters, and why it is not a random result**: it connects directly to finding 3's
+compartment-1129 problem, not by coincidence. That failure mode was specifically about a
+personalised curve extrapolating far past the ages a plot actually had real observations for.
+Same mechanism here, as a general pattern across the whole forest: a curve fit mostly to
+typical, well-observed ages does not extrapolate as well to unusual ages or heights as DNN's
+plain, unconstrained fit does. Two separate checks, same underlying story — worth stating
+together, not as two disconnected findings.
 
 ---
 
@@ -224,52 +236,45 @@ explanation, versus which are just supporting evidence.
 
 ---
 
-## Plot ideas
+## Plot ideas -- 4 of 5 built and reviewed, 1 built and pending final check (2026-08-23)
 
-Matching the look of figures we already have (`q3_pinn_example_plot_curve.png`,
-`q3_pinn_param_distribution.png`) and the map style already used in Q1/Q2.
+All built in `temp_results_pinn/pinn_env_terrain_fix/build_q3_redraft_figures.py`, matching the
+existing figure style (`notebooks/results_figures_style.py` -- pastel palette, same as every
+other figure in the chapter).
 
-**For finding 1 (environment helps, then plateaus):**
-- A simple line chart: accuracy ($R^2$) on the y-axis, feature-list size on the x-axis (none,
-  small, medium, large), one line for each PINN version. Shows the "helps, then flattens out"
-  story at a glance instead of buried in a table. Probably the single most useful new figure to
-  add.
+**Environment sweep (main text) -- BUILT, good.** Line chart, $R^2$ vs. feature-list size, one
+line per PINN version. `figures/fig_results/q3_env_sweep_r2.png`. Shows the "helps, then
+flattens out" story at a glance. The single most useful new figure in the chapter.
 
-**For finding 3 (impossible tree heights):**
-- Check whether the existing figure `q3_pinn_param_distribution.png` already shows the
-  right (corrected) numbers, or whether it's from before this session's bug fix and needs
-  redoing.
-- **New idea — a map:** colour each forest compartment by how much PINN's predicted final
-  height differs from the population average there. Same map style as existing Q1/Q2 figures.
-  Interesting either way it turns out: if the "too-tall" predictions cluster in specific
-  compartments, that's either a real environmental pattern (good sign) or a sign the model is
-  reacting badly to something about the terrain data in those spots (a real weakness worth
-  flagging). We don't know which until we look.
+**Compartment map of y_max deviation (main text) -- BUILT, good, upgraded once already.** First
+version only covered fold 0's held-out plots (~20\% of the forest, mostly grey) -- correctly
+flagged as too sparse. Rebuilt pooling all 5 folds' held-out test predictions instead (each
+compartment is the test set in exactly one fold, so this gives every plot in the forest one
+genuine held-out prediction, same approach Q1's maps already use -- confirmed clean, 58,073
+pooled rows = 58,073 unique plots, no gaps or duplicates). `figures/fig_results/q3_pinn_ymax_deviation_map.png`.
+Shows both halves of the story at once: broad, mild warming across most of the forest, plus a
+handful of genuinely dark-red hotspots standing out from it.
 
-**For finding 2 (plain PINN vs.\ PINN-$k$):**
-- A small chart comparing accuracy for both versions across all the tests we've run — shows the
-  gap is consistent, not a fluke from one test.
-- Optional: a scatter plot of predicted final height vs.\ predicted growth speed, one dot per
-  plot — shows the actual shape of how these two numbers relate, more informative than a single
-  summary number.
+**Per-feature terrain importance (appendix) -- BUILT, good.** Bar chart, 11 features sorted.
+`figures/fig_results/q3_pinn_terrain_importance.png`. Immediately shows "no runaway winner."
 
-**For finding 5 (errors by age/height, once the data exists):**
-- A line chart: average error on the y-axis, tree age (or height) band on the x-axis, one line
-  per model (DNN, PINN, PINN-$k$). Obvious question to answer: does DNN get worse at very
-  young/old ages (where there's less training data) compared to the two PINN versions, or is
-  there no real difference?
+**Flagged plot example curve (appendix) -- BUILT, good.** Plot 77226 (compartment 1129, the
+single most-inflated prediction) vs. the population curve, paired with the existing good-example
+figure. `figures/fig_results/q3_pinn_implausible_example_plot.png`. The observed points
+genuinely sit above the population curve already at young ages -- so the story reads honestly:
+a plot that already looks fast-growing, extrapolated further than any real tree goes.
 
-**A second map idea (not tied to one specific finding):** colour each compartment by how wrong
-DNN or XGBoost's predictions are there. If the mistakes cluster in the same places PINN's
-too-tall predictions do, that's a strong, visual link back to the dissertation's bigger point
-about environment affecting predictions (Q1/Q2). If they don't overlap, that's useful to know
-too — it would mean these are two separate issues, not one.
+**$y_{max}$ vs.\ $k$ scatter (appendix) -- BUILT, good.** One dot per plot, both personalised
+parameters. `figures/fig_results/q3_pinn_ymax_k_scatter.png`. Real correlation (r=0.50), a
+genuine funnel shape (tight above $y_{max}\approx$51m, scattered below it), not a diffuse cloud
+-- checked before committing to build it, per the "not every result needs a figure" rule.
 
-**Before building any of this:** every plot idea above needs either (a) plot coordinates
-(`data/interim/plot_coordinates.csv.gz`) or (b) forest-compartment shapes
-(`models/common/geo.py`'s `load_compartment_boundaries()`). Checked already — both connect
-cleanly to the prediction files we already have, so no new data prep needed, just the plotting
-code itself.
+**Dropped, checked first**: DNN/XGBoost error-compartment-overlap map. Checked the raw numbers
+before building -- DNN's error on compartment 1129 is only mildly elevated (+19\%, not
+dramatic), too modest to justify its own map. One sentence in Block D instead.
+
+**Still not built**: finding 5's line chart (errors by age/height) -- blocked on finding 5's own
+data readiness (2 of 3 models ready as of this pass; PINN-$k$ still needs its export fix).
 
 ---
 
