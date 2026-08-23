@@ -67,36 +67,8 @@ live-recomputed from
 
 \textbf{The same variables act the same way in Q1 and Q2 -- checked two different ways.} Table~\ref{tab:results-q2-reliability} lines up two separate tests. Q2's test: does GNNWR's own local number for a variable keep the same sign across compartments? Q1's test: does a plain Elastic Net model agree with a mixed-effects model on a variable's coefficient? CanopyCover, slope, and rainfall pass both tests -- they are reliable everywhere. Soil pH fails both -- it looks like noise in both chapters. Topex is the interesting one. In Q1, Elastic Net and the mixed-effects model disagree on it. But a closer check shows this is because topex carries a real, local effect (a within-compartment link of 0.214, stronger than its raw link of 0.080) that one straight line cannot capture well. This matches Q2's own finding: topex's local coefficient flips sign in more than a quarter of compartments (Figure~\ref{fig:q2-stability-map}). These are two different tests, not the same test twice -- that they agree makes the finding stronger, not weaker.
 
-\begin{table}[!htbp]
-\centering
-\scriptsize
-\renewcommand{\arraystretch}{1.2}
-\begin{tabular}{lp{3.3cm}p{4.2cm}cp{2.8cm}}
-\toprule
-Variable & Q1: EN vs.\ LMM & Q1 mechanism (if disputed) & Q2: \% cpmt.\ same sign & Read \\
-\midrule
-CanopyCover & Agree (EN 1.94, LMM 1.86) & not disputed & 100.0 & Reliable everywhere \\
-slope\_degrees & Agree (EN 0.99, LMM 0.86) & not disputed & 97.0 & Reliable everywhere \\
-chelsa\_bio12\_precip\_mm & Agree (EN $-0.62$, LMM $-1.42$) & not disputed & 87.4 & Reliable everywhere \\
-topex & Disagree (EN 0.06, LMM 1.32) & Real local signal (within-cpmt.\ corr.\ 0.214 $>$ raw 0.080) & 71.9 & Real effect, hard for a straight line (global or local) to pin down consistently \\
-windward\_topex & not tested in Q1 & n/a & 91.8 & Q2-only variable, more stable than plain topex \\
-tas\_mean & Disagree (EN $-0.33$, LMM 0.02) & Artifact (within-cpmt.\ corr.\ 0.090 $\ll$ raw 0.279) & 78.4 & Q1: fake signal, despite a fairly stable local sign in Q2 -- stability alone does not make it a real effect \\
-soilgrids\_ph & Disagree (EN 0.12, LMM 0.07) & Artifact (within-cpmt.\ corr.\ 0.035 $\ll$ raw 0.224) & 51.1 & Both chapters agree: not a real effect \\
-dist\_to\_road & not tested in Q1 & n/a & 74.9 & No Q1 comparison; moderately stable sign in Q2 \\
-\bottomrule
-\end{tabular}
-\caption{\small{Terrain/climate variable reliability, cross-referenced between Q1 (does a
-global Elastic Net model agree with a linear mixed-effects model on a variable's
-coefficient, Set4, 4-survey) and Q2 (does GNNWR's own local coefficient keep the same sign
-across compartments, Set4, 4-survey, pooled 5 folds, $n=231$ compartments). These are two
-genuinely different tests that happen to agree on topex and slope\_degrees -- not the same
-measurement repeated. Q1 columns live-recomputed from
-\texttt{outputs/spatial\_block\_kfold/rq2\_attribution\_nested\_set4\_gated\_all\_vif/4survey/fold\_\{0-4\}/}
-(\texttt{elastic\_net\_coefficients.csv}, \texttt{nlme\_fixed\_effects.json}); Q2 column
-live-recomputed from GNNWR's own saved per-plot \texttt{coef\_*} columns, same fold files as
-Table~\ref{tab:results-q2-ablation}.}}
-\label{tab:results-q2-reliability}
-\end{table}
+% Table now lives in appendix_results.tex (\S~\ref{app:results-q2}), not duplicated here --
+% see Table~\ref{tab:results-q2-reliability} there. Referenced by \ref{} above as normal.
 
 \fig{\label{fig:q2-stability-map}\textbf{Q2, Figure 2 -- the cross-cutting instability, shown directly.} Two compartment-mean maps of GNNWR's own local coefficients (Set4, 4-survey, pooled 5 folds), same colour scale. Left: CanopyCover (never flips sign). Right: topex (flips sign in over a quarter of compartments) -- the direct visual for Table~\ref{tab:results-q2-reliability}'s cross-chapter finding. File: \texttt{figures/fig\_results/q2\_topex\_vs\_canopycover\_stability.png}.}
 

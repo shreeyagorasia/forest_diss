@@ -75,6 +75,42 @@ whcl & $-0.594\pm0.228$ & $-0.459\pm0.400$ & Yes & Static (not verified) & Not a
 \section{Q2 appendix}
 \label{app:results-q2}
 
+\subsection{Terrain/climate variable reliability, Q1 vs.\ Q2}
+\label{app:results-q2-reliability}
+% Referenced from results_q2_22_08_0214.tex (the "same terrain variables behave the same
+% way" cross-check paragraph). Built 2026-08-23.
+
+\begin{table}[!htbp]
+\centering
+\scriptsize
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lp{3.3cm}p{4.2cm}cp{2.8cm}}
+\toprule
+Variable & Q1: EN vs.\ LMM & Q1 mechanism (if disputed) & Q2: \% cpmt.\ same sign & Read \\
+\midrule
+CanopyCover & Agree (EN 1.94, LMM 1.86) & not disputed & 100.0 & Reliable everywhere \\
+slope\_degrees & Agree (EN 0.99, LMM 0.86) & not disputed & 97.0 & Reliable everywhere \\
+chelsa\_bio12\_precip\_mm & Agree (EN $-0.62$, LMM $-1.42$) & not disputed & 87.4 & Reliable everywhere \\
+topex & Disagree (EN 0.06, LMM 1.32) & Real local signal (within-cpmt.\ corr.\ 0.214 $>$ raw 0.080) & 71.9 & Real effect, hard for a straight line (global or local) to pin down consistently \\
+windward\_topex & not tested in Q1 & n/a & 91.8 & Q2-only variable, more stable than plain topex \\
+tas\_mean & Disagree (EN $-0.33$, LMM 0.02) & Artifact (within-cpmt.\ corr.\ 0.090 $\ll$ raw 0.279) & 78.4 & Q1: fake signal, despite a fairly stable local sign in Q2 -- stability alone does not make it a real effect \\
+soilgrids\_ph & Disagree (EN 0.12, LMM 0.07) & Artifact (within-cpmt.\ corr.\ 0.035 $\ll$ raw 0.224) & 51.1 & Both chapters agree: not a real effect \\
+dist\_to\_road & not tested in Q1 & n/a & 74.9 & No Q1 comparison; moderately stable sign in Q2 \\
+\bottomrule
+\end{tabular}
+\caption{\small{Terrain/climate variable reliability, cross-referenced between Q1 (does a
+global Elastic Net model agree with a linear mixed-effects model on a variable's
+coefficient, Set4, 4-survey) and Q2 (does GNNWR's own local coefficient keep the same sign
+across compartments, Set4, 4-survey, pooled 5 folds, $n=231$ compartments). These are two
+genuinely different tests that happen to agree on topex and slope\_degrees -- not the same
+measurement repeated. Q1 columns live-recomputed from
+\texttt{outputs/spatial\_block\_kfold/rq2\_attribution\_nested\_set4\_gated\_all\_vif/4survey/fold\_\{0-4\}/}
+(\texttt{elastic\_net\_coefficients.csv}, \texttt{nlme\_fixed\_effects.json}); Q2 column
+live-recomputed from GNNWR's own saved per-plot \texttt{coef\_*} columns, same fold files as
+Table~\ref{tab:results-q2-ablation}.}}
+\label{tab:results-q2-reliability}
+\end{table}
+
 \subsection{Flagged-plot split diagnostics}
 \label{app:flagged-plot-split}
 % AUDIT: placeholder -- referenced once from results_q2 (fixed-k curve-fitting artifact vs.\ genuine rapid growth
