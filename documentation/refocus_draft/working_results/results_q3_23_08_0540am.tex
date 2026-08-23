@@ -114,25 +114,68 @@ Height band & $n$ & DNN MAE & PINN MAE & PINN-$k$ MAE \\
 \label{tab:age-height-error}
 \end{table}
 
-% --- Table 6 (NEW): over- and under-productive compartments, both models ---
+% --- Table 6 (NEW): selection rule + the two flagship examples ---
+% Rule (2026-08-23, replaces earlier ad-hoc picks): among compartments with >=50 pooled
+% held-out plots (excludes small-n compartments where 1-2 plots could drive the mean), rank by
+% mean deviation for the "systematic site signal" story, and separately by single-plot max/min
+% deviation for the "one implausible plot" story. A compartment can lead on one ranking and not
+% the other -- that is expected, not a problem, since the two rankings answer different
+% questions.
 \begin{table}[!htbp]
 \centering
 \small
 \begin{tabular}{llrrl}
 \toprule
-Compartment & Direction & Yield class & $n$ plots & Flagged by \\
+Compartment & Direction & Mean dev. (m) & Most extreme plot (m) & Why flagged \\
 \midrule
-1129 & Over-productive & 22--24 & 371 & Plain PINN ($y_{max}$) + PINN-$k$ ($k$) \\
-2229 & Over-productive & 24 & 6 & Plain PINN + PINN-$k$ \\
-2219 & Over-productive & -- & -- & PINN-$k$ ($k$) only, not yet checked in plain PINN \\
-\midrule
-2031 & Under-productive & 12 & 406 & Plain PINN ($y_{max}$) + PINN-$k$ ($k$) \\
-2142 & Under-productive & 8 (mostly), 16 & 394 & Plain PINN + PINN-$k$ \\
+1129 & Over & +12.2 (rank 10/178) & \textbf{+25.8 (rank 1/178)} & Single most extreme plot \\
+2021 & Under & \textbf{-21.4 (rank 1/178)} & \textbf{-30.4 (rank 1/178)} & Largest mean \emph{and} most extreme plot \\
 \bottomrule
 \end{tabular}
-\caption{\small{...}} % caption TBD; source: chat 2026-08-23 (compartment hotspot check + master data join)
-\label{tab:productivity-compartments}
+\caption{\small{...}} % caption TBD; source: chat 2026-08-23, n>=50 reliability rule applied
+% to the pooled 5-fold compartment deviation table (58,073 plots). "rank" = position among the
+% 178 compartments with n>=50 pooled plots, ranked within that direction (over/under separately).
+\label{tab:productivity-flagships}
 \end{table}
+
+% --- Table 6b (NEW): the wider top-5-per-side picture, reported honestly (not filtered to
+% only the yield-class-confirming rows) ---
+\begin{table}[!htbp]
+\centering
+\small
+\begin{tabular}{lrrrlr}
+\toprule
+Compartment & Mean dev. (m) & $n$ plots & Yield class & Agrees? & Mean age (yr) \\
+\midrule
+\multicolumn{6}{l}{\textit{Over-productive, top 5 by mean deviation (n$\geq$50)}} \\
+2057 & +15.6 & 112 & 10--16 (mixed) & No & 59.8 \\
+1130 & +14.6 & 78 & 22--24 & Yes & 33.6 \\
+2130 & +14.6 & 98 & 20--24 & Yes & 35.1 \\
+1122 & +13.4 & 51 & 24 & Yes & 25.0 \\
+1027 & +13.4 & 56 & 12 & No & 72.0 \\
+\midrule
+\multicolumn{6}{l}{\textit{Under-productive, top 5 by mean deviation (n$\geq$50)}} \\
+2021 & -21.4 & 403 & 12 & Yes & -- \\
+1070 & -18.1 & 222 & 12 & Yes & -- \\
+2094 & -17.7 & 279 & 10--12 & Yes & -- \\
+1069 & -11.8 & 297 & 12 & Yes & -- \\
+2022 & -10.3 & 417 & 16 & Weakly & -- \\
+\bottomrule
+\end{tabular}
+\caption{\small{...}} % caption TBD; source: chat 2026-08-23. Under-productive side agrees with
+% independent yield class in 4/5 cases. Over-productive side agrees in only 3/5 -- including a
+% disagreement from the single BIGGEST over-productive signal (2057). Reported as-is, not
+% filtered down to the confirming rows. The two disagreeing rows are both much older than the
+% three agreeing rows (59.8/72.0 vs 25.0-35.1 years) -- see paragraph below the table.
+\label{tab:productivity-top5}
+\end{table}
+
+% Earlier, weaker picks (2031, 2142, 2229) -- kept for the record, not carried into the main
+% argument. 2031 (yldc 12, n=406, mean dev -6.5) and 2142 (yldc 8/16, n=394, mean dev -5.6) rank
+% far below the top-5 under-productive compartments above. 2229 (n=579, mean dev +7.1) ranks
+% 42nd of 178 on the over-productive side -- not a flagship signal. 2219 is a separate case:
+% flagged only through PINN-k's k-deviation (fold 0 only, not yet pooled across folds), not
+% comparable to this y_max-based table.
 
 % --- Table 7 (NEW): correlation with independent yield-class records ---
 \begin{table}[!htbp]
@@ -162,13 +205,19 @@ PINN-$k$'s $y_{max}$ vs.\ yield class & 0.334 & 11,508 \\
 \toprule
 & Plain PINN $y_{max}$ deviation & PINN-$k$ $y_{max}$ deviation \\
 \midrule
-Mean & $+2.93$\,m & $-0.23$\,m \\
-SD & 5.32\,m & 0.72\,m \\
-Max & $+25.79$\,m & $+1.05$\,m \\
-Implausible ($<$5\,m or $>$70\,m) & 18 / 11,508 (0.16\%) & 0 / 11,508 (0\%) \\
+Mean & $+2.50$\,m & $-0.45$\,m \\
+SD & 7.27\,m & 1.36\,m \\
+Max & $+25.79$\,m & $+4.95$\,m \\
+Min & $-30.45$\,m & $-13.88$\,m \\
+Implausible ($<$5\,m or $>$70\,m) & 82 / 58,073 (0.14\%) & 0 / 58,073 (0\%) \\
 \bottomrule
 \end{tabular}
-\caption{\small{...}} % caption TBD; source: RESULTS_TABLE.md #2, chat 2026-08-23
+\caption{\small{...}} % caption TBD; source: RESULTS_TABLE.md #13 addendum, pooled 5-fold
+% (2026-08-24) -- REPLACES the earlier fold-0-only numbers (n=11,508). Implausible rate holds
+% up proportionally (0.14\% pooled vs 0.16\% fold-0), and PINN-k's 0-implausible claim is now
+% CONFIRMED on 5x the data, not weakened. SD/max/min are all wider pooled than fold-0-only --
+% expected, since a bigger pooled set includes the 2021/2057-type extremes that a single fold's
+% test set may not contain.
 \label{tab:plausibility-comparison}
 \end{table}
 
@@ -186,13 +235,17 @@ Implausible ($<$5\,m or $>$70\,m) & 18 / 11,508 (0.16\%) & 0 / 11,508 (0\%) \\
 
 \begin{figure}[!htbp]
 \centering
-\includegraphics[width=0.9\textwidth]{figures/fig_results/q3_pinn_k_fold0_ymax_k_deviation_maps.png}
-\caption{\small{PINN-$k$, fold 0: mean $y_{max}$ deviation (left) vs.\ mean $k$ deviation
-(right), by compartment. $y_{max}$ stays close to flat almost everywhere; $k$ shows the
-structured hotspot pattern instead -- the same underlying signal, routed through a
-different parameter than plain PINN uses.}}
-% BUILT. Directly shows the parameter-routing finding. MAIN TEXT -- likely the single most
-% important new figure given the 2c rewrite. Source: chat 2026-08-23.
+\includegraphics[width=0.9\textwidth]{figures/fig_results/q3_pinn_k_pooled_ymax_k_deviation_maps.png}
+\caption{\small{PINN-$k$, pooled across all 5 folds (58,073 plots): mean $y_{max}$ deviation
+(left) vs.\ mean $k$ deviation (right), by compartment. $y_{max}$ stays close to flat almost
+everywhere ($\pm$3\,m); $k$ shows a structured, almost entirely one-sided pattern instead
+(compartment 2057 labelled -- the pooled $k$-deviation flagship, rank 1 of 178 reliable
+compartments by both mean and single most extreme plot) -- the same kind of signal, routed
+through a different parameter than plain PINN uses, and one that barely moves downward at all.}}
+% BUILT 2026-08-24, REPLACES the earlier fold-0-only version -- pooling changed the answer
+% (1129 does not hold up as the k-flagship once pooled; 2057 does -- see RESULTS_TABLE.md
+% section 13). MAIN TEXT -- still the single most important new figure given the 2c rewrite,
+% now on verified pooled data rather than one fold. Source: chat 2026-08-24.
 \label{fig:ymax-k-deviation-maps}
 \end{figure}
 
@@ -200,11 +253,24 @@ different parameter than plain PINN uses.}}
 \centering
 \includegraphics[width=0.8\textwidth]{figures/fig_results/q3_pinn_ymax_deviation_map.png}
 \caption{\small{Plain PINN: mean $y_{max}$ deviation from the population curve, by
-compartment, pooled across all 5 folds.}}
-% BUILT but STATUS UNSETTLED -- may be replaced/paired with q3_pinn_ymax_hotspot_summary.png
-% (labels all 5 top hotspots, not just 1129) depending on which reads better once 2c is
-% rewritten to cover multiple compartments, not just 1129. MAIN TEXT for now.
+compartment, pooled across all 5 folds. Both flagship compartments labelled (1129, 2021).}}
+% REBUILT 2026-08-24 -- both flagships now labelled. q3_pinn_ymax_hotspot_summary.png also
+% rebuilt (top-3 per side, n>=50 rule, both directions) -- appendix companion, referenced from
+% 2c. MAIN TEXT.
 \label{fig:ymax-deviation-map}
+\end{figure}
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.75\textwidth]{figures/fig_results/q3_plausibility_distribution.png}
+\caption{\small{Distribution of $y_{max}$ deviation from the population curve, plain PINN vs.\
+PINN-$k$, pooled across all 5 folds (58,073 plots each). Same underlying signal, very different
+spread.}}
+% BUILT 2026-08-24. Visualises Table~\ref{tab:plausibility-comparison}, which was itself
+% recomputed on pooled data this session (was fold-0-only, n=11,508 -- now n=58,073; the
+% 0-implausible claim for PINN-k is CONFIRMED and stronger on the bigger set, not weakened).
+% MAIN TEXT -- pairs with the plausibility paragraph in Discussion.
+\label{fig:plausibility-distribution}
 \end{figure}
 
 \begin{figure}[!htbp]
@@ -277,40 +343,70 @@ Tested PINN with no environment information, then three feature lists, small to 
 fold CV throughout (Table~\ref{tab:pinn-conditions}, Figure~\ref{fig:env-sweep}).
 Zero environment info to a small list: a real, solid jump, several times the fold-to-fold
 noise floor.
-A bigger list on top of that: no further gain, slightly hurts the simpler version. A
-well-chosen list beats a big one.
-This fixes a broken earlier test -- the pre-fix code showed no difference between having
-environment information or not at all, a bug, not a real result.
-One caveat: the headline list is not proven best for the two-parameter version -- the smaller
-list scores marginally higher, within normal noise.
-Checked why the big list does not help. Its extra features are not ignored -- more than their
-fair share of the model's attention -- they just do not carry over to new stands as well.
+A bigger list on top of that: no further gain. This fixes a broken earlier test -- the pre-fix
+code showed no difference between having environment information or not at all, a bug, not a
+real result.
+Checked properly whether the medium list (the one used everywhere else in this chapter) is
+actually the best choice, not just the highest number. Paired the three lists fold by fold,
+since they share the same five splits -- the correct test, not just eyeballing the error bars.
+Result: the three lists cannot be told apart. Any consistent edge for the medium list is
+smaller than fold-to-fold noise, for both model versions.
+So the honest claim is narrower than it first looked: some environment clearly beats none.
+Which exact list, once you have one, does not matter on this evidence -- the medium list is
+kept as the working choice because everything else in the chapter is built on it, not because
+it was shown to be the best of the three.
 
 % --- 2c. REWRITTEN: the personalisation tells a real, two-sided story ---
 
-\paragraph*{The personalisation tells a real story about which sites are more, and less,
-productive -- checked against independent records.}
-A small number of compartments get pushed well above the population curve. A small number get
-pushed well below it. Not random -- the same compartments show up in both PINN and PINN-$k$,
-even though the two models express it through different parameters
-(Figure~\ref{fig:ymax-k-deviation-maps}).
-One compartment (1129, 371 plots) carries most of the extreme high predictions in plain PINN.
-The same compartment carries the single highest growth-rate value in PINN-$k$, even though its
-personalised height there is unremarkable (Table~\ref{tab:productivity-compartments}).
-A mirror pair (2031, 2142, around 400 plots each) shows the same pattern in reverse -- pushed
-down in both models.
+\paragraph*{Two flagship examples, picked by a fixed rule -- not by eye.}
+The deviation map (Figure~\ref{fig:ymax-deviation-map}) has many compartments darker than the
+two examples used below, on both the red and the blue side. A fair question: why these two?
+Rule, fixed before picking, not after: only compartments with 50+ pooled held-out plots count.
+Small compartments (some as few as 7-20 plots) can look extreme from one or two outlier plots
+alone -- not a real site pattern (Table~\ref{tab:productivity-top5}).
+Two different questions, two different winners. "Which single plot is most extreme?" -- 1129,
+rank 1 of 178 reliable compartments, on one plot alone (+25.8\,m). "Which compartment has the
+biggest average shift, and is also the most extreme single case?" -- 2021, rank 1 of 178 on
+both counts (Table~\ref{tab:productivity-flagships}).
+1129 is not the top compartment by average -- it ranks 10th. Compartments that look darker on
+the map mostly fail the 50-plot bar. 2021 has no such ambiguity: it wins outright on both
+rankings.
+Checked whether 1129 and 2021 show up the same way in PINN-$k$'s growth-rate parameter, not
+just plain PINN's ceiling -- they do not, once pooled across all 5 folds rather than fold 0
+alone (an earlier read of fold-0-only data suggested 1129 did; correcting that here). PINN-$k$'s
+own flagship, by growth rate, is a different compartment (2057 -- see below, it turns out to
+matter for a different reason).
 Checked against the forestry service's own yield-class records -- recorded independently,
-never seen by either model. The over-productive compartments carry yield class 22--24, near
-the top of the whole range. The under-productive pair carry yield class 8--12, near the
-bottom.
-Checked this is not just three cherry-picked compartments: a real, significant correlation
-holds across the whole test set, not just the extremes (Table~\ref{tab:yieldclass-correlation}).
+never seen by either model. 2021 and the wider under-productive top 5 agree with a low yield
+class in 4 of 5 cases. The over-productive top 5 agree in only 3 of 5 -- see below.
+Checked this is not just two cherry-picked compartments: a real, significant correlation holds
+across the whole test set, not just the extremes (Table~\ref{tab:yieldclass-correlation}).
 Modest, not dominant -- yield class explains part of the picture, not most of it. Terrain
 (2a) is still doing most of the work.
 
+\paragraph*{The over-productive mismatch has a structure, not just noise.}
+Checked what splits the two disagreeing compartments (2057, 1027) from the three agreeing ones
+(1130, 2130, 1122). Compartment by compartment, not just the two group averages.
+Clean split, no exceptions. Disagreeing pair: old (60, 72 years), wind-exposed (windward index
++15, +11). Agreeing three: young (25-35 years), sheltered (-9 to 0).
+Not a new mystery -- ties to two things already found. Old stands: exactly where both PINN
+versions extrapolate worst (Table~\ref{tab:age-height-error}). Wind exposure: the single
+biggest terrain input to the model (Figure~\ref{fig:terrain-importance}, 15.2\%).
+Reading: in old, windy stands, part of the "over-productive" push may be extrapolation past the
+model's well-observed range -- not a clean productivity signal.
+Yield class is a fixed site rating. Does not move with age. A mismatch there is expected for
+this profile, not a sign the wider story is unreliable.
+Independent check, found afterwards, not built in: 2057 is also PINN-$k$'s own top compartment
+for growth rate, pooled across all 5 folds -- rank 1 of 178 by both average and single most
+extreme plot. Two models, two different parameters, agree this compartment is unusual.
+Reading: the age/wind-exposure signal is real and robust across both models -- it just does not
+happen to be the same signal yield class captures.
+Caveat: only 5 compartments checked for the age/exposure split. Not yet tested at scale.
+
 \paragraph*{The two PINN versions differ in how safely they express the same signal.}
 Plain PINN sometimes pushes the signal too far -- a small number of plots reach a height no
-real tree does. PINN-$k$ never does this (Table~\ref{tab:plausibility-comparison}).
+real tree does. PINN-$k$ never does this, on 58,073 pooled plots, not just one fold
+(Table~\ref{tab:plausibility-comparison}, Figure~\ref{fig:plausibility-distribution}).
 Plain PINN has only one outlet for this signal, the ceiling itself. PINN-$k$ has two, and
 mostly uses growth rate instead, leaving the ceiling close to the shared curve.
 Checked this is not a held-out generalisation problem, the same way as before: trained on the
@@ -365,3 +461,22 @@ has to compensate. The two parameters do move together sensibly, though
 Learning rate, batch size, and physics-weighting strength each tested against other values
 (Table~\ref{tab:pinn-conditions}). None beat what was already reported.
 Plain PINN still wins under every one. Not a one-setting fluke.
+
+% -----------------------------------------------------------------------------
+% APPENDIX NOTES -- caveats and secondary checks that belong to a main-text claim but are too
+% deep in the weeds for the main flow. Not yet placed in a real \appendix environment (this
+% whole file is still a working extract) -- pull these out when the chapter is assembled.
+% -----------------------------------------------------------------------------
+
+\paragraph*{Appendix: why the broadest feature list looked worse -- and why that is a weak
+finding, not a strong one.}
+Checked, before the paired fold-by-fold test above (2b) softened the headline claim, why the
+broadest environment list (Set4) seemed to underperform the medium list (Set3).
+Set4's extra features are not ignored by the model -- they draw more than their fair share of
+permutation importance -- they just do not repay that attention in held-out accuracy as well as
+the medium list's more curated features.
+Caveat now folded in: the Set3-vs-Set4 gap this was explaining is itself within fold-to-fold
+noise for plain PINN (weak, non-significant tendency, Table~\ref{tab:pinn-conditions}), and
+absent entirely for PINN-$k$. So this is a plausible explanation for a small, uncertain effect,
+not an explanation for a solid one -- kept here as a secondary note, not promoted to the main
+argument.

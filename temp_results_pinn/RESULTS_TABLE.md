@@ -160,11 +160,19 @@ no-env to any-env (Set2) is a big, real jump (+0.054 plain PINN, +0.049 PINN-k),
 the ~0.02 fold-to-fold noise. This directly supersedes the pre-fix Aug-11 sweep, which falsely
 showed all three sets flat at ~0.577-0.579 (the bug signature), indistinguishable from no-env.
 
-**Nuance**: once *some* environment is present, adding *more* doesn't help further, and going
-too broad (Set4) mildly hurts plain PINN (0.631 -> 0.618, -0.013) while PINN-k stays flat across
-Set2/Set3/Set4 (0.618-0.622, all within noise of each other). Set3's VIF-gated feature curation
-looks close to optimal -- not just "environment matters" but "curated environment matters, raw
-breadth doesn't add more."
+**Nuance**: once *some* environment is present, adding *more* doesn't help further -- Set2,
+Set3, and Set4 are statistically indistinguishable from each other. Checked properly with a
+paired fold-by-fold comparison (same 5 folds/splits underlie all three sets, so this is the
+correct test, not just eyeballing the raw SDs): Set3 minus Set2 for plain PINN is +0.0034 mean
+with paired SD 0.0078 (sign flips fold to fold, 3 of 5 positive -- no real difference); Set3
+minus Set4 for plain PINN is +0.0124 mean with paired SD 0.0116 (4 of 5 folds positive, a weak
+tendency, but not significant at n=5); PINN-k shows no consistent direction at all in either
+comparison (means -0.0045 and -0.0018, sign flips fold to fold both times). **Revised
+conclusion: "any curated list beats none" is well supported (the no-env jump is large and
+robust); "Set3's curation is close to optimal" is NOT supported by this data -- Set3 was kept
+as the working default because it scores highest on point estimate, not because it is
+demonstrably better than Set2 or Set4.** (2026-08-23 correction -- the "Set3 looks close to
+optimal" line in the original write-up overstated what a paired check actually shows.)
 
 - Script: `temp_results_pinn/pinn_env_terrain_fix/run_cluster_fold_set_sweep.py`
 - Job: `temp_results_pinn/jobs/run_pinn_fix_set_sweep_cluster.sh`
@@ -402,6 +410,136 @@ fit does comparatively better.
   plain PINN (`temp_results_pinn/outputs/example_curve/plain_pinn_fixed_full_predictions.csv`,
   built by `run_finding5_plain_pinn_export.py`), PINN-k (`temp_results_pinn/outputs/example_curve/pinn_k_fixed_full_predictions.csv`,
   built by `run_finding5_pinn_k_export.py`)
+
+---
+
+## 13. Productivity/yield-class synthesis -- which compartments are over/under-productive, and why
+
+**Status: DONE (2026-08-24).** Replaces earlier ad-hoc compartment picks (2031, 2142, 2229 --
+kept below for the record, not used as flagships). Full record of the selection rule, the two
+verified flagship examples, the top-5-per-side table, the yield-class check, and the mechanism
+behind the over-productive mismatch.
+
+**Selection rule** (fixes the problem that earlier picks were not checked against the full
+ranking before being written up): among compartments with >=50 pooled held-out plots (pooled
+across all 5 folds, plain PINN, 58,073 unique plots total -- excludes small compartments where
+1-2 outlier plots could drive the mean, e.g. one earlier pick had only 6-7 plots), rank
+separately by (a) mean deviation -- the "systematic site signal" question, and (b) single-plot
+max/min deviation -- the "one implausible plot" question. A compartment can win one ranking and
+not the other.
+
+**Two flagship examples**:
+- **1129** (over-productive): rank 1 of 178 by single most extreme plot (+25.8m), rank 10/178 by
+  mean (+12.2m, n=371). The "one implausible plot" story -- ties to the flagged-plot figure
+  (plot 77226).
+- **2021** (under-productive): rank 1 of 178 on BOTH mean (-21.4m) and single most extreme plot
+  (-30.4m), n=403. No ambiguity -- strongest single example on either side.
+
+**Top-5 per side (n>=50), with independent yield-class check** (yldc = Forest Research
+inventory value, confirmed NOT a model input -- checked directly against Set3's terrain feature
+list and the no-env feature list -- and independently recorded, not derived from this project's
+own height measurements):
+
+| Compartment | Mean dev (m) | n | Yield class | Agrees with yldc direction? |
+|---|---:|---:|---|---|
+| 2057 | +15.6 | 112 | 10-16 (mixed) | **No** |
+| 1130 | +14.6 | 78 | 22-24 | Yes |
+| 2130 | +14.6 | 98 | 20-24 | Yes |
+| 1122 | +13.4 | 51 | 24 | Yes |
+| 1027 | +13.4 | 56 | 12 | **No** |
+| 2021 | -21.4 | 403 | 12 | Yes |
+| 1070 | -18.1 | 222 | 12 | Yes |
+| 2094 | -17.7 | 279 | 10-12 | Yes |
+| 1069 | -11.8 | 297 | 12 | Yes |
+| 2022 | -10.3 | 417 | 16 | Weakly (near population median 18) |
+
+Under-productive side: 4/5 agree. Over-productive side: 3/5 agree -- including a disagreement
+from the single BIGGEST over-productive signal (2057). Population yield-class stats for
+context: mean=17.29, median=18, 25th pct=12 (n=71,766 plots).
+
+**Why the over-productive mismatch (2057, 1027): checked compartment by compartment, not just
+group averages.** Clean split, no exceptions -- disagreeing pair (2057, 1027) both old (mean
+age 59.8, 72.0 years) and wind-exposed (windward_topex +15.2, +11.0); agreeing three (1130,
+2130, 1122) both young (25.0-35.1 years) and sheltered-to-neutral (-9.5 to +0.4). Ties to two
+things already established: old stands are exactly where both PINN variants extrapolate worst
+(section 12), and wind exposure is the single largest terrain input to the model (section 6,
+15.2%). Reading: in old, wind-exposed stands, part of the "over-productive" push may be
+extrapolation past the model's well-observed age range, not a clean site-productivity signal.
+Checked on 5 compartments only, not yet tested at scale.
+
+**Correlation check (whole test set, not just the extremes)**: plain PINN y_max deviation vs.
+yldc r=0.249 (n=11,508); PINN-k's k vs. yldc r=0.234; PINN-k's y_max vs. yldc r=0.334. Real and
+significant, but modest -- 6-11% variance explained. Terrain (section 6) still does most of the
+work. This is a directional correlation check (does the model's push agree with which way yield
+class points), not a claim that the personalised curve numerically matches a yield-class-implied
+curve -- that stronger claim was tried (inverting the yldc formula) and did not hold up, an
+artefact of the formula, not a model finding. Dropped.
+
+**PINN-k pooled data (2026-08-24)**: folds 1-4 run on the cluster
+(`temp_results_pinn/pinn_env_terrain_fix/run_pinn_k_population_check_allfolds.py`, output
+`temp_results_pinn/outputs/CORRECTED_2026-08-23_mechanism_checks/pinn_k_population_check/fold_<i>/`),
+pooled with fold 0 (`example_curve/test_set_predictions.csv`). Pooled total: 58,073 unique
+plots -- exact match to plain PINN's pooled total, confirms no gaps or duplicates.
+
+**Correction (2026-08-24): 1129 does NOT hold up as PINN-k's flagship via k, once pooled.** An
+earlier read of fold-0-only data (11,508 plots) suggested 1129 carried PINN-k's single highest
+k value, read as "the same compartment shows up in both models, via different parameters." With
+the full pooled data (58,073 plots, n>=50 rule), 1129 does not place in the top 10 by mean k
+deviation OR by single most extreme k value. PINN-k's actual flagship by k is **2057** -- rank 1
+of 178 by BOTH mean k deviation (+0.0117) and single most extreme k value (+0.0185). This is the
+SAME compartment as the over-productive yield-class mismatch above -- two models, two different
+parameters (plain PINN's y_max mean-rank #1, PINN-k's k rank #1), independently agreeing 2057 is
+unusual. Strengthens the age/wind-exposure reading above (real, cross-model signal), does not
+strengthen the "yield-class confirms it" reading (2057 disagrees with yldc).
+Side-note: PINN-k's k deviation is strongly asymmetric -- top-5 over-productive k deviations run
++0.0098 to +0.0117, but top-5 under-productive only run -0.0002 to -0.0009 (barely moves down at
+all). Not yet investigated further; flagged for anyone extending this.
+
+- Script (ranking/checks): ad-hoc pandas checks, 2026-08-23/24, not saved as a standalone
+  script -- rerun via `load_pooled_compartment_deviation_data()` in
+  `temp_results_pinn/pinn_env_terrain_fix/build_q3_redraft_figures.py` plus a groupby/merge
+  against `data/processed/master/clean_master_4survey.parquet` and
+  `data/processed/environmental/plot_environmental_features.parquet` for yldc/age/terrain.
+
+**Provenance check (2026-08-24), re-verified live, not carried forward on trust**:
+- Every script feeding this section's numbers imports from the corrected forward-pass modules
+  (`pinn_env_terrain_fix.py` / `pinn_env_terrain_k_fix.py`, both fixed 2026-08-20 -- see the
+  `# FIX:` comments in each file), confirmed by grepping the import lines directly: fold 0
+  plain PINN (`run_ymax_distribution_check.py`), fold 0 PINN-k (`run_example_plot_curve.py`),
+  folds 1-4 plain PINN (`run_ymax_population_check_allfolds.py`), folds 1-4 PINN-k (`run_pinn_k_
+  population_check_allfolds.py`) -- all four confirmed, none use a stale pre-fix module.
+- Yield-class correlations recomputed from scratch, not read off the earlier chat estimate:
+  plain PINN r=0.249 (p=9.2e-163), PINN-k k vs yldc r=0.234 (p=1.7e-143), PINN-k y_max vs yldc
+  r=0.334 (p=5.3e-297), all n=11,508 -- exact match to the numbers already in this table.
+- SD convention checked: the Set2/Set4 SDs already in section 5 (0.023/0.017/0.029/0.020) match
+  `statistics.pstdev` (population stdev, divide by n) exactly when recomputed from the raw
+  per-fold `summary.json` files, not `stdev` (sample, divide by n-1) -- confirms section 5's
+  Set3 correction used the same convention consistently, not a mismatched one.
+- Earlier, weaker picks kept for the record, not used as flagships: 2031 (yldc 12, n=406, mean
+  dev -6.5, rank far below top-5 under-productive), 2142 (yldc 8/16, n=394, mean dev -5.6, same),
+  2229 (n=579, mean dev +7.1, rank 42/178 on the over-productive side -- not a flagship signal).
+  2219 was flagged only via PINN-k's k-deviation on fold-0-only data -- superseded by the pooled
+  check above, not carried forward.
+
+**Addendum (2026-08-24): plausibility comparison (plain PINN vs. PINN-k) recomputed on pooled
+data.** The dissertation's "PINN-k never produces an implausible height" table
+(tab:plausibility-comparison) was originally computed on fold-0-only data (n=11,508). Recomputed
+on the full pooled set (n=58,073, both models):
+
+| | Plain PINN $y_{max}$ deviation | PINN-$k$ $y_{max}$ deviation |
+|---|---:|---:|
+| Mean | +2.50 m | -0.45 m |
+| SD | 7.27 m | 1.36 m |
+| Max | +25.79 m | +4.95 m |
+| Min | -30.45 m | -13.88 m |
+| Implausible ($y_{max}<5$ or $>70$m) | 82/58,073 (0.14\%) | 0/58,073 (0\%) |
+
+Headline claim (0 implausible for PINN-k) is CONFIRMED, and stronger -- holds on 5x the data,
+not weakened. Plain PINN's implausible rate is proportionally consistent (0.14\% pooled vs
+0.16\% fold-0, expected sampling variation). SD/max/min are wider pooled than fold-0-only, as
+expected -- the pooled set includes the 2021 (-30.45m) and 2057-type extremes a single fold's
+test set may not contain. Dissertation table (tab:plausibility-comparison) updated to these
+pooled numbers.
 
 ---
 

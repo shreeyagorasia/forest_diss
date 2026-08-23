@@ -22,11 +22,19 @@
 #   sbatch --array=0-4 temp_results_pinn/jobs/run_pinn_fix_set_sweep_cluster.sh "" ymax nested_set4_gated_all_vif
 #   sbatch --array=0-4 temp_results_pinn/jobs/run_pinn_fix_set_sweep_cluster.sh "" k    nested_set4_gated_all_vif
 #
+#   # No-environment ablation (2026-08-24) -- SAME script/architecture as above, feature-set
+#   # is an empty list. Replaces the old pinn_noenv.py number, which used a different,
+#   # non-comparable architecture (see RESULTS_TABLE.md section 5 correction). 2 variants x
+#   # 5 folds = 10 jobs:
+#   sbatch --array=0-4 temp_results_pinn/jobs/run_pinn_fix_set_sweep_cluster.sh "" ymax no_environment_ablation
+#   sbatch --array=0-4 temp_results_pinn/jobs/run_pinn_fix_set_sweep_cluster.sh "" k    no_environment_ablation
+#
 # Arguments:
 #   fold_index    0-4. Leave blank ("") when submitting with --array so each task picks up its
 #                 own $SLURM_ARRAY_TASK_ID automatically.
 #   variant       ymax (y_max-only fix) or k (y_max+k fix). Required.
-#   feature_set   nested_set2_top10 or nested_set4_gated_all_vif. Required (Set3 already exists).
+#   feature_set   nested_set2_top10, nested_set4_gated_all_vif, or no_environment_ablation.
+#                 Required (Set3 already exists).
 #
 # Logs:
 #   stdout -> logs/temp_results_pinn/%x_%A_%a.out

@@ -99,6 +99,20 @@ TARGET_COLUMN = "elev_percentile_95th"
 #     information -- assert_env_terrain_features_disjoint_from_noenv() below guards against this
 #     exact mistake happening again for a different column.
 ENV_TERRAIN_FEATURE_SETS = {
+    # Added 2026-08-24: a TRUE no-environment ablation for the Set2/Set3/Set4 sweep -- same
+    # YMaxSubNetwork architecture, zero columns. Note "environment" here is not just terrain --
+    # Set2 and Set4 both mix in climate (tas_mean, chelsa_gdd5_degc) and spatial/management
+    # features (dist_to_scpt_boundary, cpmt_compactness_ratio) alongside terrain/wind; only Set3
+    # is pure terrain/wind. This empty set is the correct "give it nothing" complement to all
+    # three regardless of their exact mix, since it's zero of whatever the sub-network would
+    # have received. With 0 input features, nn.Linear(0, hidden_size) still works in PyTorch
+    # (the weight matrix just has 0 columns), so the sub-network degenerates to a learned
+    # constant, identical for every plot -- a real apples-to-apples test of "does this
+    # information help at all," not a different model architecture (the existing pinn_noenv.py
+    # used for the chapter's earlier "no environment" number is a structurally different
+    # network, NoEnvNetwork, with no y_max personalization at all -- see RESULTS_TABLE.md
+    # section 5 correction, 2026-08-24).
+    "no_environment_ablation": [],
     "terrain_wind_solid": ["ceh_twi", "eastness", "elevation", "northness", "topex"],
     "terrain_wind_extended": ["ceh_twi", "eastness", "elevation", "northness", "topex", "whcl", "plan_curvature"],
     "broad": [
@@ -488,10 +502,18 @@ def fit_terrain_scaler(train_df, feature_columns):
     # ONLY these columns, never mixed into the main network's "other features" tensor (see
     # models/pinn_env_terrain/pinn_env_terrain.py's own top-of-file note for why terrain/wind
     # stays out of the main network entirely, feeding the y_max sub-network only).
+    # Empty feature_columns (the "no_environment_ablation" set, 2026-08-24): sklearn's
+    # StandardScaler errors on a 0-column input ("at least one array or dtype is required"), so
+    # skip fitting entirely -- build_terrain_tensor below returns a 0-column tensor without
+    # needing a scaler in that case.
+    if len(feature_columns) == 0:
+        return None
     return StandardScaler().fit(train_df[feature_columns])
 
 
 def build_terrain_tensor(df, scaler_terrain, feature_columns, device):
+    if len(feature_columns) == 0:
+        return torch.zeros((len(df), 0), dtype=torch.float32, device=device)
     terrain_scaled = scaler_terrain.transform(df[feature_columns])
     return torch.tensor(terrain_scaled, dtype=torch.float32, device=device)
 

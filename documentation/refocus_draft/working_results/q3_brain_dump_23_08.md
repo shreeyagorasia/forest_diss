@@ -211,27 +211,96 @@ like this."
 
 ---
 
+## Another idea that came up in chat, 2026-08-24 — the productivity/yield-class story
+
+Started from a sharp catch: the whole "implausible plot" investigation (compartment 1129) had
+only ever looked at plain PINN's ceiling ($y_{max}$), even though PINN-$k$ (the model we're
+actually recommending readers care about) personalizes both the ceiling and the growth speed
+($k$). Did the same site-productivity signal show up there too, just through a different number?
+
+**Answer: yes, and it's bigger than expected — a real, two-sided productivity story, checked
+against records neither model ever saw.** Some compartments get pushed well above the average
+growth curve, some well below. Checked properly (not just eyeballing the map): among
+compartments with at least 50 held-out plots (small compartments can look extreme from 1-2
+outlier plots alone, not a real pattern), 1129 turns out to be flagship for a different reason
+than first thought — it's not the compartment with the biggest *average* push (it ranks 10th),
+it's the compartment with the single most extreme *individual* plot in the whole reliable set.
+The compartment with the biggest average push in both directions are 2057 (up) and 2021 (down).
+
+Checked against the Forestry Commission's own yield-class rating — a real, independently
+recorded number, confirmed NOT fed into either model, and confirmed NOT the same thing as the
+(circular) yield number the models' own site-index formula could produce. Result: a real,
+significant, but modest correlation (r≈0.23–0.33, so it explains maybe a tenth of the picture,
+not most of it) — terrain still does most of the work. But the extreme examples line up well:
+the top over-productive compartments mostly carry a high yield class, the top under-productive
+ones mostly carry a low one.
+
+**A genuinely interesting wrinkle, not swept under the rug**: 2 of the top-5 over-productive
+compartments (2057, 1027) *disagree* with yield class — and checking why turned up a clean,
+structured explanation, not random noise. Both are old stands (60–72 years) in exposed,
+windy spots; the three that *do* agree are all young (25–35 years) and sheltered. This ties
+straight back to an earlier finding (errors are worst in old stands, section on age/height
+banding) — so this isn't a new, unexplained problem, it's the same known weakness showing up
+again, in a place we hadn't looked yet.
+
+**A correction to something believed a session ago**: originally thought 1129 was flagged by
+*both* models — plain PINN via its ceiling, PINN-$k$ via growth speed — based on only having
+one fold's worth of PINN-$k$ data. Ran the missing four folds on the cluster and pooled all
+five (58,073 plots total, matching plain PINN's pooled count exactly — no gaps). With the full
+picture, 1129 doesn't hold up as PINN-$k$'s flagship after all. The compartment that *does* is
+2057 — the same "old, windy, disagrees with yield class" compartment above. Two models, two
+different numbers, independently agreeing something is unusual there. A better, more honest
+result than what we thought we had, once actually checked.
+
+**Verification pass, 2026-08-24 (this was explicitly asked for, not routine)**: re-checked
+every number in this section traces back to the corrected forward-pass model code (not the
+pre-fix version that produced flat, wrong results earlier this project) — confirmed by reading
+the actual import lines in every script that produced the underlying data, not assuming from
+filenames. Re-derived the yield-class correlation numbers from scratch rather than trusting the
+earlier chat estimate — they matched exactly (r=0.249, 0.234, 0.334). Checked the standard
+deviation numbers on the environment-feature-list chart use the same statistical convention
+throughout (population SD, not sample SD) — confirmed by reproducing the already-published
+Set2/Set4 numbers from raw files and matching them exactly. Full detail:
+`temp_results_pinn/RESULTS_TABLE.md`, section 13.
+
+**One more thing this fixed along the way**: the chart comparing "no environment" vs. three
+different environment feature lists originally implied the medium list (the one used everywhere
+else in the chapter) was the best choice. A proper paired check (comparing the same 5 folds
+against each other, not just eyeballing the error bars) showed the three lists can't actually be
+told apart — the real, solid finding is "any environment beats none," not "this specific list is
+best." Softened accordingly in both the ledger and the draft text.
+
+---
+
 ## Which findings deserve the spotlight
 
 Not a work-priority list — a list of which findings deserve the best figure and the most
 explanation, versus which are just supporting evidence.
 
-1. **Environment helps, but a well-chosen list beats a big one (finding 4).** The strongest, most
-   new result from this whole session. A real effect, and a non-obvious twist (more isn't
-   always better) that makes for a more interesting story than a flat "yes it helps."
-2. **PINN sometimes predicts impossible tree heights (finding 3).** Good because it cuts both
+1. **The productivity/yield-class story (2026-08-24 addition).** Now the strongest, most
+   convincing new result from the whole session — a real, two-sided signal, checked against
+   independent records, with a genuine cross-model convergence (two different parameters,
+   two different models, agreeing on the same unusual compartment) and an honest, structured
+   explanation for where it doesn't line up. Deserves the best figures in the chapter.
+2. **Environment helps, but not any specific list (finding 4, revised).** Still a real effect —
+   "any environment beats none" is solid. The stronger "a curated medium list beats a big one"
+   claim did not survive a proper paired check and has been softened.
+3. **PINN sometimes predicts impossible tree heights (finding 3).** Good because it cuts both
    ways: evidence PINN is doing something real (a consistent 77% upward shift, not random noise)
    *and* evidence it can be checked and shown to be wrong sometimes. A model story with an
-   honest flaw is more believable, not less.
-3. **Plain PINN beats PINN-$k$ on accuracy (finding 2).** Surprising — you'd expect more detail
+   honest flaw is more believable, not less. Now folded into the productivity story above as
+   the "how safely each model expresses the same signal" angle, not a standalone point.
+4. **Plain PINN beats PINN-$k$ on accuracy (finding 2).** Surprising — you'd expect more detail
    (predicting two things instead of one) to help, not hurt. Cheap to support, we already have
    the numbers.
-4. **Do errors cluster by age/height (finding 5)?** Could be the second-best finding in the whole
-   chapter, or could turn out to be nothing — we don't know until we run it.
-5. **Physics-weight and training-setting checks (part of finding 4).** Necessary to show we
+5. **Errors cluster by age/height (finding 5) — now confirmed, not pending.** Both PINN
+   variants get measurably worse at the oldest ages and shortest stands, DNN does not. Same
+   mechanism as the compartment-1129 story, shown as a general pattern. Also connects to the
+   productivity story's over-productive mismatch (old + wind-exposed stands) above.
+6. **Physics-weight and training-setting checks (part of finding 4).** Necessary to show we
    didn't just guess the settings, but not exciting on its own — defensive evidence, not a
    discovery. Best as a small table, not a big figure.
-6. **XGBoost beats DNN (finding 1).** Already fully explained before this session, nothing new
+7. **XGBoost beats DNN (finding 1).** Already fully explained before this session, nothing new
    to add visually beyond the existing table.
 
 ---

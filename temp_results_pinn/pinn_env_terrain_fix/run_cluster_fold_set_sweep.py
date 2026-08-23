@@ -48,7 +48,7 @@ from models.common.torch_data import (
 # -- this is the whole point, see module docstring above.
 OUTPUT_DIR = Path(__file__).resolve().parents[1] / "outputs" / "CORRECTED_2026-08-22_pinn_set_sweep"
 
-VALID_SETS = {"nested_set2_top10", "nested_set4_gated_all_vif"}
+VALID_SETS = {"nested_set2_top10", "nested_set4_gated_all_vif", "no_environment_ablation"}
 
 
 def unscale(scaled_tensor, scaler):
