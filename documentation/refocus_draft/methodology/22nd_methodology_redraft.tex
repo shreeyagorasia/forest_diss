@@ -122,6 +122,13 @@ Parameters ($\boldsymbol{\beta}$ and $\sigma_u^2$) are fitted using restricted m
 Two concerns motivate four sensitivity checks; first, because canopy cover and top height come from the same LiDAR flights, a strong canopy-cover effect might reflect measurement overlap rather than true stand structure. We test this through three steps: (1) refitting Set~4 without canopy cover to assess the change in $R^2$; (2) checking direct correlations between canopy cover and each target; and (3) recalculating SHAP values without canopy cover to see if other predictors absorb its explanatory role.
 
 Second, differences in terrain coefficients (such as slope and TOPEX) between Elastic Net and the mixed-effects model could reflect local, compartment-specific effects that global models miss. We test this with a fourth check: (4) measuring how much variance in slope and TOPEX occurs between compartments versus within them, identifying whether their spatial structure masks local relationships.
+% TODO (2026-08-23): Results uses VIF (variance inflation factor) and ICC (intraclass
+% correlation coefficient) as part of this check's write-up. VIF gets spelled out on first
+% use in Results; ICC never does, anywhere. Neither term is defined here in Methodology at
+% all -- checked both this file and the canonical 20th_1_31_pm_audited.tex. Revisit once
+% Results is finalised: either define both terms here (natural home, since this is where
+% check (4) itself is described) and let Results just use the acronyms, or confirm Results
+% will keep defining them inline and leave Methodology as-is.
 
 Elastic Net coefficient signs and selection, mixed-model fixed-effect signs, and XGBoost mean $|$SHAP$|$ rankings are compared for agreement on which variables matter and in what direction -- their raw magnitudes are not directly comparable, since each reflects a different kind of model, and mean $|$SHAP$|$ itself carries no sign. This comparison provides three complementary perspectives on growth drivers; agreement across all three indicates an association is less dependent on model structure, not that it is causal. Residual Moran's $I$ tests for remaining spatial clustering (Section~\ref{sec:eval-robustness}).
 

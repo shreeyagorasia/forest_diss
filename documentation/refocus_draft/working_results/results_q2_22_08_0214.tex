@@ -52,14 +52,14 @@ parentheses, 5 folds). All three methods collapse to the same near-zero floor wi
 CanopyCover, and all three recover almost the same share of their score from CanopyCover
 alone: Elastic Net $\sim$83\% ((0.207$-$0.042)/(0.240$-$0.042)), XGBoost $\sim$79\%
 ((0.210$-$0.061)/(0.250$-$0.061)), GNNWR $\sim$82\% ((0.249$-$0.049)/(0.294$-$0.049)) -- this
-is not a GNNWR-specific quirk, all three methods tell the same story. Source:
-live-recomputed from
-\texttt{outputs/spatial\_block\_kfold/rq3\_en\_xgb\_nested\_set4\_gated\_all\_vif/4survey/metrics.csv},
-\texttt{.../rq3\_en\_xgb\_nested\_set4\_no\_canopycover\_ablation.json},
-\texttt{.../rq3\_en\_xgb\_nested\_set4\_canopycover\_only\_ablation.json}, and
-\texttt{outputs/growth\_curve\_attribution/gnnwr/gnnwr\_nested\_set4\_*\_4survey\_reffull\_fold\{0-4\}of5\_test\_predictions.csv}.}}
+is not a GNNWR-specific quirk, all three methods tell the same story.}}
 \label{tab:results-q2-ablation}
 \end{table}
+% Source (internal tracking only, not for the caption): live-recomputed from
+% outputs/spatial_block_kfold/rq3_en_xgb_nested_set4_gated_all_vif/4survey/metrics.csv,
+% .../rq3_en_xgb_nested_set4_no_canopycover_ablation.json,
+% .../rq3_en_xgb_nested_set4_canopycover_only_ablation.json, and
+% outputs/growth_curve_attribution/gnnwr/gnnwr_nested_set4_*_4survey_reffull_fold{0-4}of5_test_predictions.csv
 
 \textbf{Part of the reason so little else shows up is that Q2's own target is noisy.} The curve-fitting method keeps each plot's growth rate fixed to its yield class, and only fits the ceiling. If a plot's real growth rate does not match that assumption, the mismatch does not vanish -- it leaks into the ceiling number instead. Figure~\ref{fig:q2-example-plot} shows this on one real plot. Plot 309770's own fitted ceiling is 43.0m, well above its yield-class benchmark of 32.8m -- a gap of $+10.2$m. XGBoost predicts $+12.4$m for the same plot. The shaded area shows this gap over the years we actually measured, not just a guess at the far end. CanopyCover pulls this one prediction down, even though it usually pushes predictions up -- the direction is not fixed for every plot. A second plot (Appendix Figure~\ref{fig:q2-example-plot-typical}) shows this is not a cherry-picked case: it was picked because its error sits at the middle of the pack, and here the model only explains about half the gap, with no single variable standing out. This noisy target is why so little beyond CanopyCover comes through clearly.
 
@@ -70,7 +70,7 @@ live-recomputed from
 % Table now lives in appendix_results.tex (\S~\ref{app:results-q2}), not duplicated here --
 % see Table~\ref{tab:results-q2-reliability} there. Referenced by \ref{} above as normal.
 
-\fig{\label{fig:q2-stability-map}\textbf{Q2, Figure 2 -- the cross-cutting instability, shown directly.} Two compartment-mean maps of GNNWR's own local coefficients (Set4, 4-survey, pooled 5 folds), same colour scale. Left: CanopyCover (never flips sign). Right: topex (flips sign in over a quarter of compartments) -- the direct visual for Table~\ref{tab:results-q2-reliability}'s cross-chapter finding. File: \texttt{figures/fig\_results/q2\_topex\_vs\_canopycover\_stability.png}.}
+\fig{\label{fig:q2-stability-map}\textbf{Q2, Figure 2 -- the cross-cutting instability, shown directly.} Two compartment-mean maps of GNNWR's own local coefficients (Set4, 4-survey, pooled 5 folds), same colour scale. The colour is GNNWR's own local coefficient for that variable at that place -- how much $\Delta y_{\max}$ (m) changes per unit increase in the variable there -- not a direct plot of Q1's EN-vs-LMM disagreement, which is a separate, whole-forest-level computation. Left: CanopyCover (never flips sign). Right: topex (flips sign in over a quarter of compartments). The link to Q1 is explained in the main text, not shown directly on the map: a coefficient that genuinely varies by place, as topex's does here, is exactly what would make a single whole-forest number (EN's or LMM's) hard to pin down consistently. File: \texttt{figures/fig\_results/q2\_topex\_vs\_canopycover\_stability.png}.}
 
 A few smaller points, stated briefly. Some terrain variables (windward\_topex, slope\_degrees) show a real curved link to the target -- rising, then flattening out. GNNWR can only draw straight lines, so it cannot fully use this signal even where it is real. The effect is small either way: CanopyCover already carries 80--90\% of the model's power. A small group of plots (under 1\% of the 4-survey cohort, 266 of 56,526) show an extreme version of the same rate-and-ceiling mixing described above. This is the tail of the main finding, not a separate one, so it is not covered in depth here (full diagnostics are preserved for Appendix~\ref{app:flagged-plot-split}). As planned, we also ran all three models on the six-survey cohort as a check, not as the main test. None found any real signal ($R^2\approx0$ for all three), which lines up with its much smaller number of compartments (47 vs.\ 231). We did not dig into this further, since six-survey was never the main focus.
 
