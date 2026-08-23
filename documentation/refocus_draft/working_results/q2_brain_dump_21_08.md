@@ -166,6 +166,28 @@ without CanopyCover present (0.049), confirming they contribute a small, roughly
 amount of signal either way, not something CanopyCover is masking or absorbing. Reinforces the
 existing conclusion rather than complicating it. No longer partial — this number is final.
 
+**UPDATE (08-23): CanopyCover-only ablation now run for EN/XGBoost too, not just GNNWR.**
+Filled in the missing cells of the ablation table (`models/growth_curve_attribution/rq3_canopycover_ablation_check.py`'s
+`run_columns()`, same pipeline, ~13 seconds to run, no cluster needed):
+- Elastic Net, CanopyCover only: pooled $R^2=0.207$ (fold-mean 0.190±0.084) — recovers ~83%
+  of the gap from its no-CanopyCover floor (0.042) to its full-Set4 score (0.240)
+- XGBoost, CanopyCover only: pooled $R^2=0.210$ (fold-mean 0.193±0.081) — recovers ~79%
+  of its gap (0.061 → 0.250)
+- GNNWR, for comparison: ~82% (0.049 → 0.294, via CanopyCover-only 0.249)
+
+All three methods recover almost the same share of their score from CanopyCover alone.
+This is not a GNNWR-specific quirk — it's true of every method tested. Strengthens headline
+2 further: makes it a property of the *target*, not of GNNWR's architecture.
+
+**UPDATE (08-23): the tas_mean/dist_to_road sign-stability "discrepancy" flagged below is
+resolved as NOT a plot-vs-compartment-level methodology difference.** Tested directly:
+plot-level sign stability (tas_mean 75.4%, dist_to_road 74.3%) is nearly identical to
+compartment-mean-level (78.4%, 74.9%) — ruling out the hypothesis that an earlier
+"coin-flip ~50-57%" estimate came from checking sign at a different level. That earlier
+estimate's actual source is untraced and its cause remains unknown; since it doesn't
+survive a direct test, it's no longer treated as an open worry for the dissertation table
+— treat this session's live-recomputed numbers (74-78%, moderately stable) as authoritative.
+
 **Does GNNWR's CanopyCover coefficient actually vary, or is it flat?** Checked directly (GNNWR's
 own saved per-plot `coef_CanopyCover` values, Set4, pooled 5 folds): mean 23.6, SD 5.7, always
 positive, coefficient of variation ≈ 0.24 (swings by roughly ±24% of its average value across

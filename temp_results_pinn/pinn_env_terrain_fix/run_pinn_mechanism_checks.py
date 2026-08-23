@@ -200,7 +200,7 @@ def main():
             "check1_trunk_residual": {
                 "plain_pinn_mean_abs": float(np.abs(trunk_ymax).mean()), "plain_pinn_std": float(trunk_ymax.std()),
                 "pinn_k_mean_abs": float(np.abs(trunk_k).mean()), "pinn_k_std": float(trunk_k.std()),
-                "ratio_pinnk_over_plain": ratio,
+                "ratio_pinnk_over_plain": float(ratio),
             },
             "check2_terrain_extrapolation": {
                 "n_test": len(test_df),
