@@ -84,6 +84,22 @@ includes the example-plot figure). Two things to add:
   zero implausible predictions — something more specific than "high yield class" is at work.
   Either way, this is a real, broad, concrete, checkable lead — not 18 isolated points, and not a
   generalizable model weakness spread evenly across the forest.
+- **NEW (2026-08-23) — is it a real site, or the model failing to generalize? Checked on all 5
+  folds — decisively, it's not a generalization failure.** Because of how the 5-fold split
+  works, this one compartment is held out (never seen during training) in only one fold — in the
+  other four, the model trains directly on its real, observed data. If the inflated prediction
+  were just the model failing to handle unfamiliar terrain, it should shrink once the model has
+  actually seen the compartment's true heights. It doesn't — if anything the opposite happens
+  (`temp_results_pinn/RESULTS_TABLE.md`, section 10, all 5 folds complete): the predicted height
+  stays inflated by +10.7m to +15.6m above the population curve in every single fold, and the
+  fold where the model saw *all* of the compartment's real data (100% training) shows the
+  *biggest* inflation of the five, not the smallest. That's the opposite of what a
+  model-can't-handle-this-terrain story would predict. So this rules out generalization failure
+  outright — the model is consistently, faithfully learning something genuinely elevated about
+  this specific place, whether that's a real, exceptionally fast-growing site, or a
+  measurement/data artifact baked into its actual recorded heights. Either way, it's a property
+  of the data itself, not a generalization weakness — and this piece of the story is now fully
+  closed, not provisional.
 
 **3. Plain PINN beats PINN-$k$ on accuracy, every single time we tested it.** *(was finding 2)*
 — **READY, but reframe.** Here's where I want to push back gently on how you first described

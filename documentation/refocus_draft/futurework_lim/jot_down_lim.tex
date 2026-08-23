@@ -3,3 +3,54 @@
 Due to pipeline timing, the stand maturity filter (age $\ge 30$ in 2023; $N = 58{,}112$) was applied in Q2 and Q3, whereas Q1 models were trained on the broader pre-filter population ($N = 71{,}766$). A sensitivity check on Set~4 indicates that restricting Q1 to mature stands increases $R^2$ by 0.05--0.07 (Elastic Net: $0.358 \to 0.406$; XGBoost: $0.395 \to 0.460$). Consequently, Q1's reported headline performance is conservative relative to the mature cohort, though relative feature importance rankings and model stability comparisons remain unaffected.
 
 \limit{PINN models were run untuned on a single seed using the 4-survey cohort only. Systematic tuning and testing whether the residual network overrides the Chapman--Richards term remain areas for future work.}
+
+% ===================================================================================
+% Jot-down list, 2026-08-23 -- everything flagged during drafting as "save for
+% limitations" rather than fixed/resolved inline. Grouped by area, not polished prose --
+% pick which ones actually earn a place in the final Limitations section.
+% ===================================================================================
+
+\subsection*{Data}
+\limit{OS Open Roads/Open Rivers has no stated vintage in this project's own downloaded package docs -- the raw file's download timestamp is ~July 2026, applied retroactively to every survey year back to 2002. Minor for rivers (stable over time); more relevant for roads, since forestry access tracks can be built within that timeframe.}
+
+\limit{Vol95's allometric parameters ($g_1$, $g_3$) are pre-assigned per plot in the source Forest Research export, not computed by this project. Sitka spruce alone shows 10 distinct pairs, not cleanly split by thinning status or yield class -- the true determinant isn't visible in this project's own tables (likely region or an internal FR yield-model version).}
+
+\limit{The \texttt{Age} field's documented valid range (0--150 years, per the field-description doc) does not match what \texttt{clean\_master\_data.py} actually implements (0--200) -- an unresolved documentation/code mismatch.}
+
+\limit{The four-survey cohort's environmental screening drops 430 plots, mainly for missing SoilGrids soil-pH coverage -- a real, if modest, sample reduction driven by external data gaps rather than this project's own choices.}
+
+\limit{All sub-compartment attributes (species, planting year, yield class, thinning dates) come from the 2025 database, applied to LiDAR surveys back to 2002. Using 2025 labels to describe a compartment's 2002 state could be anachronistic if that compartment's assignment changed in between -- same shape of concern as the OS Open Roads/Rivers vintage issue above, for a different data source.}
+
+\limit{Coarse spatial resolution plausibly explains two results already reported, not just a generic caveat: soil (SoilGrids, 250\,m) fails stability checks independently in both Q1 and Q2, and climate (CHELSA/HadUK, $\sim$1\,km) actively reduces Q1's accuracy rather than merely failing to help ($-0.056$ $R^2$). A 250\,m soil grid or a regional climate grid cannot resolve variation at the scale a single plot operates at, in a forest spanning exposed ridges to sheltered valleys -- a plausible mechanism for both null/negative results, not proof of one, since no finer-resolution alternative was tested against.}
+
+\limit{DBHmean, basal area, and one volume equation are documented for context (an established forestry allometric toolkit that top height feeds into) but are not present anywhere in this project's own data or code, and are sourced from an external report not yet in the citation list.}
+
+\subsection*{Q1}
+\limit{All Q1 numbers (coefficients, $R^2$, Moran's $I$) reflect a single spatial-block split-seed (42). Q2's GNNWR is reseeded three times on the 6-survey cohort to test sign stability; repeating that reseed for Q1's Elastic Net and XGBoost would test whether the slope/topex stability contrast holds up outside one particular fold assignment, rather than being reported as a stable finding on a single split.}
+
+\limit{The account for why some Set~4 predictors destabilise under Elastic Net but not the mixed-effects model (within-compartment mean-centring separating real local signal from between-compartment artifact) was built and tested on the same data that produced the instability finding it explains -- a plausible, evidenced account, but not validated on an independent split.}
+
+\subsection*{Q2}
+\limit{$\Delta y_{\max}$ is best read as a stand-in for a plot's whole trajectory deviation, not a clean, isolated ceiling measurement -- growth-rate and ceiling differences are not separable with only 4--6 observations per plot. The growth-mismatch correlation with $\Delta y_{\max}$ (r=0.51 Pearson / 0.61 Spearman, full population, not just the flagged tail) is consistent with either a genuine correlated site-quality effect or estimator smearing from the fixed-rate assumption -- this data cannot separate the two; a longer survey series or a simulation with known ground truth would be needed.}
+
+\limit{GNNWR receives no hyperparameter tuning anywhere in this project -- confirmed against \texttt{gnnwr\_check.py} directly, no sweep of any kind exists. Every other model gets some systematic tuning (Elastic Net's inner-loop CV, XGBoost's 27-configuration sweep, the DNN's 48-configuration sweep); GNNWR alone runs at default settings, plausibly because the same GPU memory limit that forced a capped reference set in early tests makes a full sweep too expensive at this data scale. This means GNNWR's accuracy edge over Elastic Net/XGBoost could be an underestimate (untapped headroom) or an artifact of a favourable default -- genuinely unknown either way.}
+
+\limit{GNNWR's local coefficient maps are single-seed (seed 42) for the four-survey cohort -- no reseed/stability check exists there, unlike the six-survey $R^2$ cell, which is reseeded three times. Even a coefficient that looks stable across compartments in this one run has not been checked against run-to-run variation.}
+
+\limit{GNNWR still assumes each local relationship is linear. A coefficient that varies across space could reflect genuine spatial non-stationarity, or a linear model straining against a non-linear relationship -- this project cannot fully distinguish the two.}
+
+\limit{GNNWR's six-survey collapse is genuinely unexplained: sample size alone has been tested and ruled out (downsampling four-survey reference points to a matched count did not trigger a similar collapse), but no alternative cause has been confirmed.}
+
+\limit{Residual Moran's $I$ values across Elastic Net, XGBoost and GNNWR use model-specific spatial-weight distance bands (each fit to that model's own semivariogram range). This supports comparing the \emph{direction} of change (did clustering fall) but not treating the exact magnitudes as precisely comparable numbers across models.}
+
+\limit{GNNWR's reported AIC is approximated using raw feature counts, not the true GWR-corrected effective degrees of freedom, because the library's own hat-matrix diagnostic exceeded available memory on this project's data scale -- $F$-tests are not reported at all as a result.}
+
+\subsection*{Q3}
+\limit{The corrected PINN/PINN-$k$ forward pass was only run on the four-survey cohort, with no hyperparameter tuning, on a single seed -- unlike DNN's 48-configuration and XGBoost's 27-configuration sweeps already in this chapter. A second seed and a six-survey rerun are both cheap extensions not yet done.}
+
+\limit{Whether the Chapman--Richards term actually contributes to PINN-$k$'s prediction, versus the trunk's residual routing around it, remains untested -- as does extrapolation risk when a plot's own terrain values fall outside the range seen in training.}
+
+\limit{The sub-network architecture behind PINN's per-plot parameter adjustments (one hidden layer, 16 units) is fixed by design and was never swept -- a deliberate choice given its narrow job, but it means PINN-$k$'s true capacity ceiling is untested, not just its tuning.}
+
+\subsection*{Related work}
+\limit{Hybrid Chapman--Richards / hybrid-mechanistic-growth-model literature is thin in this project's own bibliography -- Pichler \& K\"aber (2025) is currently the only directly on-topic citation. Broader coverage of that specific sub-area (rather than PINNs generally) would strengthen the related-work framing if time allows.}

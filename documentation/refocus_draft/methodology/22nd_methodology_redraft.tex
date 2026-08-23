@@ -102,7 +102,9 @@ Continuous variables were scaled using the training data and applied to the vali
 
 %------------------------------------------------
 \section{Environmental feature sets}
-Four feature sets test whether broader environmental information improves model performance. Sets are constructed separately for Q1's mean curve-departure target, Q2's asymptotic-departure target, and Q3's top-height target. Candidate variables with missing coverage or deterministic duplication are removed first. Near-identical variables with Spearman $|\rho|\geq0.95$ are reduced to one, preferring directly measured variables. Remaining candidates are ranked using the mean rank from Spearman $|\rho|$, permutation importance and drop-column ablation. Variables with variance inflation factor greater than 5 are removed iteratively \cite{obrien2007Caution_C5_EVAL}. Baseline variables are protected from removal but remain in the VIF calculation.
+Four feature sets test whether broader environmental information improves model performance. Sets are constructed separately for Q1's mean curve-departure target, Q2's asymptotic-departure target, and Q3's top-height target. Candidate variables with missing coverage or deterministic duplication are removed first. Near-identical variables with Spearman $|\rho|\geq0.95$ are reduced to one, preferring directly measured variables. Remaining candidates are ranked using the mean rank from Spearman $|\rho|$, permutation importance and drop-column ablation, using a single spatial-block split. Variables with variance inflation factor greater than 5 are removed iteratively \cite{obrien2007Caution_C5_EVAL}. Baseline variables are protected from removal but remain in the VIF calculation.
+
+This ranking split is a different partition from the five-fold spatial-block split used for final evaluation (Section~\ref{sec:eval-robustness}). Because both are independent random partitions of the same compartments, the ranking split's held-out portion partially overlaps with the training data of most evaluation folds, and can by chance overlap with at least one fold's test data. This is a diffuse selection-leakage risk, not the same as training and testing on identical rows -- feature ranking could be mildly favoured by data a given fold later treats as held out. Full per-fold nested ranking would close this exactly, at five times the ranking compute, for a risk assessed as low in practice; it is disclosed here as a limitation rather than resolved.
 
 This screening removes 430 four-survey plots, mainly because of missing SoilGrids coverage; the six-survey cohort has no missing environmental values. Missingness details and exact membership for each question are reported in Appendix~\ref{app:feature-sets}.
 
@@ -135,50 +137,10 @@ Set~4
 
 The final sets are not strictly nested because VIF screening is repeated after expanding the candidate pool. For example, elevation appears in Sets~2 and~3 but is removed from Set~4 when correlated terrain and wind predictors are considered together. This indicates redundancy within Set~4, not that elevation is ecologically unimportant.
 
--- CHECK THIS IS RIGHT, CREATE AN APPENDIX ITEM TO MATCH THE ACTUAL SETS (OLD VERSION RQ NAMING )
-**RSQ1** (target `elev_percentile_95th`):
-
-| Set | n | Columns |
-|---|--:|---|
-| Set1 | 4 | `CanopyCover`, `time_since_thinning`, `time_since_thinning_missing`, `recent_thinning_5yr` |
-| Set2 | 14 | Set1 + `gwa_weibull_k_50m`, `dist_to_scpt_boundary`, `elevation`, `tas_mean`, `eastness`, `windward_topex`, `gwa_weibull_a_10m`, `gwa_weibull_a_50m`, `slope_degrees`, `cpmt_compactness_ratio` |
-| Set3 | 15 | Set1 + `gwa_weibull_k_50m`, `elevation`, `eastness`, `windward_topex`, `gwa_weibull_a_10m`, `gwa_weibull_a_50m`, `slope_degrees`, `gwa_weibull_k_10m`, `solar_radiation_index`, `ceh_twi`, `gwa_wind_speed_10m` |
-| Set4 | 18 | Set1 + `gwa_weibull_k_50m`, `eastness`, `windward_topex`, `gwa_weibull_a_10m`, `gwa_weibull_a_50m`, `slope_degrees`, `gwa_weibull_k_10m`, `solar_radiation_index`, `ceh_twi`, `gwa_wind_speed_10m`, `dist_to_scpt_boundary`, `tas_mean`, `chelsa_gdd5_degc`, `cpmt_compactness_ratio` |
-| Set5 | 30 | Set1 + `slope_degrees`, `northness`, `eastness`, `profile_curvature`, `plan_curvature`, `local_relief_500m`, `frost_hollow_flag`, `topex`, `windward_topex`, `gwa_weibull_a_10m`, `gwa_weibull_k_10m`, `gwa_weibull_a_50m`, `gwa_weibull_k_50m`, `dist_to_forest_perimeter`, `dist_to_scpt_boundary`, `cpmt_compactness_ratio`, `dist_to_road`, `dist_to_watercourse`, `gwa_wind_speed_10m`, `soilgrids_ph`, `ceh_twi`, `chelsa_gdd5_degc`, `chelsa_bio12_precip_mm`, `tas_mean`, `groundfrost_mean`, `whcl` |
-
-**RSQ2** (target `mean_cr_residual`, baseline retained on export — no second pathway):
-
-| Set | n | Columns |
-|---|--:|---|
-| Set1 | 4 | `CanopyCover`, `time_since_thinning`, `time_since_thinning_missing`, `recent_thinning_5yr` |
-| Set2 | 14 | Set1 + `chelsa_bio12_precip_mm`, `chelsa_gdd5_degc`, `gwa_weibull_k_50m`, `slope_degrees`, `gwa_weibull_a_10m`, `local_relief_500m`, `eastness`, `dist_to_road`, `gwa_weibull_a_50m`, `tas_mean` |
-| Set3 | 14 | Set1 + `gwa_weibull_k_50m`, `slope_degrees`, `gwa_weibull_a_10m`, `local_relief_500m`, `eastness`, `gwa_weibull_a_50m`, `ceh_twi`, `whcl`, `topex`, `gwa_wind_speed_10m` |
-| Set4 | 19 | Set3 + `chelsa_bio12_precip_mm`, `dist_to_road`, `tas_mean`, `dist_to_scpt_boundary`, `soilgrids_ph` |
-| Set5 | 28 | Set1 + `slope_degrees`, `northness`, `eastness`, `profile_curvature`, `plan_curvature`, `tpi_500m`, `local_relief_500m`, `frost_hollow_flag`, `windward_topex`, `gwa_weibull_a_10m`, `gwa_weibull_k_10m`, `gwa_weibull_a_50m`, `gwa_weibull_k_50m`, `dist_to_forest_perimeter`, `dist_to_block_boundary`, `cpmt_compactness_ratio`, `dist_to_road`, `dist_to_watercourse`, `gwa_wind_speed_10m`, `soilgrids_ph`, `ceh_twi`, `tas_mean`, `groundfrost_mean`, `whcl` |
-
-**RSQ3** (target `local_y_max_difference`, baseline retained on export; `ceh_*` columns are
-one-hot dummy levels, reference level already dropped per §2.4):
-
-| Set | n | Columns |
-|---|--:|---|
-| Set1 | 4 | `CanopyCover`, `time_since_thinning`, `time_since_thinning_missing`, `recent_thinning_5yr` |
-| Set2 | 14 | Set1 + `windward_topex`, `elevation`, `cpmt_compactness_ratio`, `gwa_wind_speed_50m`, `slope_degrees`, `tpi_500m`, `dist_to_road`, `topex`, `solar_radiation_index`, `soilgrids_ph` |
-| Set3 | 12 | Set1 + `windward_topex`, `elevation`, `gwa_wind_speed_50m`, `slope_degrees`, `tpi_500m`, `topex`, `solar_radiation_index`, `northness` |
-| Set4 | 20 | Set1 + `windward_topex`, `gwa_wind_speed_50m`, `slope_degrees`, `tpi_500m`, `topex`, `northness`, `cpmt_compactness_ratio`, `dist_to_road`, `chelsa_bio12_precip_mm`, `tas_mean`, `soilgrids_ph`, `ceh_subsurface_drainage=2.0`, `ceh_pedotope=2.0`, `ceh_pedotope=8.0`, `ceh_textural_composition=2.0`, `dist_to_forest_perimeter` |
-| Set5 | 31 | Set1 + `slope_degrees`, `northness`, `eastness`, `profile_curvature`, `plan_curvature`, `ceh_twi`, `frost_hollow_flag`, `windward_topex`, `whcl`, `tpi_500m`, `local_relief_500m`, `tas_mean`, `groundfrost_mean`, `soilgrids_ph`, `dist_to_watercourse`, `dist_to_forest_perimeter`, `dist_to_scpt_boundary`, `cpmt_compactness_ratio`, `dist_to_road`, `ceh_pedotope=11.0`, `ceh_pedotope=2.0`, `ceh_pedotope=5.0`, `ceh_pedotope=8.0`, `ceh_pedotope=9.0`, `ceh_subsurface_drainage=2.0`, `ceh_subsurface_drainage=3.0`, `ceh_textural_composition=5.0` |
-
-Note Set3's non-monotonic behaviour is expected, not an error: RSQ3 Set3 (12) is smaller than
-RSQ3 Set2 (14) because Set2 and Set3 are built by two different rules (top-10 by rank vs.
-top-half-of-category by rank) over overlapping but not identical candidate pools — Set3 is not
-defined as a superset of Set2.
-
-Machine-readable source: `documentation/env_feature_sets_manifest.csv` (225 rows) — the file
-above is a snapshot for readability; the CSV is the definitive record if the two ever disagree.
----- NEED TO RENAME TO Q1 Q2 Q3 (FIND CORRECT ORDER OR MAPPING), AND PUT THIS IN APPENDIX, (documentation/refocus_draft/working_results/appendix_results.tex) UNDER METHODS. 
-
-
-
-
+% Full per-question Set membership (RSQ1=Q3, RSQ2=Q1, RSQ3=Q2 -- verified against production
+% code, not just target-name matching; see documentation/refocus_draft/working_results/
+% appendix.tex, "Feature-set membership by research question" for the mapping evidence and
+% the converted tables) moved to Appendix~\ref{app:feature-sets}, 2026-08-23.
 \section{Q1: Explaining growth deviations}
 Q1 uses a two-stage analysis. First, repeated observations are reduced to one mean departure per plot. Second, Elastic Net, XGBoost and a linear mixed-effects model explain this target. The four-survey cohort is used because the six-survey cohort has too few compartments for spatial testing. Here, $i$ marks a plot, $t$ marks a survey, $H_{it}$ and $a_{it}$ are observed height and age, and $T_i$ is the number of surveys for plot $i$. $H(a)$ is the shared Chapman-Richards growth curve (Equation~\eqref{eq:cr}) at age $a$. Equation~\eqref{eq:cr-gap} computes the gap between measured height and the baseline curve, while Equation~\eqref{eq:mean-cr-residual} averages this gap over time to give one mean departure per plot:
 \begin{align}

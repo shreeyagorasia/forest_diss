@@ -314,6 +314,41 @@ end).
 
 ---
 
+## 10. Is compartment 1129's inflation a real site effect or a held-out generalization artifact?
+
+**Status: DONE, all 5 folds in (2026-08-23) -- decisive.** Section 9 found compartment 1129
+(blk=21) behind 31/40 of the most-inflated y_max predictions, discovered on fold 0's HELD-OUT
+test set. `spatial_block_kfold` assigns each compartment to the test set in only one of the 5
+folds, so 1129 is training data in the other folds -- letting us check whether the model still
+inflates its prediction once it's actually been trained on 1129's own observed heights, not just
+its terrain profile.
+
+| Fold | Split membership | Mean y_max_pred | Population y_max | Inflation | Rows >70m (of 1484) |
+|---|---|---:|---:|---:|---:|
+| 0 | 100% test | 64.10m | 51.96m | +12.14m | 72 |
+| 1 | 95% train, 5% buffer | 63.50m | 51.96m | +11.53m | 44 |
+| 2 | 98% train, 2% buffer | 60.90m | 50.21m | +10.69m | 0 |
+| 3 | 100% train | 65.76m | 50.21m | **+15.55m** | 0 |
+| 4 | 100% val | 64.35m | 51.96m | +12.39m | 0 |
+
+**Finding**: the inflation persists in **every single fold**, including the three where the
+model was trained directly on compartment 1129's own observed heights (folds 1, 2, 3) --
+decisively ruling out held-out generalization failure as the explanation. Fold 3, where 1129 is
+100% training data (the model has seen every one of its rows), shows the *largest* inflation of
+all five folds (+15.55m) -- the opposite of what a generalization-failure story would predict. A
+pure extrapolation artifact should shrink once the model has seen the compartment's real
+training labels; instead it gets no smaller, and if anything larger. This points toward either
+(a) a genuinely exceptional, fast-growing site (consistent with section 9's yield-class-22/24
+finding -- the model correctly learning something real) or (b) a real data/measurement artifact
+baked into this compartment's actual observed LiDAR heights, which the model then faithfully
+reproduces -- not a model weakness at inputs it hasn't seen.
+
+- Script: `temp_results_pinn/pinn_env_terrain_fix/run_compartment1129_cross_fold_check.py`
+- Job: `temp_results_pinn/jobs/run_compartment1129_cross_fold_check_cluster.sh`
+- Output: `temp_results_pinn/outputs/CORRECTED_2026-08-23_mechanism_checks/compartment1129_cross_fold/fold_<i>/summary.json`
+
+---
+
 ## Legacy / do-not-cite
 
 Pre-fix PINN/PINN-k runs (broken forward pass -- terrain features never reached the

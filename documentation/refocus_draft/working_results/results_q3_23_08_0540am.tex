@@ -1,0 +1,168 @@
+% =============================================================================
+% Working extract -- Results, Q3 section, redraft 2026-08-23.
+% NOT full prose yet -- phrase-level building blocks per the agreed workflow:
+% claim -> numbers (source) -> how tested -> ruled out -> caveat -> figure/table -> so-what.
+% Do not write full sentences from this until each block is signed off.
+% Source of truth for every number: temp_results_pinn/RESULTS_TABLE.md (live-verified,
+% not the brain dump prose, which may lag). Cross-reference before promoting any number here.
+% =============================================================================
+
+\section{Q3: Prediction and physics guidance}
+\label{sec:results-q3}
+
+% -----------------------------------------------------------------------------
+% BLOCK A -- Pivot (folded-in, NOT its own section/heading)
+% -----------------------------------------------------------------------------
+% Claim: XGBoost most accurate, DNN close behind, PINN/PINN-k trail both -- but that's not
+%   this chapter's real question.
+% Numbers: XGBoost 0.674, DNN 0.655, PINN 0.631, PINN-k 0.618 (Table 3, Set3, 4-survey,
+%   5-fold spatial_block_kfold mean).
+% How tested: 5-fold spatial-block CV, identical feature set/cohort across all six models.
+% Ruled out (pre-session, unchanged): feature interactions, compartment sample size,
+%   architecture size, terrain extrapolation, hyperparameter tuning -- none close DNN's gap
+%   to XGBoost. Reinforced, not reopened, by this session's batch-size retest
+%   (RESULTS_TABLE.md #3: earlier Aug-19 result that seemed to reopen this was itself a
+%   batch-size mix-up, confirmed and corrected).
+% Caveat: none new.
+% Table: Table 3 (main, unchanged).
+% So-what: sets the accuracy floor/ceiling in two sentences, then pivots straight to the real
+%   question -- does PINN's physics structure buy anything, given it loses here?
+
+% -----------------------------------------------------------------------------
+% BLOCK B -- Leg 1: personalization is real, not one variable in disguise
+% -----------------------------------------------------------------------------
+% Claim: PINN-k's personalized y_max isn't secretly driven by one dominant terrain feature.
+% Numbers: top feature (windward_topex) = 15.2% of total importance; all 11 features span
+%   ~4.7-15.2%. Source: RESULTS_TABLE.md #6.
+% How tested: permutation importance -- shuffle one terrain feature at a time (10 repeats),
+%   measure mean absolute change in y_max_pred. Fold 0 only.
+% Ruled out: the GNNWR-style single-variable-dominance failure mode (Q2: CanopyCover alone
+%   carried ~80-90% of GNNWR's total signal).
+% Caveat: single fold checked (fold 0) for this specific comparison -- not yet replicated
+%   across folds, unlike Legs 3/4 below.
+% Figure: bar chart, 11 features sorted by importance share. APPENDIX (supports the claim,
+%   isn't the headline draw).
+% So-what: direct, positive contrast with Q2's GNNWR finding -- earns the right to call this
+%   "real" personalization, not a hidden single-variable proxy.
+
+% -----------------------------------------------------------------------------
+% BLOCK C -- Leg 2: the thing driving it is real (environment sweep)
+% -----------------------------------------------------------------------------
+% Claim: environment information gives a genuine, large accuracy gain; more isn't better.
+% Numbers: no-env 0.573 (both variants) -> Set2 0.627/0.622 -> Set3 0.631/0.618 -> Set4
+%   0.618/0.620 (plain PINN / PINN-k). Source: RESULTS_TABLE.md #5.
+% How tested: PINN and PINN-k trained on no-env, Set2, Set3, Set4, 5-fold CV each (Set3 vs.
+%   others fully cross-validated).
+% Ruled out: supersedes a PRE-FIX version of this exact sweep that showed no difference
+%   between having environment info or not (~0.577-0.579 flat across all sets) -- confirmed
+%   bug, not a real null result.
+% Caveat: Set3 is not demonstrated as PINN-k's best set among those tested (Set2 nominally
+%   edges it, 0.622 vs. 0.618, within the ~0.02 fold-noise floor) -- Set3 used for cross-model
+%   consistency with Table 3, not because it's proven best for PINN-k specifically.
+% Also checked why Set4 (broader) doesn't help: its 4 new features aren't ignored -- they get
+%   30-40% of total importance (above their 28.6% "fair share") across 3 folds, so it's
+%   "actively doesn't generalize," not "harmless clutter." Source: RESULTS_TABLE.md #8.
+%   One sentence, not its own block.
+% Figure: line chart, R2 (y) vs. feature-set breadth (x: none/Set2/Set3/Set4), one line per
+%   PINN variant. MAIN TEXT -- single most useful new figure in the chapter.
+% So-what: proves the personalization is anchored to real signal, not noise the network is
+%   free to arrange however it likes.
+
+% -----------------------------------------------------------------------------
+% BLOCK D -- Leg 3: the failure mode is disclosed and fully diagnosed
+% -----------------------------------------------------------------------------
+% Claim: PINN sometimes predicts an implausible height; traced to a specific, checkable
+%   cause; confirmed NOT a generalization artifact.
+% Numbers, part 1 (population): mean +2.9m above population curve, SD 5.3m, 77% of plots
+%   pushed taller. Source: RESULTS_TABLE.md #2.
+% Numbers, part 2 (extreme tail): 70m cutoff is arbitrary, not a real cliff (317 plots sit at
+%   65-70m, smooth taper). Widened to top 40 most-inflated plots: 31/40 (77.5%) sit in ONE
+%   compartment (blk 21/cpmt 1129); two smaller secondary hotspots (blk 30/cpmt 2229, all
+%   yldc 24; blk 32/cpmt 2064, yldc only 6). Source: RESULTS_TABLE.md #9.
+% Numbers, part 3 (cross-fold, DECISIVE): inflation persists in all 5 folds regardless of
+%   split membership -- fold 0 (100% test) +12.14m, fold 1 (95% train) +11.53m, fold 2 (98%
+%   train) +10.69m, fold 3 (100% train) +15.55m (LARGEST of all five), fold 4 (100% val)
+%   +12.39m. Source: RESULTS_TABLE.md #10.
+% How tested: (1) population-level distribution check, fold-0 test set; (2) direct join of
+%   extreme-tail plots against master stand records (yield class, canopy cover, species,
+%   block/compartment); (3) same model retrained on all 5 folds, evaluated specifically on
+%   compartment 1129's rows regardless of that fold's split assignment.
+% Ruled out: (a) terrain extrapolation as the general explanation -- tested on 3 folds,
+%   did NOT replicate, discarded (fold 0 suggested a mild ~2x signal for the worst failures;
+%   folds 1-2 contradicted it, direction of effect flipped). (b) held-out generalization
+%   failure -- decisively ruled out by the cross-fold check; a real extrapolation artifact
+%   should shrink once trained on the compartment's own data, and it does not (if anything,
+%   grows).
+% Caveat: root cause still open between two live candidates -- (a) genuinely exceptional,
+%   fast-growing site (consistent with the yield-class-22/24 pattern in most affected
+%   sub-plots) or (b) a data/measurement artifact baked into that compartment's actual
+%   recorded LiDAR heights. DNN's own error on this compartment is only mildly elevated
+%   (mean abs residual 3.84m vs. 3.24m elsewhere, ~19% worse) -- consistent with genuinely
+%   unusual conditions affecting every model a little, while PINN's dedicated y_max
+%   sub-network amplifies it into a much larger, more specific failure. One sentence, not a
+%   full DNN/XGBoost map -- the effect is real but too modest to justify its own figure.
+% Figures:
+%   (i) Compartment-level map of mean y_max deviation from population curve, same visual
+%       grammar as existing Q1/Q2 maps (load_compartment_boundaries()). MAIN TEXT -- ties the
+%       closed, decisive finding to real geography, most compelling new visual in the chapter.
+%   (ii) One example "bad" plot's curve (a compartment-1129 plot) vs. population curve, same
+%        style as the existing good example-plot figure (q3_pinn_example_plot_curve.png).
+%        APPENDIX -- deliberate pair with the existing figure: well-behaved case (already
+%        have it) next to poorly-behaved case, with the anomalous stand fields called out.
+% So-what: this is what makes the interpretability claim credible -- a model whose flaws can
+%   be pointed at, traced to a specific place, and shown not to be a generalization problem
+%   is more trustworthy, not less. Practical link (forestry use, still just a discussion
+%   point, not yet drafted into prose): top height feeds directly into volume
+%   ($\mathrm{Vol95} = g_1 \times \mathrm{Top\_Height95}^{g_3} \times \mathrm{area/10000}
+%   \times \mathrm{CanopyCover}$, $g_3 \approx 1.48$-$1.69$ for Sitka Spruce) and into General
+%   Yield Class via the same Chapman-Richards site-index inversion this project's models are
+%   built on -- height errors are AMPLIFIED downstream into volume, which is exactly why a
+%   disclosed, understood failure mode matters practically, not just academically.
+
+% -----------------------------------------------------------------------------
+% BLOCK E -- Plain PINN vs. PINN-k: the recommendation
+% -----------------------------------------------------------------------------
+% Claim: plain PINN is more accurate; PINN-k gives a more complete picture, not a "more
+%   practical" one.
+% Numbers: 0.631 vs. 0.618 (Table 3); consistent ~0.01-0.02 gap across every test this
+%   session -- LR-check (0.630/0.614), batch-size check (0.641/0.619), lambda ablation
+%   (0.623-0.632 / 0.612-0.620 across 8 settings). Source: RESULTS_TABLE.md #3, #3b, #4.
+% How tested: repeated across 4 independent hyperparameter checks, all landing the same way.
+% Ruled out: "more practical via yield-class conversion" -- tried earlier this session,
+%   didn't hold up (a pre-existing artifact of the yield-class formula, not a PINN-k
+%   contribution), dropped as a justification.
+% Mechanism, now confirmed robust: PINN-k's shared trunk network does 2-3x more compensating
+%   work than plain PINN's, and the ratio GROWS across folds (1.98 -> 2.33 -> 3.31, 3 folds
+%   checked). Source: RESULTS_TABLE.md #7. One sentence in main text; full mechanism detail
+%   to appendix -- doesn't change the recommendation, so stays secondary.
+% Caveat: none outstanding.
+% Figure: none needed for the headline recommendation -- the 4-row comparison table already
+%   makes the "wins every time" point as clearly as a chart would.
+%   NEW, worth including: y_max vs. k scatter, one dot per plot -- checked live, r=0.50,
+%   a real, clean, monotonic relationship (mean k rises from 0.0127 in the shortest-predicted
+%   quartile to 0.0148 in the tallest), not a diffuse cloud. APPENDIX -- companion to the
+%   per-feature-importance bar chart, shows the two personalized parameters aren't
+%   independent, a biologically sensible pattern (taller-predicted sites also predicted to
+%   grow faster).
+% So-what: gives an honest, evidence-backed answer to "which PINN should I actually use, and
+%   why" -- and the y_max/k relationship is a small additional point that the two parameters
+%   are behaving sensibly together, not fitting independently to noise.
+
+% -----------------------------------------------------------------------------
+% BLOCK F -- Finding 5 (errors by age/height) -- STATUS: NOT READY, blocked
+% -----------------------------------------------------------------------------
+% Claim: unresolved -- do prediction errors cluster at certain tree ages/heights, and does
+%   this differ across DNN/PINN/PINN-k?
+% Blocker, UPDATED 2026-08-23: originally thought 2/3 models were ready (DNN, PINN-k) and
+%   only plain PINN needed a fix. Now known: PINN-k's existing saved file
+%   (test_set_predictions.csv) is ALSO unusable -- its "fixed_residual" column was computed
+%   from the CR-curve term only (y_max_pred, k_pred plugged into the growth equation),
+%   missing the trunk-residual correction entirely. Reconstructing "predicted" from it gives
+%   R2=0.362, nowhere near the trusted 0.618. So currently ZERO of three models are properly
+%   ready, not two of three. DNN alone is usable right now.
+% In progress: plain PINN's proper export (run_finding5_plain_pinn_export.py) running in the
+%   background as of this draft; PINN-k needs an equivalent fix, not yet built.
+% Importance: genuinely conditional, not fixed. If DNN's errors grow at extreme ages (less
+%   training density, no curve constraining plausibility) while PINN/PINN-k stay stable, this
+%   becomes a real fourth leg of the headline story. If all three look similar, it's a
+%   checked-and-ruled-out side note. Cannot triage further until built.
