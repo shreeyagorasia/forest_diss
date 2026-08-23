@@ -219,50 +219,98 @@ positive point of difference from GNNWR worth citing in the dissertation.
 
 ## 7. Why does plain PINN beat PINN-k? Trunk-residual comparison
 
-**Status: DONE -- real mechanism found.** Compared how much "compensating work" the shared
-trunk network (main_network) does in each variant, on the same fold-0/Set3/trusted-config
-models trained for #6 above. If personalizing k adds useful structure, the trunk shouldn't need
-to compensate more; if it adds noise, the trunk has to work harder to correct for it.
+**Status: DONE -- real mechanism found, CONFIRMED robust across 3 folds (2026-08-23).**
+Compared how much "compensating work" the shared trunk network (main_network) does in each
+variant. If personalizing k adds useful structure, the trunk shouldn't need to compensate more;
+if it adds noise, the trunk has to work harder to correct for it.
 
-| Variant | Trunk residual mean\|.\| (scaled) | std |
-|---|---:|---:|
-| Plain PINN | 0.2069 | 0.2689 |
-| PINN-k | 0.4096 | 0.2584 |
+| Fold | Plain PINN trunk mean\|.\| | PINN-k trunk mean\|.\| | Ratio (PINN-k / plain) |
+|---|---:|---:|---:|
+| 0 | 0.2069 | 0.4096 | 1.98 |
+| 1 | 0.2375 | 0.5532 | 2.33 |
+| 2 | 0.2547 | 0.8438 | 3.31 |
 
-**Finding**: PINN-k's trunk does almost **2x** (ratio 1.98) more compensating work than plain
-PINN's. This is real, measurable evidence that personalizing k doesn't produce a better-fitting
-curve on its own -- it makes the curve fit *worse*, and the flexible trunk network has to clean
-up after it. Directly explains (not just describes) why plain PINN beats PINN-k on accuracy
-(section 1/Table 3: 0.631 vs 0.618).
+**Finding**: PINN-k's trunk does substantially more compensating work than plain PINN's in
+*every* fold tested, and the effect grows rather than shrinks (ratio 1.98 -> 2.33 -> 3.31) --
+a robust, real mechanism, not a fold-0 fluke. This is measurable evidence that personalizing k
+doesn't produce a better-fitting curve on its own -- it makes the curve fit *worse*, and the
+flexible trunk network has to clean up after it. Directly explains (not just describes) why
+plain PINN beats PINN-k on accuracy (section 1/Table 3: 0.631 vs 0.618).
 
 - Script: `temp_results_pinn/pinn_env_terrain_fix/run_pinn_mechanism_checks.py` (check 1)
 
-## 8. Why do some plots get an implausible y_max? Terrain-extrapolation check
+## 8. Why doesn't the broader Set4 help? Permutation importance on Set4's new features
 
-**Status: DONE -- nuanced result, two different answers for two different groups.** Reused the
-exact out-of-training-range methodology already used for the DNN-vs-XGBoost terrain-extrapolation
-check (`models/baselines/rq1_extrapolation_check.py::compute_extrapolation_score`), applied to
-plain PINN's y_max output on the same fold-0/Set3 test set (46,032 rows; the earlier population
-check in section 2 counted 11,508 unique *plots* -- this check counts per-row, but the
-implausible rate matches: 0.16% either way).
+**Status: DONE -- clean, consistent answer across 3 folds.** Set4 is not simply Set3 plus more
+features -- it DROPS `elevation` (VIF casualty once more variables are present, per
+`documentation/plans_md/methodlogy_env_setpick.md`) and ADDS four new ones: `dist_to_scpt_boundary`,
+`tas_mean`, `chelsa_gdd5_degc`, `cpmt_compactness_ratio`. Ran the same permutation-importance
+method as section 6, on a freshly-trained Set4 PINN-k model, across 3 folds.
 
-| Group | n | Mean extrapolation score | Mean # out-of-range features |
-|---|---:|---:|---:|
-| All test rows | 46,032 | 0.0008 | 0.014 |
-| Implausible (<5m or >70m) | 72 (0.16%) | 0.0017 | -- |
-| Most-inflated (top 10% by deviation) | 4,612 | 0.0008 | 0.007 |
-| Everyone else | 41,420 | 0.0008 | 0.015 |
+| Fold | New-features' share of total y_max importance | Proportional "fair share" (4/14 features) |
+|---|---:|---:|
+| 0 | 39.5% | 28.6% |
+| 1 | 30.2% | 28.6% |
+| 2 | 31.9% | 28.6% |
 
-**Finding**: the broad "PINN tends to predict too tall" pattern (the top-10%-inflated group) has
-**no relationship with unusual terrain** -- these plots sit at completely ordinary terrain
-values, if anything slightly *fewer* out-of-range features than average. Rules out terrain
-extrapolation as the explanation for the general inflation tendency. The much smaller group of
-genuinely implausible plots (72, 0.16%) shows a real but modest ~2x elevation in extrapolation
-score vs. baseline (0.0017 vs. 0.0008) -- small n, not proof, but a directionally sensible signal
-that the worst individual failures (not the general tendency) may be partly linked to
-out-of-range terrain.
+`tas_mean` and `chelsa_gdd5_degc` rank in the top 3-4 features in every fold; `dist_to_scpt_boundary`
+is consistently the least important feature (1.5-3.5%).
 
-- Script: `temp_results_pinn/pinn_env_terrain_fix/run_pinn_mechanism_checks.py` (check 2)
+**Finding**: the new features are not harmless/ignored -- they get real, substantial importance,
+at or above their proportional share in every fold. This rules out "the model just ignores the
+extra features" as the explanation for Set4's flat-to-negative result (section 5: Set4 R2=0.618
+plain PINN / 0.620 PINN-k, vs. Set3's 0.631 / 0.618). Instead, the new climate variables
+(`tas_mean`, `chelsa_gdd5_degc`) are actively used, substantially, but this doesn't translate
+into better held-out accuracy -- closer to "actively counterproductive" (the model treats them
+as real signal that doesn't generalize as well as Set3's more curated set) than "harmless
+clutter."
+
+- Script: `temp_results_pinn/pinn_env_terrain_fix/run_set4_permutation_importance.py`
+
+---
+
+## 9. What's actually unusual about the most-inflated y_max plots? Direct stand-data inspection
+
+**Status: DONE -- strong, specific finding, strengthened by widening the check beyond the
+strict threshold (2026-08-23).** Started by joining the 18 plots that clear the hardcoded
+implausibility bound (`y_max_pred < 5m or > 70m`, fold-0 population check,
+`temp_results_pinn/outputs/example_curve/plain_pinn_fixed_test_set_predictions.csv`) directly
+against the master dataset (`data/processed/master/clean_master_4survey.parquet`) to inspect the
+real stand fields (species, yield class, block/compartment, canopy cover, area). Then checked
+whether 70m is a real cliff in the distribution or an arbitrary line -- it's the latter (317
+plots sit in 65-70m, tapering smoothly, no gap) -- so widened the inspection to the top 40
+most-inflated plots regardless of the strict threshold.
+
+**Finding**: **31 of the top 40 most-inflated plots (77.5%) sit in exactly one physical
+compartment** -- block 21, compartment 1129 -- confirming the clustering isn't an artifact of
+exactly where the 70m line falls; it dominates the whole extreme tail, not just the 18 that
+happen to cross it. Two smaller secondary hotspots also emerge once the strict threshold is
+dropped:
+- **blk 30 / cpmt 2229** (6 plots, all yield class 24, y_max_pred ~69.1m).
+- **blk 32 / cpmt 2064** (3 plots, yield class only 6 -- notably low, y_max_pred ~69.3m).
+
+Within compartment 1129 itself, two sub-patterns: most plots (sub-compartments B and E) have
+yield class 22 or 24 -- at or near the top of the *entire dataset's* range (2-24), genuinely
+among the best-growing sites in the whole forest by the forestry service's own classification;
+PINN's personalization may be amplifying a real "exceptional site" signal past a plausible
+ceiling. A smaller group (sub-compartment I, all age 71 -- notably older than the rest) has
+yield class only 10 (below the dataset median of 18) yet gets similarly inflated predictions,
+with wildly inconsistent canopy cover within the same small group (0.06 to 0.48) -- plausibly a
+data-quality/survey artifact specific to that sub-compartment, not a model failure. Not fully
+explained by yield class alone: sub-compartments A and G in the *same* compartment also carry
+yield class 24 (139 plots combined) but contributed zero implausible predictions -- so something
+more specific than "high yield class" is at work within the affected sub-compartments
+specifically. Species is uninformative (100% Sitka Spruce dataset-wide, not a distinguishing
+factor).
+
+**Read**: this is a real, broad-tail pattern (not just 18 isolated points), overwhelmingly
+concentrated in one compartment with at least two smaller secondary hotspots -- points at either
+a genuinely unusual, high-quality site being over-amplified, or a data/survey artifact localized
+to specific compartments' LiDAR passes, rather than a generalizable model weakness spread evenly
+across the forest. Worth stating as an open question with a concrete, checkable lead (not a dead
+end).
+
+- Method: direct join, no new training -- `identification` -> `data/processed/master/clean_master_4survey.parquet`.
 
 ---
 

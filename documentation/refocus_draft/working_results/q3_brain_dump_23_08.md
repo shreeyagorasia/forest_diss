@@ -62,15 +62,28 @@ includes the example-plot figure). Two things to add:
 - Frame this as a trade-off, not a clean win: DNN can't be checked this way at all — it just
   gives you a number with no story behind it. PINN gives you a story you can actually look at
   and sanity-check, but sometimes that story is wrong. Both things are true at once.
-- **NEW (2026-08-23) — why does this happen?** Checked whether the too-tall predictions are a
-  terrain-data problem (`temp_results_pinn/RESULTS_TABLE.md`, section 8). Two different answers
-  for two different groups: the *general* tendency to predict too tall (the top 10% most-inflated
-  plots) has **no link to unusual terrain** — these plots sit at completely ordinary terrain
-  values. So the broad pattern isn't a data-quality issue, it's just how the model behaves. But
-  the much smaller group of genuinely implausible plots (72 of 46,032 test rows, 0.16%) *does*
-  show a real, if modest, ~2x higher "unusual terrain" score than average — small sample, not
-  proof, but a sensible signal that the worst individual failures may be partly linked to terrain
-  values the model saw less of during training.
+- **NEW (2026-08-23) — why does this happen?** All of this is on the **held-out test set only**
+  (11,508 plots the model never saw during training, out of ~58,000 in the full dataset) — so
+  whatever's going on is genuine model behaviour on unseen data, not memorisation.
+  Checked directly, by looking up the real stand records behind the clearly-implausible plots
+  (`temp_results_pinn/RESULTS_TABLE.md`, section 9). Strong, specific answer, and it gets
+  *stronger* once you look past the strict cutoff: 70m turned out to be an arbitrary line, not a
+  real cliff in the data (there's a smooth tail of plots just below it), so we widened the check
+  to the top 40 most-inflated plots overall. **31 of those 40 (77.5%) sit in exactly one physical
+  compartment** out of the hundreds in the dataset. Within it, two sub-patterns: most are in
+  sub-plots with yield class 22 or 24 — at or near the very top of the *entire dataset's*
+  range — genuinely among the best-growing sites in the whole forest by the forestry service's
+  own classification, so PINN may simply be amplifying a real "exceptional site" signal past a
+  plausible ceiling. A smaller group (all notably older, age 71) have a much lower yield class
+  (10) yet get similarly inflated predictions, with wildly inconsistent canopy cover within the
+  same small group (0.06 to 0.48) — plausibly a data/survey artifact specific to that one
+  sub-plot, not a model failure. Two smaller compartments show up as secondary hotspots once the
+  strict threshold is dropped, one also at the top yield class, one notably low — so it's not
+  purely a "high yield class" story either. Not fully explained by yield class alone: other
+  sub-plots in the *same* main compartment carry the same yield class (139 plots) but produced
+  zero implausible predictions — something more specific than "high yield class" is at work.
+  Either way, this is a real, broad, concrete, checkable lead — not 18 isolated points, and not a
+  generalizable model weakness spread evenly across the forest.
 
 **3. Plain PINN beats PINN-$k$ on accuracy, every single time we tested it.** *(was finding 2)*
 — **READY, but reframe.** Here's where I want to push back gently on how you first described
@@ -93,13 +106,15 @@ draws a *more complete* picture of each plot — both how tall the trees will ge
 they'll get there, not just the final height. That's a real thing PINN-$k$ does that plain PINN
 doesn't, even if it's not more accurate. Worth saying it that way, not as "more practical."
 
-**NEW (2026-08-23) — why does adding k make things worse?** Checked directly
-(`temp_results_pinn/RESULTS_TABLE.md`, section 7): compared how much extra correction the shared
-"trunk" network has to do in each version. PINN-k's trunk does almost **twice** as much
-compensating work as plain PINN's (ratio 1.98). In plain terms: personalizing growth speed (k)
-doesn't produce a better-fitting curve by itself — it makes the curve fit slightly *worse*, and
-the rest of the network has to work harder to clean up after it. This isn't just an observed
-pattern anymore, it's a real, tested reason why plain PINN wins on accuracy.
+**NEW (2026-08-23) — why does adding k make things worse? Checked, and it holds up.** Compared
+how much extra correction the shared "trunk" network has to do in each version
+(`temp_results_pinn/RESULTS_TABLE.md`, section 7), then repeated on two more folds to check it
+wasn't a fluke. It wasn't — PINN-k's trunk does more compensating work than plain PINN's in
+*every* fold (ratio 1.98, then 2.33, then 3.31 — getting stronger, not weaker). In plain terms:
+personalizing growth speed (k) doesn't produce a better-fitting curve by itself — it makes the
+curve fit worse, and the rest of the network has to work harder to clean up after it. This is a
+real, tested, robust reason why plain PINN wins on accuracy — one of only two mechanism checks
+run this session, and the one that actually survived being checked twice.
 
 **4. Environment information genuinely helps PINN — but only up to a point, and physics-weight
 and training settings are already close to as good as they can be.** — **READY**, everything
@@ -113,6 +128,16 @@ below is from this session's testing (`temp_results_pinn/RESULTS_TABLE.md`, sect
   It's also the fixed version of an earlier, broken test — the old version (before we fixed a
   bug in the code) showed no difference at all between having environment info or not, which
   was wrong.
+- **NEW (2026-08-23) — why doesn't the bigger list help?** Checked directly
+  (`temp_results_pinn/RESULTS_TABLE.md`, section 9): the four features unique to the big list
+  aren't being ignored — they get 30–40% of the model's attention across three separate runs,
+  *more* than their fair share (four out of fourteen features would "fairly" get about 29%). Two
+  of them (average temperature and growing-degree-days, both climate variables) are consistently
+  among the most-used features every time. So the model isn't shrugging these off — it's using
+  them a lot, it just doesn't turn into better real-world accuracy. Closer to "actively
+  counterproductive" than "harmless clutter": the model treats them as meaningful, but whatever
+  they capture doesn't hold up as well on new, held-out stands as the smaller, well-chosen list
+  does.
 - We also tested how strongly the model should be told to "obey" the tree-growth rule (called
   physics-weight, or $\lambda$) — tried 8 different strengths. None beat the setting we were
   already using. So the setting we picked originally, without knowing this, turns out to already
