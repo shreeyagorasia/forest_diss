@@ -79,6 +79,10 @@ Standard predictive metrics (e.g., $R^2$, RMSE) evaluate average accuracy but fa
 \section{Research Gap and Contributions}
 Although environmental factors clearly drive forest growth, it remains uncertain whether identified drivers stay consistent across linear, mixed-effects, and non-linear models on the same data. Additionally, neural spatial models are rarely evaluated across held-out forest blocks, and the predictive value of physics-guided constraints remains unproven.
 
+Most existing studies test one method on one part of this problem -- an attribution model here, a spatial model there, a physics-guided network somewhere else -- each on different data. Few run linear, mixed-effects, spatially-varying, and physics-guided models side by side, on the same forest, the same targets, and the same held-out splits, so it stays unclear whether their conclusions would even agree with each other.
+
+This dissertation instead applies a range of these methods -- Elastic Net, a mixed-effects model, XGBoost, GNNWR, and a physics-informed neural network -- to one real forest, Aberfoyle, using the same data and the same spatial splits throughout. The contribution is less a new method than a fair, direct comparison: which of these established techniques actually agree, and which is worth using in practice.
+
 This work addresses these gaps through three contributions:
 \begin{enumerate}
 \setlength\itemsep{0pt}

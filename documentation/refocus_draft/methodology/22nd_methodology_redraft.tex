@@ -57,19 +57,23 @@
 \section{Experimental framework}
 Q1 attributes a plot's deviation from the baseline growth curve to environmental and management factors. Q2 tests whether spatially varying relationships capture what global models miss. Finally, Q3 evaluates whether these signals improve top-height predictions.
 
+% Merged with the Intro's plain-language objectives table (2026-08-22, user decision) --
+% Intro keeps the vague/no-notation version for a first-time reader; this is the detailed
+% version, with real notation, meant to be read after Related Work has already introduced
+% GNNWR/LMM/PINN in general terms. Replaces the old tab:rq-framework alone.
 \begin{table}[!ht]
 \centering
 \footnotesize
-\renewcommand{\arraystretch}{1.15}
+\renewcommand{\arraystretch}{1.2}
 \begin{tabularx}{\linewidth}{@{} l >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X @{}}
 \toprule
 Q & Unit and target & Models or comparison & Main evaluation \\
 \midrule
-Q1 & Plot; mean pooled-CR residual & Elastic Net, XGBoost and linear
+Q1 & Plot; how far a stand sits from the shared growth curve, averaged over its survey history ($\bar r_i$) -- positive means taller than expected, negative means shorter & Elastic Net, XGBoost and a linear
 mixed-effects model & Spatial block CV (Elastic Net, XGBoost); LMM coefficients and variance decomposition; residual Moran's $I$ \\
-Q2 & Plot; difference between fitted and yield-class-implied asymptotes & Elastic Net, XGBoost
+Q2 & Plot; gap between a plot's own fitted height ceiling and the ceiling its yield class predicts ($\Delta y_{\max,i}$) -- positive means a higher ceiling than expected & Elastic Net, XGBoost
 and GNNWR & Five-fold spatial block CV; attribution, Moran's $I$ and target audit \\
-Q3 & Plot--survey row; 95th-percentile top height, and row-level error reduction against the
+Q3 & Plot--survey row; top height itself ($H_{it}$), and row-level error reduction against the
 fold-matched CR curve & CR, linear regression, random forest, XGBoost, DNN, PINN and PINN-$k$
 & Five-fold spatial block CV; random-split and PINN forward-pass diagnostics; CR-error-quartile
 correction with permutation control \\
@@ -124,7 +128,7 @@ Elastic Net coefficient signs and selection, mixed-model fixed-effect signs, and
 
 %------------------------------------------------
 \section{Q2: Spatial attribution}
-Global models assume one environment--growth relationship across the study area. Q2 tests whether allowing this relationship to vary by location improves explanation and reduces residual spatial clustering. We use GNNWR \cite{du2020Geographically_C6_GWR}, which uses a neural network to learn spatial weighting from geographic coordinates without fixing a rigid neighbourhood size.
+Global models assume one environment--growth relationship across the study area. Q2 tests whether allowing this relationship to vary by location improves explanation and reduces residual spatial clustering. We use GNNWR \cite{du2020Geographically_C6_GWR}: it personalises each plot's prediction based on where it physically sits, assuming nearby plots behave similarly, and lets its coefficients (how much each variable matters) drift smoothly across the map -- two plots right next to each other are treated as alike, just because they are close. A neural network learns this spatial weighting directly from geographic coordinates, without a fixed neighbourhood size chosen in advance.
 
 However, GNNWR assumes local relationships are linear. If the true biological response is non-linear, fluctuating local coefficients may simply show that a straight line fits poorly in that area, rather than a real geographic difference in growth drivers. Coefficient variation may therefore indicate genuine spatial non-stationarity or a poor local approximation of a non-linear response; both predictive performance and individual local coefficients need careful, cautious reading, not just the coefficients on their own.
 

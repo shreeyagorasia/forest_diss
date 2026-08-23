@@ -6,11 +6,10 @@ this pass that wasn't in the draft before, **UPDATE (08-22)** where the 08-22 pa
 corrected an 08-21 finding. Everything else is re-checked against saved files, not re-derived from
 scratch.
 
-**Queued, partially back** (submitted to the cluster 2026-08-22): GNNWR CanopyCover-only is 3/5
-folds back (partial result in section 1 below, not final); the 2-seed reseed check and the
-saturation-transform check are still fully pending. Nothing below treats the partial CanopyCover-
-only result as final, or assumes anything about the still-pending experiments. Come back to this
-file once the rest land.
+**UPDATE (08-23)**: GNNWR CanopyCover-only is now final, all 5/5 folds back — fold-mean R²=0.235
+±0.030 (pooled 0.249), barely moved from the 3-fold partial read (0.246 pooled). This confirms
+headline #2 as final, doesn't change the story. The 2-seed reseed check and the saturation-transform
+check are still fully pending — nothing below assumes anything about those.
 
 ## The story Q2 is supposed to tell
 
@@ -156,16 +155,16 @@ to ceiling height varies by place is the one thing GNNWR is demonstrably picking
 environmental variables (terrain, climate, soil), there's barely any signal for any method, local
 or global, to work with."
 
-**CanopyCover-only GNNWR — partial result (08-22, 3 of 5 folds back, not final).** Completes the
+**CanopyCover-only GNNWR — final result (UPDATE 08-23, 5/5 folds back).** Completes the
 ablation matrix from the other direction: does CanopyCover *alone* reach close to the full Set4
-$R^2$? Partial 3-fold pooled result: **$R^2 \approx 0.246$** — much closer to the full-Set4 number
-(0.294) than to the without-CanopyCover floor (0.049). CanopyCover alone recovers roughly 80% of
-the total gain over that floor; the other 18 variables add about +0.048 on top of CanopyCover
-(0.246→0.294) — almost exactly the same size as what they contribute *alone*, without CanopyCover
-present (0.049), suggesting they contribute a small, roughly fixed, independent amount of signal
-either way, not something CanopyCover is masking or absorbing. Reinforces the existing conclusion
-rather than complicating it. Individual folds ranged 0.225–0.270, so treat 0.246 as directional,
-not final — folds 3–4 land tomorrow, revisit then.
+$R^2$? Final pooled result: **$R^2 = 0.249$** (fold-mean 0.235±0.030, folds ranged 0.186–0.270) —
+much closer to the full-Set4 number (0.294 pooled / 0.277 fold-mean) than to the without-CanopyCover
+floor (0.049 pooled / 0.026 fold-mean). CanopyCover alone recovers roughly 82% of the total gain
+over that floor (pooled: (0.249-0.049)/(0.294-0.049)); the other 18 variables add about +0.045 on
+top of CanopyCover (0.249→0.294) — almost exactly the same size as what they contribute *alone*,
+without CanopyCover present (0.049), confirming they contribute a small, roughly fixed, independent
+amount of signal either way, not something CanopyCover is masking or absorbing. Reinforces the
+existing conclusion rather than complicating it. No longer partial — this number is final.
 
 **Does GNNWR's CanopyCover coefficient actually vary, or is it flat?** Checked directly (GNNWR's
 own saved per-plot `coef_CanopyCover` values, Set4, pooled 5 folds): mean 23.6, SD 5.7, always
@@ -514,9 +513,9 @@ would work, given the target-noise ceiling described above.
 - **SHAP redistribution after the CanopyCover ablation**: real but partial — some variables rise
   40–60%, but overall $R^2$ still collapses. Doesn't cleanly resolve to "real independent signal"
   or "pure artifact" — said that way above, not forced to a verdict.
-- **GNNWR CanopyCover-only**: partially back (3/5 folds, 08-22) — $R^2\approx0.246$, directionally
-  confirms CanopyCover alone gets most of the way to the full 0.294 (see section 1). Not final;
-  revisit once folds 3–4 land.
+- **GNNWR CanopyCover-only — RESOLVED (08-23)**: final, 5/5 folds, $R^2=0.249$ pooled
+  (0.235±0.030 fold-mean) — confirms CanopyCover alone gets ~82% of the way from the no-CanopyCover
+  floor (0.049) to full Set4 (0.294) (see section 1). No longer open.
 - **Still queued, not yet run**: a 2-seed reseed check of the 4-survey coefficient map, and the
   saturation-transform check (does capping slope/windward_topex help GNNWR at all). Come back to
   this file once rsynced.
