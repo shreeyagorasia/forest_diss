@@ -20,30 +20,32 @@ Q1 and Q2 established that a plot's persistent deviation from the shared growth 
 \scriptsize
 \setlength{\tabcolsep}{4pt}
 \renewcommand{\arraystretch}{1.2}
-\begin{tabular}{lrrrrrr}
+\begin{tabular}{lrrr}
 \toprule
-& \multicolumn{3}{c}{Four-survey} & \multicolumn{3}{c}{Six-survey} \\
-\cmidrule(lr){2-4} \cmidrule(lr){5-7}
-Model & RMSE${\downarrow}$ & MAE${\downarrow}$ & $R^2{\uparrow}$ & RMSE${\downarrow}$ & MAE${\downarrow}$ & $R^2{\uparrow}$ \\
+Model & RMSE${\downarrow}$ & MAE${\downarrow}$ & $R^2{\uparrow}$ \\
 \midrule
-Linear & $5.168{\pm}0.361$ & $4.056{\pm}0.343$ & $0.580{\pm}0.026$ & $4.877{\pm}0.643$ & $3.619{\pm}0.426$ & $0.509{\pm}0.067$ \\
-RF & $4.794{\pm}0.187$ & $3.611{\pm}0.142$ & $0.638{\pm}0.011$ & $4.062{\pm}0.249$ & $3.010{\pm}0.185$ & $0.656{\pm}0.046$ \\
-XGBoost (tuned) & $\mathbf{4.548{\pm}0.137}$ & $\mathbf{3.431{\pm}0.123}$ & $\mathbf{0.674{\pm}0.009}$ & $\mathbf{3.656{\pm}0.232}$ & $\mathbf{2.669{\pm}0.183}$ & $\mathbf{0.722{\pm}0.031}$ \\
-DNN & $4.681{\pm}0.230$ & $3.533{\pm}0.201$ & $0.655{\pm}0.016$ & $3.903{\pm}0.316$ & $2.867{\pm}0.275$ & $0.684{\pm}0.031$ \\
-PINN$^*$ & $4.842{\pm}0.321$ & $3.689{\pm}0.289$ & $0.631{\pm}0.027$ & -- & -- & -- \\
-PINN-$k^*$ & $4.927{\pm}0.302$ & $3.745{\pm}0.271$ & $0.618{\pm}0.023$ & -- & -- & -- \\
+Linear & $5.168{\pm}0.361$ & $4.056{\pm}0.343$ & $0.580{\pm}0.026$ \\
+RF & $4.794{\pm}0.187$ & $3.611{\pm}0.142$ & $0.638{\pm}0.011$ \\
+XGBoost (tuned) & $\mathbf{4.548{\pm}0.137}$ & $\mathbf{3.431{\pm}0.123}$ & $\mathbf{0.674{\pm}0.009}$ \\
+DNN & $4.681{\pm}0.230$ & $3.533{\pm}0.201$ & $0.655{\pm}0.016$ \\
+PINN$^*$ & $4.842{\pm}0.321$ & $3.689{\pm}0.289$ & $0.631{\pm}0.027$ \\
+PINN-$k^*$ & $4.927{\pm}0.302$ & $3.745{\pm}0.271$ & $0.618{\pm}0.023$ \\
 \bottomrule
 \end{tabular}
-\caption{\small{Model comparison for top-height prediction, Set3, spatial\_block\_kfold,
-per-fold mean $\pm$ SD across five folds. 4survey n=232{,}292 row-years (58{,}073
-plots, after an additional terrain/wind feature-completeness filter reduces the base
-58{,}112-plot cohort from Table~\ref{tab:data-cleaning-funnel} by 39 plots); 6survey n=82{,}614 row-years (13{,}769 plots). Table shows pooled mean $\pm$ SD across all folds, and margin reflects the full split rather than single folds.
+\caption{\small{Model comparison for top-height prediction, 4-survey, Set3,
+spatial\_block\_kfold, per-fold mean $\pm$ SD across five folds. n=232{,}292 row-years
+(58{,}073 plots, after an additional terrain/wind feature-completeness filter reduces the
+base 58{,}112-plot cohort from Table~\ref{tab:data-cleaning-funnel} by 39 plots). Table
+shows pooled mean $\pm$ SD across all folds, and margin reflects the full split rather than
+single folds. 6-survey results are referenced in the DNN-vs.-XGBoost discussion below (the
+fold-count and compartment-subsampling checks) but are not carried as a second set of columns
+here for clarity, since 6-survey is not this chapter's main analysis surface; the full
+6-survey table (all six models) is in Appendix~\ref{app:results-q3-6survey}.
 $^*$PINN/PINN-$k$: the originally implemented forward pass did not carry
-$y_{\max}/k$ to the prediction itself, only to auxiliary loss terms; the
-4survey figures shown here use a corrected forward pass that fixes this (see
-``PINN: interpretability and current standing'' below). Unlike every other
-row, this corrected architecture received no hyperparameter tuning. 6survey
-was not rerun with the correction (--).}}
+$y_{\max}/k$ to the prediction itself, only to auxiliary loss terms; the figures shown here
+use a corrected forward pass that fixes this (see ``PINN: interpretability and current
+standing'' below). Unlike every other row, this corrected architecture received no
+hyperparameter tuning.}}
 \label{tab:results-q3}
 \end{table}
 

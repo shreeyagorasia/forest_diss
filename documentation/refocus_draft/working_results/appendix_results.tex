@@ -90,6 +90,41 @@ whcl & $-0.594\pm0.228$ & $-0.459\pm0.400$ & Yes & Static (not verified) & Not a
 \section{Q3 appendix}
 \label{app:results-q3}
 
+\subsection{Full 6-survey table}
+\label{app:results-q3-6survey}
+% Moved out of the main Table~\ref{tab:results-q3} 2026-08-23 for clarity, since 6-survey is
+% not this chapter's main analysis surface (see that table's caption). PINN/PINN-k rows show
+% -- : the corrected-forward-pass work this chapter reports (environment sweep, lambda
+% ablation, hyperparameter checks -- see temp_results_pinn/RESULTS_TABLE.md) was all done on
+% 4-survey only; 6-survey was never rerun with the corrected architecture, and the pre-fix
+% 6-survey numbers are not valid evidence for the corrected model (same reasoning as the
+% pre-fix PINN runs excluded from the main table).
+
+\begin{table}[!htbp]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lrrr}
+\toprule
+Model & RMSE${\downarrow}$ & MAE${\downarrow}$ & $R^2{\uparrow}$ \\
+\midrule
+Linear & $4.877{\pm}0.643$ & $3.619{\pm}0.426$ & $0.509{\pm}0.067$ \\
+RF & $4.062{\pm}0.249$ & $3.010{\pm}0.185$ & $0.656{\pm}0.046$ \\
+XGBoost (tuned) & $\mathbf{3.656{\pm}0.232}$ & $\mathbf{2.669{\pm}0.183}$ & $\mathbf{0.722{\pm}0.031}$ \\
+DNN & $3.903{\pm}0.316$ & $2.867{\pm}0.275$ & $0.684{\pm}0.031$ \\
+PINN & -- & -- & -- \\
+PINN-$k$ & -- & -- & -- \\
+\bottomrule
+\end{tabular}
+\caption{\small{Model comparison for top-height prediction, 6-survey, Set3,
+spatial\_block\_kfold, per-fold mean $\pm$ SD across five folds. n=82{,}614 row-years
+(13{,}769 plots). Referenced from the main text's DNN-vs.-XGBoost fold-count and
+compartment-subsampling discussion. PINN/PINN-$k$ were not rerun with the corrected
+forward pass on this cohort (--); see main-text Table~\ref{tab:results-q3}'s caption.}}
+\label{tab:results-q3-6survey}
+\end{table}
+
 \subsection{Pre-fix PINN runs (uncorrected baseline, for comparison)}
 \label{app:results-q3-prefix-pinn}
 % AUDIT: placeholder -- results_q3 currently points this content at the generic \ref{chap:appendix} rather than

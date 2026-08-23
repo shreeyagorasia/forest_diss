@@ -1,0 +1,120 @@
+% =============================================================================
+% Q2 -- BRIDGE DRAFT (2026-08-23), between phrase-blocks and full prose.
+% Not final chapter text -- connected clauses/fragments with numbers, figures, and
+% tables woven in inline, so nothing load-bearing gets lost. Write your own sentences
+% from this directly; do not treat this file as compilable prose.
+% Ordering: headline-first, per the agreed Q2 story (weak result folds into the real
+% headline as a pivot, not a separate opening section).
+% Source tables/figures already built:
+%   Table~\ref{tab:results-q2}            -- old CI table (4/6survey, EN/XGB/GNNWR)
+%   Table~\ref{tab:results-q2-ablation}   -- CanopyCover ablation grid (NEW)
+%   Table~\ref{tab:results-q2-reliability}-- Q1/Q2 variable-reliability cross-check (NEW)
+%   Figure~\ref{fig:q2-example-plot}      -- q2_example_plot_curve.png
+%   Figure~\ref{fig:q2-example-plot-typical} -- q2_example_plot_curve_typical_appendix.png (appendix)
+%   Figure~\ref{fig:q2-stability-map}     -- q2_topex_vs_canopycover_stability.png
+% =============================================================================
+
+--- 0. OPENING / PIVOT ---
+Q1: global models (one formula, whole forest) -> real spatial clustering left in errors.
+Q2 test: does letting the model vary by location (GNNWR) pick up what global misses?
+
+Point estimate: GNNWR > EN, XGBoost, every set (Table~\ref{tab:results-q2}) --
+Set4: GNNWR 0.294 [0.236, 0.347] vs. EN 0.240 [0.192, 0.286] vs. XGBoost 0.250 [0.201, 0.295].
+But: CIs overlap every set -- not statistically distinguishable.
+Also modest in absolute terms -- best point estimate (Set2, 0.320) still leaves ~2/3 of
+Delta y_max unexplained.
+Pivot needed here: tested WHY GNNWR wins even by that small, uncertain margin -- answer
+overturns the reason for trying GNNWR in the first place.
+
+--- 1. THE HEADLINE -- CanopyCover explains the whole edge ---
+Claim: GNNWR's entire advantage over the global models = one variable (CanopyCover), not
+a general ability to read environmental relationships by place.
+
+Test: ablation -- remove CanopyCover, refit all three (Table~\ref{tab:results-q2-ablation}).
+  full Set4:       EN 0.240 / XGB 0.250 / GNNWR 0.294 (0.277+/-0.068 fold-mean)
+  no CanopyCover:  EN 0.042 / XGB 0.061 / GNNWR 0.049 (0.026+/-0.067 fold-mean) -- all
+                   three collapse to the same near-zero floor
+  CanopyCover ONLY, nothing else: GNNWR 0.249 (0.235+/-0.030 fold-mean) -- recovers
+                   ~82% of the full gap: (0.249-0.049)/(0.294-0.049)
+
+Ruled out: circularity -- raw correlation CanopyCover vs. target = 0.468 (r^2~0.22),
+moderate, not near 1 -- but still means nothing else in the 19-variable set carries
+independent weight.
+
+So-what: the hypothesis behind testing GNNWR (spatial modelling reveals hidden
+environmental drivers) is wrong -- GNNWR just re-found the one variable every method
+already had, expressed slightly differently by place.
+
+--- 2. WHY SO LITTLE ELSE COMES THROUGH -- the target is noisier than it looks ---
+Claim: Delta y_max isn't a clean, isolated ceiling measurement -- it's mixed with
+growth-rate mismatch.
+
+Mechanism: curve-fit holds each plot's growth rate (k) fixed to its yield class, only
+fits the ceiling -- if real rate != assumed rate, the mismatch doesn't disappear, it
+leaks into the fitted ceiling instead.
+
+Worked example -- Figure~\ref{fig:q2-example-plot}, plot 309770 (mature stand, observed
+ages 65-81): own fitted ceiling 43.0m vs. yield-class benchmark 32.8m -> Delta y_max =
++10.2m; XGBoost predicts +12.4m for this plot; shaded region on the trajectory panel =
+the real, measured gap over the observed ages (not just the extrapolated ceiling
+difference).
+Worth a phrase: CanopyCover's SHAP contribution is NEGATIVE for this specific plot even
+though it's positive on average across the population -- direction isn't fixed per plot.
+
+Appendix companion -- Figure~\ref{fig:q2-example-plot-typical}, plot 166972 (picked by
+median |residual|, not cherry-picked): actual +11.2m, model predicts +5.3m, roughly half
+explained, no single dominant SHAP driver -- discloses that Figure 1's plot is unusually
+well-explained, not typical.
+
+So-what: explains finding 1 mechanistically -- a noisy target leaves little clean signal
+for anything except the variable most directly tied to real, measured structure
+(CanopyCover).
+
+--- 3. CROSS-CHECK WITH Q1 -- same variables, same behaviour, two different tests ---
+Claim: terrain-variable reliability pattern matches Q1's -- found via a genuinely
+different method each time (Table~\ref{tab:results-q2-reliability}).
+
+Q2's test: GNNWR's own local coefficient, % of compartments with the same sign (n=231) --
+CanopyCover 100.0%, slope_degrees 97.0%, chelsa_bio12_precip_mm 87.4%, topex 71.9%.
+
+Q1's test: does a global Elastic Net model agree with a linear mixed-effects model
+(LMM) on a variable's coefficient? slope_degrees & precip: EN/LMM agree (both positive /
+both negative respectively) -> reliable. topex: EN~=0, LMM=+1.32 -> disagree -- BUT a
+mechanism check (within-compartment correlation vs. raw correlation) shows this
+disagreement is because topex carries REAL local signal (within-corr 0.214 > raw-corr
+0.080) that a single straight line struggles to capture, not because it's noise.
+
+Caveat, must state plainly: these are two different measurements (global-model agreement
+vs. local-coefficient sign stability) that happen to point the same way -- not the same
+test literally repeated. The agreement is more informative because of that, not less.
+
+Visual -- Figure~\ref{fig:q2-stability-map}: CanopyCover map (uniformly stable, one
+colour direction) vs. topex map (mixed sign, patchy) side by side, same colour scale.
+
+So-what: strengthens confidence this isn't a one-chapter artifact -- the same variables
+behave consistently regardless of method or target.
+
+--- 4. LOOSE ENDS -- one phrase-chain each, not developed into their own paragraphs ---
+Terrain non-linear: windward_topex & slope_degrees show a real, saturating (rises then
+flattens) SHAP relationship to the target that XGBoost can see and GNNWR structurally
+can't fully use (GNNWR is local-*linear* -- one straight line per place) -- a small
+effect overall, since CanopyCover already carries ~80-90% of the model's total
+explanatory power.
+
+Outliers: under 1% of the 4-survey cohort (266/56,526), Tukey-fence flagged -- same
+rate/ceiling-mixing mechanism as finding 2, at an extreme scale -- not a separate
+headline; full diagnostics (71.6% artifact-driven / 28.4% genuinely fast growth split,
+exposed vs. sheltered terrain) preserved as an appendix-candidate block, not developed
+in the main text given how small a share of the data this is.
+
+6-survey: run as a planned sensitivity check, not the primary analysis -- R^2~0 for
+Elastic Net, XGBoost, and GNNWR alike, consistent with far fewer distinct compartments
+(47 vs. 231) -- not investigated further.
+
+--- 5. CLOSING -- so what for the dissertation ---
+Genuine negative result, not a failed test -- tells you the LIMIT of this approach
+(a target that blends growth-rate and ceiling noise together, plus a spatially-varying
+model that can only draw a straight line per place), not just that it didn't work.
+Contrast phrase, to fill in once Q3 is drafted: Q2's negative result vs. Q3's positive
+one -- worth stating why Q3 delivered practical value and Q2 delivered a boundary
+condition instead.
