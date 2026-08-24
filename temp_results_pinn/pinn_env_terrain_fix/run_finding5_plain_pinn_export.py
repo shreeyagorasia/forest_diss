@@ -5,12 +5,16 @@
 # that, matching DNN's predictions.csv schema (identification, Age, observed_top_height,
 # predicted_top_height, residual) so the three files can be compared directly.
 #
-# Fold 0 only, same trusted config as every other Set3 PINN run this session (lr=0.0001,
-# weight_decay=1e-5, batch_size=256, physics_weight=1.0). No checkpoint exists for the trusted
-# run, so this retrains -- same reasoning as every other diagnostic script this session.
+# Same trusted config as every other Set3 PINN run this session (lr=0.0001, weight_decay=1e-5,
+# batch_size=256, physics_weight=1.0). No checkpoint exists for the trusted run, so this
+# retrains -- same reasoning as every other diagnostic script this session.
 #
-# Run: PYTHONPATH=. python temp_results_pinn/pinn_env_terrain_fix/run_finding5_plain_pinn_export.py
+# Extended 2026-08-24 to accept --fold-index, so folds 1-4 can be run too (pools with fold 0's
+# existing file for Table tab:age-height-error, which was fold-0-only).
+#
+# Run: PYTHONPATH=. python temp_results_pinn/pinn_env_terrain_fix/run_finding5_plain_pinn_export.py --fold-index 1
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -38,7 +42,6 @@ from temp_results_pinn.pinn_env_terrain_fix.pinn_env_terrain_fix import fit, pre
 
 COHORT = "4survey"
 SPLIT_TYPE = "spatial_block_kfold"
-FOLD_INDEX = 0
 N_FOLDS = 5
 FEATURE_SET_NAME = "nested_set3_gated_terrain_wind_vif"
 MAX_EPOCHS = 500
@@ -54,14 +57,19 @@ def unscale(scaled_tensor, scaler):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--fold-index", type=int, default=0, help="0-4, which spatial_block_kfold fold to hold out as test.")
+    args = parser.parse_args()
+    fold_index = args.fold_index
+
     device = select_device()
-    print(f"Device: {device}")
+    print(f"Device: {device}  Fold: {fold_index}")
 
     feature_columns = ENV_TERRAIN_FEATURE_SETS[FEATURE_SET_NAME]
-    cr_params = load_cr_params(COHORT, SPLIT_TYPE, split_seed=SPLIT_SEED, held_out_fold=FOLD_INDEX)
+    cr_params = load_cr_params(COHORT, SPLIT_TYPE, split_seed=SPLIT_SEED, held_out_fold=fold_index)
 
     split_df = load_split_table_with_terrain(
-        COHORT, SPLIT_TYPE, feature_columns, split_seed=SPLIT_SEED, k_folds=N_FOLDS, held_out_fold=FOLD_INDEX,
+        COHORT, SPLIT_TYPE, feature_columns, split_seed=SPLIT_SEED, k_folds=N_FOLDS, held_out_fold=fold_index,
     )
     train_df = split_df[split_df["split"] == "train"]
     val_df = split_df[split_df["split"] == "val"]
@@ -91,7 +99,7 @@ def main():
     n_other_features = other_train.shape[1]
     n_terrain_features = terrain_train.shape[1]
 
-    print("\nTraining plain PINN (y_max-only fix), fold 0, trusted Set3 config...")
+    print(f"\nTraining plain PINN (y_max-only fix), fold {fold_index}, trusted Set3 config...")
     model, _, history = fit(
         age_train, other_train, terrain_train, target_train,
         age_val, other_val, terrain_val, target_val,
@@ -111,13 +119,14 @@ def main():
     out_df["predicted_top_height"] = predicted_top_height
     out_df["residual"] = residual
 
-    out_path = OUTPUT_DIR / "plain_pinn_fixed_full_predictions.csv"
+    suffix = "" if fold_index == 0 else f"_fold{fold_index}"
+    out_path = OUTPUT_DIR / f"plain_pinn_fixed_full_predictions{suffix}.csv"
     out_df.to_csv(out_path, index=False)
     print(f"Saved -> {out_path}")
 
     from models.common.metrics import compute_metrics
     metrics = compute_metrics(observed_top_height, predicted_top_height)
-    print(f"\nSanity check -- fold 0 test R2: {metrics['r2']:.4f} (should be close to the trusted 0.631)")
+    print(f"\nSanity check -- fold {fold_index} test R2: {metrics['r2']:.4f} (fold 0 should be close to the trusted 0.631; other folds will differ, see RESULTS_TABLE.md section 1 for the real per-fold spread)")
 
 
 if __name__ == "__main__":

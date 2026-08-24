@@ -70,6 +70,7 @@ def main():
     parser.add_argument("--weight-decay", type=float, default=1e-5, help="Project default -- override with the winning value from run_cluster_fold_lr_check.py once known.")
     parser.add_argument("--physics-weight", type=float, default=1.0, help="Project default -- override with the winning lambda from run_cluster_fold_lambda_ablation.py once known.")
     parser.add_argument("--batch-size", type=int, default=256, help="Matches PINN's own default -- set explicitly (not relying on the module default) so it's recorded in the summary JSON.")
+    parser.add_argument("--device", default=None, help="Override auto-detected device (e.g. 'cpu'). Added 2026-08-24 for the no_environment_ablation set -- Apple's MPS backend has a known bug initialising 0-element tensors (the empty terrain tensor this set produces), so local runs of that set need --device cpu. Cluster (CUDA) runs don't need this.")
     args = parser.parse_args()
 
     if not (0 <= args.fold_index < args.n_folds):
@@ -82,7 +83,8 @@ def main():
         print(f"{summary_path} already exists -- delete it first to redo this fold/variant. Exiting without retraining.")
         return
 
-    device = select_device()
+    import torch
+    device = torch.device(args.device) if args.device else select_device()
     print(f"Device: {device}")
     print(f"Fold {args.fold_index}/{args.n_folds}  variant={args.variant}  feature_set={args.feature_set}  cohort={args.cohort}")
 

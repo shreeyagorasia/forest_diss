@@ -146,19 +146,41 @@ untuned lambda=1.0 default regardless of what this ablation finds for it.
 
 **Status: DONE -- real, positive finding.** All 20 jobs landed (2026-08-23). Config: lambda=1.0,
 learning_rate=0.0001, weight_decay=1e-5, batch_size=256, both variants, Set2 and Set4 (Set3
-already trusted from #1; Set1 covered by `pinn_noenv`, see scope note below).
+already trusted from #1).
+
+**No-environment corrected (2026-08-24)**: the `pinn_noenv` number below was a structurally
+different architecture (`NoEnvNetwork`, no y_max personalization sub-network at all), not the
+same model with terrain zeroed out -- not comparable to Set2/3/4 the way it was being presented.
+Replaced with a true ablation: same `YMaxSubNetwork` architecture as Set2/3/4, feature columns
+= `[]` (`no_environment_ablation` in `ENV_TERRAIN_FEATURE_SETS`). Required two small fixes to
+`models/common/torch_data.py` (`fit_terrain_scaler`/`build_terrain_tensor` both crashed on 0
+columns -- sklearn's `StandardScaler` rejects empty input) -- both guarded with an early return,
+no change to any existing (non-empty) feature set's behaviour. Run locally on CPU (5 folds x 2
+variants, ~180s/fold) after the cluster GPU allocation failed (`CUDA unknown error`, jobs
+finished suspiciously fast with no output -- not diagnosed further since the local CPU run
+worked and is fully sufficient). Old `pinn_noenv` number kept below for the record, not used.
 
 | Set | PINN (y_max) | PINN-k |
 |---|---:|---:|
-| No environment (`pinn_noenv`, Set1-equivalent) | 0.573 | 0.573 |
+| No environment, old (`pinn_noenv`, different architecture -- do not use) | 0.573 | 0.573 |
+| **No environment, true ablation (`no_environment_ablation`, 2026-08-24)** | **0.5718 +/- 0.0323** | **0.5749 +/- 0.0326** |
 | Set2 (`nested_set2_top10`) | 0.6274 +/- 0.023 | 0.6223 +/- 0.017 |
 | Set3 (`nested_set3_gated_terrain_wind_vif`, headline/Table 3) | **0.6310** | **0.6180** |
 | Set4 (`nested_set4_gated_all_vif`, broadest) | 0.6184 +/- 0.029 | 0.6196 +/- 0.020 |
 
 **Finding**: the environment-helps argument holds up clearly under the corrected forward pass --
-no-env to any-env (Set2) is a big, real jump (+0.054 plain PINN, +0.049 PINN-k), far larger than
-the ~0.02 fold-to-fold noise. This directly supersedes the pre-fix Aug-11 sweep, which falsely
-showed all three sets flat at ~0.577-0.579 (the bug signature), indistinguishable from no-env.
+no-env to any-env (Set2) is a big, real jump (+0.056 plain PINN, +0.048 PINN-k using the new
+ablation numbers). Checked properly with a paired fold-by-fold comparison (same 5 folds
+underlie both no-env and Set2, so this is the correct test): Set2 beats no-env in ALL 5 folds
+for BOTH variants, no exceptions (PINN: mean diff +0.0556, paired SD 0.0286, t~4.35; PINN-k:
+mean diff +0.0475, paired SD 0.026, t~4.09 -- both comfortably significant at n=5). Unlike the
+Set2-vs-Set3-vs-Set4 comparison below, this claim survives the same rigorous test. This directly
+supersedes the pre-fix Aug-11 sweep, which falsely showed all three sets flat at ~0.577-0.579
+(the bug signature), indistinguishable from no-env.
+Side-note: the new ablation's numbers (0.572/0.575) land close to the old, differently-
+architected `pinn_noenv` estimate (0.573/0.573), within the new run's own SD -- the old number
+turns out to have been a reasonable approximation despite the architecture mismatch, not
+contradicted by the correction.
 
 **Nuance**: once *some* environment is present, adding *more* doesn't help further -- Set2,
 Set3, and Set4 are statistically indistinguishable from each other. Checked properly with a
@@ -540,6 +562,39 @@ not weakened. Plain PINN's implausible rate is proportionally consistent (0.14\%
 expected -- the pooled set includes the 2021 (-30.45m) and 2057-type extremes a single fold's
 test set may not contain. Dissertation table (tab:plausibility-comparison) updated to these
 pooled numbers.
+
+**Addendum (2026-08-24): whole-report fold-0 audit -- yield-class correlations and the
+y_max-vs-k scatter recomputed on pooled data.** User asked for a systematic check of every
+table/figure in the draft for fold-0-only data that should be pooled. Found and fixed two:
+
+- **Yield-class correlation (Table tab:yieldclass-correlation)**: was fold-0-only (n=11,508).
+  Pooled (n=58,073): plain PINN y_max vs yldc r=0.273 (was 0.249, similar); PINN-k's k vs yldc
+  r=0.286 (was 0.234, higher); PINN-k's y_max vs yldc r=0.135 (was 0.334, MORE THAN HALVED).
+  The ranking flips -- PINN-k's y_max looked like the strongest of the three on fold-0 data,
+  it's actually the weakest once pooled. No fold-varying-baseline confound for this comparison
+  (yield class doesn't move fold to fold), so raw pooling is the correct, straightforward fix.
+- **y_max-vs-k scatter (fig:ymax-k-scatter)**: was fold-0-only, raw predicted values (r=0.50,
+  n=11,508). Checked whether to pool raw values like the correlation table above -- this one is
+  different: each fold refits its own population y_max/k baseline, so pooling RAW predicted
+  values across folds mixes in between-fold baseline drift. Confirmed via per-fold check:
+  fold 0 r=0.50, fold 1 r=0.45, fold 2 r=0.54, fold 3 r=0.26, fold 4 r=0.75 -- every individual
+  fold shows a real 0.26-0.75 relationship, but naive raw pooling across all 5 gives r=0.12, a
+  Simpson's-paradox-style artefact of the differing baselines, not a real weaker relationship.
+  Correct fix: pool DEVIATIONS from each fold's own baseline instead of raw values -- removes
+  the confound, gives r=0.43, close to the true within-fold pattern. General lesson: "prefer
+  pooled over fold-0" is not a blanket rule -- for a within-subject relationship where the
+  reference point itself varies by fold, pool deviations, not raw values, or pooling actively
+  distorts the answer rather than strengthening it.
+
+Also audited (no change needed): Table tab:results-q3 hyperparameter checks (already 5-fold
+CV, confirmed in section 3 above), Table tab:compartment1129-crossfold (deliberately per-fold
+by design), plot 77226/119937 curves (inherently single-plot/single-fold, can't be pooled),
+terrain importance figure (fold-0-only but already explicitly caveated in the draft's own
+prose). Not yet fixed, needs new training (not just re-pooling existing data): Table
+tab:trunk-residual (only folds 0-2 done, 3-4 never run) and Table tab:age-height-error
+(fold-0-only, 46,032 rows -- DNN has all 5 folds saved already, but plain PINN/PINN-k's full
+per-row predictions only exist for fold 0; pooling needs 8 new training runs, similar scope to
+the no-environment ablation in section 5).
 
 ---
 

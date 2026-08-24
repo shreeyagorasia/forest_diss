@@ -87,17 +87,18 @@ def style_map_axes(ax, minx, miny, maxx, maxy, x_margin, y_margin):
 # Figure 1 (Block C, main text): environment sweep, R2 vs feature-set breadth
 # -----------------------------------------------------------------------------
 def build_env_sweep_chart():
-    # Grouped bar chart with real error bars, not a plain line -- SDs are the actual 5-fold
-    # spread for Set2/Set3/Set4 (Set3's recomputed live from the trusted-config run's own
-    # summary.json files, matches the ledger's point estimate exactly: PINN 0.6308, PINN-k
-    # 0.6178). No-environment has no per-fold data anywhere in the project (checked: no output
-    # folder, no experiment-log entry under the corrected pipeline) -- shown as a single run,
-    # no error bar, flagged in the caption rather than faked.
-    conditions = ["No\nenvironment\n(single run)", "Set2\n(small)", "Set3\n(medium,\nheadline)", "Set4\n(large)"]
-    pinn_r2 = [0.573, 0.6274, 0.6308, 0.6184]
-    pinn_r2_err = [0.0, 0.023, 0.0245, 0.029]
-    pinn_k_r2 = [0.573, 0.6223, 0.6178, 0.6196]
-    pinn_k_r2_err = [0.0, 0.017, 0.0204, 0.020]
+    # Grouped bar chart with real error bars -- SDs are the actual 5-fold spread for every
+    # condition, all recomputed live from raw summary.json files (Set3's matches the ledger's
+    # point estimate exactly: PINN 0.6308, PINN-k 0.6178). No-environment (2026-08-24): a TRUE
+    # ablation -- same YMaxSubNetwork architecture as Set2/3/4, zero input columns -- not the
+    # old pinn_noenv.py number, which used a structurally different network (see
+    # RESULTS_TABLE.md section 5 correction). Lands close to the old single-run estimate
+    # (0.573/0.573), within this run's own SD, despite the architecture difference.
+    conditions = ["No\nenvironment", "Set2\n(small)", "Set3\n(medium,\nheadline)", "Set4\n(large)"]
+    pinn_r2 = [0.5718, 0.6274, 0.6308, 0.6184]
+    pinn_r2_err = [0.0323, 0.023, 0.0245, 0.029]
+    pinn_k_r2 = [0.5749, 0.6223, 0.6178, 0.6196]
+    pinn_k_r2_err = [0.0326, 0.017, 0.0204, 0.020]
 
     x = np.arange(len(conditions))
     bar_width = 0.35
@@ -116,31 +117,38 @@ def build_env_sweep_chart():
     color_pinn_light = "#B0E892"
     color_pinn_k_light = "#027C68"
 
+    # Dot-and-whisker (point-range) plot, not bars -- 2026-08-24. A bar's LENGTH is what a
+    # reader perceives as the value, so truncating the baseline distorts the ratio between bars
+    # (a small real difference can look huge). A dot's POSITION is what's read instead -- there
+    # is no length to distort, so zooming the axis to the data's actual range is honest here,
+    # not misleading, as long as the axis ticks stay visible (they do). Range chosen to fully
+    # show every whisker, including no-environment's wide one (min low=0.5395, max high=0.6553
+    # across all 8 points) -- not cropped tighter than that.
     fig, ax = plt.subplots(figsize=(7, 4.5))
 
-    bars_pinn = ax.bar(
-        x - bar_width / 2, pinn_r2, bar_width, yerr=pinn_r2_err, capsize=4,
-        color=color_pinn_light, label="PINN", error_kw=dict(elinewidth=1.4, ecolor="#333333"),
+    offset = 0.11
+    ax.errorbar(
+        x - offset, pinn_r2, yerr=pinn_r2_err, fmt="o", markersize=9, capsize=4,
+        color=color_pinn_light, markeredgecolor="#333333", markeredgewidth=1.2,
+        ecolor="#333333", elinewidth=1.4, label="PINN",
     )
-    bars_pinn_k = ax.bar(
-        x + bar_width / 2, pinn_k_r2, bar_width, yerr=pinn_k_r2_err, capsize=4,
-        color=color_pinn_k_light, label="PINN-$k$", error_kw=dict(elinewidth=1.4, ecolor="#333333"),
+    ax.errorbar(
+        x + offset, pinn_k_r2, yerr=pinn_k_r2_err, fmt="o", markersize=9, capsize=4,
+        color=color_pinn_k_light, markeredgecolor="#333333", markeredgewidth=1.2,
+        ecolor="#333333", elinewidth=1.4, label="PINN-$k$",
     )
 
-    # Highlight the headline condition (Set3) with a dark outline on both its bars, so it reads
+    # Highlight the headline condition (Set3) with a shaded vertical band behind it, so it reads
     # as "this is the one used everywhere else in the chapter" without a separate legend entry.
     headline_index = 2
-    bars_pinn[headline_index].set_edgecolor("black")
-    bars_pinn[headline_index].set_linewidth(1.8)
-    bars_pinn_k[headline_index].set_edgecolor("black")
-    bars_pinn_k[headline_index].set_linewidth(1.8)
+    ax.axvspan(headline_index - 0.5, headline_index + 0.5, color="#f0f0f0", zorder=0)
 
     ax.set_xticks(x)
     ax.set_xticklabels(conditions)
+    ax.set_xlim(-0.5, len(conditions) - 0.5)
     ax.set_ylabel("Test $R^2$ (mean $\\pm$ SD, 5-fold)")
-    ax.set_ylim(0.54, 0.68)
+    ax.set_ylim(0.52, 0.68)
     ax.legend(frameon=False, loc="upper left")
-    ax.set_title("Environment helps once -- a bigger list does not help further")
     plt.tight_layout()
     out = FIGURES_DIR / "q3_env_sweep_r2.png"
     plt.savefig(out, dpi=300)
@@ -193,9 +201,12 @@ def build_compartment_map():
             continue
         cx, cy = cpmt_row.geometry.centroid.iloc[0].coords[0]
         label_x, label_y = label_info["corner"]
+        # Semi-transparent white box behind the text -- 2021's label sits over busy terrain
+        # outlines near the map edge and was hard to read against them without one.
         ax.annotate(label_info["text"],
                     xy=(cx, cy), xytext=(label_x, label_y),
                     fontsize=8, ha=label_info["ha"],
+                    bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="none", alpha=0.75),
                     arrowprops=dict(arrowstyle="->", color="black", lw=0.8))
 
     ax.set_title("Plain PINN: where the predicted ceiling ($y_{max}$) drifts from the population curve")
@@ -406,15 +417,18 @@ def build_pinn_k_deviation_maps_pooled():
             label_x = minx + (maxx - minx) * frac_x
             label_y = miny + (maxy - miny) * frac_y
             ax.annotate(letter, xy=(cx, cy), xytext=(label_x, label_y),
-                        fontsize=9, fontweight="bold", ha="center", va="center",
+                        fontsize=12, fontweight="bold", ha="center", va="center",
                         color="black",
-                        bbox=dict(boxstyle="circle,pad=0.2", fc="white", ec="#333333", lw=1.2),
-                        arrowprops=dict(arrowstyle="->", color="#333333", lw=0.7))
+                        bbox=dict(boxstyle="circle,pad=0.25", fc="white", ec="#333333", lw=1.4),
+                        arrowprops=dict(arrowstyle="->", color="#333333", lw=0.9))
 
     legend_text = "\n".join(f"{v}" for v in highlight_compartments.values())
-    fig.text(0.5, -0.01, legend_text, fontsize=8, ha="center", va="top")
+    # Reserve real space in the figure canvas for the legend (subplots_adjust), rather than
+    # relying on bbox_inches="tight" to auto-pad around fig.text -- that auto-padding was
+    # producing a much bigger gap than intended between the map and the text.
+    plt.tight_layout(rect=[0, 0.07, 1, 1])
+    fig.text(0.5, 0.045, legend_text, fontsize=11, ha="center", va="center")
 
-    plt.tight_layout()
     out = FIGURES_DIR / "q3_pinn_k_pooled_ymax_k_deviation_maps.png"
     # bbox_inches="tight" -- otherwise the legend text placed below the axes (fig.text at
     # negative y) gets clipped off in the saved file.
@@ -454,6 +468,12 @@ def build_importance_chart():
 # Figure 6 (Block D, appendix): one flagged plot's curve vs. population curve
 # -----------------------------------------------------------------------------
 def build_flagged_plot_example():
+    # Adds PINN-k's curve alongside plain PINN's, 2026-08-24 -- shows the parameter-routing
+    # finding at the single-plot level, not just the compartment level. Same plot (77226),
+    # same population baseline, three curves: plain PINN pushes the CEILING to an implausible
+    # 77.75m; PINN-k keeps the ceiling modest (52.97m, close to population) but personalises
+    # GROWTH RATE instead (k=0.0222, the dataset's single highest k value) -- reaches a
+    # plausible height faster, not higher.
     EXAMPLE_PLOT_ID = 77226  # compartment 1129, most-inflated plain-PINN prediction (y_max_pred=77.75)
 
     master = pd.read_parquet("data/processed/master/clean_master_4survey.parquet")
@@ -463,21 +483,31 @@ def build_flagged_plot_example():
     plot_pred = preds[preds["identification"] == EXAMPLE_PLOT_ID].iloc[0]
     plot_y_max = plot_pred["y_max_pred"]
 
+    k_preds = pd.read_csv("temp_results_pinn/outputs/example_curve/test_set_predictions.csv")
+    k_preds = k_preds[k_preds["split"] == "test"].drop_duplicates("identification")
+    k_plot_pred = k_preds[k_preds["identification"] == EXAMPLE_PLOT_ID].iloc[0]
+    plot_k_ymax = k_plot_pred["y_max_pred"]
+    plot_k_k = k_plot_pred["k_pred"]
+
     cr_params = load_cr_params("4survey", "spatial_block_kfold", split_seed=SPLIT_SEED, held_out_fold=0)
     age_range = np.linspace(0, 100, 200)
     population_curve = cr_params["y_max"] * (1 - np.exp(-cr_params["k"] * age_range)) ** cr_params["p"]
     # Plain PINN has no personalized k -- k stays at the population value, only y_max is personalized.
     plot_curve = plot_y_max * (1 - np.exp(-cr_params["k"] * age_range)) ** cr_params["p"]
+    # PINN-k personalizes both -- uses its OWN k, not the population k.
+    plot_k_curve = plot_k_ymax * (1 - np.exp(-plot_k_k * age_range)) ** cr_params["p"]
 
     fig, ax = plt.subplots(figsize=(7, 5))
     ax.scatter(plot_rows["Age"], plot_rows["elev_percentile_95th"], color="black", zorder=5, label="Observed (this plot)")
     ax.plot(age_range, population_curve, "--", color="gray",
-            label=f"Population curve ($y_{{max}}$={cr_params['y_max']:.1f})")
+            label=f"Population curve ($y_{{max}}$={cr_params['y_max']:.1f}, $k$={cr_params['k']:.4f})")
     ax.plot(age_range, plot_curve, "-", color=COLOR_PINN,
-            label=f"Plain PINN curve ($y_{{max}}$={plot_y_max:.1f})")
+            label=f"Plain PINN curve ($y_{{max}}$={plot_y_max:.1f}, $k$={cr_params['k']:.4f} fixed)")
+    ax.plot(age_range, plot_k_curve, "-", color=COLOR_PINN_K,
+            label=f"PINN-$k$ curve ($y_{{max}}$={plot_k_ymax:.1f}, $k$={plot_k_k:.4f})")
     ax.set_xlabel("Age (years)")
     ax.set_ylabel("Top height (m)")
-    ax.set_title(f"Flagged plot {EXAMPLE_PLOT_ID} (compartment 1129): an implausible ceiling")
+    ax.set_title(f"Flagged plot {EXAMPLE_PLOT_ID}: one plot, two different personalised ceilings")
     ax.legend()
     plt.tight_layout()
     out = FIGURES_DIR / "q3_pinn_implausible_example_plot.png"
@@ -490,15 +520,24 @@ def build_flagged_plot_example():
 # Figure 7 (Block E, appendix): y_max vs. k scatter
 # -----------------------------------------------------------------------------
 def build_ymax_k_scatter():
-    df = pd.read_csv("temp_results_pinn/outputs/example_curve/test_set_predictions.csv")
-    df = df[df["split"] == "test"].drop_duplicates("identification")
+    # Rebuilt 2026-08-24 on pooled DEVIATION data, not raw pooled predicted values. Checked:
+    # each fold refits its own population y_max/k baseline, so pooling RAW y_max_pred/k_pred
+    # across folds mixes in between-fold baseline drift and dilutes the real relationship (a
+    # Simpson's-paradox-style confound) -- naive raw pooling gave r=0.12, while every individual
+    # fold's own within-fold correlation was 0.26-0.75 (fold 0 alone: 0.50). Pooling DEVIATIONS
+    # from each fold's own baseline removes that confound and gives r=0.43, the statistically
+    # correct pooled number here -- unlike this chapter's other figures, where pooling the raw
+    # values was fine (no fold-varying baseline to confound).
+    preds, _ = load_pooled_pinn_k_deviation_data()
 
     fig, ax = plt.subplots(figsize=(6, 5))
-    ax.scatter(df["y_max_pred"], df["k_pred"], s=4, alpha=0.15, color=COLOR_PINN_K)
-    corr = np.corrcoef(df["y_max_pred"], df["k_pred"])[0, 1]
-    ax.set_xlabel("Predicted $y_{max}$ (m)")
-    ax.set_ylabel("Predicted k")
-    ax.set_title(f"PINN-$k$'s two parameters move together (r={corr:.2f})")
+    ax.scatter(preds["ymax_deviation"], preds["k_deviation"], s=4, alpha=0.1, color=COLOR_PINN_K)
+    corr = np.corrcoef(preds["ymax_deviation"], preds["k_deviation"])[0, 1]
+    ax.axhline(0, color="#333333", linewidth=0.6, linestyle="--")
+    ax.axvline(0, color="#333333", linewidth=0.6, linestyle="--")
+    ax.set_xlabel("$y_{max}$ deviation from population curve (m)")
+    ax.set_ylabel("$k$ deviation from population curve")
+    ax.set_title(f"PINN-$k$'s two parameters move together (r={corr:.2f}, pooled 5-fold)")
     plt.tight_layout()
     out = FIGURES_DIR / "q3_pinn_ymax_k_scatter.png"
     plt.savefig(out, dpi=300)
@@ -538,12 +577,177 @@ def build_plausibility_distribution_chart():
     print(f"Saved -> {out}")
 
 
+# -----------------------------------------------------------------------------
+# Figure 9 (Block D, appendix): plain PINN y_max deviation vs. independent yield class
+# -----------------------------------------------------------------------------
+def build_yieldclass_scatter():
+    # Rebuilt 2026-08-24 on pooled data (58,073 plots), not fold-0-only (11,508) -- no
+    # fold-varying-baseline confound here (yield class doesn't move fold to fold the way a
+    # population y_max/k anchor does), so raw pooling is the correct, more robust choice, unlike
+    # the y_max-vs-k scatter above. Both flagships (1129, 2021) now visible since pooling covers
+    # every compartment, not just fold 0's.
+    preds, _ = load_pooled_compartment_deviation_data()
+
+    master = pd.read_parquet("data/processed/master/clean_master_4survey.parquet")
+    yldc_lookup = master[["identification", "yldc"]].drop_duplicates("identification")
+    df = preds.merge(yldc_lookup, on="identification", how="left").dropna(subset=["yldc"])
+    corr = np.corrcoef(df["deviation"], df["yldc"])[0, 1]
+
+    fig, ax = plt.subplots(figsize=(6.5, 5))
+    ax.scatter(df["yldc"], df["deviation"], s=4, alpha=0.08, color=COLOR_PINN)
+
+    for cpmt, label, color in [(1129, "Compartment 1129", "#b2182b"), (2021, "Compartment 2021", "#2166ac")]:
+        sub = df[df["cpmt"] == cpmt]
+        if len(sub) > 0:
+            ax.scatter(sub["yldc"], sub["deviation"], s=8, alpha=0.6, color=color, label=label)
+
+    ax.axhline(0, color="#333333", linewidth=0.8, linestyle="--")
+    ax.set_xlabel("Yield class (Forestry Commission, independent)")
+    ax.set_ylabel("Plain PINN $y_{max}$ deviation (m)")
+    ax.legend(frameon=False, markerscale=2, loc="upper left")
+    ax.set_title(f"Yield class vs. personalised ceiling (r={corr:.2f}, pooled 5-fold)")
+    plt.tight_layout()
+    out = FIGURES_DIR / "q3_yieldclass_scatter.png"
+    plt.savefig(out, dpi=300)
+    plt.close(fig)
+    print(f"Saved -> {out}")
+
+
+# -----------------------------------------------------------------------------
+# Figure 10 (Block D, appendix): master reference map -- every named compartment, one place
+# -----------------------------------------------------------------------------
+def build_all_compartments_reference_map():
+    # Built 2026-08-24, requested as a single lookup source: every compartment named anywhere
+    # in the chapter, numbered on one map, with a legend giving the reason each was highlighted
+    # and where else it appears. Two gaps this closes: 1122/1069/2022 were named in
+    # Table~\ref{tab:productivity-top5} but never shown on any map; 2163 was shown on the
+    # hotspot map (fig:hotspot-summary) but never named in any text or table. Retired picks
+    # (2031, 2142, 2229, 2219) are deliberately left off -- they're superseded, not part of the
+    # argument.
+    entries = [
+        (1, 1129, "Flagship: single most extreme plot (over)", "Table tab:productivity-flagships; Fig fig:ymax-deviation-map, fig:implausible-example"),
+        (2, 2021, "Flagship: top by mean AND most extreme plot (under)", "Table tab:productivity-flagships; Fig fig:ymax-deviation-map, fig:ymax-k-deviation-maps"),
+        (3, 2057, "Yield-class mismatch; also PINN-k's own k-flagship", "Table tab:productivity-top5; Fig fig:hotspot-summary, fig:ymax-k-deviation-maps"),
+        (4, 1027, "Yield-class mismatch (old, wind-exposed)", "Table tab:productivity-top5; Fig fig:hotspot-summary (PINN-k panel)"),
+        (5, 1130, "Supporting over-productive, agrees with yield class", "Table tab:productivity-top5; Fig fig:hotspot-summary (plain PINN panel)"),
+        (6, 2130, "Supporting over-productive, agrees with yield class", "Table tab:productivity-top5; Fig fig:hotspot-summary (plain PINN panel)"),
+        (7, 1122, "Supporting over-productive, agrees with yield class", "Table tab:productivity-top5 only"),
+        (8, 2163, "Supporting over-productive (PINN-k ranking)", "Fig fig:hotspot-summary (PINN-k panel) only"),
+        (9, 1070, "Supporting under-productive, agrees with yield class", "Table tab:productivity-top5; Fig fig:hotspot-summary, fig:ymax-k-deviation-maps"),
+        (10, 2094, "Supporting under-productive, agrees with yield class", "Table tab:productivity-top5; Fig fig:hotspot-summary"),
+        (11, 1069, "Supporting under-productive, agrees with yield class", "Table tab:productivity-top5 only"),
+        (12, 2022, "Supporting under-productive, weak agreement", "Table tab:productivity-top5 only"),
+        (13, 1045, "Routing example: biggest y_max push, ordinary k", "Fig fig:ymax-k-deviation-maps only"),
+    ]
+    over_numbers = {1, 3, 4, 5, 6, 7, 8, 13}
+
+    _, compartment_summary = load_pooled_compartment_deviation_data()
+    compartment_mean = compartment_summary.groupby("cpmt", as_index=False)["mean_deviation"].mean()
+    compartment_mean = compartment_mean.rename(columns={"mean_deviation": "deviation"})
+
+    boundaries = load_compartment_boundaries()
+    mapped = boundaries.merge(compartment_mean, on="cpmt", how="left")
+    has_data = mapped[mapped["deviation"].notna()]
+    minx, miny, maxx, maxy = has_data.total_bounds
+    x_margin = (maxx - minx) * 0.08
+    y_margin = (maxy - miny) * 0.08
+
+    shared_vmax = mapped["deviation"].abs().quantile(0.98)
+    norm = mpl.colors.TwoSlopeNorm(vcenter=0, vmin=-shared_vmax, vmax=shared_vmax)
+
+    fig, ax = plt.subplots(figsize=(9, 9.5))
+    mapped.plot(column="deviation", cmap=DIVERGING_CMAP, norm=norm, ax=ax,
+                edgecolor="#cccccc", linewidth=0.2,
+                missing_kwds={"color": "#f0f0f0", "hatch": "///", "edgecolor": "#bbbbbb", "linewidth": 0.3})
+    style_map_axes(ax, minx, miny, maxx, maxy, x_margin, y_margin)
+    add_map_colorbar(fig, ax, DIVERGING_CMAP, norm, "Plain PINN: mean $y_{max}$ deviation (m)")
+
+    legend_lines = []
+    for number, cpmt, reason, where in entries:
+        row = boundaries[boundaries["cpmt"] == cpmt]
+        if len(row) == 0:
+            continue
+        cx, cy = row.geometry.centroid.iloc[0].coords[0]
+        edge_color = "#b2182b" if number in over_numbers else "#2166ac"
+        # Slightly transparent circle fill (alpha on facecolor) so the map colour underneath
+        # still shows through a little; smaller font, small pad so the digit sits centred
+        # instead of looking pushed to one side of the circle.
+        ax.annotate(str(number), xy=(cx, cy), fontsize=6.5, fontweight="bold",
+                    ha="center", va="center", color="black",
+                    bbox=dict(boxstyle="circle,pad=0.12", fc=(1, 1, 1, 0.75), ec=edge_color, lw=1.1))
+        legend_lines.append(f"{number}. cpmt {cpmt} -- {reason}")
+
+    # Legend underneath the map, single column -- a two-column layout at this font size kept
+    # overlapping (lines too long for the column width).
+    legend_text = "\n".join(legend_lines)
+    plt.tight_layout(rect=[0, 0.28, 1, 1])
+    fig.text(0.08, 0.23, legend_text, fontsize=10, va="top", ha="left")
+
+    ax.set_title("Every named compartment in this chapter, in one place")
+    out = FIGURES_DIR / "q3_all_compartments_reference_map.png"
+    plt.savefig(out, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Saved -> {out}")
+
+
+# -----------------------------------------------------------------------------
+# Figure 11 (Block D, appendix): the "good" example plot -- both models' curves
+# -----------------------------------------------------------------------------
+def build_good_example_plot_curve():
+    # Updates the existing q3_pinn_example_plot_curve.png (built by run_example_plot_curve.py,
+    # PINN-k only) to also show plain PINN's curve -- same treatment as the 77226 figure
+    # (build_flagged_plot_example). This plot (119937) was picked by that script's own rule:
+    # moderate deviation from the population curve, PINN-k's personalisation genuinely reduces
+    # error (not just moves it), not an extreme/implausible case -- the "good" counterpart to
+    # 77226's "implausible" case.
+    import json
+    EXAMPLE_PLOT_ID = 119937
+    HEIGHT_COLUMN = "elev_percentile_95th"
+
+    summary = json.load(open("temp_results_pinn/outputs/example_curve/example_plot_summary.json"))
+    cr_params = load_cr_params("4survey", "spatial_block_kfold", split_seed=SPLIT_SEED, held_out_fold=0)
+
+    plain_preds = pd.read_csv("temp_results_pinn/outputs/example_curve/plain_pinn_fixed_test_set_predictions.csv")
+    plain_preds = plain_preds.drop_duplicates("identification")
+    plain_row = plain_preds[plain_preds["identification"] == EXAMPLE_PLOT_ID].iloc[0]
+    plain_y_max = plain_row["y_max_pred"]
+
+    k_y_max = summary["plot_y_max"]
+    k_k = summary["plot_k"]
+
+    age_range = np.linspace(0, 100, 200)  # fixed range, matches the 77226 figure for comparability
+    population_curve = cr_params["y_max"] * (1 - np.exp(-cr_params["k"] * age_range)) ** cr_params["p"]
+    plain_curve = plain_y_max * (1 - np.exp(-cr_params["k"] * age_range)) ** cr_params["p"]
+    k_curve = k_y_max * (1 - np.exp(-k_k * age_range)) ** cr_params["p"]
+
+    fig, ax = plt.subplots(figsize=(7, 5))
+    ax.scatter(summary["observed_age"], summary["observed_height"], color="black", zorder=5, label="Observed (this plot)")
+    ax.plot(age_range, population_curve, "--", color="gray",
+            label=f"Population curve ($y_{{max}}$={cr_params['y_max']:.1f}, $k$={cr_params['k']:.4f})")
+    ax.plot(age_range, plain_curve, "-", color=COLOR_PINN,
+            label=f"Plain PINN curve ($y_{{max}}$={plain_y_max:.1f}, $k$={cr_params['k']:.4f} fixed)")
+    ax.plot(age_range, k_curve, "-", color=COLOR_PINN_K,
+            label=f"PINN-$k$ curve ($y_{{max}}$={k_y_max:.1f}, $k$={k_k:.4f})")
+    ax.set_xlabel("Age (years)")
+    ax.set_ylabel("Top height (m)")
+    ax.set_title(f"Example plot {EXAMPLE_PLOT_ID}: a well-behaved personalisation")
+    ax.legend(fontsize=8)
+    plt.tight_layout()
+    out = FIGURES_DIR / "q3_pinn_example_plot_curve.png"
+    plt.savefig(out, dpi=300)
+    plt.close(fig)
+    print(f"Saved -> {out}")
+
+
 if __name__ == "__main__":
     build_env_sweep_chart()
     build_compartment_map()
     build_hotspot_label_map()
     build_pinn_k_deviation_maps_pooled()
     build_plausibility_distribution_chart()
+    build_all_compartments_reference_map()
+    build_good_example_plot_curve()
+    build_yieldclass_scatter()
     build_importance_chart()
     build_flagged_plot_example()
     build_ymax_k_scatter()

@@ -270,6 +270,19 @@ against each other, not just eyeballing the error bars) showed the three lists c
 told apart — the real, solid finding is "any environment beats none," not "this specific list is
 best." Softened accordingly in both the ledger and the draft text.
 
+**And a second, bigger fix to the same chart, 2026-08-24**: the "no environment" point itself
+turned out to be an unfair comparison — it came from a different, older model file with no
+personalization mechanism at all, not the same model with environment features removed. Built a
+proper version: same model code used everywhere else in this chapter, just given zero
+environment columns. Two small code fixes were needed to make that possible (a shared library
+function crashed on zero columns — a two-line guard fixed it, nothing else changed). Ran all 5
+folds twice (both model versions) locally after the cluster's GPU had an unrelated allocation
+problem. Result: 0.572 ± 0.032 (plain) and 0.575 ± 0.033 (two-parameter version) — close to the
+old single-run number, but now backed by 5 folds and the correct model, not one run of the
+wrong one. Checked properly (paired, fold by fold): the "any environment beats none" jump holds
+in all 5 folds for both model versions, no exceptions — the strongest-supported claim on this
+whole chart. Full detail: `temp_results_pinn/RESULTS_TABLE.md`, section 5.
+
 ---
 
 ## Which findings deserve the spotlight
