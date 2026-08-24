@@ -45,7 +45,7 @@ These $R^2$ values are modest in absolute terms: even the best set (Set2, XGBoos
 Before the attribution question itself, Figure~\ref{fig:q1-fig4-trajectories} grounds what "persistent departure from the shared curve" actually looks like in observed data, for six example plots spanning the residual distribution.
 
 \begin{figure}[!htbp]
-\includegraphics[width=\textwidth]{figures/fig_results/q1_selected_fig4_example_trajectories.png}
+\includegraphics[width=\textwidth]{figures/fig_results/q1/q1_final_fig4_example_trajectories.png}
 \caption{\textbf{Example plots by residual tier.} Observed top height vs.\ age (solid) against the pooled Chapman--Richards curve (dashed), for six 4-survey plots: two near the 90th percentile of $\bar r_i$ (above curve), two near zero (typical), two near the 10th percentile (below curve). Chosen as the plots nearest each percentile, not the single most extreme plots in the population -- the most extreme values ($+31.3$m/$-26.3$m) are population outliers, not representative of what a persistent departure normally looks like.}
 \label{fig:q1-fig4-trajectories}
 \end{figure}
@@ -57,7 +57,7 @@ Before the attribution question itself, Figure~\ref{fig:q1-fig4-trajectories} gr
 This raises an obvious concern: canopy cover is measured from the same LiDAR survey as the height target itself, so a large coefficient could just mean the model has found a disguised copy of the target, not a real driver. Three checks test this directly, shown together in Figure~\ref{fig:q1-fig1-canopycover-ablation}. First, canopy cover's correlation with all three of this project's targets is moderate (Pearson 0.35--0.47), not near 1 -- it is not simply the target restated in different units. Second, removing canopy cover from Set4 and refitting drops $R^2$ by roughly a third for both models (Elastic Net: 0.350 to 0.231; XGBoost: 0.388 to 0.249; Figure~\ref{fig:q1-fig1-canopycover-ablation}, left) -- a bigger drop than its SHAP margin alone (1.2--1.7$\times$ the next variable) would suggest, meaning it carries signal nothing else in the set backfills. Third, the variable most likely to absorb that gap, $\mathit{dist}_{\text{to\_road}}$, does not: its own SHAP value moves slightly the wrong way (1.003 to 0.869; Figure~\ref{fig:q1-fig1-canopycover-ablation}, right). Together, these rule out simple correlation-driven credit transfer as the mechanism, though they do not explain why canopy cover carries this much unique signal in the first place.
 
 \begin{figure}[!htbp]
-\includegraphics[width=\textwidth]{figures/fig_results/q1_selected_fig1_canopycover_ablation.png}
+\includegraphics[width=\textwidth]{figures/fig_results/q1/q1_final_fig1_canopycover_ablation.png}
 \caption{\textbf{CanopyCover carries real, non-redundant signal.} Left: pooled $R^2$ (Set4, 4-survey) with vs.\ without CanopyCover for Elastic Net and XGBoost -- both lose roughly a third of their explanatory power. Right: mean $|$SHAP$|$ for CanopyCover, $\mathit{dist\_to\_road}$, precipitation and slope, with vs.\ without CanopyCover -- $\mathit{dist\_to\_road}$'s importance does not rise to compensate, evidence against simple correlation-driven credit transfer. The ``without'' condition is a genuine live re-run, not a transcription of an earlier result.}
 \label{fig:q1-fig1-canopycover-ablation}
 \end{figure}
@@ -78,7 +78,7 @@ Because both models assume linear relationships, raw non-linearity alone cannot 
 Figure~\ref{fig:q1-fig2-attribution-lenses} puts this coefficient comparison, the real-signal/artifact ring colouring just described, and XGBoost's own SHAP ranking side by side.
 
 \begin{figure}[!htbp]
-\includegraphics[width=\textwidth]{figures/fig_results/q1_selected_fig2_attribution_three_lenses.png}
+\includegraphics[width=\textwidth]{figures/fig_results/q1/q1_final_fig2_attribution_three_lenses.png}
 \caption{\textbf{Three lenses on Q1's attribution question (Set4, 4-survey).} Left: standardised EN (purple) and LMM (grey) coefficients, mean $\pm$ SD across 5 folds, hollow markers for Set3 and filled for Set4. LMM markers for the 6 genuinely disagreeing variables are ringed by mechanism verdict -- green where within-compartment correlation confirms a real local signal (topex), red where it collapses toward zero (tas\_mean, soilgrids\_ph, ceh\_twi, gwa\_weibull\_a\_50m, local\_relief\_500m). $\mathit{chelsa\_bio12\_precip\_mm}$ is left unringed: it is one of the two stable variables, not one of the six this mechanism explains. Right: XGBoost's own mean $|$SHAP$|$ ranking, same row order, for an independent third read on which variables the model actually leans on.}
 \label{fig:q1-fig2-attribution-lenses}
 \end{figure}
@@ -91,7 +91,7 @@ But XGBoost's path there is not incremental: its single largest reduction happen
 Some clustering remains unmodelled in both cases, pointing to unmeasured environmental factors, resolution limits, or genuine spatially varying processes \cite{gaspard2019Residual_C5_EVAL}.
 
 \begin{figure}[!htbp]
-\includegraphics[width=0.75\textwidth]{figures/fig_results/q1_selected_fig3_spatial_clustering.png}
+\includegraphics[width=0.75\textwidth]{figures/fig_results/q1/q1_final_fig3_spatial_clustering.png}
 \caption{\textbf{Spatial clustering by set, and what's left over (Set4, 4-survey).} \textbf{Panel A} (top): Set4's leftover Elastic Net residual, averaged to compartment level and mapped -- unexplained model error, not a validated local effect; the spatial pattern still visible here is what Q2 investigates directly. \textbf{Panel B} (bottom): residual Moran's $I$ by feature set, Elastic Net vs.\ XGBoost -- XGBoost's overall reduction is larger but not monotonic, dipping sharply at Set2 and partially rebounding at Set3.}
 \label{fig:q1-fig3-spatial-clustering}
 \end{figure}

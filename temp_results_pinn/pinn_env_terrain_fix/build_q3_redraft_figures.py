@@ -22,7 +22,7 @@ from models.common.splits import SPLIT_SEED
 from notebooks.results_figures_style import COLOR_PINN, COLOR_PINN_K, DIVERGING_CMAP, apply_rcparams
 
 apply_rcparams()
-FIGURES_DIR = Path(__file__).resolve().parents[2] / "figures" / "fig_results"
+FIGURES_DIR = Path(__file__).resolve().parents[2] / "figures" / "fig_results" / "q3"
 FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -426,8 +426,12 @@ def build_pinn_k_deviation_maps_pooled():
     # Reserve real space in the figure canvas for the legend (subplots_adjust), rather than
     # relying on bbox_inches="tight" to auto-pad around fig.text -- that auto-padding was
     # producing a much bigger gap than intended between the map and the text.
-    plt.tight_layout(rect=[0, 0.07, 1, 1])
-    fig.text(0.5, 0.045, legend_text, fontsize=11, ha="center", va="center")
+    # Fontsize bumped 11 -> 15, 2026-08-24 -- this figure is now printed noticeably larger in
+    # the dissertation (1.15x textwidth, was 0.9x), and the legend text was reading small
+    # relative to the rest of the page at the old size. Reserved rect height increased slightly
+    # (0.07 -> 0.09) to keep the bigger text from crowding the map above it.
+    plt.tight_layout(rect=[0, 0.09, 1, 1])
+    fig.text(0.5, 0.045, legend_text, fontsize=15, ha="center", va="center")
 
     out = FIGURES_DIR / "q3_pinn_k_pooled_ymax_k_deviation_maps.png"
     # bbox_inches="tight" -- otherwise the legend text placed below the axes (fig.text at
@@ -444,6 +448,24 @@ def build_importance_chart():
     # Fold 0's permutation-importance run predates the JSON-saving fix added later this
     # session (only folds 1/2 have saved files) -- these numbers are the fold-0 stdout
     # capture, already live-verified into temp_results_pinn/RESULTS_TABLE.md section 6.
+    #
+    # Human-readable names for the y-axis, 2026-08-24 -- definitions pulled from
+    # documentation/variable_registry_av1_av2.csv so they match the dissertation's own
+    # variable descriptions, not invented. Raw column name is kept underneath each label
+    # (smaller, grey) so the figure is still traceable back to the actual data column.
+    READABLE_NAME = {
+        "windward_topex": "Windward exposure (SW)",
+        "eastness": "Eastness (aspect)",
+        "slope_degrees": "Slope",
+        "gwa_weibull_k_50m": "Wind variability (50m)",
+        "elevation": "Elevation",
+        "gwa_weibull_a_50m": "Wind speed scale (50m)",
+        "ceh_twi": "Topographic wetness (TWI)",
+        "gwa_weibull_k_10m": "Wind variability (10m)",
+        "solar_radiation_index": "Solar radiation",
+        "gwa_wind_speed_10m": "Wind speed (10m)",
+        "gwa_weibull_a_10m": "Wind speed scale (10m)",
+    }
     features_pct = sorted([
         ("windward_topex", 15.2), ("eastness", 14.2), ("slope_degrees", 12.8),
         ("gwa_weibull_k_50m", 12.1), ("elevation", 11.4), ("gwa_weibull_a_50m", 6.5),
@@ -453,10 +475,39 @@ def build_importance_chart():
     features = [f for f, _ in features_pct]
     pct = [p for _, p in features_pct]
 
-    fig, ax = plt.subplots(figsize=(6, 4.5))
+    fig, ax = plt.subplots(figsize=(6.5, 5))
     ax.barh(features, pct, color=COLOR_PINN)
     ax.set_xlabel("Share of total importance (%)")
+    # Small grey subtitle under the x-axis label, 2026-08-24: clarifies the METHOD -- this is
+    # permutation importance (shuffle each feature, measure how much y_max_pred moves), not
+    # VIF (a multicollinearity diagnostic, not an importance measure) or SHAP.
+    ax.text(
+        0.5, -0.16, "Permutation importance (10 shuffle repeats/feature)",
+        transform=ax.transAxes, ha="center", va="top", fontsize=8, color="grey",
+    )
     ax.set_title("No single feature dominates PINN's personalised y_max")
+
+    # Two-tier y-tick labels (readable name + raw column name below it, smaller/grey) can't
+    # be done with a single set_yticklabels call -- matplotlib tick labels are one font/color
+    # per tick. So: blank out the real tick labels, then place both lines by hand at each
+    # bar's y-position, right-aligned just outside the axes (works with any renderer/backend,
+    # unlike relying on tick label padding).
+    ax.set_yticklabels([])
+    ax.tick_params(axis="y", length=0)
+    for i, raw_name in enumerate(features):
+        ax.annotate(
+            READABLE_NAME[raw_name],
+            xy=(0, i), xycoords=("axes fraction", "data"),
+            xytext=(-6, 6), textcoords="offset points",
+            ha="right", va="center", fontsize=10, color="black",
+        )
+        ax.annotate(
+            raw_name,
+            xy=(0, i), xycoords=("axes fraction", "data"),
+            xytext=(-6, -6), textcoords="offset points",
+            ha="right", va="center", fontsize=7, color="grey",
+        )
+
     plt.tight_layout()
     out = FIGURES_DIR / "q3_pinn_terrain_importance.png"
     plt.savefig(out, dpi=300)
@@ -559,7 +610,13 @@ def build_plausibility_distribution_chart():
     plain_dev = plain_preds["deviation"]
     k_dev = k_preds["ymax_deviation"]
 
-    fig, ax = plt.subplots(figsize=(10, 3.5))
+    # Narrower/taller than before (was 10x3.5), 2026-08-24 -- this sits side by side with
+    # fig:implausible-example (build_flagged_plot_example, figsize 7x5) in an equal-width
+    # subfigure pair (0.48/0.48 textwidth). Matching this figure's aspect ratio (7/5=1.4) to
+    # that one means both render at the same height once scaled to the same column width --
+    # if either figure's figsize or the pair's subfigure widths change later, this needs
+    # recalculating to keep matching.
+    fig, ax = plt.subplots(figsize=(7, 5))
     bins = np.linspace(-35, 30, 90)
     ax.hist(plain_dev, bins=bins, density=True, color="#A8D5BA", alpha=0.75,
             label=f"Plain PINN (SD={plain_dev.std():.1f}m)")
@@ -720,7 +777,17 @@ def build_good_example_plot_curve():
     plain_curve = plain_y_max * (1 - np.exp(-cr_params["k"] * age_range)) ** cr_params["p"]
     k_curve = k_y_max * (1 - np.exp(-k_k * age_range)) ** cr_params["p"]
 
-    fig, ax = plt.subplots(figsize=(7, 5))
+    # Narrower canvas than before (was 7x5), 2026-08-24 -- this plot sits next to the wider
+    # terrain-importance chart in a side-by-side pair (0.58/0.38 textwidth split, see
+    # results_q3_23_08_0540am.tex), and doesn't need the extra width to show the same three
+    # curves clearly. Font sizes below are left at their normal absolute point sizes (not
+    # scaled down to fit) so the text stays just as readable on the narrower canvas.
+    # Height 5.87 (not 5), 2026-08-24: matches (a)'s rendered height once both are scaled to
+    # their subfigure widths -- (a) is 6.5x5 at 0.58 textwidth (rendered height 0.446 textwidth);
+    # for (b) at 0.38 textwidth to come out the same rendered height, its aspect ratio needs to
+    # be 0.38/0.446 = 0.852 (width/height), i.e. 5/5.87. If either subfigure's textwidth
+    # fraction or the OTHER figure's figsize changes later, this needs recalculating to match.
+    fig, ax = plt.subplots(figsize=(5, 5.87))
     ax.scatter(summary["observed_age"], summary["observed_height"], color="black", zorder=5, label="Observed (this plot)")
     ax.plot(age_range, population_curve, "--", color="gray",
             label=f"Population curve ($y_{{max}}$={cr_params['y_max']:.1f}, $k$={cr_params['k']:.4f})")
@@ -731,7 +798,11 @@ def build_good_example_plot_curve():
     ax.set_xlabel("Age (years)")
     ax.set_ylabel("Top height (m)")
     ax.set_title(f"Example plot {EXAMPLE_PLOT_ID}: a well-behaved personalisation")
-    ax.legend(fontsize=8)
+    # Legend moved to bottom-right, 2026-08-24 -- the curves have already risen well clear of
+    # this corner by the time age gets this high (all three sit above y=25 by age=60), so this
+    # is the one corner nothing passes through, unlike "best" (matplotlib's auto-placement),
+    # which was landing on top of the curves.
+    ax.legend(fontsize=8, loc="lower right")
     plt.tight_layout()
     out = FIGURES_DIR / "q3_pinn_example_plot_curve.png"
     plt.savefig(out, dpi=300)

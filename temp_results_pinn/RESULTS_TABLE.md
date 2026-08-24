@@ -249,7 +249,7 @@ positive point of difference from GNNWR worth citing in the dissertation.
 
 ## 7. Why does plain PINN beat PINN-k? Trunk-residual comparison
 
-**Status: DONE -- real mechanism found, CONFIRMED robust across 3 folds (2026-08-23).**
+**Status: DONE -- real mechanism found, CONFIRMED across all 5 of 5 folds (2026-08-24).**
 Compared how much "compensating work" the shared trunk network (main_network) does in each
 variant. If personalizing k adds useful structure, the trunk shouldn't need to compensate more;
 if it adds noise, the trunk has to work harder to correct for it.
@@ -259,13 +259,22 @@ if it adds noise, the trunk has to work harder to correct for it.
 | 0 | 0.2069 | 0.4096 | 1.98 |
 | 1 | 0.2375 | 0.5532 | 2.33 |
 | 2 | 0.2547 | 0.8438 | 3.31 |
+| 3 | 0.3394 | 0.6682 | 1.97 |
+| 4 | 0.2680 | 0.7041 | 2.63 |
 
 **Finding**: PINN-k's trunk does substantially more compensating work than plain PINN's in
-*every* fold tested, and the effect grows rather than shrinks (ratio 1.98 -> 2.33 -> 3.31) --
-a robust, real mechanism, not a fold-0 fluke. This is measurable evidence that personalizing k
-doesn't produce a better-fitting curve on its own -- it makes the curve fit *worse*, and the
-flexible trunk network has to clean up after it. Directly explains (not just describes) why
-plain PINN beats PINN-k on accuracy (section 1/Table 3: 0.631 vs 0.618).
+*every* fold tested -- roughly double or more, range 1.97-3.31 across all 5 folds. **Correction
+(2026-08-24)**: the earlier 3-fold read ("the effect grows rather than shrinks, 1.98 -> 2.33 ->
+3.31") does not hold as a strict trend once fold 4 is added (2.63 sits between fold 1 and fold
+2, not a continued climb). **Correction 2 (2026-08-24, fold 3 completed)**: fold 3's ratio
+(1.97) is *just* under 2x, so "consistently more than double" is no longer literally true --
+softened to "roughly 2x or more, no fold below ~1.97x." The robust, real finding is "consistently
+around 2x or higher," not a monotonic growth pattern and not a strict >2x floor either -- still a
+real mechanism, not a fold-0 fluke, just a narrower claim than originally written. This is
+measurable evidence that personalizing k doesn't produce a better-fitting curve on its own -- it
+makes the curve fit *worse*, and the flexible trunk network has to clean up after it. Directly
+explains (not just describes) why plain PINN beats PINN-k on accuracy (section 1/Table 3: 0.631
+vs 0.618). All 5 folds now complete, nothing pending.
 
 - Script: `temp_results_pinn/pinn_env_terrain_fix/run_pinn_mechanism_checks.py` (check 1)
 
@@ -398,40 +407,46 @@ secondary compartments, section 9).
 
 ## 12. Finding 5: do errors cluster by age or height, DNN vs. PINN vs. PINN-k?
 
-**Status: DONE (2026-08-23).** All three models' fold-0 test-set predictions now exist on the
-same 46,032 rows (confirmed identical age/height ranges). Real finding, opposite of the
-hypothesised direction -- PINN's curve structure does NOT make it more robust at the extremes;
-it makes it worse.
+**Status: DONE, pooled 5-fold (2026-08-24, was fold-0-only).** All three models' predictions
+pooled across all 5 folds (58,073 plots each, matching the rest of the chapter's pooled total).
+**Correction: the fold-0-only "DNN wins both extremes" finding does NOT fully hold pooled** --
+one extreme reverses.
 
 | Age band | n | DNN MAE | PINN MAE | PINN-k MAE |
 |---|---:|---:|---:|---:|
-| 15-30 | 13,338 | 2.50 | 2.53 | 2.51 |
-| 30-45 | 21,879 | 3.12 | 3.13 | 3.22 |
-| 45-60 | 7,919 | 4.13 | 3.84 | 4.16 |
-| 60-75 | 1,973 | 5.06 | 5.28 | 5.48 |
-| 75-93 | 923 | 6.16 | 6.59 | **7.01** |
+| 15-30 | 29,837 | 2.49 | 2.52 | 2.53 |
+| 30-45 | 17,861 | 2.69 | 2.85 | 2.93 |
+| 45-60 | 7,590 | 4.16 | 4.24 | 4.42 |
+| 60-75 | 2,034 | 4.63 | 5.23 | 5.15 |
+| 75-93 | 751 | **6.83** | 6.40 | 6.81 |
 
 | Height band | n | DNN MAE | PINN MAE | PINN-k MAE |
 |---|---:|---:|---:|---:|
-| 0-10m | 4,874 | **3.43** | 4.28 | 4.05 |
-| 10-20m | 18,796 | 2.94 | 2.83 | 2.82 |
-| 20-30m | 17,949 | 3.11 | 3.02 | 3.28 |
-| 30-47m | 4,413 | 5.01 | 4.74 | 5.09 |
+| 0-10m | 12,373 | **2.68** | 3.37 | 3.15 |
+| 10-20m | 29,629 | 2.59 | 2.62 | 2.74 |
+| 20-30m | 13,733 | 3.36 | 2.98 | 3.15 |
+| 30-47m | 2,338 | 5.26 | 5.71 | 5.72 |
 
-**Finding**: at the oldest ages (75-93) and shortest heights (0-10m), DNN clearly outperforms
-both PINN variants -- PINN-k is ~14% worse than DNN at 75-93. At mid-range ages/heights, all
-three are close, sometimes with plain PINN edging ahead. **Connects directly to section 9/10's
-compartment-1129 finding, not a coincidence**: the implausible-curve failure mode there was
-specifically about extrapolating far past the ages a plot actually had observations for. Same
-mechanism here as a general pattern -- a personalised curve fit mostly to typical-range data
-extrapolates poorly at the tails (very old, very short/young stands), where DNN's unconstrained
-fit does comparatively better.
+**Finding (revised)**: at the shortest stands (0-10m), DNN clearly outperforms both PINN
+variants -- this part of the fold-0 reading holds up pooled. At the oldest ages (75-93),
+pooling REVERSES the fold-0 reading: DNN is now the WORST of the three (6.83), plain PINN is
+the best (6.40) -- fold-0 data had said the opposite (DNN best at 6.16, PINN-k worst at 7.01).
+The 30-47m tallest-height band also flips: plain PINN was best on fold-0 (4.74), DNN is best
+pooled (5.26). Caveat: both the oldest-age (n=751) and tallest-height (n=2,338) bands are the
+smallest bins, so take both directions with real uncertainty, not high confidence either way.
+**Revised connection to section 9/10's compartment-1129 finding**: the "personalised curve
+extrapolates poorly outside its well-observed range" mechanism still holds for the
+short/young-stand extreme (DNN clearly better there, consistent with fold-0). It is NOT a
+symmetric "both extremes" story any more -- at the oldest-age extreme specifically, PINN's
+curve structure is now an advantage over DNN's unconstrained fit, the opposite of the original
+framing. Narrower, more honest claim than what was originally written.
 
 - Script: `temp_results_pinn/pinn_env_terrain_fix/run_finding5_age_height_error_analysis.py`
-- Data: DNN (`outputs/spatial_block_kfold/rq1_dnn_env_terrain_..._seed42/4survey/fold_0/predictions.csv`),
-  plain PINN (`temp_results_pinn/outputs/example_curve/plain_pinn_fixed_full_predictions.csv`,
-  built by `run_finding5_plain_pinn_export.py`), PINN-k (`temp_results_pinn/outputs/example_curve/pinn_k_fixed_full_predictions.csv`,
-  built by `run_finding5_pinn_k_export.py`)
+  (rerun 2026-08-24 on pooled inputs, not modified itself -- inputs changed, not the script)
+- Data: DNN (`outputs/spatial_block_kfold/rq1_dnn_env_terrain_..._seed42/4survey/fold_{0-4}/predictions.csv`,
+  all 5 folds pooled), plain PINN (`temp_results_pinn/outputs/example_curve/plain_pinn_fixed_full_predictions{,_fold1,_fold2,_fold3,_fold4}.csv`,
+  built by `run_finding5_plain_pinn_export.py --fold-index {0,1,2,3,4}`), PINN-k (`temp_results_pinn/outputs/example_curve/pinn_k_fixed_full_predictions{,_fold1,_fold2,_fold3,_fold4}.csv`,
+  built by `run_finding5_pinn_k_export.py --fold-index {0,1,2,3,4}`)
 
 ---
 
@@ -482,12 +497,16 @@ context: mean=17.29, median=18, 25th pct=12 (n=71,766 plots).
 **Why the over-productive mismatch (2057, 1027): checked compartment by compartment, not just
 group averages.** Clean split, no exceptions -- disagreeing pair (2057, 1027) both old (mean
 age 59.8, 72.0 years) and wind-exposed (windward_topex +15.2, +11.0); agreeing three (1130,
-2130, 1122) both young (25.0-35.1 years) and sheltered-to-neutral (-9.5 to +0.4). Ties to two
-things already established: old stands are exactly where both PINN variants extrapolate worst
-(section 12), and wind exposure is the single largest terrain input to the model (section 6,
-15.2%). Reading: in old, wind-exposed stands, part of the "over-productive" push may be
-extrapolation past the model's well-observed age range, not a clean site-productivity signal.
-Checked on 5 compartments only, not yet tested at scale.
+2130, 1122) both young (25.0-35.1 years) and sheltered-to-neutral (-9.5 to +0.4).
+**Correction (2026-08-24): age-extrapolation no longer supported as an explanation.** The
+original reasoning tied this to "old stands are where both PINN variants extrapolate worst"
+(section 12) -- pooled across all 5 folds, section 12 REVERSED: PINN variants are now
+comparatively BETTER at old ages, not worse (see section 12's Finding (revised)). So old age
+on its own does not explain the mismatch the way first thought. What's left standing: wind
+exposure is still a real, standing explanation -- the single largest terrain input to the
+model (section 6, 15.2%). Why age specifically tracks the mismatch in these two compartments
+is now an open question, not an explained one. Checked on 5 compartments only, not yet tested
+at scale.
 
 **Correlation check (whole test set, not just the extremes)**: plain PINN y_max deviation vs.
 yldc r=0.249 (n=11,508); PINN-k's k vs. yldc r=0.234; PINN-k's y_max vs. yldc r=0.334. Real and
