@@ -5,37 +5,20 @@
 # tables the models/ package reads: ONE consolidated "current-state" table per cohort, plus one
 # "transition" table per cohort for growth-rate modelling.
 #
-# CONSOLIDATED, NOT ONE FILE PER MODEL (changed 2026-07-28)
-# ------------------------------------------------------------
-# Previously this script wrote a separate parquet per model (cr_age.parquet, linear_baseline.
-# parquet, rf_baseline.parquet, dnn_noenv.parquet, pinn_noenv.parquet). Checked directly:
-# dnn_noenv.parquet and pinn_noenv.parquet were byte-for-byte IDENTICAL, and the other three were
-# each a strict subset of the same core columns -- five files carrying the same handful of
-# columns in slightly different combinations. Now there is ONE table per cohort
-# (current_state/<cohort>/model_table.parquet) containing every column any model needs; each
-# model's own module (e.g. models/rf_baseline/rf_baseline.py's FEATURE_COLUMNS) selects its own
-# subset at load time, the same way it already selects columns out of any dataframe.
+# This is a separate script from clean_master_data.py because that script does the expensive,
+# one-way work (reading the raw GeoPackage, applying the cleaning funnel), while everything here
+# is pure pandas column selection on the already-cleaned master files -- re-runnable instantly
+# whenever a model's column needs change, without touching the raw GeoPackage again.
 #
-# TARGET CHANGED FROM Top_Height99 TO elev_percentile_95th (2026-07-28)
-# ------------------------------------------------------------------------
-# See data_processing/clean_master_data.py's own header comment for the full reasoning.
-# Top_Height99 is retired everywhere; there is no fallback target column anymore (Top_Height95
-# is kept in the master table, but only as an audit ingredient for Vol95/GYCspec95, never a
-# target or feature -- see clean_master_data.py).
-#
-# yldc REMOVED AS A FEATURE (2026-07-28)
-# ------------------------------------------
-# Confirmed via real held-out ablation (not just theory) that yldc hurts generalisation in every
-# model checked (see documentation/progress_notes.md's 2026-07-28 entry for the numbers). Still
-# present in the master table and in this consolidated export (useful for audit/stratification,
-# same treatment as whcl), just no longer in any model's own FEATURE_COLUMNS list.
-#
-# WHY THIS IS A SEPARATE SCRIPT, NOT PART OF THE CLEANING SCRIPT
-# -------------------------------------------------------------------
-# clean_master_data.py does the expensive, one-way work (reading the raw GeoPackage, applying
-# the cleaning funnel). Everything here is pure pandas column selection on the already-cleaned
-# master files, so it can be re-run instantly whenever a model's column needs change, without
-# ever touching the raw GeoPackage again.
+# Three decisions made 2026-07-28 (see documentation/progress_notes.md for the full record):
+#   1. Consolidated to one table per cohort instead of one parquet per model -- the five previous
+#      per-model exports (cr_age, linear_baseline, rf_baseline, dnn_noenv, pinn_noenv) turned out
+#      to be byte-identical or strict subsets of each other. Each model's own module now selects
+#      its own feature subset at load time instead.
+#   2. Target changed from Top_Height99 to elev_percentile_95th (see clean_master_data.py's
+#      header for the reasoning); Top_Height99 is retired everywhere.
+#   3. yldc removed as a model feature after a held-out ablation showed it hurts generalisation
+#      in every model checked. Still kept in the export for audit/stratification.
 
 from pathlib import Path
 

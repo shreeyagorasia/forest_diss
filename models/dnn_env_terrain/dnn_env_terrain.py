@@ -17,22 +17,12 @@
 # This file only knows how to build, train, and save/load the DNN -- same fit-then-evaluate
 # split as every other model in this repo (run_dnn_env_terrain.py / evaluate_dnn_env_terrain.py).
 #
-# DELIBERATE DUPLICATION, not an oversight (2026-08-01): every function below
-# (train_one_epoch/evaluate_on_validation_set/build_optimizer/fit/predict/save_checkpoints/
-# load_best_model/save_run_metadata) is near-identical to dnn_noenv.py's version of the same
-# function -- the only real difference anywhere in this file is dropout_rate being threaded
-# through. Considered importing these directly from models.dnn_noenv.dnn_noenv instead (they're
-# already generic enough) and decided against it, on request: this project's own established
-# convention already keeps dnn_noenv.py and pinn_noenv.py as two fully separate, self-contained
-# files rather than sharing a training loop between model folders, even though their structure
-# is similar too -- a cross-import between model folders here would be the first exception to
-# that pattern, not a continuation of it. Each model's folder stays readable on its own without
-# needing to jump to a different model's file to see what it actually does.
-# **Real, accepted cost of this choice**: any future fix to the shared training-loop logic
-# itself (e.g. a bug in the early-stopping condition, the gradient-clipping call, the
-# smoothed-val-loss window) has to be applied by hand in both dnn_noenv.py and this file --
-# nothing enforces the two staying in sync, and nothing will warn if they drift apart. Worth
-# re-diffing the two files against each other if either one's core training loop changes.
+# DELIBERATE DUPLICATION, not an oversight (2026-08-01): every function below is near-identical
+# to dnn_noenv.py's version (only real difference: dropout_rate threaded through) -- kept as a
+# separate, self-contained file rather than importing from dnn_noenv.py, matching this project's
+# convention of one fully self-contained file per model folder. Accepted cost: a future fix to
+# the shared training-loop logic (early stopping, gradient clipping, val-loss smoothing) has to
+# be applied by hand in both files -- nothing enforces them staying in sync.
 
 import json
 import time
