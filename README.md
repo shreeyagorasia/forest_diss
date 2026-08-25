@@ -16,6 +16,22 @@ this table is the map between the two):
 | **Q2** | Spatial attribution — does a spatially-varying model (GNNWR) explain plot-level curve deviation better than a global model? | old **RQ3** |
 | **Q3** | Prediction and physics guidance — does environment-conditioning and a physics (Chapman-Richards) constraint improve raw top-height prediction? | old **RQ1** + **RQ2a** |
 
+A third label scheme also appears inside the code itself: `models/xgb_environmental/feature_set_builder.py`
+(see "Building environmental feature sets" below) labels these **RSQ1/RSQ2/RSQ3**, mapping
+1:1 onto old RQ1/RQ2/RQ3 above (i.e. RSQ1=old RQ1, RSQ2=old RQ2, RSQ3=old RQ3) — not onto the
+current Q1/Q2/Q3 numbering. Three different label sets for the same three questions is genuinely
+confusing; this table is the single place that reconciles all of them.
+
+## Pipeline stages, in order
+
+1. **Clean data** — `data_processing/` (below). A plain two-step CLI, no notebook involved.
+2. **Build environmental feature sets** — see "Building environmental feature sets" below. This
+   step is notebook-driven, not a CLI script, which is easy to miss.
+3. **Run models** — `jobs/` + `models/<family>/run_*.py` (see "Canonical entry points" and
+   "Model variants" below). Writes to `outputs/`.
+4. **Display/plot results** — `notebooks/results_q1/`, `results_q2/`, `results_q3/`. Read-only:
+   these only read from `outputs/`, never fit/train/retrain anything.
+
 ## Repository structure
 
 - `data_processing/`: standalone scripts that derive model-ready tables from the cleaned master
@@ -105,6 +121,26 @@ script's own header for what it reads and produces.
 See `data/processed/README.md` (present once `data/` is populated) for the exact file layout, and
 `data_processing/export_model_tables.py`'s module docstring for exactly which columns are
 features vs. evaluation-only, and why.
+
+## Building environmental feature sets
+
+Unlike data cleaning, this step is **notebook-driven, not a CLI script** —
+`notebooks/environmental_data/multicollinearity_screen_set1_5.ipynb` is the actual entry point.
+It calls into `models/xgb_environmental/feature_set_builder.py`, a shared library (despite living
+in the `xgb_environmental` folder, it is imported by all three research questions' models, not
+just XGBoost-environmental) that builds the same nested "Set1–5" feature hierarchy for each RSQ,
+ranking/gating candidate environmental variables against that RSQ's own target column:
+
+- Set1 = baseline only (5 stand/management columns every model already gets)
+- Set2 = Set1 + top 5 candidates by |Spearman rho| against the target
+- Set3 = Set1 + terrain/wind candidates clearing a signal-gate threshold
+- Set4 = Set1 + every other category's candidates clearing the same gate
+- Set5 = Set1 + every deduplicated candidate, no gate
+
+The resulting sets are read back by name (e.g. `nested_set3_gated_terrain_wind_vif`) via
+`ENV_TERRAIN_FEATURE_SETS` in `models/common/torch_data.py` (DNN/PINN) or
+`FEATURE_SETS` in `models/xgb_environmental/xgb_environmental.py` (XGBoost/Elastic Net/NLME) — see
+`documentation/env_feature_sets_manifest.csv` for the manifest these are loaded from.
 
 ## Model variants
 
