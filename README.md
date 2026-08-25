@@ -1,4 +1,4 @@
-# Forest dissertation
+# ForestGrowthPINN
 
 Code and notebooks for a forestry dissertation using Aberfoyle LiDAR data, developing
 physics-informed (PINN) growth models for Sitka spruce top-height prediction and spatial
