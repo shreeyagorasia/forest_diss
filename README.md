@@ -83,6 +83,23 @@ Everything needed to understand, re-run, and extend the actual modelling code is
 The source and generated datasets are not committed here because they are too large and because
 the source LiDAR data is not freely redistributable.
 
+### Where the data came from
+
+- **LiDAR-derived inventory (the core dataset)**: Aberfoyle Forest District survey data, processed
+  from raw point clouds to per-plot inventory fields by Forest Research using their Area-Based
+  Analysis and Hybrid Method (LiDAR-derived Top Height combined with species, age, and management
+  records to estimate volume, yield class, and related fields). Supplied as
+  `LiDAR_Years_All_7jul.gpkg`, one row per plot per survey year. Formula references and field
+  definitions are in `documentation/data_exploration_gpkg/`.
+- **Wind**: two sources. Long-term average wind speed/direction (Weibull parameters) from the
+  Global Wind Atlas, sampled onto plot locations by `data_processing/add_environmental_candidates.py`.
+  Observed storm-interval wind data from CEDA's MIDAS Open station network, downloaded by
+  `data_processing/download_midas_wind_aberfoyle.py` (requires a CEDA account, see
+  `data_processing/create_ceda_token.py`) and summarised by `data_processing/build_midas_wind_intervals.py`.
+- **Terrain**: OS Terrain 50 tiles, used by `data_processing/add_environmental_candidates.py` to
+  derive multiscale terrain measures (e.g. topographic position index, local relief).
+- **Roads/rivers**: OS Open Roads and OS Open Rivers, used as terrain/access candidate features.
+
 The modelling cohorts are balanced-panel survivor cohorts, not all Aberfoyle plots: a plot must
 have every required survey, remain Sitka spruce, and pass the planting-year, age and height checks.
 Results therefore describe this retained population rather than harvested, converted, damaged,
@@ -93,6 +110,11 @@ To re-run anything, place the source GeoPackage at:
 ```text
 data/raw/LiDAR_Years_All_7jul.gpkg
 ```
+
+The exact schema of every derived table (`master/`, `current_state/`, `transitions/`) this
+pipeline produces from that GeoPackage is documented in
+`documentation/data_schema/processed_data_layout.md`, including column meanings and cohort row
+counts, kept here since `data/processed/README.md` itself is not included in this archive.
 
 ## Environment
 
