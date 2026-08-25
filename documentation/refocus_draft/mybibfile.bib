@@ -253,6 +253,15 @@
 % - Cieszewski and Bailey (2000) — Generalized algebraic difference approach.
 % - Ercanli, Bolat and Yavuz (2023) — A comparison of artificial neural networks and regression modeling.
 
+@article{chapman1961Statistical_C2_CR,
+  author  = {Chapman, D. G.},
+  title   = {Statistical Problems in Dynamics of Exploited Fisheries Populations},
+  journal = {Proceedings of the Fourth Berkeley Symposium on Mathematical Statistics and Probability},
+  year    = {1961},
+  volume  = {4},
+  pages   = {153--168}
+}
+
 @article{pommerening2015Methods_C2_CR,
   title = {Methods of modelling relative growth rate},
   author = {Pommerening, A. and Muszta, A.},
@@ -350,6 +359,17 @@
   doi       = {10.3390/IECF2020-08036}
 }
 
+@article{bontemps2014Predictive_C2_BG,
+  author  = {Bontemps, Jean-Daniel and Bouriaud, Olivier},
+  title   = {Predictive Approaches to Forest Site Productivity:
+             Recent Trends, Challenges and Future Perspectives},
+  journal = {Forestry},
+  year    = {2014},
+  volume  = {87},
+  number  = {1},
+  pages   = {109--128},
+  doi     = {10.1093/forestry/cpt034}
+}
 % ==============================================================================
 % 3. Repeated LiDAR & Top-Height Measurement & Data Sources (_C3_LID)
 % ==============================================================================
@@ -444,46 +464,73 @@
   pages = {4349--4383},
   doi = {10.5194/essd-13-4349-2021}
 }
-@misc{metoffice2019MIDASOpen_C3_LID,
-  title = {Met Office {MIDAS} Open: UK Land Surface Stations Data (1853--Current)},
-  author = {{Met Office}},
-  year = {2019},
-  publisher = {Centre for Environmental Data Analysis},
-  url = {https://catalogue.ceda.ac.uk/uuid/dbd451271eb04662beade68da43546e1/},
-  urldate = {2026-08-13}
-}
+
 @misc{ordnancesurveyTerrain50_C3_LID,
-  title = {{OS Terrain 50}},
-  author = {{Ordnance Survey}},
-  year = {2026},
-  url = {https://www.ordnancesurvey.co.uk/products/os-terrain-50},
-  urldate = {2026-08-13}
+  author       = {{Ordnance Survey}},
+  title        = {{OS Terrain 50}},
+  year         = {2026},
+  publisher    = {Ordnance Survey},
+  howpublished = {Digital terrain model dataset},
+  note         = {50 m post spacing; annual update; 2026 release used;
+                  supplied under the Open Government Licence},
+  url          = {https://www.ordnancesurvey.co.uk/products/os-terrain-50},
+  urldate      = {2026-08-13}
 }
+
 @misc{ordnancesurveyOpenRoads_C3_LID,
-  title = {{OS Open Roads}},
-  author = {{Ordnance Survey}},
-  year = {2026},
-  url = {https://www.ordnancesurvey.co.uk/products/os-open-roads},
-  urldate = {2026-08-13}
+  author       = {{Ordnance Survey}},
+  title        = {{OS Open Roads}},
+  year         = {2026},
+  publisher    = {Ordnance Survey},
+  howpublished = {Vector road-network dataset},
+  note         = {2026 release used; product updated every six months;
+                  supplied under the Open Government Licence},
+  url          = {https://www.ordnancesurvey.co.uk/products/os-open-roads},
+  urldate      = {2026-08-13}
 }
+
 @misc{ordnancesurveyOpenRivers_C3_LID,
-  title = {{OS Open Rivers}},
-  author = {{Ordnance Survey}},
-  year = {2026},
-  url = {https://www.ordnancesurvey.co.uk/products/os-open-rivers},
-  urldate = {2026-08-13}
+  author       = {{Ordnance Survey}},
+  title        = {{OS Open Rivers}},
+  year         = {2026},
+  publisher    = {Ordnance Survey},
+  howpublished = {Vector watercourse dataset},
+  note         = {2026 release used; product updated every six months;
+                  supplied under the Open Government Licence},
+  url          = {https://www.ordnancesurvey.co.uk/products/os-open-rivers},
+  urldate      = {2026-08-13}
 }
+
 @misc{forestresearchAberfoylePlots_C3_LID,
   title = {Repeated Forest Plot and Airborne Laser Scanning Data for Aberfoyle Forest},
   author = {{Forest Research}},
   year = {2023},
   note = {Dataset supplied for this study; final dataset title and access details to be confirmed}
 }
-@misc{ukcehSoilMaps_C3_LID,
-  title = {National-Scale Maps of Parent Material Properties, Terrain and Soil Natural Capital Units for Great Britain},
-  author = {{UK Centre for Ecology \& Hydrology}},
-  year = {2020},
-  note = {Exact dataset record and version to be confirmed from the downloaded source files}
+
+@misc{metoffice2019MIDASOpen_C3_LID,
+  author    = {{Met Office}},
+  title     = {{Met Office MIDAS Open}: UK Land Surface Stations Data
+               (1853--Current)},
+  year      = {2019},
+  publisher = {Centre for Environmental Data Analysis},
+  url       = {https://catalogue.ceda.ac.uk/uuid/dbd451271eb04662beade68da43546e1/},
+  urldate   = {2026-08-22}
+}
+
+@dataset{feeney2026CEHNaturalCapital_C3_LID,
+  author    = {Feeney, Christopher J. and Robinson, David A. and
+               Lawley, Russell and Holbrook, Hannah and Dhiedt, Elke and
+               Williamson, Jennifer L. and Tye, Andrew M. and
+               Redhead, John W.},
+  title     = {National Scale Maps of Parent Material Properties,
+               Terrain and Soil Natural Capital Units at 50 Metre
+               Resolution for Great Britain, 2020},
+  year      = {2026},
+  publisher = {NERC EDS Environmental Information Data Centre},
+  doi       = {10.5285/5bcd927d-8114-4937-af7e-258cfd137109},
+  url       = {https://catalogue.ceh.ac.uk/documents/5bcd927d-8114-4937-af7e-258cfd137109},
+  urldate   = {2026-08-22}
 }
 
 @article{lee2018Machine_C3_LID,
@@ -495,6 +542,19 @@
   number  = {5},
   pages   = {268},
   doi     = {10.3390/f9050268}
+}
+
+@dataset{karger2021CHELSA_C3_LID,
+  author    = {Karger, Dirk Nikolaus and Conrad, Olaf and B{\"o}hner, J{\"u}rgen and
+               Kawohl, Tobias and Kreft, Holger and Soria-Auza, Rodrigo Wilber and
+               Zimmermann, Niklaus E. and Linder, H. Peter and Kessler, Michael},
+  title     = {Climatologies at High Resolution for the Earth's Land Surface Areas},
+  year      = {2021},
+  publisher = {EnviDat},
+  version   = {2.1},
+  doi       = {10.16904/envidat.228},
+  url       = {https://www.envidat.ch/dataset/chelsa-climatologies},
+  urldate   = {2026-08-22}
 }
 % ==============================================================================
 % 4. DNNs, PINNs & Hybrid Ecological Models (_C4_NN)
@@ -613,6 +673,36 @@
   number  = {1},
   pages   = {6375},
   doi     = {10.1038/s41598-022-10312-x}
+}
+
+@article{raissi2019Physics_C4_NN,
+  author  = {Raissi, Maziar and Perdikaris, Paris and
+             Karniadakis, George Em},
+  title   = {Physics-Informed Neural Networks: A Deep Learning Framework
+             for Solving Forward and Inverse Problems Involving Nonlinear
+             Partial Differential Equations},
+  journal = {Journal of Computational Physics},
+  year    = {2019},
+  volume  = {378},
+  pages   = {686--707},
+  doi     = {10.1016/j.jcp.2018.10.045}
+}
+
+@article{brown2025AlphaEarth_C4_NN,
+  author  = {Brown, Christopher F. and Kazmierski, Michal R. and
+             Pasquarella, Valerie J. and Rucklidge, William J. and
+             Samsikova, Masha and Zhang, Chenhui and Shelhamer, Evan and
+             Lahera, Estefania and Wiles, Olivia and Ilyushchenko, Simon and
+             Gorelick, Noel and Zhang, Lihui Lydia and Alj, Sophia and
+             Schechter, Emily and Askay, Sean and Guinan, Oliver and
+             Moore, Rebecca and Boukouvalas, Alexis and Kohli, Pushmeet},
+  title   = {{AlphaEarth Foundations}: An Embedding Field Model for Accurate
+             and Efficient Global Mapping from Sparse Label Data},
+  journal = {arXiv},
+  year    = {2025},
+  eprint  = {2507.22291},
+  archivePrefix = {arXiv},
+  doi     = {10.48550/arXiv.2507.22291}
 }
 % ==============================================================================
 % 5. Spatial & General Evaluation (Moran's, LISA, NLME, BlockCV) (_C5_EVAL)
@@ -737,6 +827,38 @@
   address   = {Reading, MA}
 }
 
+@article{harrison2018Brief_C5_EVAL,
+  author  = {Harrison, Xavier A. and Donaldson, Lynda and Correa-Cano, Mariela E. and Evans, Julian and Fisher, David N. and Goodwin, Robyn E. and Robinson, Bear S. and Hodgson, David J. and Inger, Richard},
+  title   = {A Brief Introduction to Mixed Effects Modelling and Multi-Model Inference in Ecology},
+  journal = {PeerJ},
+  volume  = {6},
+  pages   = {e4794},
+  year    = {2018},
+  doi     = {10.7717/peerj.4794}
+}
+
+@article{moran1950Notes_c5_eval,
+  author  = {Moran, P. A. P.},
+  title   = {Notes on Continuous Stochastic Phenomena},
+  journal = {Biometrika},
+  year    = {1950},
+  volume  = {37},
+  number  = {1--2},
+  pages   = {17--23},
+  doi     = {10.1093/biomet/37.1-2.17}
+}
+
+@article{kim2021Predicting_C5_EVAL,
+  author  = {Kim, Daehyun},
+  title   = {Predicting the Magnitude of Residual Spatial Autocorrelation
+             in Geographical Ecology},
+  journal = {Ecography},
+  year    = {2021},
+  volume  = {44},
+  number  = {7},
+  pages   = {1121--1130},
+  doi     = {10.1111/ecog.05403}
+}
 
 % ==============================================================================
 % 6. GWR and GNNWR Spatial Models (_C6_GWR)
@@ -780,6 +902,54 @@
   year    = {2022},
   doi     = {10.1016/j.softx.2022.101034}
 }
+
+@article{gaspard2019Residual_C6_GWR,
+  author  = {Gaspard, Guetchine and Kim, Daehyun and Chun, Yongwan},
+  title   = {Residual Spatial Autocorrelation in Macroecological and
+             Biogeographical Modeling: A Review},
+  journal = {Journal of Ecology and Environment},
+  year    = {2019},
+  volume  = {43},
+  number  = {1},
+  pages   = {19},
+  doi     = {10.1186/s41610-019-0118-3}
+}
+
+@article{brunsdon1996Geographically_C6_GWR,
+  author  = {Brunsdon, Chris and Fotheringham, A. Stewart and Charlton, Martin E.},
+  title   = {Geographically Weighted Regression: A Method for Exploring
+             Spatial Nonstationarity},
+  journal = {Geographical Analysis},
+  year    = {1996},
+  volume  = {28},
+  number  = {4},
+  pages   = {281-298},
+  doi     = {10.1111/j.1538-4632.1996.tb00936.x}
+}
+
+@article{wheeler2005Multicollinearity_C6_GWR,
+  author  = {Wheeler, David and Tiefelsdorf, Michael},
+  title   = {Multicollinearity and Correlation among Local Regression
+             Coefficients in Geographically Weighted Regression},
+  journal = {Journal of Geographical Systems},
+  year    = {2005},
+  volume  = {7},
+  number  = {2},
+  pages   = {161--187},
+  doi     = {10.1007/s10109-005-0155-6}
+}
+
+@article{fotheringham2017Multiscale_C6_GWR,
+  author  = {Fotheringham, A. Stewart and Yang, Wenbai and Kang, Wei},
+  title   = {Multiscale Geographically Weighted Regression ({MGWR})},
+  journal = {Annals of the American Association of Geographers},
+  year    = {2017},
+  volume  = {107},
+  number  = {6},
+  pages   = {1247--1265},
+  doi     = {10.1080/24694452.2017.1352480}
+}
+
 % ==============================================================================
 % 7. Residual Attribution & Interpretable ML (SHAP, ALE) (_C7_XAI)
 % ==============================================================================
@@ -796,9 +966,59 @@
   pages     = {4765--4774}
 }
 
+@article{aas2021Explaining_C7_XAI,
+  author  = {Aas, Kjersti and Jullum, Martin and L{\o}land, Anders},
+  title   = {Explaining Individual Predictions When Features Are Dependent:
+             More Accurate Approximations to Shapley Values},
+  journal = {Artificial Intelligence},
+  volume  = {298},
+  pages   = {103502},
+  year    = {2021},
+  doi     = {10.1016/j.artint.2021.103502}
+}
+
 % ==============================================================================
 % 8. Future Work & General Extensions (_C8_FW)
 % ==============================================================================
 
 % TO ADD:
 % - (Add papers related to broader future directions not covered by Cat 1)
+@article{duncanson2018Utility_FW,
+  author  = {Duncanson, Laura and Dubayah, Ralph},
+  title   = {Utility of Multi-Temporal Lidar for Forest and Carbon Monitoring: Tree Growth, Biomass Dynamics, and Carbon Flux},
+  journal = {Surveys in Geophysics},
+  volume  = {39},
+  pages   = {1195--1222},
+  year    = {2018},
+  doi     = {10.1007/s10712-018-9477-1}
+}
+
+@article{weiser2022Individual_FW,
+  author  = {Weiser, H. and Appel, F. and Coops, N. C. and Kattenborn, T. and W{\"u}rth, M. and Holzwarth, S. and Heurich, M. and Prinz, M. and Fassnacht, F. E.},
+  title   = {Individual Tree Point Clouds and Tree Measurements from Multi-Platform Laser Scanning in Central European Forests},
+  journal = {Earth System Science Data},
+  volume  = {14},
+  number  = {7},
+  pages   = {2989--3014},
+  year    = {2022},
+  doi     = {10.5194/essd-14-2989-2022}
+}
+
+@article{poggio2021SoilGrids2_FW,
+  author  = {Poggio, Laura and de Sousa, Luis Moreira and Batjes, Niels H. and Heuvelink, Gerard B. M. and Kempen, Bas and Ribeiro, Emanuele and Rossiter, David},
+  title   = {{SoilGrids 2.0}: Producing Soil Information for the Globe with Quantified Spatial Uncertainty},
+  journal = {Soil},
+  volume  = {7},
+  number  = {1},
+  pages   = {217--240},
+  year    = {2021},
+  doi     = {10.5194/soil-7-217-2021}
+}
+
+@article{brown2025AlphaEarth_FW,
+  author  = {Brown, Christopher F. and others},
+  title   = {AlphaEarth Foundations: An Embedding Field Model for Accurate and Efficient Global Mapping from Sparse Label Data},
+  journal = {arXiv preprint arXiv:2507.22291},
+  year    = {2025},
+  url     = {https://arxiv.org/abs/2507.22291}
+}

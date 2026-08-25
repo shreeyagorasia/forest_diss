@@ -5,7 +5,10 @@
 % which wins and why, now that the PINN forward-pass fix works) leads; environment-improves-
 % accuracy is now the secondary point, not the headline framing. Everything else (motivation,
 % research gap, Q1/Q2 rows) is untouched -- not part of what was flagged as needing a change.
-% "Main Finding" left as TODO, same as the source -- not something this session can fill in.
+% "Main Finding" filled in 2026-08-24: drawn from Q1/Q2/Q3 Discussion/Conclusion sections
+% (results_q1_21_08_0754pm.tex, results_q2_22_08_0214.tex, results_q3_23_08_0540am.tex),
+% restricted to vocabulary already established earlier in this chapter -- no new jargon from
+% the Results chapters (no SHAP, Moran's I, R^2, compartment, permutation importance, etc.).
 
 \chapter{Introduction}  \label{ch:intro}
 
@@ -56,4 +59,4 @@ Q1 asks whether a stand's tendency to sit persistently above or below the shared
 For a forester, these matter in a practical order. Q1 and Q2 flag which stands are behaving unusually and which local conditions are plausibly responsible. Q2 specifically tests whether a stand's assigned yield class still holds, or needs revising. Q3 tests whether any of this -- environmental data, or a physically meaningful model -- is worth using for ongoing prediction, not just after-the-fact explanation.
 
 \paragraph*{Main Finding:}
-TODO
+Across the three questions, environment consistently matters, but how it matters changes with the question asked. Environmental and management conditions are genuinely tied to a plot's persistent deviation from the shared growth curve, and the conditions identified are broadly consistent across Elastic Net, mixed-effects, and XGBoost models (Q1). Letting growth-environment links change by location, via GNNWR, does not pick up much that Q1's models miss: most of the unusual local results it surfaces turn out to be noise or artefacts of how the target itself was built, rather than real local effects (Q2). For predicting top height directly, a standard model -- gradient-boosted trees -- wins over both the deep neural network and the physics-informed variants tested; adding a Chapman-Richards constraint does not improve accuracy, but it does give more interpretable growth parameters (Q3). Taken together, environmental and management conditions explain real, persistent growth differences, and independent attribution methods agree on which conditions matter -- but neither letting those relationships vary by location nor building in growth-curve physics improves prediction of top height itself; interpretability, not accuracy, is what a physics-informed model buys.
