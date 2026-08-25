@@ -1,11 +1,11 @@
 # Run as: python -m models.env_deviation.run_env_deviation --cohort 4survey --split-type spatial_block --base cr
 #     or: python -m models.env_deviation.run_env_deviation --cohort 4survey --split-type spatial_block --base dnn_noenv
 #
-# Decoupled deviation model -- see models/env_deviation/env_deviation.py's own top-of-file note
+# Decoupled deviation model. See models/env_deviation/env_deviation.py's own top-of-file note
 # and documentation/model_instructions/env_deviation_decoupled_instructions.md for the full
 # reasoning. No physics loss, no joint training: fit the base model's prediction (or read the
 # frozen CR curve), compute what's left over, then fit XGBoost to predict THAT from terrain/wind
-# alone. Fits in seconds -- like xgb_environmental.py's own run script, there is no separate
+# alone. Fits in seconds. Like xgb_environmental.py's own run script, there is no separate
 # cluster-fit/local-evaluate split for this model.
 
 import argparse
@@ -78,15 +78,15 @@ def run_for_cohort(cohort, split_type, base_model, feature_set_name, run_name=No
         test_df = split_df[split_df["split"] == "test"]
 
         if base_model == "cr":
-            # CR has only 3 global parameters -- minimal overfitting risk, so its train-set
+            # CR has only 3 global parameters. Minimal overfitting risk, so its train-set
             # residuals are a fair, representative target. Standard train-fits/val-for-early-
             # stopping/test-read-once discipline, same as everything else in this repo.
             residual_fit_df, residual_early_stopping_df = train_df, val_df
         else:
             # dnn_noenv overfits (train_loss << val_loss, every training curve this session shows
-            # this) -- fitting the residual model to its TRAIN-set residuals would fit an
+            # this). Fitting the residual model to its TRAIN-set residuals would fit an
             # artificially small, optimistic error. Use VAL-set residuals instead (see
-            # split_val_for_residual_early_stopping()'s own note) -- test stays untouched either way.
+            # split_val_for_residual_early_stopping()'s own note). Test stays untouched either way.
             residual_fit_df, residual_early_stopping_df = split_val_for_residual_early_stopping(val_df)
 
         print(f"  residual model: fit on {len(residual_fit_df):,} rows, "

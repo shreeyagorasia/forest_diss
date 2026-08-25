@@ -1,15 +1,15 @@
 # Run as: python -m models.spatial_attribution.rq2_residual_reduction --model-name dnn_env_terrain --cr-run-name chapman_richards --cohort 4survey --split-type spatial_block
 #
-# RQ2's DNN/PINN angle: reuses RQ1's ALREADY-FIT model predictions -- no new fitting at all, just
+# RQ2's DNN/PINN angle: reuses RQ1's ALREADY-FIT model predictions. No new fitting at all, just
 # a new way of reading the same predictions.csv every DNN/PINN model already saves. RQ1 asks "how
 # accurate is this model at predicting height"; RQ2 asks a related but different question: "does
 # giving the model environmental information shrink the systematic departure from the shared
-# Chapman-Richards curve" -- i.e. does the model's own error get smaller specifically on the
+# Chapman-Richards curve". I.e. does the model's own error get smaller specifically on the
 # plots the shared curve does WORST on, not just smaller on average.
 #
 # Works because CR baseline's predictions.csv and every DNN/PINN model's predictions.csv share
 # the IDENTICAL schema (identification, LiDAR_year, observed_top_height, predicted_top_height,
-# residual, split) -- confirmed by reading real files, not assumed. Join the two on
+# residual, split). Confirmed by reading real files, not assumed. Join the two on
 # (identification, LiDAR_year), and CR's own residual for that row becomes "how far the shared
 # curve was off," directly comparable to the model's residual for the SAME row.
 
@@ -37,13 +37,13 @@ def compute_residual_reduction(cr_predictions, model_predictions):
         model_predictions, on=ROW_KEY, how="inner", suffixes=("_cr", "_model"),
     )
     if len(merged) == 0:
-        raise ValueError("No matching rows between CR baseline and model predictions -- check cohort/split_type/fold all match.")
+        raise ValueError("No matching rows between CR baseline and model predictions. Check cohort/split_type/fold all match.")
 
     merged["cr_abs_residual"] = merged["residual_cr"].abs()
     merged["model_abs_residual"] = merged["residual_model"].abs()
     merged["reduction"] = merged["cr_abs_residual"] - merged["model_abs_residual"]  # positive = model is better
 
-    # The real question isn't just "is the average residual smaller" -- it's "does the model
+    # The real question isn't just "is the average residual smaller". It's "does the model
     # help MOST on the plots the shared curve does WORST on" (your own RQ2 framing: does it pull
     # predictions towards the shared relationship where it matters). Splits rows into CR-residual
     # quartiles and reports the reduction separately per quartile, not just one overall number.
@@ -72,10 +72,10 @@ def main():
     parser.add_argument("--cr-run-name", default="chapman_richards", help="Baseline CR run_name for the SAME split/fold this model was fit under.")
     parser.add_argument("--cohort", default="4survey", choices=["4survey", "6survey"])
     parser.add_argument("--split-type", default="spatial_block", choices=["plot_level", "spatial_block", "spatial_block_kfold", "temporal"])
-    parser.add_argument("--fold-index", type=int, default=None, help="Only for spatial_block_kfold -- omit for a single-split model.")
+    parser.add_argument("--fold-index", type=int, default=None, help="Only for spatial_block_kfold. Omit for a single-split model.")
     parser.add_argument(
         "--no-save-per-row", action="store_true",
-        help="Skip saving the per-row merged CSV (coordinates joined in) -- saved by default so "
+        help="Skip saving the per-row merged CSV (coordinates joined in). Saved by default so "
              "a later, plot-heavy script has everything needed for maps/outlier-zoom without "
              "rerunning this analysis. Cheap either way (a join + a CSV write), so left on unless "
              "you explicitly don't want it.",
@@ -99,7 +99,7 @@ def main():
 
     if not args.no_save_per_row:
         # Coordinates joined in here (not saved in predictions.csv itself, which every DNN/PINN
-        # model shares the same schema for) -- this is the one join a later plotting script would
+        # model shares the same schema for). This is the one join a later plotting script would
         # otherwise have to redo itself for every map/outlier-zoom figure, so it's done once, here.
         coordinates = load_plot_coordinates()
         merged_with_xy = merged.merge(coordinates[["identification", "x", "y"]], on="identification", how="left")

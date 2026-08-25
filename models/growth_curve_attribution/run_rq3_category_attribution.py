@@ -1,23 +1,23 @@
 # Run as: python -m models.growth_curve_attribution.run_rq3_category_attribution --cohort 4survey
 #
-# RQ3's category-level attribution -- "which KIND of environmental variable (terrain/wind/soil/
+# RQ3's category-level attribution. "which KIND of environmental variable (terrain/wind/soil/
 # climate/edge/stand) explains the local curve deviation", distinct from run_rq3_en_xgb.py's
 # per-VARIABLE coefficients/gain-importance. Reuses models/xgb_environmental/grouped_analysis.py
-# wholesale -- the same toolkit already used and validated in
-# notebooks/growth_curve_attribution/av2_local_growth_curve_grouped_importance.ipynb -- rather
+# wholesale. The same toolkit already used and validated in
+# notebooks/growth_curve_attribution/av2_local_growth_curve_grouped_importance.ipynb. Rather
 # than writing new category-attribution statistics. Only new code here is the wiring: loading
 # RQ3's Set4 raw-column list from the manifest, building its table, and calling the existing
 # grouped_permutation_importance()/category_morans_i_before_after() functions on it.
 #
-# Set4 (nested_set4_gated_all_vif) ONLY -- the only RQ3 tier with at least one column from every
+# Set4 (nested_set4_gated_all_vif) ONLY. The only RQ3 tier with at least one column from every
 # CATEGORY_GROUPS category (checked directly against the manifest, 2026-08-10: Set2 has no
 # soil_site/climate; Set3 "gated_terrain_wind" has no soil_site/climate/edge at all, and its own
-# "wind" share is thin -- just topex/windward_topex, none of the GWA speed/Weibull columns RQ1's
+# "wind" share is thin. Just topex/windward_topex, none of the GWA speed/Weibull columns RQ1's
 # Set3 has). Running this on Set2/Set3 would report those missing categories at 0% importance --
 # not because they don't matter, but because no candidate column from them was ever in the model.
 #
 # Single spatial_block split (not the 5-fold spatial CV run_rq3_en_xgb.py uses for the headline
-# R2 numbers) -- matches the precedent already set by the notebook this reuses, and
+# R2 numbers). Matches the precedent already set by the notebook this reuses, and
 # category_morans_i_before_after() already does 7 refits (baseline + 6 categories removed) per
 # call; running that 5x over folds would be 35 refits for an interpretability layer, not the
 # headline accuracy comparison.
@@ -51,7 +51,7 @@ def run_one_cohort(cohort, seed=SPLIT_SEED):
 
     raw_columns = load_feature_set("RSQ3", SET_NAME)
     # Same bare/dummy unpack-and-filter pattern as run_columns() (broad_environmental_check.py)
-    # -- prepare_broad_table() only knows how to expand a BARE categorical name into every one of
+    #. Prepare_broad_table() only knows how to expand a BARE categorical name into every one of
     # its dummies, so specific dummy requests are unpacked back to their bare category first, then
     # the full dummy expansion is filtered back down to just what was actually requested.
     bare_columns = list(dict.fromkeys(column.split("=")[0] for column in raw_columns))
@@ -89,7 +89,7 @@ def run_one_cohort(cohort, seed=SPLIT_SEED):
     permutation_df = pd.DataFrame(permutation_rows)
 
     # "Before" (full model) + "after" (one category removed and refit) Moran's I on the
-    # residuals -- does removing this category leave the residuals MORE spatially clustered than
+    # residuals. Does removing this category leave the residuals MORE spatially clustered than
     # before (that category was explaining real spatial structure), or barely change anything
     # (it wasn't responsible for the spatial pattern)?
     morans_df = category_morans_i_before_after(

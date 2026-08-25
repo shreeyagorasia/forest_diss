@@ -2,13 +2,13 @@ import pandas as pd
 from sklearn.linear_model import ElasticNetCV
 from sklearn.preprocessing import StandardScaler
 
-# Reuses the SAME provenance dict and feature-set definitions XGBoost uses -- one place
+# Reuses the SAME provenance dict and feature-set definitions XGBoost uses. One place
 # (xgb_environmental.py) decides what "all_environmental" etc actually contains, so the two
 # methods are always being compared on the exact same candidate variables, never a silently
 # drifted copy of the list.
 #
 # FEATURE_SETS imported directly (2026-07-30 fix), not reconstructed from ALL_FEATURE_COLUMNS/
-# NEIGHBOUR_COLUMNS/TERRAIN_AND_WIND_COLUMNS -- the reconstruction used to be byte-for-byte
+# NEIGHBOUR_COLUMNS/TERRAIN_AND_WIND_COLUMNS. The reconstruction used to be byte-for-byte
 # identical to xgb_environmental.py's own FEATURE_SETS, but a future feature set added there
 # wouldn't have automatically appeared here, since this file built its own dict rather than
 # reading xgb_environmental's. Importing the dict directly closes that drift risk instead of
@@ -17,12 +17,12 @@ from models.xgb_environmental.xgb_environmental import FEATURE_SETS
 
 # Elastic Net is a LINEAR model: it assumes each input column is a number on a meaningful,
 # ordered scale, where "twice the value" means "twice the effect". That assumption is true for
-# almost every column here (elevation, slope, temperature, whcl -- a 0-6 ordinal hazard
+# almost every column here (elevation, slope, temperature, whcl. A 0-6 ordinal hazard
 # severity) but it is FALSE for these three: they are raster CLASS IDs (see FEATURE_PROVENANCE
-# in xgb_environmental.py -- "a categorical class ID, not an ordinal scale"). Class 3 is not
+# in xgb_environmental.py. "a categorical class ID, not an ordinal scale"). Class 3 is not
 # "three times" class 1, and class 4 is not necessarily "between" class 3 and class 5 in any
 # real sense. Feeding a class ID straight into a linear model would silently assume a fake
-# ordering and a fake straight-line effect that isn't there -- so these three are one-hot
+# ordering and a fake straight-line effect that isn't there. So these three are one-hot
 # encoded instead (turned into a separate 0/1 column per category), same treatment a tree model
 # does not need (a tree can split "is this class 4?" without caring about ordering at all,
 # which is why xgb_environmental.py uses these columns raw).
@@ -41,9 +41,9 @@ L1_RATIOS_TO_TRY = [0.1, 0.3, 0.5, 0.7, 0.9, 0.95, 0.99, 1.0]
 def drop_rows_with_missing_features(df, feature_columns):
     # A handful of plots are missing one or more environmental variables (edge-of-raster-window
     # cases: soilgrids_ph, the CEH layers, and the neighbour features each have a small number of
-    # NaNs -- see notebooks/environmental_data/aux_data_resolution_check.ipynb for why). XGBoost
+    # NaNs. See notebooks/environmental_data/aux_data_resolution_check.ipynb for why). XGBoost
     # can split around a NaN natively, so xgb_environmental.py never needed to touch this. Elastic
-    # Net has no such handling -- sklearn's ElasticNetCV raises outright on any NaN input -- so
+    # Net has no such handling. Sklearn's ElasticNetCV raises outright on any NaN input. So
     # those rows are dropped here instead of silently failing or being imputed with a made-up
     # value. This affects a small fraction of rows (under 1% for every feature set tried so far).
     before = len(df)
@@ -77,13 +77,13 @@ def build_design_matrix(df, continuous_columns, categorical_columns, dummy_colum
     categorical_part = pd.get_dummies(df[categorical_columns].astype(str)).reset_index(drop=True)
 
     if dummy_columns is None:
-        # First time this is called (on the training data) -- record exactly which dummy
+        # First time this is called (on the training data). Record exactly which dummy
         # columns exist, so val/test data can be forced to match, even if a rare category is
         # missing from (or only appears in) one split.
         dummy_columns = list(categorical_part.columns)
     else:
         # reindex guarantees val/test end up with the SAME columns, in the SAME order, as
-        # training -- any category training saw but this data doesn't gets filled with 0
+        # training. Any category training saw but this data doesn't gets filled with 0
         # (that category is simply absent here); any category this data has that training
         # never saw is dropped (the model has no coefficient for it anyway).
         categorical_part = categorical_part.reindex(columns=dummy_columns, fill_value=0)
@@ -96,7 +96,7 @@ def fit_with_columns(train_df, feature_columns, target_col="mean_cr_residual", s
     # Returns a plain dict bundling everything needed to reproduce the exact same
     # preprocessing at prediction time: the fitted scaler, which columns are continuous vs
     # categorical, and which dummy columns training ended up with. A fitted XGBoost model
-    # carries all of this internally already -- Elastic Net needs it handed back explicitly
+    # carries all of this internally already. Elastic Net needs it handed back explicitly
     # because the preprocessing (scaling, one-hot encoding) lives outside the model object.
     continuous_columns, categorical_columns = split_feature_types(feature_columns)
     design_train, dummy_columns = build_design_matrix(train_df, continuous_columns, categorical_columns)
@@ -105,7 +105,7 @@ def fit_with_columns(train_df, feature_columns, target_col="mean_cr_residual", s
     # for Elastic Net: its penalty punishes large coefficients, so a column measured in metres
     # (elevation, up to ~600) would otherwise get an artificially small coefficient just because
     # of its units, while a column measured in small decimals (slope in degrees, or a Spearman-
-    # scale index) would get an artificially large one -- not because either is more important,
+    # scale index) would get an artificially large one. Not because either is more important,
     # just because of the units each happens to be recorded in. Scaling removes that distortion,
     # so the fitted coefficients are actually comparable to each other.
     scaler = StandardScaler()
@@ -157,7 +157,7 @@ def get_coefficients_table(fitted):
     # roughly fixed". For a CATEGORICAL dummy column (e.g. "ceh_pedotope_3.0"), it is "being in
     # this specific class changes the residual by this many metres, relative to the categories
     # Elastic Net folded into the baseline". A coefficient of exactly 0.0 means Elastic Net's
-    # penalty zeroed that variable out entirely -- treated as carrying no unique information once
+    # penalty zeroed that variable out entirely. Treated as carrying no unique information once
     # everything else is accounted for, not merely "small".
     coefficients = pd.Series(fitted["model"].coef_, index=fitted["design_columns"], name="coefficient")
     return coefficients.reindex(coefficients.abs().sort_values(ascending=False).index)

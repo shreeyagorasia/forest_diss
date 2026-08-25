@@ -1,9 +1,9 @@
 # Run as: python -m models.pinn_env_terrain_k.evaluate_pinn_env_terrain_k --cohort 4survey
 #
 # EVALUATES an already-trained pinn_env_terrain_k checkpoint on the held-out test split. Mirrors
-# evaluate_pinn_env_terrain.py's structure -- see that file's own comments for the full
+# evaluate_pinn_env_terrain.py's structure. See that file's own comments for the full
 # reasoning, not repeated here. One real addition: also saves the learned per-plot k map
-# alongside y_max, and reports their correlation directly -- see pinn_env_terrain_k.py's own
+# alongside y_max, and reports their correlation directly. See pinn_env_terrain_k.py's own
 # top-of-file note on the y_max/k confound risk this is meant to check, not assume away.
 #
 # Uses load_cr_params() (not a manual params.json read) for BOTH the y_max and k global anchors --
@@ -86,7 +86,7 @@ def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED, k_f
         )
         terrain_test = build_terrain_tensor(test_df, scaler_terrain, feature_columns, device)
 
-        # Timed for a runtime-comparison chart -- see evaluate_dnn_noenv.py's identical comment.
+        # Timed for a runtime-comparison chart. See evaluate_dnn_noenv.py's identical comment.
         # Spans predict()/predict_y_max()/predict_k() together, this model's full inference cost.
         inference_start_time = time.time()
         predicted_height_test_scaled = predict(model, age_test, other_test)
@@ -95,7 +95,7 @@ def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED, k_f
         ).flatten()
         observed_height_test = test_df[TARGET_COLUMN].values
 
-        # The two learned, plot-specific maps -- y_max (as in pinn_env_terrain) and now k too.
+        # The two learned, plot-specific maps. Y_max (as in pinn_env_terrain) and now k too.
         learned_y_max_test = predict_y_max(model, terrain_test, global_y_max).cpu().numpy().flatten()
         learned_k_test = predict_k(model, terrain_test, global_k).cpu().numpy().flatten()
         inference_elapsed_seconds = time.time() - inference_start_time
@@ -103,8 +103,8 @@ def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED, k_f
         # Confound check (see pinn_env_terrain_k.py's top-of-file note): if y_max and k are
         # substitutable given only terrain inputs, they'd end up correlated across plots even
         # though they're meant to capture different effects (ceiling vs. rate). A strong
-        # correlation here doesn't prove the two are meaningless -- environment could plausibly
-        # affect both together -- but it's the first thing to check before treating them as two
+        # correlation here doesn't prove the two are meaningless. Environment could plausibly
+        # affect both together. But it's the first thing to check before treating them as two
         # independently interpretable findings.
         y_max_k_correlation = float(np.corrcoef(learned_y_max_test, learned_k_test)[0, 1])
 

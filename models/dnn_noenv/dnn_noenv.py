@@ -1,10 +1,10 @@
 # Plain DNN, no-environment feature set. Same architecture as the PINN
 # (models/common/torch_model.py::NoEnvNetwork) with plain MSE loss and no
-# physics term at all -- see
+# physics term at all. See
 # documentation/model_instructions/age_only_dnn_pinn_instructions.md.
 #
 # This file only knows how to build, train, and save/load the DNN. It does
-# NOT load data or evaluate on the test set -- that split is deliberate:
+# NOT load data or evaluate on the test set. That split is deliberate:
 # models/dnn_noenv/run_dnn_noenv.py (fit only, meant to run on the SLURM
 # cluster where the GPU is) and models/dnn_noenv/evaluate_dnn_noenv.py
 # (evaluate only, cheap enough to run locally on a laptop CPU) are two
@@ -21,16 +21,16 @@ from models.common.torch_model import NoEnvNetwork, compute_l1_penalty
 
 # ----- Fixed hyperparameters for this model -----
 # These are not swept or tuned in this project (see the instructions doc
-# for why) -- they are simple constants so every part of the code, and
+# for why). They are simple constants so every part of the code, and
 # every log file, uses the exact same numbers.
 L1_COEFFICIENT = 1e-5
 LEARNING_RATE = 0.0001
 LR_SCHEDULER_FACTOR = 0.8
 LR_SCHEDULER_PATIENCE = 15
-BATCH_SIZE = 256  # matches PINN/PINN-k's default -- changed from 512 on 2026-08-22 for a fair batch-size comparison; kept paired with dnn_env_terrain.py's default, per that file's own note
+BATCH_SIZE = 256  # matches PINN/PINN-k's default. Changed from 512 on 2026-08-22 for a fair batch-size comparison; kept paired with dnn_env_terrain.py's default, per that file's own note
 
 # L2 penalty built into the optimizer itself (distinct from L1_COEFFICIENT
-# above, which is added to the loss manually) -- a second, standard way to
+# above, which is added to the loss manually). A second, standard way to
 # discourage the network from fitting training-set noise. Kept small and the
 # same order of magnitude as L1_COEFFICIENT so the two don't fight each
 # other or squash genuine learning.
@@ -38,7 +38,7 @@ WEIGHT_DECAY = 1e-5
 
 # Caps how large a single weight update can be, regardless of how big the
 # loss gradient is that step. Cheap insurance against one noisy/unlucky
-# batch causing a big, destabilising jump -- exactly the kind of thing that
+# batch causing a big, destabilising jump. Exactly the kind of thing that
 # could explain a val_loss that suddenly climbs (see the DNN/4survey
 # overfitting case in documentation/experiment_log.md).
 GRAD_CLIP_MAX_NORM = 1.0
@@ -52,7 +52,7 @@ VAL_LOSS_SMOOTHING_WINDOW = 5
 
 # How often to PRINT progress during training (every 10 epochs, not every
 # epoch). This only affects what gets printed to the screen / the SLURM
-# .out file -- every single epoch's numbers are still saved to
+# .out file. Every single epoch's numbers are still saved to
 # training_history.csv regardless, so nothing is ever lost, this just
 # keeps the printed log readable over a run of hundreds of epochs.
 PRINT_EVERY_N_EPOCHS = 10
@@ -60,24 +60,24 @@ PRINT_EVERY_N_EPOCHS = 10
 
 def build_model(n_other_features, device, seed, dropout_rate=0.0, hidden_layer_sizes=None):
     # torch.manual_seed controls the random starting weights, so the same
-    # seed always gives the same initial network -- matches the seed=42
+    # seed always gives the same initial network. Matches the seed=42
     # convention already used by plot_level_split/spatial_block_split/RF
     # elsewhere in this codebase.
     #
     # dropout_rate=0.0 (no dropout) is still the default, matching every
-    # dnn_noenv/pinn_noenv result reported so far -- exposed here (2026-08-01)
+    # dnn_noenv/pinn_noenv result reported so far. Exposed here (2026-08-01)
     # as a real hyperparameter to test, not assumed to already be the best
     # choice. See documentation/experiment_log.md's 2026-08-01 entry: the
     # training curves show train_loss still improving right through to the
-    # last epoch while val_loss stalls early -- the textbook signature of
+    # last epoch while val_loss stalls early. The textbook signature of
     # overfitting, which dropout (a regulariser) directly targets, unlike a
     # bigger learning rate (which targets stuck optimisation, not this).
     #
-    # hidden_layer_sizes=None (2026-08-02) keeps building the original 3x128 network -- see
+    # hidden_layer_sizes=None (2026-08-02) keeps building the original 3x128 network. See
     # models/common/torch_model.py::NoEnvNetwork's own note. An explicit list (e.g. [64, 32])
     # switches to that architecture instead, for the architecture-sensitivity sweep: dropout/
     # learning-rate diagnostics (2026-08-01) found neither moved best_val_loss, which raised the
-    # question this sweep answers -- is the DNN's fixed capacity actually the limiting factor.
+    # question this sweep answers. Is the DNN's fixed capacity actually the limiting factor.
     torch.manual_seed(seed)
     model = NoEnvNetwork(n_other_features=n_other_features, dropout_rate=dropout_rate, hidden_layer_sizes=hidden_layer_sizes)
     return model.to(device)
@@ -88,7 +88,7 @@ def train_one_epoch(model, optimizer, age_train, other_train, target_train, batc
     # batches. This function does that pass ONCE and returns the average
     # training loss over all the batches in that pass.
     #
-    # Manually shuffles and batches the training rows -- this dataset is
+    # Manually shuffles and batches the training rows. This dataset is
     # small enough (well under a million rows) to keep entirely on the
     # device already, so there is no need for a DataLoader/Dataset wrapper
     # just to iterate over batches. torch.randperm makes a random shuffle
@@ -123,7 +123,7 @@ def train_one_epoch(model, optimizer, age_train, other_train, target_train, batc
         total_loss.backward()  # work out how much each weight contributed to the loss
         # Shrinks the gradient if its overall size is above GRAD_CLIP_MAX_NORM,
         # so one noisy batch can never cause an oversized weight update.
-        # clip_grad_norm_ returns the norm BEFORE clipping -- logging that
+        # clip_grad_norm_ returns the norm BEFORE clipping. Logging that
         # (not a post-clip value, which would just be min(norm, max_norm))
         # is what actually shows whether clipping is engaging often or
         # rarely across training.
@@ -142,7 +142,7 @@ def train_one_epoch(model, optimizer, age_train, other_train, target_train, batc
 def evaluate_on_validation_set(model, age_val, other_val, target_val):
     # Checks how well the CURRENT network does on the validation rows
     # (2021 survey), without updating any weights. Used every epoch to
-    # decide whether training is still improving (early stopping) -- this
+    # decide whether training is still improving (early stopping). This
     # is NOT the final test-set evaluation, which happens later in a
     # separate script.
     model.eval()  # tells the network "we are evaluating now", not training
@@ -154,13 +154,13 @@ def evaluate_on_validation_set(model, age_val, other_val, target_val):
 
 def build_optimizer(model, optimizer_name, learning_rate=LEARNING_RATE):
     # "adam" is the default used everywhere so far. "sgd_momentum" is a
-    # genuinely different optimizer (not an addition to Adam -- Adam
+    # genuinely different optimizer (not an addition to Adam. Adam
     # already has momentum built in, via its beta1=0.9 first-moment
     # estimate) offered as an easy A/B test: SGD with Nesterov momentum
     # sometimes finds flatter, better-generalizing minima than Adam does.
     #
     # learning_rate defaults to the LEARNING_RATE constant (never swept
-    # before 2026-08-01) but is now a real parameter -- see build_model()'s
+    # before 2026-08-01) but is now a real parameter. See build_model()'s
     # own note on why dropout, not a bigger learning rate, is the
     # better-motivated fix for the overfitting-shaped training curves seen
     # so far. Exposed anyway since it's cheap to test empirically.
@@ -189,7 +189,7 @@ def fit(
     # validation loss stops improving. Returns:
     #   - best_model: the network from whichever epoch had the LOWEST
     #     SMOOTHED validation loss (not necessarily the last epoch, and not
-    #     necessarily the single lowest raw epoch either -- see
+    #     necessarily the single lowest raw epoch either. See
     #     VAL_LOSS_SMOOTHING_WINDOW above)
     #   - final_model_state: the network's weights from the VERY LAST
     #     epoch trained, saved too in case it's ever useful to compare
@@ -200,7 +200,7 @@ def fit(
     model = build_model(n_other_features, device, seed, dropout_rate=dropout_rate, hidden_layer_sizes=hidden_layer_sizes)
     optimizer = build_optimizer(model, optimizer_name, learning_rate=learning_rate)
     # ReduceLROnPlateau automatically shrinks the learning rate once
-    # validation loss stops improving for a while -- this often helps a
+    # validation loss stops improving for a while. This often helps a
     # network fine-tune once it's close to its best result.
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, factor=LR_SCHEDULER_FACTOR, patience=LR_SCHEDULER_PATIENCE
@@ -211,7 +211,7 @@ def fit(
     epochs_without_improvement = 0
     history_rows = []
     # Keeps only the most recent VAL_LOSS_SMOOTHING_WINDOW raw val_loss
-    # values -- recent_val_losses.pop(0) below drops the oldest one once
+    # values. Recent_val_losses.pop(0) below drops the oldest one once
     # the window is full, so this is always a short rolling window, not the
     # whole history.
     recent_val_losses = []
@@ -226,7 +226,7 @@ def fit(
         current_lr = optimizer.param_groups[0]["lr"]
 
         # elapsed_seconds is the time since training started, not the time
-        # for this one epoch -- so plotting loss against elapsed_seconds
+        # for this one epoch. So plotting loss against elapsed_seconds
         # shows how training speed changes on the actual machine it ran on
         # (e.g. comparing a cluster GPU run to a laptop CPU sanity check).
         elapsed_seconds = time.time() - training_start_time
@@ -241,7 +241,7 @@ def fit(
             recent_val_losses.pop(0)
         smoothed_val_loss = sum(recent_val_losses) / len(recent_val_losses)
 
-        # Save EVERY epoch's numbers to the history list -- this becomes
+        # Save EVERY epoch's numbers to the history list. This becomes
         # training_history.csv later, with nothing skipped, regardless of
         # how often we print below.
         history_rows.append({
@@ -251,11 +251,11 @@ def fit(
         })
 
         # Has this epoch beaten every previous epoch's SMOOTHED validation
-        # loss? (Not the raw val_loss -- see above.)
+        # loss? (Not the raw val_loss. See above.)
         is_new_best = best_smoothed_val_loss is None or smoothed_val_loss < best_smoothed_val_loss
         if is_new_best:
             best_smoothed_val_loss = smoothed_val_loss
-            # .clone() makes an independent copy of the weights -- without
+            # .clone() makes an independent copy of the weights. Without
             # it, best_model_state would just keep pointing at the SAME
             # weights that keep changing every epoch, and by the end it
             # would not actually be "the best" weights any more.
@@ -267,7 +267,7 @@ def fit(
         # Only PRINT every PRINT_EVERY_N_EPOCHS epochs (plus always print
         # epoch 1, so you can see straight away that training has started
         # and the numbers look sane). Every epoch is still in
-        # history_rows above either way -- this only controls what shows
+        # history_rows above either way. This only controls what shows
         # up on the screen / in the SLURM .out file.
         should_print_this_epoch = (epoch == 1) or (epoch % PRINT_EVERY_N_EPOCHS == 0)
         if should_print_this_epoch:
@@ -279,7 +279,7 @@ def fit(
             )
 
         # Stop early if validation loss has not improved for
-        # early_stopping_patience epochs in a row -- carries on training
+        # early_stopping_patience epochs in a row. Carries on training
         # for no reason once the model has stopped getting better.
         if epochs_without_improvement >= early_stopping_patience:
             print(f"  Early stopping at epoch {epoch} (no val_loss improvement for {early_stopping_patience} epochs).")
@@ -288,7 +288,7 @@ def fit(
     final_model_state = {key: value.clone() for key, value in model.state_dict().items()}
 
     # Build a fresh model and load the BEST weights into it (not the final
-    # epoch's weights) -- this is the model that actually gets returned
+    # epoch's weights). This is the model that actually gets returned
     # and used for predictions later.
     best_model = build_model(n_other_features, device, seed, dropout_rate=dropout_rate, hidden_layer_sizes=hidden_layer_sizes)
     best_model.load_state_dict(best_model_state)
@@ -299,7 +299,7 @@ def fit(
 
 def predict(model, age, other_features):
     # Runs the network forward to get predictions, without training it.
-    # Returns SCALED predictions -- the caller is responsible for
+    # Returns SCALED predictions. The caller is responsible for
     # unscaling them back into real metres using scaler_height.
     model.eval()
     with torch.no_grad():
@@ -309,13 +309,13 @@ def predict(model, age, other_features):
 
 def save_checkpoints(best_model, final_model_state, n_other_features, output_dir, hidden_layer_sizes=None):
     # n_other_features is saved alongside the weights (not just implied by
-    # them) so a fresh script -- possibly on a different machine, evaluating
-    # a checkpoint trained on the SLURM cluster -- can rebuild the exact
+    # them) so a fresh script. Possibly on a different machine, evaluating
+    # a checkpoint trained on the SLURM cluster. Can rebuild the exact
     # same NoEnvNetwork(n_other_features=...) architecture before calling
     # load_state_dict(), without needing to re-run the data pipeline first
     # just to find that number out.
     #
-    # hidden_layer_sizes is saved too (2026-08-02) -- None (the default 3x128 architecture)
+    # hidden_layer_sizes is saved too (2026-08-02). None (the default 3x128 architecture)
     # round-trips as JSON `null`, read back as None by evaluate_dnn_noenv.py, so an
     # architecture-sweep checkpoint always rebuilds with the SAME shape it was trained with.
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -328,7 +328,7 @@ def save_checkpoints(best_model, final_model_state, n_other_features, output_dir
 def load_best_model(n_other_features, device, checkpoint_dir, hidden_layer_sizes=None):
     # The other half of save_checkpoints(): rebuilds the network
     # architecture, then loads the saved best-epoch weights into it. Used
-    # by evaluate_dnn_noenv.py, which never calls fit() at all -- it only
+    # by evaluate_dnn_noenv.py, which never calls fit() at all. It only
     # needs a trained model to make predictions with.
     model = NoEnvNetwork(n_other_features=n_other_features, hidden_layer_sizes=hidden_layer_sizes)
     model.load_state_dict(torch.load(checkpoint_dir / "best_model.pt", map_location=device))

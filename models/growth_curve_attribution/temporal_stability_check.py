@@ -5,13 +5,13 @@
 # The idea: fit each plot's y_max using ONLY its EARLY survey years, then see how well that
 # fitted curve predicts the SAME plot's own LATER, held-out years. If it predicts well, a single
 # time-invariant y_max per plot is a sound target to attribute to terrain/wind. If it predicts
-# badly -- especially if error grows a lot with how far ahead we're extrapolating -- that's
+# badly. Especially if error grows a lot with how far ahead we're extrapolating. That's
 # evidence a real plot's growth isn't well described by one fixed curve across its whole survey
 # span (e.g. a disturbance event reset it mid-way), and the per-plot-curve premise itself needs
 # revisiting before any spatial attribution work is trustworthy.
 #
 # This reuses the exact TEMPORAL_YEARS year assignment already used elsewhere in this project
-# (models/common/splits.py) for "early years" vs "held-out later years" -- not a fresh
+# (models/common/splits.py) for "early years" vs "held-out later years". Not a fresh
 # definition, so this check's years line up with Stage 1's own temporal_split convention.
 
 import numpy as np
@@ -27,9 +27,9 @@ HEIGHT_COLUMN = "Top_Height95"
 
 
 def compute_shape_term(df):
-    # (1 - exp(-p4 * Age))^p5 -- the known, Age-dependent part of a plot's own Chapman-Richards
+    # (1 - exp(-p4 * Age))^p5. The known, Age-dependent part of a plot's own Chapman-Richards
     # curve, given ITS OWN fixed (p4, p5). y_max is the only unknown, and it multiplies this term
-    # LINEARLY (height = y_max * shape_term) -- so fitting y_max is a weighted linear regression
+    # LINEARLY (height = y_max * shape_term). So fitting y_max is a weighted linear regression
     # through the origin, not an iterative curve_fit.
     return (1 - np.exp(-df["p4"] * df["Age"])) ** df["p5"]
 
@@ -76,7 +76,7 @@ def evaluate_temporal_stability(cohort):
         if n_dropped > 0:
             print(
                 f"  WARNING: {n_dropped:,} plots at {evaluation_year} had no fitted y_max "
-                "(no fitting-year rows) -- excluded from this year's comparison"
+                "(no fitting-year rows). Excluded from this year's comparison"
             )
 
         evaluation_rows = evaluation_rows.copy()

@@ -3,10 +3,10 @@
 # Quick sanity check for the "is GNNWR's local-linear assumption hiding non-linear environmental
 # signal" question: plots each plot's SHAP value against its own raw feature value, for the three
 # variables whose SHAP rose most once CanopyCover was dropped (windward_topex, slope_degrees,
-# tas_mean -- see rq3_canopycover_ablation_check.py's own saved ablation JSON). A flat/noisy cloud
+# tas_mean. See rq3_canopycover_ablation_check.py's own saved ablation JSON). A flat/noisy cloud
 # argues against a real relationship, linear or not; a clear curve/threshold shape would argue for
 # real (if non-linear) global signal that a local-LINEAR model like GNNWR still could not fit
-# correctly even though it is spatially aware. Global check only (not spatial) -- same re-run as
+# correctly even though it is spatially aware. Global check only (not spatial). Same re-run as
 # rq3_canopycover_ablation_check.py, just keeping the per-plot SHAP+feature table instead of only
 # the aggregated mean.
 
@@ -52,7 +52,7 @@ for ax, var in zip(axes, CHECK_VARS):
     ax.set_ylabel("SHAP value (m)")
     ax.set_title(f"{var}\n(WITHOUT CanopyCover, Set4, 4survey, pooled 5 folds)", fontsize=9.5)
 
-fig.suptitle("SHAP dependence -- is there visible non-linear structure, or just noise?", fontsize=12)
+fig.suptitle("SHAP dependence. Is there visible non-linear structure, or just noise?", fontsize=12)
 plt.tight_layout()
 out_path = "figures/fig_results/q2_no_canopy_shap_dependence_check.png"
 fig.savefig(out_path, dpi=150)

@@ -1,5 +1,5 @@
 # Purpose: RQ3's outlier diagnosis (rq3_outlier_diagnosis.py) found that the worst-residual plots
-# can't be explained by any environmental variable, even with a large SHAP push -- the working
+# can't be explained by any environmental variable, even with a large SHAP push. The working
 # theory was "these are disturbance/data-quality artifacts, not unexplained environmental signal".
 # This script actually checks that theory, instead of leaving it as an untested guess: it pulls
 # every "worst residual" identification found across all 6 (set, cohort) outlier-diagnosis runs,
@@ -29,7 +29,7 @@ COHORTS = ["4survey", "6survey"]
 def collect_outlier_identifications():
     # Reads every already-saved xgboost_outlier_diagnosis.csv (6 of them, one per set x cohort)
     # and records, per identification, which (set, cohort) combos flagged it as a top-N worst
-    # residual -- a plot appearing in MULTIPLE combos is a stronger signal than one appearing once.
+    # residual. A plot appearing in MULTIPLE combos is a stronger signal than one appearing once.
     rows = []
     for set_name in SET_NAMES:
         for cohort in COHORTS:
@@ -53,7 +53,7 @@ def collect_outlier_identifications():
 def main():
     outlier_table = collect_outlier_identifications()
 
-    # Count how many of the 6 (set, cohort) combos flagged each plot -- 6 is the max possible
+    # Count how many of the 6 (set, cohort) combos flagged each plot. 6 is the max possible
     # for a 4survey OR 6survey plot alone (a plot only exists in one cohort, so really the max
     # per plot is 3, one per set, within whichever cohort it belongs to).
     appearance_counts = (
@@ -66,7 +66,7 @@ def main():
     print(appearance_counts.to_string(index=False))
 
     # Pull disturbance flags separately per cohort (the underlying growth-curve table itself is
-    # cohort-specific -- 4survey and 6survey are different row selections of the same source data).
+    # cohort-specific. 4survey and 6survey are different row selections of the same source data).
     disturbance_tables = []
     residual_range_tables = []
     for cohort in COHORTS:

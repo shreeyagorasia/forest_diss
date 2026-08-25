@@ -7,8 +7,8 @@
 # them from Set4 should push its residual Moran's I back up towards Set3's level (0.077), not stay
 # near Set4's own level (0.054).
 #
-# Same pattern as rq2b_canopycover_ablation_check.py -- 5-fold spatial-block refit, only the
-# dropped-column list changes -- but this one also needs residual Moran's I (not just R2), so it
+# Same pattern as rq2b_canopycover_ablation_check.py. 5-fold spatial-block refit, only the
+# dropped-column list changes. But this one also needs residual Moran's I (not just R2), so it
 # pools test-set predictions with plot coordinates the same way the Q1 figure notebook does.
 
 import numpy as np
@@ -63,7 +63,7 @@ for fold in range(DEFAULT_K_FOLDS):
     print(f"  fold {fold}: XGB R2={fold_r2:.4f}  (train={len(train_df):,} test={len(test_df):,})")
 
 xgb_r2_per_fold = np.array(xgb_r2_per_fold)
-print(f"\nWITHOUT dist_to_road/precip/tas_mean -- XGBoost R2: {xgb_r2_per_fold.mean():.3f}+/-{xgb_r2_per_fold.std():.3f}")
+print(f"\nWITHOUT dist_to_road/precip/tas_mean. XGBoost R2: {xgb_r2_per_fold.mean():.3f}+/-{xgb_r2_per_fold.std():.3f}")
 
 pooled = pd.concat(test_frames, ignore_index=True).merge(coordinates, on="identification", how="left")
 pooled["xgb_residual"] = pooled[TARGET_COLUMN] - pooled["xgboost_predicted"]

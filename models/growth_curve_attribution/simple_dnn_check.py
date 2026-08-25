@@ -6,17 +6,17 @@
 # be because (a) letting the environment-to-growth relationship vary SPATIALLY genuinely helps,
 # or (b) it could just be that ANY neural network fits this data a bit better than a tree model,
 # for reasons that have nothing to do with space at all. This plain MLP has no spatial-weighting
-# machinery whatsoever -- every plot is treated identically regardless of where it is -- so
+# machinery whatsoever. Every plot is treated identically regardless of where it is. So
 # comparing its test R2 against GNNWR's isolates whether the SPATIAL part of GNNWR is actually
 # doing anything, separate from just "using a neural network."
 #
 # Unlike GNNWR, this network's size depends only on how many FEATURES there are (14-22), not on
-# how many training ROWS there are -- so there is no repeat of the memory blow-ups documented in
+# how many training ROWS there are. So there is no repeat of the memory blow-ups documented in
 # gnnwr_check.py. This script runs comfortably on a laptop CPU in seconds; no cluster needed.
 #
 # Reuses build_scope_table() from gnnwr_check.py so this uses the exact same cleaned target,
 # compartment-based spatial_block_split, and feature scopes (terrain_wind /
-# terrain_wind_plus_management) as GNNWR -- the only thing that differs between this model and
+# terrain_wind_plus_management) as GNNWR. The only thing that differs between this model and
 # GNNWR is the model architecture itself, so any R2 difference is a fair, apples-to-apples
 # comparison.
 
@@ -61,7 +61,7 @@ class SimpleMLP(nn.Module):
 
 def standardize_features(train_df, val_df, test_df, feature_columns):
     # Standardize (subtract mean, divide by standard deviation) using ONLY the training set's
-    # own mean/std -- the same "fit on train, apply to val/test" rule used everywhere else in
+    # own mean/std. The same "fit on train, apply to val/test" rule used everywhere else in
     # this project, so val/test information never leaks into how features are scaled.
     means = train_df[feature_columns].mean()
     stds = train_df[feature_columns].std()
@@ -89,7 +89,7 @@ def fit_mlp_with_early_stopping(model, train_x, train_y, val_x, val_y, max_epoch
 
     # Full-batch training: every epoch, the whole training set goes through the network in one
     # go (no mini-batches / DataLoader needed). This is fine here because the network itself is
-    # tiny (a handful of small Linear layers) -- unlike GNNWR, nothing here scales with the
+    # tiny (a handful of small Linear layers). Unlike GNNWR, nothing here scales with the
     # number of training rows, so there is no memory concern doing it this simple way.
     for epoch in range(max_epoch):
         model.train()
@@ -135,8 +135,8 @@ def run_simple_dnn(
 ):
     # held_out_fold=None (default) keeps the original single train/val/test split. Passing
     # 0..k_folds-1 instead runs ONE fold of the same 5-fold spatial CV Elastic Net/XGBoost/GNNWR
-    # already use (build_scope_table already supports this -- added for GNNWR, reused here
-    # unchanged) -- run this once per fold, then pool the 5 test-prediction CSVs for a headline
+    # already use (build_scope_table already supports this. Added for GNNWR, reused here
+    # unchanged). Run this once per fold, then pool the 5 test-prediction CSVs for a headline
     # number that is actually comparable to those other models' own pooled 5-fold R2, instead of
     # this model's previous single ~20% test-slice estimate.
     torch.manual_seed(seed)
@@ -187,7 +187,7 @@ def main():
     parser.add_argument("--split-seed", type=int, default=SPLIT_SEED)
     parser.add_argument(
         "--held-out-fold", type=int, default=None,
-        help="Run ONE fold of a 5-fold spatial CV instead of the default single split -- pass 0..k_folds-1, run once per fold, then pool the resulting CSVs.",
+        help="Run ONE fold of a 5-fold spatial CV instead of the default single split. Pass 0..k_folds-1, run once per fold, then pool the resulting CSVs.",
     )
     parser.add_argument("--k-folds", type=int, default=DEFAULT_K_FOLDS)
     args = parser.parse_args()

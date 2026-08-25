@@ -6,12 +6,12 @@
 # by PINN's generally weaker fit, or by another architectural difference? Untested until now.
 #
 # Method: refit PINN with the physics/trajectory loss switched OFF (physics_weight=
-# trajectory_weight=0.0 -- the same "w=0" ablation already used and reported elsewhere this
+# trajectory_weight=0.0. The same "w=0" ablation already used and reported elsewhere this
 # project, TEMP_rq1_physicsablation_results_2026-08-11.tex), under BOTH plot_level and
 # spatial_block splits, same architecture, same everything else. If the physics constraint is
 # what causes split-stability, removing it should make the w=0 plot_level-vs-spatial_block gap
 # widen back toward the DNN's own gap. If the gap stays small even at w=0, the constraint is not
-# the explanation -- something else about PINN (its weaker overall fit, or an architectural
+# the explanation. Something else about PINN (its weaker overall fit, or an architectural
 # difference untouched by turning physics off) is more likely responsible.
 
 import torch
@@ -44,7 +44,7 @@ EARLY_STOPPING_PATIENCE = 40
 PHYSICS_WEIGHT = 0.0
 TRAJECTORY_WEIGHT = 0.0
 
-# Already-established w=1 (standard) reference points, same splits, same cohort -- no refit
+# Already-established w=1 (standard) reference points, same splits, same cohort. No refit
 # needed, these are the numbers already in the chapter.
 W1_PLOT_LEVEL_R2 = 0.590
 W1_SPATIAL_BLOCK_R2 = 0.584

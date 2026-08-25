@@ -1,11 +1,11 @@
 # Purpose: the llm-council's third diagnostic for pinn_env_terrain_k's -0.71 y_max/k correlation
-# (see documentation/experiment_log.md's 2026-08-03/04 entries) -- every peer reviewer in that
+# (see documentation/experiment_log.md's 2026-08-03/04 entries). Every peer reviewer in that
 # council independently flagged the same gap: nobody checked whether -0.71 is even statistically
 # distinguishable from noise, given the likely small number of held-out compartments. This
 # answers that directly with a 95% confidence interval, reusing the exact cluster-bootstrap
 # pattern already proven in models/growth_curve_attribution/bootstrap_ci_check.py.
 #
-# Uses a CLUSTER bootstrap, not a plain row-level bootstrap -- same reasoning as that file's own
+# Uses a CLUSTER bootstrap, not a plain row-level bootstrap. Same reasoning as that file's own
 # header: plots in the same compartment are NOT independent (they share the same held-out/train
 # fate under spatial_block_split, and often similar terrain), so resampling individual PLOT rows
 # would pretend there are far more independent data points than there really are. Resampling
@@ -24,10 +24,10 @@ from models.common.saving import model_output_dir
 
 def load_one_row_per_plot(predictions_path):
     # predictions.csv has one row per plot-YEAR (the usual long format every model in this repo
-    # saves) -- but learned_y_max/learned_k are static PER PLOT (same value repeated across a
+    # saves). But learned_y_max/learned_k are static PER PLOT (same value repeated across a
     # plot's own survey years, since terrain/wind inputs don't vary by year). Bootstrapping the
     # long table directly would silently let a 4-survey plot count 4x as much as it should in
-    # every resample -- deduplicating to one row per plot first is what makes each resampled
+    # every resample. Deduplicating to one row per plot first is what makes each resampled
     # unit a genuine, equally-weighted plot.
     predictions_df = pd.read_csv(predictions_path)
     one_row_per_plot = predictions_df.drop_duplicates(subset="identification")[
@@ -41,7 +41,7 @@ def compute_correlation(learned_y_max, learned_k):
 
 
 def cluster_bootstrap_correlation_ci(plot_table, n_bootstrap=2000, seed=0):
-    # Resamples whole COMPARTMENTS with replacement (not individual plots) -- see this module's
+    # Resamples whole COMPARTMENTS with replacement (not individual plots). See this module's
     # own header for why that's the statistically honest unit here.
     learned_y_max = plot_table["learned_y_max"].to_numpy()
     learned_k = plot_table["learned_k"].to_numpy()
@@ -76,7 +76,7 @@ def check_for_cohort(cohort, split_type, run_name, n_bootstrap):
     output_model_name = run_name if run_name else "pinn_env_terrain_k"
     predictions_path = model_output_dir(output_model_name, cohort, split_type=split_type) / "predictions.csv"
     if not predictions_path.exists():
-        print(f"  (No predictions.csv found at {predictions_path} -- run evaluate_pinn_env_terrain_k.py first.)")
+        print(f"  (No predictions.csv found at {predictions_path}. Run evaluate_pinn_env_terrain_k.py first.)")
         return None
 
     plot_table = load_one_row_per_plot(predictions_path)
@@ -94,9 +94,9 @@ def check_for_cohort(cohort, split_type, run_name, n_bootstrap):
         f"{result['fraction_of_bootstrap_resamples_with_wrong_sign']:.1%}"
     )
     if result["ci_95_upper"] < 0:
-        print("  READ: 95% CI excludes zero and stays negative -- the correlation's sign is not just noise.")
+        print("  READ: 95% CI excludes zero and stays negative. The correlation's sign is not just noise.")
     else:
-        print("  READ: 95% CI includes zero or crosses into positive territory -- the correlation's sign/magnitude is not well-pinned-down by this test set alone.")
+        print("  READ: 95% CI includes zero or crosses into positive territory. The correlation's sign/magnitude is not well-pinned-down by this test set alone.")
 
     output_path = model_output_dir(output_model_name, cohort, split_type=split_type) / "y_max_k_bootstrap_ci.json"
     with open(output_path, "w") as f:

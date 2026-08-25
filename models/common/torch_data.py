@@ -32,13 +32,13 @@ from models.common.splits import (
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 # The full no-environment feature set every DNN/PINN table already has.
-# yldc removed 2026-07-28 -- real ablation showed it hurts test R2 here (0.606->0.647 without
+# yldc removed 2026-07-28. Real ablation showed it hurts test R2 here (0.606->0.647 without
 # it), see progress_notes.md. Still present in model_table.parquet for audit, just not selected
 # as a feature.
 # DEAD CODE, not currently read anywhere: build_tensors() below builds its actual feature set
 # from NUMERIC_SCALED_COLUMNS + BINARY_PASSTHROUGH_COLUMNS + Age + thinning_status's one-hot
 # encoding, not from this list. Kept as a single "what DNN/PINN use, in one place" summary for a
-# reader, but nothing enforces it staying in sync with the lists actually used below -- verify
+# reader, but nothing enforces it staying in sync with the lists actually used below. Verify
 # against those three if this list is ever suspected of drifting.
 NOENV_FEATURE_COLUMNS = [
     "Age",
@@ -50,56 +50,56 @@ NOENV_FEATURE_COLUMNS = [
     "thinning_status",
 ]
 
-# Truly continuous numeric features -- these get standard-scaled as one
+# Truly continuous numeric features. These get standard-scaled as one
 # group. Age is scaled SEPARATELY (its own scaler, see fit_scalers below) so
 # its training-split standard deviation can be read back out cleanly for the
 # physics loss's chain-rule correction.
 NUMERIC_SCALED_COLUMNS = ["CanopyCover", "time_since_thinning"]
 
-# Already 0/1 binary flags -- passed through unscaled, same as the one-hot
+# Already 0/1 binary flags. Passed through unscaled, same as the one-hot
 # thinning_status columns below.
 BINARY_PASSTHROUGH_COLUMNS = ["Thin", "time_since_thinning_missing", "recent_thinning_5yr"]
 
 # These two lists (plus Age, scaled separately above, and thinning_status's one-hot encoding)
-# are the REAL feature-selection logic build_tensors() reads -- NOENV_FEATURE_COLUMNS above is
+# are the REAL feature-selection logic build_tensors() reads. NOENV_FEATURE_COLUMNS above is
 # dead code (see its own comment), so guarding it wouldn't actually protect anything.
 assert_no_split_columns_in_features(NUMERIC_SCALED_COLUMNS + BINARY_PASSTHROUGH_COLUMNS, "torch_data (DNN/PINN)")
 
-# Raw, unadjusted 95th-percentile LiDAR height (2026-07-28, was Top_Height99 -- see
+# Raw, unadjusted 95th-percentile LiDAR height (2026-07-28, was Top_Height99. See
 # progress_notes.md for the full reasoning: Top_Height99 is retired entirely, no fallback
 # target kept).
 TARGET_COLUMN = "elev_percentile_95th"
 
 # Named, swappable terrain/wind feature sets for dnn_env_terrain/pinn_env_terrain's
-# y_max(terrain, wind) sub-network -- same "named FEATURE_SETS dict, picked by name at the CLI"
+# y_max(terrain, wind) sub-network. Same "named FEATURE_SETS dict, picked by name at the CLI"
 # convention models/xgb_environmental/xgb_environmental.py already uses, extended here rather
-# than hardcoding one single list (2026-08-01 fix -- the first version of this file only offered
+# than hardcoding one single list (2026-08-01 fix. The first version of this file only offered
 # "terrain_wind_solid", with no way to compare against a different scope without editing code).
 #
 #   - terrain_wind_solid (the default, and the only one actually cross-checked so far): the five
 #     variables that were positive on BOTH the category-level XGBoost refit ablation (terrain/
 #     wind carry real signal, climate/soil/stand_structure don't) AND the per-variable refit
 #     ablation (most of terrain's other members are redundant or near-zero once these five are
-#     accounted for) -- decided 2026-07-31, see experiment_log.md's entries that date.
+#     accounted for). Decided 2026-07-31, see experiment_log.md's entries that date.
 #     `slope_degrees`/`inverse_slope_proxy` deliberately excluded (confirmed exact duplicates,
 #     rho=-1.0). Circularity-checked against `Age`'s own known issue (chapman_richards.py::fit()
-#     only ever reads Age and elev_percentile_95th -- none of these five touch the CR curve's own
+#     only ever reads Age and elev_percentile_95th. None of these five touch the CR curve's own
 #     construction).
 #   - terrain_wind_extended: adds the two BORDERLINE variables (real but modest individual
 #     refit-ablation signal) on top of the solid five.
 #   - broad: adds the individually-strong variables from OTHER categories (climate/soil/
 #     edge-effects) that scored positively in the per-variable refit ablation despite their whole
-#     CATEGORY testing badly as a bundle -- this is the wider-scope option flagged, not yet
+#     CATEGORY testing badly as a bundle. This is the wider-scope option flagged, not yet
 #     decided on, in experiment_log.md's 2026-07-31 entry. Included as a real option to run and
-#     compare, not a silent default -- see --feature-set on run_dnn_env_terrain.py/
+#     compare, not a silent default. See --feature-set on run_dnn_env_terrain.py/
 #     run_pinn_env_terrain.py. `CanopyCover` deliberately NOT included here even though it scored
-#     individually-positive in that same ablation -- it's already one of the no-env features
+#     individually-positive in that same ablation. It's already one of the no-env features
 #     feeding the main network (NUMERIC_SCALED_COLUMNS below), so adding it here too would feed
 #     it in twice (once to the main network, once to the y_max sub-network), not add new
-#     information -- assert_env_terrain_features_disjoint_from_noenv() below guards against this
+#     information. Assert_env_terrain_features_disjoint_from_noenv() below guards against this
 #     exact mistake happening again for a different column.
 ENV_TERRAIN_FEATURE_SETS = {
-    # Added 2026-08-24: a TRUE no-environment ablation for the Set2/Set3/Set4 sweep -- same
+    # Added 2026-08-24: a TRUE no-environment ablation for the Set2/Set3/Set4 sweep. Same
     # YMaxSubNetwork architecture, zero columns. Note "environment" here is not just terrain --
     # Set2 and Set4 both mix in climate (tas_mean, chelsa_gdd5_degc) and spatial/management
     # features (dist_to_scpt_boundary, cpmt_compactness_ratio) alongside terrain/wind; only Set3
@@ -107,10 +107,10 @@ ENV_TERRAIN_FEATURE_SETS = {
     # three regardless of their exact mix, since it's zero of whatever the sub-network would
     # have received. With 0 input features, nn.Linear(0, hidden_size) still works in PyTorch
     # (the weight matrix just has 0 columns), so the sub-network degenerates to a learned
-    # constant, identical for every plot -- a real apples-to-apples test of "does this
+    # constant, identical for every plot. A real apples-to-apples test of "does this
     # information help at all," not a different model architecture (the existing pinn_noenv.py
     # used for the chapter's earlier "no environment" number is a structurally different
-    # network, NoEnvNetwork, with no y_max personalization at all -- see RESULTS_TABLE.md
+    # network, NoEnvNetwork, with no y_max personalization at all. See RESULTS_TABLE.md
     # section 5 correction, 2026-08-24).
     "no_environment_ablation": [],
     "terrain_wind_solid": ["ceh_twi", "eastness", "elevation", "northness", "topex"],
@@ -123,12 +123,12 @@ ENV_TERRAIN_FEATURE_SETS = {
     # "terrain_wind_solid"/"extended"/"broad" all use `topex` (generic topographic exposure, any
     # direction) but never `gwa_wind_speed_10m` (modelled wind climatology, Global Wind Atlas),
     # `windward_topex` (exposure specifically to the PREVAILING wind direction), or `whcl`
-    # (external, pre-existing Windthrow Hazard Class rating, ordinal 0-6 -- a real forestry
+    # (external, pre-existing Windthrow Hazard Class rating, ordinal 0-6. A real forestry
     # wind-damage assessment, not a proxy). A worst-predicted-plot check this session found
     # windward_topex elevated in the worst-predicted compartments, scaling with error severity --
     # motivated adding these here. Exactly `models.xgb_environmental.xgb_environmental
     # .TERRAIN_AND_WIND_COLUMNS` (this project's own single definition of "terrain+wind", already
-    # used for the XGBoost/SHAP/permutation-importance attribution chain) -- not redefined here,
+    # used for the XGBoost/SHAP/permutation-importance attribution chain). Not redefined here,
     # imported as a literal list so the two definitions can't drift apart. See
     # documentation/experiment_log.md's 2026-08-03 entry for the reasoning.
     "terrain_wind_full": [
@@ -138,19 +138,19 @@ ENV_TERRAIN_FEATURE_SETS = {
         # Swapped 10m->50m 2026-08-06: Avenue 2's own council review flagged 10m GWA wind as a
         # SUB-CANOPY measurement, backwards for a mature-canopy target, then formally resolved
         # this by swapping to 50m (documentation/variable_registry_av1_av2.csv). Same physical
-        # argument applies here (this project's own trees are mature Sitka spruce) -- adopting
+        # argument applies here (this project's own trees are mature Sitka spruce). Adopting
         # AV2's resolved choice, not just the caveat this file already carried unresolved.
         "gwa_wind_speed_50m",
     ],
     # Added 2026-08-03: every column this project has screened and NOT found to be a leak,
-    # circular, or otherwise misleading -- xgb_environmental.ALL_FEATURE_COLUMNS (the current,
+    # circular, or otherwise misleading. Xgb_environmental.ALL_FEATURE_COLUMNS (the current,
     # leak-fixed 37-variable set) minus two things: (a) CATEGORY_GROUPS["stand_structure"]
     # (CanopyCover/Thin/time_since_thinning/time_since_thinning_missing/recent_thinning_5yr) --
     # NOT excluded for being untrustworthy, excluded because they're ALREADY fed to the main
     # network via NUMERIC_SCALED_COLUMNS/BINARY_PASSTHROUGH_COLUMNS; including them again here
     # would double-feed the same information through two pathways, exactly what
     # assert_env_terrain_features_disjoint_from_noenv() below exists to catch; (b) ceh_pedotope/
-    # ceh_subsurface_drainage/ceh_textural_composition -- unordered categorical class IDs (see
+    # ceh_subsurface_drainage/ceh_textural_composition. Unordered categorical class IDs (see
     # the 2026-08-01 LISA-test bug entry in experiment_log.md for why treating these as
     # continuous is invalid), and this project's terrain-tensor pipeline
     # (fit_terrain_scaler/build_terrain_tensor) only knows how to StandardScaler continuous
@@ -162,7 +162,7 @@ ENV_TERRAIN_FEATURE_SETS = {
     # `tas_mean`/`groundfrost_mean` ADDED HERE 2026-08-08 (previously excluded 2026-08-03,
     # found by hitting the actual error, not anticipated): these are COHORT-SPECIFIC columns in
     # plot_environmental_features.parquet (`tas_mean_4survey`/`tas_mean_6survey`, per
-    # models/xgb_environmental/data.py::COHORT_SPECIFIC_COLUMNS) -- xgb_environmental's own
+    # models/xgb_environmental/data.py::COHORT_SPECIFIC_COLUMNS). Xgb_environmental's own
     # pipeline resolves the cohort-suffixed name before use; load_split_table_with_terrain()
     # used to not do that resolution, so a plain "tas_mean"/"groundfrost_mean" here failed with
     # a KeyError. That was a real, structural gap in this pipeline's cohort-agnostic
@@ -177,23 +177,23 @@ ENV_TERRAIN_FEATURE_SETS = {
         "inverse_slope_proxy", "frost_hollow_flag", "topex", "windward_topex",
         "dist_to_cpmt_boundary", "dist_to_forest_perimeter", "dist_to_scpt_boundary",
         "dist_to_block_boundary", "cpmt_compactness_ratio", "dist_to_road", "dist_to_watercourse",
-        # Swapped 10m->50m 2026-08-06 -- same reasoning as terrain_wind_full above.
+        # Swapped 10m->50m 2026-08-06. Same reasoning as terrain_wind_full above.
         "gwa_wind_speed_50m", "soilgrids_ph", "ceh_twi", "chelsa_bio1_celsius",
         "chelsa_gdd5_degc", "chelsa_bio12_precip_mm", "whcl",
         "tas_mean", "groundfrost_mean",
     ],
-    # Added 2026-08-06: every entry above was built ad hoc -- a variable got added whenever
+    # Added 2026-08-06: every entry above was built ad hoc. A variable got added whenever
     # someone had an idea, with correlation checked (if at all) AFTER fitting, as interpretive
     # context. notebooks/environmental_data/multicollinearity_screen_av1.ipynb replaces that with
     # a mechanical, pre-registered screen (deterministic-duplicate removal, then near-exact
-    # empirical duplicates at |rho|>=0.95 -- see models/xgb_environmental/
+    # empirical duplicates at |rho|>=0.95. See models/xgb_environmental/
     # multicollinearity_screen.py), reviewed and revised by an llm-council pass before being
     # coded (documentation/experiment_log.md's 2026-08-06 entry has the full review). These four
     # are cumulative and staged, matching how the evidence is actually built up: terrain only,
     # then +wind, then +whichever other categories (climate/soil/edge) show real individual
     # signal, then +every environmental category unfiltered as a "for the sake of proof" check.
     # Deliberately NO variance-discarding VIF step here (unlike the notebook's OTHER output, the
-    # "attribution-safe" tiers meant for xgb_environmental's SHAP/permutation tooling) -- per the
+    # "attribution-safe" tiers meant for xgb_environmental's SHAP/permutation tooling). Per the
     # council review, a network being FED redundant raw inputs isn't hurt the way a linear
     # coefficient or a SHAP value is, so removing correlated-but-real variance from what the PINN
     # sees would cost real information for no established benefit.
@@ -212,8 +212,8 @@ ENV_TERRAIN_FEATURE_SETS = {
     # ADDED 2026-08-08, alongside the tas_mean/groundfrost_mean fix below: stage4_all_environmental
     # adds 12 columns at once (temperature, ground frost, 2 CHELSA, soil, 6 distance/edge), so any
     # R2 change there can't be attributed to any ONE of them. Avenue 1's own screening
-    # (aux_data_resolution_check.ipynb) found tas_mean specifically -- not the climate CATEGORY as
-    # a whole -- as the single strongest environmental correlate in the whole project (Spearman
+    # (aux_data_resolution_check.ipynb) found tas_mean specifically. Not the climate CATEGORY as
+    # a whole. As the single strongest environmental correlate in the whole project (Spearman
     # rho~0.27-0.29 vs mean_cr_residual, ahead of every other candidate). This tier isolates that
     # one variable's marginal contribution over terrain+wind alone, the same "attribute to a
     # specific piece, not one more black-box feature set" discipline
@@ -229,23 +229,23 @@ ENV_TERRAIN_FEATURE_SETS = {
         "gwa_weibull_a_10m", "gwa_weibull_k_10m", "gwa_weibull_a_50m", "gwa_weibull_k_50m",
         "tas_mean",
     ],
-    # stage3 and stage4 happened to come out identical this run -- every remaining category
+    # stage3 and stage4 happened to come out identical this run. Every remaining category
     # (climate/soil/edge) cleared the notebook's signal-strength bar, so "the ones deemed
     # useful" and "all of them" are the same set right now. Kept as two separately named tiers
     # anyway: the filter is a real check every time this notebook is re-run (e.g. after a new
     # candidate variable is added), not something guaranteed to always produce two different lists.
     # tas_mean/groundfrost_mean ADDED HERE 2026-08-08 (previously excluded from stage3/stage4
-    # below -- same cohort-suffix resolution gap that used to exclude them from
+    # below. Same cohort-suffix resolution gap that used to exclude them from
     # broad_legitimate above too). _resolve_cohort_suffixed_columns() (defined above
     # load_split_table_with_terrain()) now resolves tas_mean_4survey/_6survey generically for
-    # every tier, not just this one -- a plain "tas_mean" here no longer KeyErrors at run time.
+    # every tier, not just this one. A plain "tas_mean" here no longer KeyErrors at run time.
     # The 12 already-existing stage4_all_environmental result files (2 cohorts x 3 models
     # [dnn_env_terrain/pinn_env_terrain/pinn_env_terrain_k] x 2 split evaluations
     # [single spatial_block + pooled spatial_block_kfold], see documentation/experiment_log.md)
     # predate this fix and need re-running to actually include climate; stage3_terrain_wind_plus
     # has zero existing runs, nothing to redo there. The notebook's OTHER output, the
     # attribution-safe tiers (for xgb_environmental, which already resolved the cohort suffix
-    # correctly before this fix), was never affected -- see the notebook itself.
+    # correctly before this fix), was never affected. See the notebook itself.
     "stage3_terrain_wind_plus": [
         "elevation", "slope_degrees", "northness", "eastness", "profile_curvature",
         "plan_curvature", "tpi", "elevation_roughness", "solar_radiation_index",
@@ -270,20 +270,20 @@ ENV_TERRAIN_FEATURE_SETS = {
     ],
     # Added 2026-08-10: RQ1's tiers from the NEW environmental-feature methodology (rank-aggregate
     # of Spearman/XGBoost-permutation/XGBoost-drop-column signals, see
-    # models/xgb_environmental/feature_set_builder.py) -- a DIFFERENT construction method from
+    # models/xgb_environmental/feature_set_builder.py). A DIFFERENT construction method from
     # every tier above, not a replacement for them. Read live from
     # documentation/env_feature_sets_manifest.csv (the single already-computed source of truth for
-    # every RSQ1/RSQ2/RSQ3 Set1-5) via load_feature_set(), not hand-copied here -- so these three
+    # every RSQ1/RSQ2/RSQ3 Set1-5) via load_feature_set(), not hand-copied here. So these three
     # entries can never silently drift from what the manifest actually says. RSQ1's manifest rows
     # already exclude baseline (RQ1's baseline/Age is fed through the separate no-env pathway, see
     # assert_env_terrain_features_disjoint_from_noenv() below), so no strip_baseline_for_export()
-    # call is needed here. Set5 deliberately not wired in yet -- cut from the 2026-08-17 deadline's
+    # call is needed here. Set5 deliberately not wired in yet. Cut from the 2026-08-17 deadline's
     # essential scope, see documentation/experiment_log.md's 2026-08-10 entry.
     #
     # NAMING NOTE, read before reusing "Set 2"/"Set 3"/"Set 4" anywhere near these three: the
     # OLD tiers above (`terrain_wind_solid` etc., historically labelled "Set 2" in the results
     # ledger) are NOT the same variables as these `nested_set*` entries, despite similar-sounding
-    # names -- e.g. old "Set 2" = terrain_wind_solid (5 vars: ceh_twi/eastness/elevation/
+    # names. E.g. old "Set 2" = terrain_wind_solid (5 vars: ceh_twi/eastness/elevation/
     # northness/topex); `nested_set2_top10` here is a different, 10-variable set (only `elevation`
     # overlaps). Always use the full `nested_set{N}_...` key, never a bare "Set N", to keep the
     # two apart.
@@ -292,7 +292,7 @@ ENV_TERRAIN_FEATURE_SETS = {
     # (more headroom before a collinear pair like dist_to_scpt_boundary/dist_to_cpmt_boundary
     # crowds out everything else); Set3/Set4 gained the "_vif" suffix once VIF was extended from
     # RSQ2-only to all three RSQs (feature_set_builder.py's run_vif_pass). The manifest's
-    # set_name values changed to match -- these three lookups must use the CURRENT manifest
+    # set_name values changed to match. These three lookups must use the CURRENT manifest
     # names, not the ones this dict used earlier today, or load_feature_set() raises a
     # ValueError (hit exactly that after the manifest was regenerated under the new names).
     "nested_set2_top10": load_feature_set("RSQ1", "nested_set2_top10"),
@@ -314,7 +314,7 @@ def assert_env_terrain_features_disjoint_from_noenv(feature_columns):
     if overlap:
         raise ValueError(
             f"These columns are in BOTH the no-env feature set and this terrain/wind feature "
-            f"set: {sorted(overlap)} -- would feed the same information to the model twice, "
+            f"set: {sorted(overlap)}. Would feed the same information to the model twice, "
             "through two different pathways. Remove them from one side or the other."
         )
 
@@ -322,9 +322,9 @@ ENVIRONMENTAL_FEATURES_PATH = PROJECT_ROOT / "data" / "processed" / "environment
 
 
 def select_device():
-    # Prefer a real GPU if one is available -- CUDA on the SLURM cluster
+    # Prefer a real GPU if one is available. CUDA on the SLURM cluster
     # this will eventually train on, MPS (Apple Silicon) for a quick local
-    # test on this Mac -- and fall back to plain CPU otherwise. The rest of
+    # test on this Mac. And fall back to plain CPU otherwise. The rest of
     # this codebase never has to know or care which one it got.
     if torch.cuda.is_available():
         return torch.device("cuda")
@@ -346,7 +346,7 @@ def load_split_table(cohort, split_type, split_seed=SPLIT_SEED, k_folds=DEFAULT_
     # Both dnn_noenv and pinn_noenv read the same consolidated model_table.parquet (2026-07-28 --
     # there is no separate per-model file anymore, see data_processing/export_model_tables.py).
     # Applies the same maturity + yield-class filter every other baseline uses, then labels every
-    # row train/val/test using either temporal_split() or spatial_block_split() -- same two split
+    # row train/val/test using either temporal_split() or spatial_block_split(). Same two split
     # functions and shared constants (models/common/splits.py) that
     # models/baselines/run_baselines.py uses, so a DNN/PINN run and a baseline run under the same
     # split_type see identical train/val/test membership.
@@ -361,7 +361,7 @@ def load_split_table(cohort, split_type, split_seed=SPLIT_SEED, k_folds=DEFAULT_
             **TEMPORAL_YEARS[cohort],
         )
     elif split_type == "temporal_narrow_gap":
-        # Same temporal_split() function, different year assignment -- see
+        # Same temporal_split() function, different year assignment. See
         # TEMPORAL_YEARS_NARROW_GAP in models/common/splits.py for why this
         # is a separate dict, not a variant of TEMPORAL_YEARS.
         filtered_table["split"] = temporal_split(
@@ -370,7 +370,7 @@ def load_split_table(cohort, split_type, split_seed=SPLIT_SEED, k_folds=DEFAULT_
             **TEMPORAL_YEARS_NARROW_GAP[cohort],
         )
     elif split_type == "plot_level":
-        # Individual plots shuffled randomly into train/val/test -- a held-out plot's nearest
+        # Individual plots shuffled randomly into train/val/test. A held-out plot's nearest
         # neighbour is usually a training plot metres away, so this is the easy interpolation
         # case (see models/common/splits.py::plot_level_split's own docstring), not a
         # generalisation test. Baselines have always run this split_type; DNN/PINN never did
@@ -383,7 +383,7 @@ def load_split_table(cohort, split_type, split_seed=SPLIT_SEED, k_folds=DEFAULT_
         # coordinates_df=None makes spatial_block_split() load plot
         # centroids itself. Whole compartments go to train/val/test
         # together, so (unlike temporal_split) every survey year of a
-        # train-plot is "train" -- see load_trajectory_pairs() below for why
+        # train-plot is "train". See load_trajectory_pairs() below for why
         # that matters for the PINN specifically.
         filtered_table["split"] = spatial_block_split(
             filtered_table,
@@ -393,11 +393,11 @@ def load_split_table(cohort, split_type, split_seed=SPLIT_SEED, k_folds=DEFAULT_
         )
     elif split_type == "spatial_block_kfold":
         # A single spatial_block_split() only ever evaluates on one arbitrary ~20% slice of
-        # compartments -- k_folds/held_out_fold rotate which slice is held out, so a full sweep
+        # compartments. K_folds/held_out_fold rotate which slice is held out, so a full sweep
         # (held_out_fold=0..k_folds-1) evaluates the WHOLE population instead. split_seed controls
         # the same underlying compartment shuffle spatial_block_split uses (assign_spatial_folds
         # inside spatial_kfold_split), so held_out_fold=0 with k_folds=5 is NOT the same partition
-        # as plain "spatial_block" above (2 buckets vs. 5), even at the same seed -- this is a
+        # as plain "spatial_block" above (2 buckets vs. 5), even at the same seed. This is a
         # genuinely different split_type, not an alias.
         filtered_table["split"] = spatial_kfold_split(
             filtered_table,
@@ -415,7 +415,7 @@ def load_split_table(cohort, split_type, split_seed=SPLIT_SEED, k_folds=DEFAULT_
 
 def _resolve_cohort_suffixed_columns(environmental_features, cohort, feature_columns):
     # Some environmental columns (currently tas_mean, groundfrost_mean, rainfall_mean,
-    # sfcWind_mean, sun_mean, tasmax_mean, tasmin_mean -- every HadUK-Grid multi-year climate
+    # sfcWind_mean, sun_mean, tasmax_mean, tasmin_mean. Every HadUK-Grid multi-year climate
     # variable, confirmed by reading plot_environmental_features.parquet's own column names) are
     # stored as cohort-suffixed pairs in the export (e.g. tas_mean_4survey/tas_mean_6survey)
     # because each cohort averages over its own distinct set of real survey years --
@@ -423,13 +423,13 @@ def _resolve_cohort_suffixed_columns(environmental_features, cohort, feature_col
     # in feature_columns here. models/xgb_environmental/data.py::load_plots_for_cohort() already
     # resolves this suffix for Avenue 1/2's pipeline; this generic version mirrors that same
     # resolution here (2026-08-08 fix) for ANY column in feature_columns that needs it, rather
-    # than hardcoding just tas_mean/groundfrost_mean -- the two columns already known to be
+    # than hardcoding just tas_mean/groundfrost_mean. The two columns already known to be
     # requested. Previously, a plain "tas_mean" in feature_columns raised a KeyError at run time,
     # and every ENV_TERRAIN_FEATURE_SETS tier worked around that by permanently excluding both
-    # columns instead of the loader being fixed -- see documentation/experiment_log.md's
+    # columns instead of the loader being fixed. See documentation/experiment_log.md's
     # 2026-08-03 entry. Only renames a column when it's both requested AND not already present
     # under its plain name, so this is a no-op for every feature_columns list that doesn't ask
-    # for a cohort-suffixed variable -- e.g. every terrain/wind-only tier is unaffected.
+    # for a cohort-suffixed variable. E.g. every terrain/wind-only tier is unaffected.
     environmental_features = environmental_features.copy()
     for column in feature_columns:
         cohort_column = f"{column}_{cohort}"
@@ -441,17 +441,17 @@ def _resolve_cohort_suffixed_columns(environmental_features, cohort, feature_col
 def load_split_table_with_terrain(
     cohort, split_type, feature_columns, split_seed=SPLIT_SEED, k_folds=DEFAULT_K_FOLDS, held_out_fold=0,
 ):
-    # split_seed/k_folds/held_out_fold passed straight through to load_split_table() -- see that
+    # split_seed/k_folds/held_out_fold passed straight through to load_split_table(). See that
     # function's own note.
     #
     # Same as load_split_table() above, plus the chosen terrain/wind feature_columns merged in
     # from the environmental feature export (built by aux_data_resolution_check.ipynb, the same
     # file models/xgb_environmental/data.py reads). feature_columns is a real list, not looked up
-    # by name here -- callers pass ENV_TERRAIN_FEATURE_SETS[name] themselves (see
+    # by name here. Callers pass ENV_TERRAIN_FEATURE_SETS[name] themselves (see
     # run_dnn_env_terrain.py/run_pinn_env_terrain.py's --feature-set), same "take a raw column
     # list, not a name" convention xgb_environmental.py's fit_with_columns() already uses. Kept
     # as a SEPARATE function rather than changing load_split_table() itself, so dnn_noenv/
-    # pinn_noenv keep working exactly as before -- they never call this one.
+    # pinn_noenv keep working exactly as before. They never call this one.
     assert_env_terrain_features_disjoint_from_noenv(feature_columns)
 
     split_df = load_split_table(cohort, split_type, split_seed=split_seed, k_folds=k_folds, held_out_fold=held_out_fold)
@@ -460,14 +460,14 @@ def load_split_table_with_terrain(
 
     # BUG FIX (2026-08-01): model_table.parquet already carries its own "whcl" column (used
     # elsewhere in the pipeline, not by build_tensors() below), which is a DIFFERENT column from
-    # environmental_features' "whcl" -- merging without handling this collision doesn't error at
+    # environmental_features' "whcl". Merging without handling this collision doesn't error at
     # the merge itself, it silently renames both to whcl_x/whcl_y, so the failure only surfaced
     # later (a confusing KeyError at split_df[feature_columns], or in run_*_env_terrain.py's own
     # crash, far from the real cause) whenever "whcl" was requested (terrain_wind_extended/broad
-    # -- terrain_wind_solid never hit this, none of its 5 columns collide). Dropping any
+    #. Terrain_wind_solid never hit this, none of its 5 columns collide). Dropping any
     # requested column that already exists in split_df BEFORE merging guarantees every name in
     # feature_columns ends up clean and unsuffixed afterward, regardless of which specific column
-    # happens to collide -- not just a one-off fix for "whcl".
+    # happens to collide. Not just a one-off fix for "whcl".
     columns_already_present = [c for c in feature_columns if c in split_df.columns]
     if columns_already_present:
         split_df = split_df.drop(columns=columns_already_present)
@@ -479,7 +479,7 @@ def load_split_table_with_terrain(
     )
 
     # ceh_twi is genuinely missing for 39 of 71,766 plots (confirmed directly against
-    # plot_environmental_features.parquet, 2026-08-01) -- not a merge bug, so this is a real
+    # plot_environmental_features.parquet, 2026-08-01). Not a merge bug, so this is a real
     # gap to filter out, not something to hard-error on. Whole-plot dropped (every survey year
     # of an affected plot, not just the row missing the value), same convention as
     # models/common/data.py::filter_data()'s age/yldc filters, so a plot never contributes a
@@ -498,13 +498,13 @@ def load_split_table_with_terrain(
 
 
 def fit_terrain_scaler(train_df, feature_columns):
-    # Its own StandardScaler, separate from scaler_other_features -- the y_max sub-network reads
+    # Its own StandardScaler, separate from scaler_other_features. The y_max sub-network reads
     # ONLY these columns, never mixed into the main network's "other features" tensor (see
     # models/pinn_env_terrain/pinn_env_terrain.py's own top-of-file note for why terrain/wind
     # stays out of the main network entirely, feeding the y_max sub-network only).
     # Empty feature_columns (the "no_environment_ablation" set, 2026-08-24): sklearn's
     # StandardScaler errors on a 0-column input ("at least one array or dtype is required"), so
-    # skip fitting entirely -- build_terrain_tensor below returns a 0-column tensor without
+    # skip fitting entirely. Build_terrain_tensor below returns a 0-column tensor without
     # needing a scaler in that case.
     if len(feature_columns) == 0:
         return None
@@ -521,7 +521,7 @@ def build_terrain_tensor(df, scaler_terrain, feature_columns, device):
 def fill_missing_time_since_thinning(df):
     # time_since_thinning is NaN for never-thinned plots (matching
     # time_since_thinning_missing=True for those same rows). Fill with 0 so
-    # it can go into a tensor -- the missingness flag is what actually tells
+    # it can go into a tensor. The missingness flag is what actually tells
     # the model "this is a placeholder, not a real elapsed time", same
     # convention as models/rf_baseline/rf_baseline.py::prepare_features().
     df = df.copy()
@@ -547,7 +547,7 @@ def fit_scalers(train_df):
     # only, matching Lynch (2025). Age and the target each get their own
     # scaler (not folded into a joint one) so their individual training-split
     # standard deviations can be read back out for the physics loss's
-    # chain-rule correction -- see documentation/model_instructions/
+    # chain-rule correction. See documentation/model_instructions/
     # age_only_dnn_pinn_instructions.md, section 3.
     scaler_age = StandardScaler().fit(train_df[["Age"]])
     scaler_other_features = StandardScaler().fit(train_df[NUMERIC_SCALED_COLUMNS])
@@ -568,7 +568,7 @@ def build_tensors(
     # forward pass needs: age (its own tensor, scaled), other_features (every
     # other no-environment feature, scaled/encoded and concatenated into one
     # tensor), and target (scaled target, or None if include_target is
-    # False -- used when building trajectory-pair endpoints, which predict
+    # False. Used when building trajectory-pair endpoints, which predict
     # their own height rather than being compared to an observed one).
     df = fill_missing_time_since_thinning(df)
 
@@ -600,7 +600,7 @@ _LATER_ENDPOINT_COLUMNS = [
     # yldc removed 2026-07-28, see NOENV_FEATURE_COLUMNS's own comment above.
 ]
 
-# Same features, but as they appear on the EARLIER endpoint -- the
+# Same features, but as they appear on the EARLIER endpoint. The
 # previous_* columns build_transition_table() now provides for all of them
 # (see data_processing/export_model_tables.py).
 _EARLIER_ENDPOINT_COLUMNS = {
@@ -625,14 +625,14 @@ def load_trajectory_pairs(cohort, split_df):
     #     exactly what the old train_years-based filter did.
     #   - under spatial_block_split, a whole plot goes to train/val/test
     #     together (every survey year gets the same split label), so this
-    #     keeps only pairs whose PLOT itself was assigned to train -- any
+    #     keeps only pairs whose PLOT itself was assigned to train. Any
     #     two of its survey years qualify.
     # Never matches a val/test row either way, so validation/test
     # information can never leak into the trajectory loss (see
     # documentation/model_instructions/age_only_dnn_pinn_instructions.md,
     # section 1's leakage rule). split_df already reflects filter_data(), so
     # a plot that didn't survive that filter has no "train" rows here and
-    # is automatically excluded too -- no separate eligible-plots check
+    # is automatically excluded too. No separate eligible-plots check
     # needed.
     transitions_path = PROJECT_ROOT / "data" / "processed" / "transitions" / f"transition_growth_{cohort}.parquet"
     pairs = pd.read_parquet(transitions_path).reset_index(drop=True)
@@ -651,7 +651,7 @@ def build_pair_tensors(pairs_df, scaler_age, scaler_other_features, scaler_heigh
     # Builds tensors for BOTH endpoints of every trajectory pair, plus
     # delta_age, age_mid, and the observed growth rate (annual_height_increment)
     # the trajectory loss needs. Neither endpoint's tensors include a target
-    # -- the trajectory loss compares the network's OWN two predictions to
+    #. The trajectory loss compares the network's OWN two predictions to
     # each other, never to the observed heights directly.
     later_df = pairs_df[_LATER_ENDPOINT_COLUMNS].copy()
     earlier_df = pairs_df[list(_EARLIER_ENDPOINT_COLUMNS.keys())].rename(columns=_EARLIER_ENDPOINT_COLUMNS)
@@ -679,16 +679,16 @@ def build_pair_tensors(pairs_df, scaler_age, scaler_other_features, scaler_heigh
 
 def build_pair_terrain_tensor(pairs_df, scaler_terrain, feature_columns, device, cohort):
     # Terrain/wind is a STATIC, per-plot property (doesn't vary by survey year), so a trajectory
-    # pair's earlier and later endpoint always share the exact same terrain values -- one tensor
+    # pair's earlier and later endpoint always share the exact same terrain values. One tensor
     # per pair is enough, not a separate "earlier"/"later" pair the way age/no-env features need
     # (those genuinely differ between the two endpoints).
     #
     # cohort param ADDED 2026-08-08 (previously missing entirely): this function had the exact
-    # same cohort-suffix bug as load_split_table_with_terrain() above -- a plain "tas_mean" in
+    # same cohort-suffix bug as load_split_table_with_terrain() above. A plain "tas_mean" in
     # feature_columns would KeyError here too, in the PINN-only trajectory-pair physics-loss
     # path, not just the main split table. Never hit in practice only because every
     # ENV_TERRAIN_FEATURE_SETS tier already excluded tas_mean/groundfrost_mean as a workaround
-    # for the OTHER site -- fixed here now that the root cause is fixed, not left as a second,
+    # for the OTHER site. Fixed here now that the root cause is fixed, not left as a second,
     # currently-dormant copy of the same bug.
     environmental_features = pd.read_parquet(ENVIRONMENTAL_FEATURES_PATH)
     environmental_features = _resolve_cohort_suffixed_columns(environmental_features, cohort, feature_columns)
@@ -700,7 +700,7 @@ def build_pair_terrain_tensor(pairs_df, scaler_terrain, feature_columns, device,
     if missing_terrain > 0:
         raise ValueError(
             f"{missing_terrain} of {len(pairs_df)} trajectory pairs have no matching terrain/wind "
-            "row -- same identification-based merge as load_split_table_with_terrain(), should "
+            "row. Same identification-based merge as load_split_table_with_terrain(), should "
             "never happen for a real plot in this dataset."
         )
     return build_terrain_tensor(pairs_with_terrain, scaler_terrain, feature_columns, device)
@@ -740,7 +740,7 @@ def print_pre_training_diagnostic(cohort, split_df, pairs_df):
     if coverage_fraction < MIN_TRAJECTORY_PAIR_COVERAGE_FRACTION:
         print(
             f"  WARNING: only {coverage_fraction:.1%} of training plots have a usable trajectory "
-            f"pair (below the {MIN_TRAJECTORY_PAIR_COVERAGE_FRACTION:.0%} expected minimum) -- "
+            f"pair (below the {MIN_TRAJECTORY_PAIR_COVERAGE_FRACTION:.0%} expected minimum). "
             "the trajectory loss will have very little signal. Check the maturity filter and "
             "pairing logic before trusting PINN results."
         )

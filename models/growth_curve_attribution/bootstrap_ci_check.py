@@ -14,7 +14,7 @@
 # since that is the actual unit spatial_block_split() holds out.
 #
 # The model itself is fit ONCE (the standard split_seed=42 split, matching every other reported
-# number) -- this bootstrap is about the uncertainty of the R2 ESTIMATE on a fixed validation set,
+# number). This bootstrap is about the uncertainty of the R2 ESTIMATE on a fixed validation set,
 # not about retraining variability (that question is already separately covered by the
 # multi-split-seed sweep in run_seed_sweep_check.py).
 
@@ -32,11 +32,11 @@ from models.xgb_environmental.xgb_environmental import predict_with_columns as x
 
 def get_val_predictions_with_cpmt(cohort, split_seed=SPLIT_SEED):
     # Fits both models ONCE on the standard train split, then returns every TEST row's actual
-    # target, both models' predictions, and its compartment -- everything the bootstrap loop
+    # target, both models' predictions, and its compartment. Everything the bootstrap loop
     # below needs, without re-fitting anything inside the loop (that would be the expensive,
     # unnecessary version of this check).
     #
-    # BUG FIX (2026-08-04): this used to bootstrap over "val" -- the same rows XGBoost's
+    # BUG FIX (2026-08-04): this used to bootstrap over "val". The same rows XGBoost's
     # val_df=val early stopping already used to pick how many boosting rounds to run, biasing the
     # point estimate the whole confidence interval was built around. "val" now only drives early
     # stopping; the returned (and bootstrapped) rows are the untouched "test" partition.
@@ -64,7 +64,7 @@ def get_val_predictions_with_cpmt(cohort, split_seed=SPLIT_SEED):
 
 
 def compute_r2(actual, predicted):
-    # Same formula as models/common/metrics.py::compute_metrics_for_rows() -- R2 relative to
+    # Same formula as models/common/metrics.py::compute_metrics_for_rows(). R2 relative to
     # THIS group's own mean, recomputed fresh for every bootstrap resample (standard practice:
     # each resample is its own dataset with its own baseline, not compared against the original
     # sample's mean).
@@ -74,7 +74,7 @@ def compute_r2(actual, predicted):
 
 
 def cluster_bootstrap_r2_ci(val_predictions, predicted_col, n_bootstrap=2000, seed=0):
-    # Resamples whole COMPARTMENTS with replacement (not individual plot rows) -- see this
+    # Resamples whole COMPARTMENTS with replacement (not individual plot rows). See this
     # module's own header for why that's the statistically honest unit here.
     target_values = val_predictions[TARGET].to_numpy()
     predicted_values = val_predictions[predicted_col].to_numpy()

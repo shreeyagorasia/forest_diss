@@ -1,14 +1,14 @@
 # Run as (cluster only, see jobs/growth_curve_attribution/run_rq3_gnnwr.sh):
 #   python -m models.growth_curve_attribution.run_rq3_gnnwr --cohort 4survey --set-name nested_set2_top10 --use-gpu
 #
-# RQ3's GNNWR driver for the new rank-aggregate environmental-feature methodology -- calls
+# RQ3's GNNWR driver for the new rank-aggregate environmental-feature methodology. Calls
 # gnnwr_check.py's run_gnnwr() with raw_columns loaded from
 # documentation/env_feature_sets_manifest.csv, instead of a named SCOPES entry. run_gnnwr() itself
 # was extended with an optional raw_columns= parameter (2026-08-10) that, when given, resolves the
-# table via build_table_from_columns() instead of build_scope_table() -- everything else about
+# table via build_table_from_columns() instead of build_scope_table(). Everything else about
 # training/output-saving is untouched, so this wrapper is deliberately thin: parse args, load the
 # Set, call run_gnnwr(), done. `scope` is still passed through as the RQ3 set_name, purely for
-# run_gnnwr()'s own output-naming/logging -- it has no effect on which columns are actually used
+# run_gnnwr()'s own output-naming/logging. It has no effect on which columns are actually used
 # once raw_columns is given.
 
 import argparse
@@ -39,7 +39,7 @@ def main():
 
     run_gnnwr(
         cohort=args.cohort,
-        scope=args.set_name,  # label only -- ignored for column resolution once raw_columns is set
+        scope=args.set_name,  # label only. Ignored for column resolution once raw_columns is set
         max_epoch=args.max_epoch,
         early_stop=args.early_stop,
         use_gpu=args.use_gpu,

@@ -1,4 +1,4 @@
-# Purpose: Load data for the spatial-attribution methods in this folder -- residuals from ANY
+# Purpose: Load data for the spatial-attribution methods in this folder. Residuals from ANY
 # model (not just Chapman-Richards), the master per-plot-per-year dataset, and a safe way to
 # join extra columns (e.g. terrain/wind features, once extracted) onto either one.
 # Key logic: every model in this repo writes predictions.csv in the exact same shape
@@ -26,7 +26,7 @@ LEAKAGE_RISK_COLUMNS = [
 
 def _load_test_predictions(model_name, cohort, split_type):
     # Shared first step for both residual-loading functions below: read predictions.csv, keep
-    # only the test split. Real held-out residual, not a training-fit residual -- if we used
+    # only the test split. Real held-out residual, not a training-fit residual. If we used
     # training rows, the model would look artificially good there (it was literally fitted to
     # match them), so any spatial pattern we found could just be an artifact of the fitting
     # process, not something real about the forest.
@@ -37,10 +37,10 @@ def _load_test_predictions(model_name, cohort, split_type):
 
 def load_residuals(model_name, cohort="4survey", split_type="spatial_block"):
     # One row per plot: mean residual across its survey years, joined to x/y and compartment.
-    # This is the shape Moran's I / LISA / SHAP / NLME / GWR all need -- one value per map
+    # This is the shape Moran's I / LISA / SHAP / NLME / GWR all need. One value per map
     # location, since a spatial clustering test can't work if several different residuals sit
     # at the same x/y point. `model_name` is the same folder name used everywhere else in this
-    # repo -- "chapman_richards", "dnn_noenv", "pinn_noenv_pw0.05_tw0.05", "rf_baseline", etc.
+    # repo. "chapman_richards", "dnn_noenv", "pinn_noenv_pw0.05_tw0.05", "rf_baseline", etc.
     test_only = _load_test_predictions(model_name, cohort, split_type)
     mean_residual = test_only.groupby("identification")["residual"].mean().reset_index()
 
@@ -72,7 +72,7 @@ def load_master(cohort="4survey"):
     # The full cleaned per-plot-per-year dataset every model's predictor table is built FROM --
     # one row per plot per survey year, every column the cleaning notebook kept. No coordinates
     # in this file (join load_plot_coordinates() separately, same as the functions above), and
-    # no filtering to any particular model's predictor list -- this is the raw material to build
+    # no filtering to any particular model's predictor list. This is the raw material to build
     # a new feature table from, not a ready-to-use one.
     master_path = PROJECT_ROOT / "data" / "processed" / "master" / f"clean_master_{cohort}.parquet"
     master_df = pd.read_parquet(master_path)
@@ -81,7 +81,7 @@ def load_master(cohort="4survey"):
 
 
 def join_by_plot(base_df, other_df, on="identification"):
-    # A safety-checked version of pd.merge() -- reports how many rows from EACH side failed to
+    # A safety-checked version of pd.merge(). Reports how many rows from EACH side failed to
     # find a match, so a bad join (wrong ID type, missing plots, a typo in a column name) fails
     # loudly and gets noticed, instead of silently dropping rows and only showing up much later
     # as "why does my analysis have fewer plots than I expected".
@@ -97,14 +97,14 @@ def join_by_plot(base_df, other_df, on="identification"):
         print(f"  WARNING: {unmatched_in_other:,} rows from the second table had no match and were dropped")
 
     # LEAKAGE_RISK_COLUMNS was a well-reasoned constant that no join actually checked against
-    # (2026-07-30 fix) -- a future join could reintroduce an Age-like circularity (a height-
+    # (2026-07-30 fix). A future join could reintroduce an Age-like circularity (a height-
     # derived column ending up as a model predictor) with nothing to catch it. A warning, not a
     # hard error: these columns are legitimate to carry through for audit/display (load_master()
     # returns them on purpose), the actual danger is only if one gets used as a FEATURE later.
     leaked = set(merged.columns) & set(LEAKAGE_RISK_COLUMNS)
     if leaked:
         print(
-            f"  WARNING: this join carried through {sorted(leaked)} -- these are known height-"
+            f"  WARNING: this join carried through {sorted(leaked)}. These are known height-"
             "leakage-risk columns (see LEAKAGE_RISK_COLUMNS above). Fine for audit/display, but "
             "never use them as a model feature/predictor."
         )

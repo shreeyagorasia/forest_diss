@@ -1,24 +1,24 @@
 # Purpose: a single, consistent recomputation of the CR baseline mean|residual| and the
 # residual-reduction (mean reduction, % rows improved) for every model row in RQ2a's results
-# table -- DNN/PINN/PINN_k (Set3, seed 42) and XGBoost's env/no-env arms -- all read directly from
+# table. DNN/PINN/PINN_k (Set3, seed 42) and XGBoost's env/no-env arms. All read directly from
 # the predictions.csv files currently saved on disk, joined against the CURRENT chapman_richards
 # baseline files, using the project's own compute_residual_reduction() unmodified.
 #
 # Why this exists: an audit (2026-08-16) found the CR baseline stated for every 6survey row in
 # TEMP_rq2a_residual_reduction_results_2026-08-11.tex (3.057) does not match what a fresh
-# recomputation from currently-saved files gives (3.047) -- confirmed consistently across DNN,
+# recomputation from currently-saved files gives (3.047). Confirmed consistently across DNN,
 # PINN, and PINN_k, all pointing to the same 3.047 figure, not a one-off fluke. Likely cause:
 # chapman_richards_fold{0-4}'s predictions.csv were regenerated (fold split assignment CSVs get
 # rewritten every time build_split_for_cohort() runs, which has happened repeatedly across this
 # project's later sessions) after the 2026-08-11 note's numbers were computed, so the 6survey CR
-# fit itself shifted slightly. The 4survey CR baseline (5.0285) is unaffected -- it matches the
+# fit itself shifted slightly. The 4survey CR baseline (5.0285) is unaffected. It matches the
 # original note (5.028) closely. This script is the reproducible source for the corrected 6survey
 # number and should be the reference for these figures going forward, not the 2026-08-11 note's
 # original 3.057.
 #
 # Separately confirms XGBoost's own no-env arm has a genuinely different (larger) test population
 # than every other Set3 row (232,448 vs. 232,292 on 4survey, since it isn't filtered for missing
-# environmental data) -- so its own CR baseline (5.030) is legitimately different from the other
+# environmental data). So its own CR baseline (5.030) is legitimately different from the other
 # rows' (5.028), not an inconsistency to paper over.
 #
 # Run as: python -m models.spatial_attribution.rq2a_verify_cr_baseline

@@ -1,25 +1,25 @@
 # MIGRATED 2026-08-25 from temp_results_pinn/pinn_env_terrain_fix/run_full_rerun.py into models/
 # alongside the fixed model files. Two changes from the original, both non-behavioural:
 #   1. The two model imports now point at models.pinn_env_terrain_fix.* (this package) instead
-#      of temp_results_pinn.pinn_env_terrain_fix.* -- same code, new home.
+#      of temp_results_pinn.pinn_env_terrain_fix.*. Same code, new home.
 #   2. OUTPUT_DIR is now an explicit path back to temp_results_pinn/outputs/full_rerun instead
 #      of being derived from this file's own location. The original computed it as
 #      `Path(__file__).resolve().parents[1] / "outputs" / "full_rerun"`, i.e. "my grandparent
-#      folder's outputs/" -- that resolved to temp_results_pinn/outputs/full_rerun when the file
+#      folder's outputs/". That resolved to temp_results_pinn/outputs/full_rerun when the file
 #      lived at temp_results_pinn/pinn_env_terrain_fix/run_full_rerun.py, but would have silently
 #      resolved to a new, empty models/outputs/full_rerun/ if copied here unchanged. Hardcoded
 #      instead, so this script still sees (and still skips) the 5 already-completed folds whose
 #      results are cited in the dissertation, rather than treating them as not-yet-run.
 #
-# Everything else -- the fit/predict calls, the fold loop, the CR anchor loading, the printed
-# summary -- is unchanged from the original.
+# Everything else. The fit/predict calls, the fold loop, the CR anchor loading, the printed
+# summary. Is unchanged from the original.
 #
 # Full-epoch rerun of the FIXED PINN/PINN-k architectures only (OLD/unfixed numbers already
-# exist in the dissertation's own Table 1 -- no need to redo those). Matches production settings
+# exist in the dissertation's own Table 1. No need to redo those). Matches production settings
 # exactly: spatial_block_kfold, 5 folds, Set3, max_epochs=500, patience=40 (models/pinn_env_terrain
 # /run_pinn_env_terrain.py's own DEFAULT_MAX_EPOCHS/DEFAULT_EARLY_STOPPING_PATIENCE).
 #
-# Loops fold 0 first (both models), then folds 1-4 (both models) if reached -- designed to run
+# Loops fold 0 first (both models), then folds 1-4 (both models) if reached. Designed to run
 # unattended in the background for a long time; saves each fold's result to disk incrementally
 # so partial progress survives even if the whole loop doesn't finish.
 #

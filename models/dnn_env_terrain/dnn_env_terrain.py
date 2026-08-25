@@ -1,6 +1,6 @@
-# Plain DNN, WITH terrain/wind features -- the "same information, no physics" control for
+# Plain DNN, WITH terrain/wind features. The "same information, no physics" control for
 # pinn_env_terrain, same role dnn_noenv already plays for pinn_noenv. Reuses
-# models/common/torch_model.py::NoEnvNetwork completely unchanged -- that class already accepts
+# models/common/torch_model.py::NoEnvNetwork completely unchanged. That class already accepts
 # any n_other_features, so this model's "other features" tensor is just the no-env features PLUS
 # the chosen terrain/wind feature set (models/common/torch_data.py::ENV_TERRAIN_FEATURE_SETS,
 # picked by name via run_dnn_env_terrain.py's --feature-set) concatenated together, built by
@@ -9,20 +9,20 @@
 # Why terrain feeds this network directly, when pinn_env_terrain's main network does NOT (its
 # terrain features go only to the y_max sub-network): fairness. pinn_env_terrain's total
 # information budget is age + no-env features (main network) + terrain/wind (y_max
-# sub-network) -- for the "does physics help, given the SAME information" comparison to be
+# sub-network). For the "does physics help, given the SAME information" comparison to be
 # honest, this control needs access to the exact same total information, even though PINN
 # structures its own use of it differently (a physics-informed sub-network) as part of what's
 # actually being tested. See pinn_env_terrain.py's own top-of-file note for the full reasoning.
 #
-# This file only knows how to build, train, and save/load the DNN -- same fit-then-evaluate
+# This file only knows how to build, train, and save/load the DNN. Same fit-then-evaluate
 # split as every other model in this repo (run_dnn_env_terrain.py / evaluate_dnn_env_terrain.py).
 #
 # DELIBERATE DUPLICATION, not an oversight (2026-08-01): every function below is near-identical
-# to dnn_noenv.py's version (only real difference: dropout_rate threaded through) -- kept as a
+# to dnn_noenv.py's version (only real difference: dropout_rate threaded through). Kept as a
 # separate, self-contained file rather than importing from dnn_noenv.py, matching this project's
 # convention of one fully self-contained file per model folder. Accepted cost: a future fix to
 # the shared training-loop logic (early stopping, gradient clipping, val-loss smoothing) has to
-# be applied by hand in both files -- nothing enforces them staying in sync.
+# be applied by hand in both files. Nothing enforces them staying in sync.
 
 import json
 import time
@@ -33,14 +33,14 @@ import torch
 
 from models.common.torch_model import NoEnvNetwork, compute_l1_penalty
 
-# ----- Fixed hyperparameters -- identical to dnn_noenv.py's, on purpose. Any difference between
+# ----- Fixed hyperparameters. Identical to dnn_noenv.py's, on purpose. Any difference between
 # dnn_noenv and dnn_env_terrain's results should come from the extra terrain/wind features, not
 # from an unrelated training-knob difference. -----
 L1_COEFFICIENT = 1e-5
 LEARNING_RATE = 0.0001
 LR_SCHEDULER_FACTOR = 0.8
 LR_SCHEDULER_PATIENCE = 15
-BATCH_SIZE = 256  # matches PINN/PINN-k's default -- changed from 512 on 2026-08-22 for a fair batch-size comparison
+BATCH_SIZE = 256  # matches PINN/PINN-k's default. Changed from 512 on 2026-08-22 for a fair batch-size comparison
 WEIGHT_DECAY = 1e-5
 GRAD_CLIP_MAX_NORM = 1.0
 VAL_LOSS_SMOOTHING_WINDOW = 5
@@ -48,7 +48,7 @@ PRINT_EVERY_N_EPOCHS = 10
 
 
 def build_model(n_other_features, device, seed, dropout_rate=0.0, hidden_layer_sizes=None):
-    # hidden_layer_sizes=None keeps the original 3x128 network -- see
+    # hidden_layer_sizes=None keeps the original 3x128 network. See
     # models/common/torch_model.py::NoEnvNetwork's own note (2026-08-02).
     torch.manual_seed(seed)
     model = NoEnvNetwork(n_other_features=n_other_features, dropout_rate=dropout_rate, hidden_layer_sizes=hidden_layer_sizes)

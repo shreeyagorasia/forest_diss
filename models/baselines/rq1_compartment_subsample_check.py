@@ -7,14 +7,14 @@
 #
 # Method: take 4survey (296 compartments, plenty to subsample from), fit both models on the FULL
 # compartment set (a single spatial_block split, matching this project's "coarse screen"
-# convention for exploratory checks -- see the architecture-sweep TEMP note), then repeat on
-# random subsamples of just 48 compartments -- the exact compartment count 6survey actually has --
+# convention for exploratory checks. See the architecture-sweep TEMP note), then repeat on
+# random subsamples of just 48 compartments. The exact compartment count 6survey actually has --
 # 3 different random seeds for which 48 compartments get kept, everything else held fixed
 # (same XGBoost config, same DNN architecture/hyperparameters, same block-shuffle seed for the
 # train/val/test assignment itself). Only the compartment count changes between conditions.
 #
 # Both models are fit on the EXACT SAME train/val/test split within each condition (built once,
-# reused for both), for a fair paired comparison -- same principle as
+# reused for both), for a fair paired comparison. Same principle as
 # rq1_xgb_vs_dnn_paired_folds.py's paired-fold check, applied here across compartment-count
 # conditions instead of across folds.
 
@@ -50,13 +50,13 @@ SUBSAMPLE_SEEDS = [101, 102, 103]
 DNN_TRAINING_SEED = 42
 DNN_MAX_EPOCHS = 500
 DNN_EARLY_STOPPING_PATIENCE = 40
-# Winning 4survey config from TEMP_rq1_xgb_hyperparameter_search_2026-08-16.tex -- held fixed
+# Winning 4survey config from TEMP_rq1_xgb_hyperparameter_search_2026-08-16.tex. Held fixed
 # across every condition here so only compartment count varies, not XGBoost's own tuning.
 XGB_PARAMS = dict(n_estimators=500, max_depth=6, learning_rate=0.02, random_state=42, n_jobs=1)
 
 
 def build_subsampled_split(full_df, n_compartments, subsample_seed):
-    # None means "keep every compartment" -- used for the full-296 baseline condition.
+    # None means "keep every compartment". Used for the full-296 baseline condition.
     if n_compartments is None:
         working_df = full_df
     else:
@@ -66,7 +66,7 @@ def build_subsampled_split(full_df, n_compartments, subsample_seed):
         working_df = full_df[full_df[SPATIAL_BLOCK_COL].isin(chosen_compartments)].copy()
 
     # Re-run the block-shuffle train/val/test assignment fresh on whichever compartments are
-    # actually present here -- reusing the full-296 split's labels on a filtered-down set would
+    # actually present here. Reusing the full-296 split's labels on a filtered-down set would
     # not hit the intended row-fraction targets. split_seed is always the project default
     # (SPLIT_SEED=42), so the only thing varying between conditions is which compartments exist.
     working_df["split"] = spatial_block_split(
@@ -160,7 +160,7 @@ def main():
 
     feature_columns = ENV_TERRAIN_FEATURE_SETS[FEATURE_SET_NAME]
     # split_type/split_seed/k_folds/held_out_fold here only control what 'split' column this
-    # loader assigns by default -- irrelevant, since build_subsampled_split() always overwrites
+    # loader assigns by default. Irrelevant, since build_subsampled_split() always overwrites
     # 'split' itself. Loaded once with "spatial_block" just to get a real, valid split_type.
     full_df = load_split_table_with_terrain(COHORT, "spatial_block", feature_columns, split_seed=SPLIT_SEED)
 

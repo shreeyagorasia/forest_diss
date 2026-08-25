@@ -1,14 +1,14 @@
-# Purpose: a neural version of a mixed-effects model -- an ordinary MLP on the environmental
+# Purpose: a neural version of a mixed-effects model. An ordinary MLP on the environmental
 # features (the "fixed effects"), PLUS one shrunk intercept per compartment (the "random
 # effects"), added together. This directly answers a criticism of GNNWR raised in this project's
 # own notes: this session already found real compartment-level clustering in the raw deviation
-# target (ICC 0.399 for 4survey, 0.188 for 6survey -- see documentation/experiment_log.md) --
+# target (ICC 0.399 for 4survey, 0.188 for 6survey. See documentation/experiment_log.md) --
 # evidence the true spatial structure is BLOCKY (values jump between compartments) rather than
 # smoothly continuous, which is exactly what GNNWR's distance-based kernel assumes instead. This
 # model encodes "blocky by compartment" directly, rather than "smooth by distance".
 #
 # Like simple_dnn_check.py, this model's size depends only on feature count and compartment
-# count, NOT on the number of training ROWS -- so, same as the plain DNN, this runs comfortably
+# count, NOT on the number of training ROWS. So, same as the plain DNN, this runs comfortably
 # on a laptop CPU. No cluster needed.
 #
 # TRAINING METHOD (2026-08-04, revised after a real bug was found and diagnosed): the first
@@ -16,23 +16,23 @@
 # JOINTLY with one Adam optimizer, with the compartment intercepts regularised by weight_decay
 # (L2 shrinkage toward 0, mathematically equivalent to a Normal(0, sigma^2) random-effects
 # prior). That converged to a compartment-intercept variance of essentially 0 REGARDLESS of the
-# weight_decay value used (checked 0.0, 0.001, 0.01, 0.05 -- all gave ~0.019), which was a red
+# weight_decay value used (checked 0.0, 0.001, 0.01, 0.05. All gave ~0.019), which was a red
 # flag: real shrinkage should be sensitive to its own strength. Diagnosed directly: validation
 # loss (which drives early stopping and which checkpoint gets kept) NEVER involves the
 # compartment intercepts, because every val/test compartment is one the model never saw in
-# training (spatial_block_split holds out WHOLE compartments -- confirmed empirically, zero
+# training (spatial_block_split holds out WHOLE compartments. Confirmed empirically, zero
 # compartment overlap between train and val/test). So early stopping could halt training before
 # the intercepts had converged at all, with nothing in the stopping criterion able to notice. A
 # quick by-hand check confirmed real structure was being missed: a PLAIN pandas groupby-mean of
 # a plain fixed-effects-only model's own training residuals, by compartment, showed a variance
-# ratio of 0.688 (compartment-mean variance vs total residual variance) -- nowhere near the
+# ratio of 0.688 (compartment-mean variance vs total residual variance). Nowhere near the
 # joint-trained model's reported ~0.000.
 #
 # Fixed by switching to the standard TWO-STAGE approach real mixed-effects software actually
-# uses (this is not an approximation invented for this project -- it is the textbook empirical-
+# uses (this is not an approximation invented for this project. It is the textbook empirical-
 # Bayes / BLUP estimator for a one-way random-intercept model):
 #   1. Fit the fixed-effects network ALONE first (reusing simple_dnn_check.py's SimpleMLP and
-#      fit_mlp_with_early_stopping -- identical architecture and training loop, so this stage's
+#      fit_mlp_with_early_stopping. Identical architecture and training loop, so this stage's
 #      test R2 should come out the same as simple_dnn_check.py's own result).
 #   2. With that network now FROZEN, compute each training compartment's mean residual, then
 #      shrink it using this project's own compartment_pooling_check.compute_icc_one_way()
@@ -43,10 +43,10 @@
 # not gradient descent.
 #
 # IMPORTANT, unchanged from before: because val/test compartments are never seen in training,
-# there is no shrunk intercept available for them -- predictions there fall back to fixed
+# there is no shrunk intercept available for them. Predictions there fall back to fixed
 # effects alone (a random effect of exactly 0, the correct behaviour for a brand-new group with
 # no data). So this model's TEST R2 is expected to come out close to simple_dnn_check.py's own
-# result -- the compartment intercepts can only affect the TRAINING fit and the (separately
+# result. The compartment intercepts can only affect the TRAINING fit and the (separately
 # useful) variance-decomposition report, not held-out prediction. That is an architectural fact
 # of whole-compartment holdout, not a flaw in this script.
 #
@@ -112,7 +112,7 @@ def run_compartment_mixed_dnn(
 ):
     # held_out_fold=None (default) keeps the original single train/val/test split. Passing
     # 0..k_folds-1 instead runs ONE fold of the same 5-fold spatial CV Elastic Net/XGBoost/GNNWR
-    # already use -- same reasoning as simple_dnn_check.py's own k-fold addition.
+    # already use. Same reasoning as simple_dnn_check.py's own k-fold addition.
     torch.manual_seed(seed)
 
     table, feature_columns = build_scope_table(
@@ -164,7 +164,7 @@ def run_compartment_mixed_dnn(
     )
 
     # Test predictions: every test compartment is one the model never saw in training (see
-    # module docstring), so there is no shrunk intercept for it -- fixed effects alone, which is
+    # module docstring), so there is no shrunk intercept for it. Fixed effects alone, which is
     # exactly test_fixed_effect_pred already computed above. Kept as an explicit variable here
     # (rather than reusing test_fixed_effect_pred silently) so this is visibly a DELIBERATE
     # architectural choice, not an oversight.
@@ -197,7 +197,7 @@ def main():
     parser.add_argument("--split-seed", type=int, default=SPLIT_SEED)
     parser.add_argument(
         "--held-out-fold", type=int, default=None,
-        help="Run ONE fold of a 5-fold spatial CV instead of the default single split -- pass 0..k_folds-1, run once per fold, then pool the resulting CSVs.",
+        help="Run ONE fold of a 5-fold spatial CV instead of the default single split. Pass 0..k_folds-1, run once per fold, then pool the resulting CSVs.",
     )
     parser.add_argument("--k-folds", type=int, default=DEFAULT_K_FOLDS)
     args = parser.parse_args()

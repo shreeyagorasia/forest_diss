@@ -2,7 +2,7 @@
 #
 # EVALUATES an already-trained pinn_env_terrain checkpoint on the held-out test split. Mirrors
 # evaluate_pinn_noenv.py's structure (cheap, CPU-friendly, the one place the test split is
-# touched) -- see that file's own comments for the full reasoning, not repeated here.
+# touched). See that file's own comments for the full reasoning, not repeated here.
 
 import argparse
 import json
@@ -49,7 +49,7 @@ def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED, k_f
         n_other_features = architecture["n_other_features"]
         n_terrain_features = architecture["n_terrain_features"]
         # .get(...): a checkpoint saved before 2026-08-02 has no "hidden_layer_sizes" key at
-        # all -- treated the same as an explicit None (the original 3x128 main network).
+        # all. Treated the same as an explicit None (the original 3x128 main network).
         hidden_layer_sizes = architecture.get("hidden_layer_sizes")
 
         scaler_age = joblib.load(preprocessing_dir / "scaler_age.joblib")
@@ -62,19 +62,19 @@ def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED, k_f
             feature_columns = json.load(f)
 
         # The frozen CR anchor's y_max is the same split-MATCHED anchor run_pinn_env_terrain.py's
-        # load_cr_params() used to train this checkpoint -- re-read directly from the same
+        # load_cr_params() used to train this checkpoint. Re-read directly from the same
         # outputs/<split_type>/chapman_richards/<cohort>/params.json path rather than trusting a
         # copy. BUG FIX (2026-08-01): this used to read the unprefixed, pooled
-        # outputs/chapman_richards/<cohort>/params.json path -- harmless for spatial_block (its
+        # outputs/chapman_richards/<cohort>/params.json path. Harmless for spatial_block (its
         # split-matched y_max happens to be nearly identical to the pooled value, checked
         # directly), but WRONG for temporal/temporal_narrow_gap, where the two differ by
         # 3-11% (e.g. 4survey temporal: pooled 51.96m vs split-matched 46.48m). Did not affect
-        # any height prediction or metric (predict() never uses global_y_max at all) -- only
+        # any height prediction or metric (predict() never uses global_y_max at all). Only
         # the reported "learned_y_max" column/anchor print, which a future check comparing the
         # learned y_max map against known terrain effects would rely on being correct.
         cr_name_suffix = f"_fold{held_out_fold}" if split_type == "spatial_block_kfold" else ""
         # plot_level is the one split type with no outputs/<split_type>/ prefix (see
-        # model_output_dir()'s own comment in models/common/saving.py) -- added 2026-08-08
+        # model_output_dir()'s own comment in models/common/saving.py). Added 2026-08-08
         # alongside DNN/PINN's first-ever plot_level run. Same fix as load_cr_params() there;
         # this file re-reads the anchor directly instead of calling that function (see the
         # 2026-08-01 bug-fix comment above), so it needs the same fix applied here too.
@@ -100,7 +100,7 @@ def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED, k_f
         )
         terrain_test = build_terrain_tensor(test_df, scaler_terrain, feature_columns, device)
 
-        # Timed for a runtime-comparison chart -- see evaluate_dnn_noenv.py's identical comment.
+        # Timed for a runtime-comparison chart. See evaluate_dnn_noenv.py's identical comment.
         # Spans BOTH predict() and predict_y_max() below, since together they're this model's
         # full inference cost, not just the height number alone.
         inference_start_time = time.time()
@@ -110,7 +110,7 @@ def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED, k_f
         ).flatten()
         observed_height_test = test_df[TARGET_COLUMN].values
 
-        # The learned, plot-specific y_max map -- the actual interpretable output this whole
+        # The learned, plot-specific y_max map. The actual interpretable output this whole
         # model exists to produce, saved alongside the ordinary height predictions so it can be
         # mapped/compared against terrain directly (e.g. in spatial_autocorrelation_terrain.ipynb),
         # not just used internally by the physics loss.

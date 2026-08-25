@@ -1,13 +1,13 @@
 # Run as: python -m models.dnn_noenv.evaluate_dnn_noenv --cohort 4survey
 #
 # EVALUATES an already-trained DNN on the held-out test split (2023). Does
-# not train anything -- just loads the checkpoint + scalers that
+# not train anything. Just loads the checkpoint + scalers that
 # run_dnn_noenv.py already saved, makes predictions on the test rows, and
 # computes accuracy metrics (MAE, RMSE, R2, Bias, etc).
 #
 # Deliberately cheap and CPU-friendly: this is a small network doing a
 # single forward pass over a few tens of thousands of rows, not a training
-# loop -- there is no need for a GPU or a SLURM job for this step. Meant
+# loop. There is no need for a GPU or a SLURM job for this step. Meant
 # to be run locally, after copying the trained checkpoint down from the
 # cluster. If evaluating on the cluster instead, use
 # jobs/dnn_noenv/evaluate_dnn_noenv.sh.
@@ -30,7 +30,7 @@ MODEL_NAME = "dnn_noenv"
 
 
 def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED, k_folds=DEFAULT_K_FOLDS, held_out_fold=0):
-    # run_name only changes where the checkpoint is READ from -- see the
+    # run_name only changes where the checkpoint is READ from. See the
     # matching note in run_dnn_noenv.py. The underlying data table to
     # evaluate on always uses the plain MODEL_NAME.
     output_model_name = run_name if run_name else MODEL_NAME
@@ -58,7 +58,7 @@ def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED, k_f
             architecture = json.load(f)
         n_other_features = architecture["n_other_features"]
         # .get(...) not [...]: a checkpoint saved before 2026-08-02 has no "hidden_layer_sizes"
-        # key at all -- treated the same as an explicit None, both mean "the original 3x128
+        # key at all. Treated the same as an explicit None, both mean "the original 3x128
         # network", so an old checkpoint still evaluates correctly with no migration needed.
         hidden_layer_sizes = architecture.get("hidden_layer_sizes")
 
@@ -70,7 +70,7 @@ def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED, k_f
 
         model = load_best_model(n_other_features, device, checkpoints_dir, hidden_layer_sizes=hidden_layer_sizes)
 
-        # ----- Load ONLY the test rows -- this is the one place in the
+        # ----- Load ONLY the test rows. This is the one place in the
         # whole DNN/PINN pipeline where the test split is touched -----
         split_df = load_split_table(cohort, split_type, split_seed=split_seed, k_folds=k_folds, held_out_fold=held_out_fold)
         test_df = split_df[split_df["split"] == "test"]
@@ -81,7 +81,7 @@ def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED, k_f
 
         # ----- Make predictions and unscale them back to real metres -----
         # Timed for a runtime-comparison chart (e.g. neural inference vs. a closed-form
-        # baseline) -- CPU-only forward pass here (see this file's own module docstring), so
+        # baseline). CPU-only forward pass here (see this file's own module docstring), so
         # this is a genuine "how long does this take on the hardware this project actually
         # evaluates on" number, not a GPU-vs-CPU apples-to-oranges comparison.
         inference_start_time = time.time()

@@ -3,7 +3,7 @@
 # The LLM Council's "one thing to do first" (documentation/experiment_log.md, 2026-08-04 variable
 # council entry): gwa_wind_speed_10m sits in the established 16-column terrain/wind list, but this
 # project has separately flagged 10m GWA wind as likely measuring wind WITHIN/BELOW a mature
-# canopy -- a physically backwards proxy for a mature stand's actual crown-level exposure, versus
+# canopy. A physically backwards proxy for a mature stand's actual crown-level exposure, versus
 # 50m which sits above it. Does the confirmed 4survey signal (pooled R2=0.118 EN / 0.174 XGBoost,
 # 5-fold spatial CV, established 16) survive swapping 10m for 50m, or was some of that signal
 # riding on a known-contaminated variable?
@@ -17,7 +17,7 @@ from models.xgb_environmental.xgb_environmental import TERRAIN_AND_WIND_COLUMNS
 COHORTS = ["4survey", "6survey"]
 METHODS = {"elastic_net_predicted": "Elastic Net", "xgboost_predicted": "XGBoost"}
 
-# The one swap the council asked for -- everything else about the established 16 stays untouched,
+# The one swap the council asked for. Everything else about the established 16 stays untouched,
 # so any R2 change is attributable to this single column, not a bundle of changes.
 SWAPPED_COLUMNS = [
     "gwa_wind_speed_50m" if column == "gwa_wind_speed_10m" else column

@@ -1,18 +1,18 @@
 # Purpose: the four cheap, no-model-fitting checks agreed before committing engineering time to
 # any Stage 2 architecture (see documentation/experiment_log.md's Stage 2 planning notes):
-#   1. How many distinct survey years does each plot actually have -- gates whether a per-plot
+#   1. How many distinct survey years does each plot actually have. Gates whether a per-plot
 #      curve fit (Candidate A) or per-plot random effect (Candidate B) is even identifiable.
-#   2. Does the deviation from the yldc curve have real, non-degenerate spread -- if it's tiny
+#   2. Does the deviation from the yldc curve have real, non-degenerate spread. If it's tiny
 #      and unstructured, that already answers "is there anything here to explain" cheaply.
-#   3. Does a big deviation line up with a recorded thinning event -- a real confound to rule
+#   3. Does a big deviation line up with a recorded thinning event. A real confound to rule
 #      out before crediting anything to environment/terrain.
 #   4. Would a distance-based Stage 2 model (GNNWR/GRF/GP-kriging) even have legitimate
-#      train-set neighbours to work with under spatial_block_split -- this project already found
+#      train-set neighbours to work with under spatial_block_split. This project already found
 #      the same check kills a fixed-radius neighbour FEATURE (2026-08-02 log entry); re-running
 #      it here checks whether the same failure mode is likely for a distance-based MODEL too,
 #      before any of them get built.
 #
-# Plain functions only, no plotting here -- this project's own convention (see
+# Plain functions only, no plotting here. This project's own convention (see
 # models/spatial_attribution/nlme.py's header) is to keep plotting logic in the calling
 # notebook/script, real logic in the module.
 
@@ -23,7 +23,7 @@ from models.common.splits import SPATIAL_BLOCK_COL, SPATIAL_BUFFER_METRES, SPLIT
 
 def distinct_timestamp_counts(df):
     # counts_per_plot: one row per plot, how many distinct survey years it has real data for.
-    # summary: how many plots have exactly 1, 2, 3, ... distinct years -- the actual identifiability
+    # summary: how many plots have exactly 1, 2, 3, ... distinct years. The actual identifiability
     # picture (a 1-timestamp plot can still get an algebraic/GADA-style y_max, but not a real
     # least-squares fit; more timestamps make that fit more trustworthy, not just possible).
     counts_per_plot = df.groupby("identification")["LiDAR_year"].nunique()
@@ -33,7 +33,7 @@ def distinct_timestamp_counts(df):
 
 def yldc_deviation_summary(df):
     # deviation = observed Top_Height95 minus the plot's OWN yldc-implied curve prediction at
-    # that row's Age -- both columns already computed once by
+    # that row's Age. Both columns already computed once by
     # data_processing/export_growth_curve_tables.py, not recomputed here.
     valid = df.dropna(subset=["top_height95_yldc_predicted"]).copy()
     valid["yldc_deviation"] = valid["Top_Height95"] - valid["top_height95_yldc_predicted"]
@@ -47,7 +47,7 @@ def yldc_deviation_summary(df):
     }
 
     # age_band_5yr already exists in the growth_curve_table (built by
-    # data_processing/clean_master_data.py's add_export_metrics()) -- reused here to see WHERE
+    # data_processing/clean_master_data.py's add_export_metrics()). Reused here to see WHERE
     # the deviation's spread comes from (e.g. a suspiciously wide/biased young-age band would
     # point at the known low-Age numerical instability in this formula, not a real site effect).
     by_age_band = valid.groupby("age_band_5yr")["yldc_deviation"].agg(["count", "mean", "std"])
@@ -57,7 +57,7 @@ def yldc_deviation_summary(df):
 
 def thinning_confound_check(valid_with_deviation):
     # Cross-checks whether large yldc deviations line up with a RECORDED thinning event, rather
-    # than being credited to environment by default -- same confounder-checking discipline
+    # than being credited to environment by default. Same confounder-checking discipline
     # already used elsewhere in this project (env_deviation, the Stage 1 confound checks).
     return valid_with_deviation.groupby("thinning_status")["yldc_deviation"].agg(["count", "mean", "std"])
 
@@ -65,7 +65,7 @@ def thinning_confound_check(valid_with_deviation):
 def neighbour_coverage_check(df, radius_metres=75, seed=None):
     # Re-runs the same shape of check that already found (2026-08-02 log entry) that a
     # fixed-radius neighbour FEATURE is structurally incompatible with spatial_block_split's
-    # whole-compartment holdout -- here applied to whether a distance-based Stage 2 MODEL would
+    # whole-compartment holdout. Here applied to whether a distance-based Stage 2 MODEL would
     # face the same problem, before any of them (GNNWR/GRF/GP-kriging) get built.
     seed = seed if seed is not None else SPLIT_SEED
 
@@ -81,7 +81,7 @@ def neighbour_coverage_check(df, radius_metres=75, seed=None):
     test_coordinates = one_row_per_plot.loc[one_row_per_plot["split"] == "test", ["x", "y"]].values
 
     if len(train_coordinates) == 0 or len(test_coordinates) == 0:
-        raise ValueError("No train or test plots after spatial_block_split -- check the split ran correctly.")
+        raise ValueError("No train or test plots after spatial_block_split. Check the split ran correctly.")
 
     train_tree = cKDTree(train_coordinates)
     distances_to_nearest_train_plot, _ = train_tree.query(test_coordinates)

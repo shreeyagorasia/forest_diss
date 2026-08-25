@@ -4,17 +4,17 @@
 # year, extracts each plot's value at each year, then DELETES the downloaded raster before
 # moving to the next one. This is different from every other environmental source in this
 # project (SoilGrids/CHELSA/CEH/GWA all keep their downloaded raw file permanently cached in
-# data/raw/environmental/) -- HadUK-Grid needs 7 variables x 6 years = 42 files, and at ~41MB
+# data/raw/environmental/). HadUK-Grid needs 7 variables x 6 years = 42 files, and at ~41MB
 # each that's over 1.5GB kept permanently, which doesn't fit on this machine's disk (14GB free
 # at the time this was written). Downloading one file, extracting the small number of values
 # actually needed (just this forest's ~72,000 plots, not the whole UK), then deleting it keeps
 # peak usage to about one file's size (~41MB) instead of the full 1.5GB.
 #
-# Needs a CEDA access token (Bearer token, OAuth2) -- get one from
+# Needs a CEDA access token (Bearer token, OAuth2). Get one from
 # https://services.ceda.ac.uk/cedasite/register/info/ once you have a free CEDA account, then
 # set it as an environment variable before running this script:
 #   export CEDA_ACCESS_TOKEN="your-token-here"
-# Never commit this token or paste it into a notebook/script directly -- reading it from the
+# Never commit this token or paste it into a notebook/script directly. Reading it from the
 # environment keeps it out of git history.
 
 import os
@@ -33,7 +33,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def load_analysis_plot_set():
-    # load_plot_coordinates() returns every plot project-wide (230,359) -- the environmental
+    # load_plot_coordinates() returns every plot project-wide (230,359). The environmental
     # attribution pipeline only ever analyses the 4survey plot universe (6survey is a strict
     # subset of it, see aux_data_resolution_check.ipynb's own setup cell), so restrict to that
     # here too, same as every other environmental source extraction.
@@ -42,11 +42,11 @@ def load_analysis_plot_set():
     ids_4survey = set(master_4survey["identification"].unique())
     return coordinates_df[coordinates_df["identification"].isin(ids_4survey)].reset_index(drop=True)
 
-# Where the small, final extracted table goes -- this is the only thing kept permanently for
+# Where the small, final extracted table goes. This is the only thing kept permanently for
 # these new variables, everything else (the big downloaded rasters) is temporary.
 OUTPUT_PATH = PROJECT_ROOT / "data" / "processed" / "environmental" / "haduk_multi_year.parquet"
 
-# A temp folder for the download-extract-delete cycle -- separate from data/raw/haduk/ (where
+# A temp folder for the download-extract-delete cycle. Separate from data/raw/haduk/ (where
 # the already-downloaded, already-kept tas files live) so it's obvious at a glance which files
 # are meant to be temporary and which are meant to be kept.
 TEMP_DOWNLOAD_DIR = PROJECT_ROOT / "data" / "raw" / "haduk_temp"
@@ -55,15 +55,15 @@ TEMP_DOWNLOAD_DIR = PROJECT_ROOT / "data" / "raw" / "haduk_temp"
 SURVEY_YEARS = [2002, 2006, 2008, 2012, 2021, 2023]
 
 # HadUK-Grid's own variable folder names (confirmed by browsing CEDA's public archive listing
-# directly, 2026-07-30) -- tas is deliberately NOT in this list, since it's already downloaded
+# directly, 2026-07-30). Tas is deliberately NOT in this list, since it's already downloaded
 # and extracted separately (see notebooks/environmental_data/aux_data_resolution_check.ipynb).
 VARIABLES = ["rainfall", "tasmax", "tasmin", "groundfrost", "sun", "sfcWind"]
 
 CEDA_VERSION = "v20260512"  # same version directory for every variable, confirmed by browsing
 
-# dap.ceda.ac.uk, NOT data.ceda.ac.uk -- data.ceda.ac.uk is the plain browsing/public-listing
+# dap.ceda.ac.uk, NOT data.ceda.ac.uk. Data.ceda.ac.uk is the plain browsing/public-listing
 # host (works with no auth, but redirects an actual file GET to a login page even with a Bearer
-# token, returning an empty 200 response rather than an error -- caught the hard way, see
+# token, returning an empty 200 response rather than an error. Caught the hard way, see
 # CEDA_ACCESS_TOKEN download failure 2026-07-30). dap.ceda.ac.uk is the host CEDA's own token
 # documentation actually uses for authenticated downloads.
 CEDA_BASE_URL = (
@@ -72,7 +72,7 @@ CEDA_BASE_URL = (
 )
 
 # Same British National Grid check as export_coordinates.py/aux_data_resolution_check.ipynb's
-# HadUK-Grid cell -- GDAL reads this file family's CRS as an unnamed WKT, not a recognised EPSG
+# HadUK-Grid cell. GDAL reads this file family's CRS as an unnamed WKT, not a recognised EPSG
 # code, so this checks the actual projection parameters instead of trusting a label.
 EXPECTED_BNG_PARAMS = {"proj": "tmerc", "lat_0": 49, "lon_0": -2, "k": 0.9996012717, "x_0": 400000, "y_0": -100000}
 
@@ -88,13 +88,13 @@ def download_one_file(variable, year, token):
     response.raise_for_status()
 
     # A wrong host/auth can come back as a 200 OK with an empty or tiny (login-page-redirect)
-    # body instead of a real error status -- raise_for_status() alone won't catch that, so check
+    # body instead of a real error status. Raise_for_status() alone won't catch that, so check
     # the size actually looks like a real NetCDF file (~40MB) before trusting it. Caught the hard
     # way (2026-07-30): the wrong host returned "0.0 MB" and rasterio's error only showed up much
     # later, deep inside extraction, far from the actual cause.
     if len(response.content) < 1_000_000:
         raise RuntimeError(
-            f"Download of {filename} looks wrong -- only {len(response.content):,} bytes "
+            f"Download of {filename} looks wrong. Only {len(response.content):,} bytes "
             f"(expected ~40MB). This usually means the token/URL isn't authenticating correctly "
             f"rather than a real HTTP error (which raise_for_status() would have already caught). "
             f"First 200 bytes of response: {response.content[:200]!r}"
@@ -111,7 +111,7 @@ def extract_plot_values(local_path, plots):
         if mismatches:
             raise ValueError(f"{local_path.name}'s CRS doesn't match British National Grid: {mismatches}")
 
-        # Average the 12 monthly bands into one annual mean -- same approach already used for
+        # Average the 12 monthly bands into one annual mean. Same approach already used for
         # the tas file already downloaded (see aux_data_resolution_check.ipynb).
         monthly = ds.read(masked=True).astype(float)
         annual_mean = monthly.mean(axis=0)
@@ -153,7 +153,7 @@ def main():
             try:
                 values = extract_plot_values(local_path, plots)
             finally:
-                # Delete regardless of whether extraction succeeded -- the whole point of this
+                # Delete regardless of whether extraction succeeded. The whole point of this
                 # script is to never let these files pile up, including on a failed run.
                 local_path.unlink()
                 print(f"  Deleted {local_path.name} (extraction done, not kept)")

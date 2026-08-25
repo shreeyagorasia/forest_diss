@@ -4,7 +4,7 @@
 # 4survey XGBoost-vs-DNN comparison. A companion check (rq1_compartment_subsample_check.py)
 # already showed Linear -> RF -> DNN -> XGBoost's R2 ladder means the DNN already captures 80% of
 # the total nonlinear/interaction gain over a plain Linear model, and that Random Forest (also a
-# nonlinear, interaction-capturing tree ensemble) does WORSE than the DNN -- both facts weaken the
+# nonlinear, interaction-capturing tree ensemble) does WORSE than the DNN. Both facts weaken the
 # "interactions specifically" story before this check even runs. This check asks the more direct
 # question: inside XGBoost's own fitted model, how much of its prediction actually comes from
 # interaction effects, versus single-feature (main) effects?
@@ -46,9 +46,9 @@ def main():
     model.fit(features_train, train_df[TARGET_COLUMN])
 
     r2 = model.score(features_test, test_df[TARGET_COLUMN])
-    print(f"Sanity check -- single-split test R2: {r2:.4f} (Table 1's pooled 5-fold value is 0.674, so this should be in the same ballpark)")
+    print(f"Sanity check. Single-split test R2: {r2:.4f} (Table 1's pooled 5-fold value is 0.674, so this should be in the same ballpark)")
 
-    # Subsample the test set -- interaction values are expensive (O(n * n_features^2)).
+    # Subsample the test set. Interaction values are expensive (O(n * n_features^2)).
     sample_df = features_test.sample(n=min(INTERACTION_SAMPLE_SIZE, len(features_test)), random_state=INTERACTION_SAMPLE_SEED)
     print(f"Computing SHAP interaction values on {len(sample_df)} test rows, {sample_df.shape[1]} features...")
 

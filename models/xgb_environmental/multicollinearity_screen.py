@@ -3,13 +3,13 @@
 This exists because the environmental variable pool (terrain, wind, climate, soil, forest-edge --
 NOT the stand-metric/management columns already fed into every model's main network, see
 models/common/torch_data.py's NUMERIC_SCALED_COLUMNS/BINARY_PASSTHROUGH_COLUMNS) grew ad hoc over
-many sessions, with correlation only checked AFTER fitting, as interpretive context -- backwards.
+many sessions, with correlation only checked AFTER fitting, as interpretive context. Backwards.
 A 2026-08-06 llm-council review of the first draft of this screen (documented in
 documentation/experiment_log.md) found real problems with the original 4-stage design and asked
 for two fixes, both implemented here:
 
   1. Stage 3's original tie-break rule ("prefer whichever variable already won in an earlier,
-     unaudited result") was circular -- it would permanently reward variables for having won an
+     unaudited result") was circular. It would permanently reward variables for having won an
      ad hoc round for reasons unconnected to their real explanatory value. Replaced with: prefer
      an externally-measured variable over a derived one, then prefer whichever has the higher
      |Spearman rho| with a real target computed FRESH, right now, inside this module.
@@ -19,16 +19,16 @@ for two fixes, both implemented here:
      iterative VIF pass over the full post-deduplication pool.
 
 So the real pipeline here is three stages, not four:
-  Stage 1 -- drop deterministic duplicates (a documented closed-form function of another
-             candidate already in the pool -- these carry zero new information, by definition).
-  Stage 2 -- drop near-exact empirical duplicates (|Spearman rho| >= 0.95).
-  Stage 3 -- iterative VIF reduction on everything left (catches multivariate collinearity a
+  Stage 1. Drop deterministic duplicates (a documented closed-form function of another
+             candidate already in the pool. These carry zero new information, by definition).
+  Stage 2. Drop near-exact empirical duplicates (|Spearman rho| >= 0.95).
+  Stage 3. Iterative VIF reduction on everything left (catches multivariate collinearity a
              pairwise check alone would miss).
 
 A spatial-confound guard runs on top of stage 3's survivors: a variable that is high-VIF on the
 raw data but comfortably low-VIF once each compartment's own mean is subtracted out is tracking
 the same REGIONAL trend as its neighbours (e.g. elevation and temperature, via the lapse rate),
-not literally duplicating a measurement. That's a real, defensible variable -- it gets FLAGGED for
+not literally duplicating a measurement. That's a real, defensible variable. It gets FLAGGED for
 a human to look at, never auto-dropped, per the council review's second finding.
 """
 
@@ -40,7 +40,7 @@ from statsmodels.tools.tools import add_constant
 
 
 # Stage 1: every column here is a documented, closed-form mathematical function of another
-# candidate already in the pool -- confirmed against xgb_environmental.FEATURE_PROVENANCE's own
+# candidate already in the pool. Confirmed against xgb_environmental.FEATURE_PROVENANCE's own
 # text (searched for "DERIVED from"), not guessed. These are not "highly correlated with"
 # something else, they ARE something else, recomputed. Dropping them loses zero information.
 DETERMINISTIC_DUPLICATES = {
@@ -64,7 +64,7 @@ def drop_deterministic_duplicates(candidate_columns):
 
 
 def compute_correlation_matrix(df, columns):
-    """Spearman, not Pearson -- several candidates are ordinal or skewed (whcl, wind speed,
+    """Spearman, not Pearson. Several candidates are ordinal or skewed (whcl, wind speed,
     curvature), and Spearman only assumes a monotonic relationship. Matches every other
     correlation check already done in this project (see variable_registry_audit.ipynb)."""
     return df[columns].corr(method="spearman")
@@ -96,7 +96,7 @@ def choose_representative_loser(candidates, feature_provenance, df, target_colum
     exactly one. Tie-break order (rewritten after the 2026-08-06 llm-council review):
 
       1. Prefer to KEEP whichever is "external" (independently measured) over "own calculation"
-         (derived) -- drop derived columns first.
+         (derived). Drop derived columns first.
       2. If still tied, prefer to KEEP whichever has the higher |Spearman rho| with
          `target_column`, computed FRESH right here. This replaces the original tie-break rule
          ("prefer whichever already won in an earlier result"), which the council review found
@@ -111,7 +111,7 @@ def choose_representative_loser(candidates, feature_provenance, df, target_colum
         rho_with_target, _ = spearmanr(df[column], df[target_column], nan_policy="omit")
         scored_candidates.append((column, is_external, abs(rho_with_target)))
 
-    # Sort ascending by (is_external, |rho|) -- the single BEST candidate ends up last, since
+    # Sort ascending by (is_external, |rho|). The single BEST candidate ends up last, since
     # True > False and a bigger |rho| sorts later. Easiest way to read off "keep the last one."
     scored_candidates.sort(key=lambda row: (row[1], row[2]))
     keeper = scored_candidates[-1][0]
@@ -122,10 +122,10 @@ def choose_representative_loser(candidates, feature_provenance, df, target_colum
 def compute_vif_table(df, columns):
     """Variance Inflation Factor for each column: VIF = 1 / (1 - R^2), where R^2 comes from
     regressing that one column on every OTHER column in the list. A VIF of 5 means 80% of that
-    column's variance is already explained by the rest of the pool -- the standard rule-of-thumb
+    column's variance is already explained by the rest of the pool. The standard rule-of-thumb
     cutoff (Dormann et al. 2013, Ecography). Uses statsmodels, already a dependency elsewhere in
     this project (models/spatial_attribution/lisa.py, nlme.py)."""
-    # statsmodels' variance_inflation_factor does NOT add an intercept for you -- without one,
+    # statsmodels' variance_inflation_factor does NOT add an intercept for you. Without one,
     # each column's "R^2 from the others" is computed by a regression forced through the
     # origin, which inflates VIF hugely and unpredictably for columns that aren't already
     # centred near zero (elevation in the hundreds vs. a -1..1 index, say). add_constant() adds
@@ -136,13 +136,13 @@ def compute_vif_table(df, columns):
     # the same columns are float 0/1 fractions in the plot-level environmental export, which is
     # why this was never hit there). A DataFrame mixing bool and float64 columns can produce an
     # object-dtype array from .to_numpy(), which statsmodels' add_constant() cannot handle
-    # ("ufunc 'isfinite' not supported for the input types") -- confirmed by hitting exactly this
+    # ("ufunc 'isfinite' not supported for the input types"). Confirmed by hitting exactly this
     # running VIF on a row-level table for the first time.
     clean_df = df[columns].dropna()
     design_matrix = add_constant(clean_df.to_numpy().astype(float), has_constant="add")
     rows = []
     for i, column in enumerate(columns):
-        # Index i+1, not i -- add_constant() puts the new constant column first (index 0).
+        # Index i+1, not i. Add_constant() puts the new constant column first (index 0).
         vif_value = variance_inflation_factor(design_matrix, i + 1)
         rows.append({"column": column, "vif": vif_value})
     return pd.DataFrame(rows).sort_values("vif", ascending=False).reset_index(drop=True)
@@ -150,7 +150,7 @@ def compute_vif_table(df, columns):
 
 def iterative_vif_reduction(df, columns, threshold=5.0, max_iterations=50):
     """Repeatedly compute VIF for the CURRENT column list. If the highest VIF exceeds
-    `threshold`, drop that ONE column and recompute from scratch -- removing one column changes
+    `threshold`, drop that ONE column and recompute from scratch. Removing one column changes
     every other column's VIF, so dropping several at once from a single VIF table would be
     wrong. Stops once every remaining column is <= threshold (or after max_iterations, a safety
     net against an infinite loop from a numerically unstable design matrix)."""
@@ -158,7 +158,7 @@ def iterative_vif_reduction(df, columns, threshold=5.0, max_iterations=50):
     drop_log_rows = []
     for _ in range(max_iterations):
         if len(remaining_columns) <= 2:
-            # VIF needs at least 2 other columns to regress against -- stop shrinking further.
+            # VIF needs at least 2 other columns to regress against. Stop shrinking further.
             break
         vif_table = compute_vif_table(df, remaining_columns)
         worst_row = vif_table.iloc[0]
@@ -178,7 +178,7 @@ def residualize_against_compartment(df, columns, compartment_column="cpmt"):
     transform). If two columns are correlated mainly because they both vary smoothly across the
     SAME region of the forest (e.g. elevation and temperature, via the lapse rate), that shared
     regional trend lives mostly BETWEEN compartments. Removing each compartment's own mean
-    strips that shared trend out, leaving only within-compartment variation -- a much better
+    strips that shared trend out, leaving only within-compartment variation. A much better
     test of whether two variables are genuinely the same measurement twice."""
     compartment_means = df.groupby(df[compartment_column])[columns].transform("mean")
     return df[columns] - compartment_means
@@ -187,7 +187,7 @@ def residualize_against_compartment(df, columns, compartment_column="cpmt"):
 def spatial_confound_flags(df, columns, compartment_column="cpmt", threshold=5.0):
     """Compare each surviving column's VIF on the raw data vs. on the compartment-residualized
     data. A column that is high-VIF raw but comfortably low-VIF once the shared regional trend
-    is removed is a spatial-confound case, not a genuine duplicate -- this function only FLAGS
+    is removed is a spatial-confound case, not a genuine duplicate. This function only FLAGS
     it, it never removes anything. A human should read these rows before trusting stage 3's
     output at face value."""
     raw_vif = compute_vif_table(df, columns).set_index("column")["vif"]
@@ -227,7 +227,7 @@ def run_full_screen(
     after_stage2 = list(after_stage1)
     for column_a, column_b, rho in near_exact_pairs:
         # A column may already have been dropped by an earlier pair in this same loop (e.g. a
-        # three-way near-exact cluster) -- skip pairs where that's already happened.
+        # three-way near-exact cluster). Skip pairs where that's already happened.
         if column_a not in after_stage2 or column_b not in after_stage2:
             continue
         losers = choose_representative_loser([column_a, column_b], feature_provenance, df, target_column)

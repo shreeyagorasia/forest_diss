@@ -1,6 +1,6 @@
 # Run as: python -m models.growth_curve_attribution.run_temporal_stability_check
 #
-# Prints the temporal stability check for both cohorts -- see
+# Prints the temporal stability check for both cohorts. See
 # models/growth_curve_attribution/temporal_stability_check.py's own header for what this checks
 # and why it needs to happen before any spatial attribution work.
 
@@ -22,7 +22,7 @@ def main():
         results = evaluate_temporal_stability(cohort)
 
         for evaluation_year, year_results in results.items():
-            print(f"\n  -- Held-out year {evaluation_year} ({year_results['n_plots']:,} plots) --")
+            print(f"\n . Held-out year {evaluation_year} ({year_results['n_plots']:,} plots) --")
             print_metrics("Early-years-fit y_max curve", year_results["early_fit"])
             print_metrics("Static yldc curve          ", year_results["yldc_curve"])
 

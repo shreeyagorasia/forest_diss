@@ -1,24 +1,24 @@
 # Run as: python -m models.common.export_compartment_boundaries
 #
 # One-off preprocessing step: reads the raw GeoPackage and saves one dissolved boundary polygon
-# per spatial grouping to a small GeoParquet file, at three different scales -- compartment
+# per spatial grouping to a small GeoParquet file, at three different scales. Compartment
 # (`cpmt`), sub-compartment (`cpmt`+`scpt` together), and block (`blk`). Used both for plotting
 # (e.g. results_notebooks/baseline_results.ipynb's spatial error maps) and for the
 # dist_to_*_boundary environmental features (notebooks/environmental_data/
 # aux_data_resolution_check.ipynb).
 #
-# `scpt` values (e.g. "A", "B", "C") are reused across many different compartments -- they are a
+# `scpt` values (e.g. "A", "B", "C") are reused across many different compartments. They are a
 # LOCAL label within a compartment, not a globally unique one (confirmed: every one of the 26
 # distinct scpt values appears in more than one compartment). So a real sub-compartment boundary
-# has to dissolve by the COMBINATION of cpmt+scpt, not scpt alone -- dissolving by scpt alone
+# has to dissolve by the COMBINATION of cpmt+scpt, not scpt alone. Dissolving by scpt alone
 # would wrongly merge unrelated sub-compartments from different compartments into one shape.
 #
 # Each plot's geometry is the same across every survey year it appears in (see
-# export_coordinates.py), so this drops to one row per plot BEFORE dissolving -- dissolving all
+# export_coordinates.py), so this drops to one row per plot BEFORE dissolving. Dissolving all
 # ~795k raw rows directly would do the same union many times over for no benefit.
 #
 # Dissolving unions many individual 20m/40m grid cells, so each boundary inherits a "staircase"
-# of tiny right-angle steps along its edge -- real detail, but far finer than a map spanning the
+# of tiny right-angle steps along its edge. Real detail, but far finer than a map spanning the
 # whole ~28km forest can ever show (checked for the compartment case: ~26m/pixel at the figure
 # sizes actually used, so individual 20m steps are sub-pixel anyway). Simplifying to 30m cuts
 # total vertices by ~88% with no visible change in shape at any zoom level tested.
@@ -36,9 +36,9 @@ COMPARTMENT_BOUNDARIES_PATH = PROJECT_ROOT / "data" / "interim" / "compartment_b
 SUBCOMPARTMENT_BOUNDARIES_PATH = PROJECT_ROOT / "data" / "interim" / "subcompartment_boundaries.parquet"
 BLOCK_BOUNDARIES_PATH = PROJECT_ROOT / "data" / "interim" / "block_boundaries.parquet"
 
-# See export_coordinates.py's own EXPECTED_CRS_EPSG comment -- same reasoning, this is the one
+# See export_coordinates.py's own EXPECTED_CRS_EPSG comment. Same reasoning, this is the one
 # place a real CRS object exists before it's baked into the output GeoParquet files (which DO
-# keep real CRS metadata, unlike plot_coordinates.csv.gz -- see models/common/geo.py's loaders).
+# keep real CRS metadata, unlike plot_coordinates.csv.gz. See models/common/geo.py's loaders).
 EXPECTED_CRS_EPSG = 27700
 
 
@@ -57,7 +57,7 @@ def export_compartment_boundaries():
     print(f"  Read {len(gdf):,} rows, CRS = {gdf.crs}")
     if gdf.crs is None or gdf.crs.to_epsg() != EXPECTED_CRS_EPSG:
         raise ValueError(
-            f"{GPKG_PATH} has CRS={gdf.crs!r}, expected EPSG:{EXPECTED_CRS_EPSG} -- refusing to "
+            f"{GPKG_PATH} has CRS={gdf.crs!r}, expected EPSG:{EXPECTED_CRS_EPSG}. Refusing to "
             "export boundaries in the wrong projection."
         )
 

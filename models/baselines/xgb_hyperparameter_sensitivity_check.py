@@ -1,10 +1,10 @@
 # Purpose: check whether RQ1's and RQ2b's XGBoost results are sensitive to using raw XGBoost
-# defaults (n_estimators=100, max_depth=6, learning_rate=0.3, no early stopping -- confirmed via
+# defaults (n_estimators=100, max_depth=6, learning_rate=0.3, no early stopping. Confirmed via
 # a real fit, not assumed) versus RQ3's own fixed, hand-picked config (n_estimators=500,
 # max_depth=4, learning_rate=0.04, early stopping against a real validation fold). RQ1/RQ2 never
 # had anyone choose settings for their own data; RQ3 did, for a different, older reason (fixing a
-# documented overfitting failure on 6survey's small n -- see spatial_cv_check.py's own comment).
-# This does NOT change any existing pipeline behaviour -- it is a one-off, local-only comparison
+# documented overfitting failure on 6survey's small n. See spatial_cv_check.py's own comment).
+# This does NOT change any existing pipeline behaviour. It is a one-off, local-only comparison
 # script, reusing each RQ's own existing split logic so the comparison is apples-to-apples.
 #
 # Run as: python -m models.baselines.xgb_hyperparameter_sensitivity_check
@@ -37,7 +37,7 @@ def fit_and_score_rq1_fold(cohort, set_name, held_out_fold, k_folds=DEFAULT_K_FO
     val_df = df[df["split"] == "val"]
     test_df = df[df["split"] == "test"]
 
-    # prepare_features needs the SAME extra columns appended -- replicate xgb_baseline.fit()'s own
+    # prepare_features needs the SAME extra columns appended. Replicate xgb_baseline.fit()'s own
     # "FEATURE_COLUMNS + extra_feature_columns" construction directly here since fit() itself has
     # no hook for custom xgb_params/early stopping.
     from models.xgb_baseline.xgb_baseline import FEATURE_COLUMNS

@@ -1,4 +1,4 @@
-# Purpose: explain the confirmed 4survey terrain/wind signal cheaply -- ONE model fit on the
+# Purpose: explain the confirmed 4survey terrain/wind signal cheaply. ONE model fit on the
 # full cleaned population (not a CV sweep), using a feature list already justified by checks
 # already on disk, not a new expensive comparison:
 #   - inverse_slope_proxy dropped (confirmed exact -1.0 duplicate of slope_degrees,
@@ -8,7 +8,7 @@
 #   - tpi_500m and local_relief_500m added (confirmed NOT redundant with native tpi,
 #     correlation_screen.py: rho=0.62 native-vs-500m, local_relief essentially uncorrelated with
 #     any TPI scale)
-# No held-out split here -- this is an INTERPRETATION model (what did a model trained on
+# No held-out split here. This is an INTERPRETATION model (what did a model trained on
 # everything lean on), not a performance-evaluation model (that question is already answered by
 # spatial_cv_check.py). Standard practice: CV for performance, full-data fit for interpretation.
 

@@ -1,13 +1,13 @@
-# Purpose: answer the user's actual question -- for the Stage 2 growth-curve attribution work,
+# Purpose: answer the user's actual question. For the Stage 2 growth-curve attribution work,
 # is PER-PLOT the right unit of analysis, or should plots be aggregated up to the subcompartment
 # (scpt) level first? This mirrors the same comparison already sketched in
 # notebooks/growth_curve_attribution/local_growth_curve_grouped_importance.ipynb (sections 8-10),
-# but built as its own standalone script here -- not editing that notebook, since it's actively
+# but built as its own standalone script here. Not editing that notebook, since it's actively
 # being worked on separately.
 #
 # Uses the SAME target construction as that notebook (local_y_max_difference = fitted per-plot
 # y_max minus the yldc-implied y_max) and the established TERRAIN_AND_WIND_COLUMNS feature set
-# from xgb_environmental.py (the narrow, already-vetted 16-column terrain+wind list -- not the
+# from xgb_environmental.py (the narrow, already-vetted 16-column terrain+wind list. Not the
 # wider experimental candidate columns the notebook is separately trying out), so the resulting
 # R2 numbers are directly comparable to Stage 1's own established terrain/wind ceiling
 # (R2~0.16-0.19).
@@ -43,7 +43,7 @@ def build_plot_level_table(cohort, apply_disturbance_cleaning=True):
     growth_rows = load_filtered_growth_curve_table(cohort).dropna(subset=["y_max_yldc"]).copy()
 
     # disturbance_status is computed from the FULL (unfiltered-by-maturity) growth-curve table
-    # inside summarize_plot_disturbance_status() -- consecutive-survey intervals need every
+    # inside summarize_plot_disturbance_status(). Consecutive-survey intervals need every
     # survey year a plot has, not just the ones that survive the Age/yldc gate here. Merging back
     # onto growth_rows (already maturity-filtered) keeps only the plots this check actually uses.
     disturbance_status = summarize_plot_disturbance_status(cohort)
@@ -68,7 +68,7 @@ def build_plot_level_table(cohort, apply_disturbance_cleaning=True):
     plot_table = plot_static.merge(fitted_y_max, on="identification", how="inner")
     plot_table[TARGET] = plot_table["y_max_fit"] - plot_table["y_max_yldc"]
 
-    # ambiguous_disturbance plots are NOT excluded -- kept in the modelling population, with the
+    # ambiguous_disturbance plots are NOT excluded. Kept in the modelling population, with the
     # flag/drop-fractions attached as metadata a downstream attribution model can use as a
     # feature, rather than silently ignoring plots with a possible genuine disturbance event.
     plot_table = plot_table.merge(
@@ -79,10 +79,10 @@ def build_plot_level_table(cohort, apply_disturbance_cleaning=True):
 
 def merge_environmental_features(plot_table, feature_columns=TERRAIN_AND_WIND_COLUMNS):
     # feature_columns defaults to the established 16 (unchanged behaviour for every existing
-    # caller) -- exposed as a parameter so representation checks (e.g. swapping
+    # caller). Exposed as a parameter so representation checks (e.g. swapping
     # gwa_wind_speed_10m for the 50m version) can reuse this same merge step without duplicating
     # it. None of TERRAIN_AND_WIND_COLUMNS are cohort-specific (that only applies to
-    # mean_cr_residual/tas_mean/groundfrost_mean -- see xgb_environmental.data.py), so this is a
+    # mean_cr_residual/tas_mean/groundfrost_mean. See xgb_environmental.data.py), so this is a
     # plain merge on identification, no per-cohort renaming needed.
     environment = load_environmental_features()
     available_columns = [column for column in feature_columns if column in environment.columns]
@@ -114,12 +114,12 @@ def build_subcompartment_table(plot_table_with_features, feature_columns):
 
 
 def run_validation_screen(table, feature_columns, scale_name, cohort, split_seed=SPLIT_SEED):
-    # BUG FIX (2026-08-04): this used to evaluate BOTH models on "val" -- the exact same rows
+    # BUG FIX (2026-08-04): this used to evaluate BOTH models on "val". The exact same rows
     # XGBoost's val_df=val early-stopping already used to decide how many boosting rounds to run.
     # That's a real leak: the model's own fit was tuned to minimise loss on the rows its
     # performance was then measured on, optimistically biasing every XGBoost R2 this function
     # produced. spatial_block_split() already builds a genuine third partition ("test") that was
-    # sitting unused -- "val" now ONLY drives early stopping; both methods are scored on "test".
+    # sitting unused. "val" now ONLY drives early stopping; both methods are scored on "test".
     table = table.copy()
     coordinates = table[["identification", "x", "y"]]
     table["split"] = spatial_block_split(

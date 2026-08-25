@@ -1,16 +1,16 @@
 # Run as: python -m models.growth_curve_attribution.run_representation_cv_check
 #
 # Re-confirms two of the LLM Council's remaining pre-SHAP checks (documentation/experiment_log.md,
-# 2026-08-04 variable council entry), but under the 5-fold spatial CV framework -- the council's
+# 2026-08-04 variable council entry), but under the 5-fold spatial CV framework. The council's
 # peer review specifically flagged that no correlation/representation check had been run inside
 # this project's own spatial CV, only on a single pooled/non-spatial split (which is exactly what
 # the ORIGINAL "local shelter beats GWA" comparison did, on the uncleaned target, in the notebook).
 #
-#   1. Does "local shelter" (topex + windward_topex + whcl -- already inside the established,
+#   1. Does "local shelter" (topex + windward_topex + whcl. Already inside the established,
 #      wind-swapped 16) earn its place, or does the signal hold up fine without it?
-#   2. Do the extra TPI scales (500m) and local_relief_500m -- confirmed genuinely NOT redundant
+#   2. Do the extra TPI scales (500m) and local_relief_500m. Confirmed genuinely NOT redundant
 #      with native TPI by the correlation screen (rho=0.62 native-vs-500m, local_relief
-#      essentially uncorrelated with any TPI scale) -- actually help under CV, not just "aren't
+#      essentially uncorrelated with any TPI scale). Actually help under CV, not just "aren't
 #      redundant on paper"?
 
 import pandas as pd

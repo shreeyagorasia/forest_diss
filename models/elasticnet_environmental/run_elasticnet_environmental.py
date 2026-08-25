@@ -3,16 +3,16 @@
 #     or: python -m models.elasticnet_environmental.run_elasticnet_environmental (both cohorts)
 #
 # Fits Elastic Net (regularized linear regression) to predict each plot's mean Chapman-Richards
-# residual from its environmental variables -- the SAME feature sets, SAME data, SAME
+# residual from its environmental variables. The SAME feature sets, SAME data, SAME
 # spatial_block_split() as models/xgb_environmental/run_xgb_environmental.py, so the two
 # methods' results are directly comparable, not run under different conditions.
 #
 # Why build this alongside XGBoost+SHAP at all: SHAP values are known to be unreliable when
-# input features are correlated (confirmed for this exact dataset -- see
+# input features are correlated (confirmed for this exact dataset. See
 # notebooks/environmental_data/env_variable_importance_RETIRED_2026-07-28.ipynb section 6, where elevation's SHAP
 # rank turned out to be misleading once tested by ablation). Elastic Net's penalty behaves
-# differently under correlation -- it tends to SPREAD credit across a correlated group rather
-# than letting one member's SHAP value arbitrarily win -- so comparing the two methods' answers
+# differently under correlation. It tends to SPREAD credit across a correlated group rather
+# than letting one member's SHAP value arbitrarily win. So comparing the two methods' answers
 # for the same correlated clusters is a genuine, independent cross-check, not just a second
 # opinion built the same way.
 
@@ -41,7 +41,7 @@ def run_one_feature_set(cohort, feature_set_name, plots_df):
     print(f"\n--- {cohort} / {feature_set_name} ---")
 
     # Same split function, same block column, same buffer, same seed as
-    # run_xgb_environmental.py -- so a comparison between the two methods' test R2/coefficients
+    # run_xgb_environmental.py. So a comparison between the two methods' test R2/coefficients
     # is never confounded by the two methods secretly seeing different train/val/test rows.
     split_labels = spatial_block_split(
         plots_df, block_col=SPATIAL_BLOCK_COL, buffer_distance=SPATIAL_BUFFER_METRES, seed=SEED,
@@ -79,7 +79,7 @@ def run_one_feature_set(cohort, feature_set_name, plots_df):
             return row_metrics, predictions
 
         # val is for feature-selection/comparison decisions; test is reported once, as the final
-        # number -- the same train/val/test discipline run_xgb_environmental.py now follows.
+        # number. The same train/val/test discipline run_xgb_environmental.py now follows.
         val_metrics, _ = scored_metrics(val_df)
         test_metrics, test_predictions = scored_metrics(test_df)
         metrics = test_metrics

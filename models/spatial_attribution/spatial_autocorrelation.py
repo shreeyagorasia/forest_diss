@@ -1,10 +1,10 @@
     # Purpose: Test whether the CR residuals are spatially clustered, or just random noise.
 # Key logic: two tools, meant to be run TOGETHER, not independently. Run
-# semivariogram_range() first -- it scans a whole range of distances and finds the one where
+# semivariogram_range() first. It scans a whole range of distances and finds the one where
 # the spatial pattern actually levels off. Then feed that distance into global_morans_i() as
 # its `distance` argument. Picking a neighbour-count (like "8 nearest plots") instead of a real
 # physical distance is a trap here: plots sit on a dense 20m/40m grid, so a small neighbour
-# count only reaches a few tens of metres -- testing "is this plot like the plot right next to
+# count only reaches a few tens of metres. Testing "is this plot like the plot right next to
 # it", not "is there real regional clustering across the forest". Using an actual distance in
 # metres avoids that trap.
 
@@ -19,18 +19,18 @@ def global_morans_i(x, y, values, distance, sample_size=5000, seed=42, permutati
     # Moran's I answers one question: are plots within `distance` of each other more similar
     # to each other than far-apart plots are, more than random chance alone would explain? A
     # value near 0 means no real pattern (random noise). A value clearly above 0 (with a small
-    # p-value) means real clustering exists -- similar residuals really do sit near each other.
+    # p-value) means real clustering exists. Similar residuals really do sit near each other.
     #
     # `distance` should come from semivariogram_range()'s result, run on the same data first --
     # not guessed. See the note at the top of this file for why.
     #
     # permutations default is 999, not the smaller/faster value this used to be hardcoded to
     # (2026-07-30 fix): with n permutations, the smallest p-value the test can ever report is
-    # 1/(n+1) -- the old default of 199 landed EXACTLY on that floor (p=0.005) on real data here,
+    # 1/(n+1). The old default of 199 landed EXACTLY on that floor (p=0.005) on real data here,
     # meaning the true p-value could have been far smaller and there was no way to tell. This
     # function used to be silently bypassed whenever that mattered (notebooks hand-rolled their
     # own inline copy of this same computation with permutations=999 instead of calling this
-    # function with an override) -- parameterizing it here means every caller gets the same fix,
+    # function with an override). Parameterizing it here means every caller gets the same fix,
     # not just whichever notebook cell remembered to work around it.
     import esda
     import libpysal
@@ -53,7 +53,7 @@ def global_morans_i(x, y, values, distance, sample_size=5000, seed=42, permutati
     with warnings.catch_warnings():
         # Aberfoyle is genuinely several separate forest blocks, not one connected shape (see
         # the boundary work in spatial_viz_comparison_scratch.ipynb), and a plot with no other
-        # plot within `distance` of it has no neighbours at all -- both are expected here, not
+        # plot within `distance` of it has no neighbours at all. Both are expected here, not
         # a bug, so this specific warning is silenced on purpose.
         warnings.simplefilter("ignore", category=UserWarning)
         weights = libpysal.weights.DistanceBand.from_array(coordinates, threshold=distance, binary=True)
@@ -68,10 +68,10 @@ def semivariogram_range(x, y, values, max_distance=5000, n_bins=15, sample_size=
     # there spatial structure", but "how far does it reach". It measures how different two
     # plots' residuals tend to be, as a function of the distance between them, then fits a
     # curve to that relationship. Three numbers come out of that curve:
-    #   - nugget:  how different two plots are even at distance ~0 (this is "noise" -- error
+    #   - nugget:  how different two plots are even at distance ~0 (this is "noise". Error
     #              that isn't explained by location at all, e.g. measurement error)
     #   - sill:    how different two plots are once they're far enough apart to be unrelated
-    #   - range:   the distance at which the curve levels off from nugget to sill -- this is
+    #   - range:   the distance at which the curve levels off from nugget to sill. This is
     #              the answer to "how far does the spatial pattern actually reach"
     rng = np.random.default_rng(seed)
     mask = ~np.isnan(values)
@@ -94,7 +94,7 @@ def semivariogram_range(x, y, values, max_distance=5000, n_bins=15, sample_size=
     squared_differences = (values[pairs[:, 0]] - values[pairs[:, 1]]) ** 2
 
     # Group pairs into distance bins (e.g. "0-333m apart", "333-666m apart", ...), then average
-    # the squared difference within each bin -- this is the standard semivariogram calculation.
+    # the squared difference within each bin. This is the standard semivariogram calculation.
     bin_edges = np.linspace(0, max_distance, n_bins + 1)
     bin_index = np.digitize(pair_distances, bin_edges) - 1
 
@@ -133,7 +133,7 @@ def semivariogram_range(x, y, values, max_distance=5000, n_bins=15, sample_size=
             maxfev=5000,
         )
         # The "practical range" (where the curve is 95% of the way to the sill) is a standard
-        # geostatistics convention -- about 3x the fitted range_param for this exponential shape.
+        # geostatistics convention. About 3x the fitted range_param for this exponential shape.
         practical_range = 3 * fitted_params[2]
         if practical_range >= max_distance:
             return max_distance, "exceeds_window"

@@ -2,7 +2,7 @@
 #
 # One-off data-prep step for the "does GNNWR do better with pre-transformed inputs" check
 # (models/growth_curve_attribution/run_rq3_gnnwr_saturation_transform_check.py). GNNWR is
-# structurally local-LINEAR -- it cannot represent a curve on its own, even one that varies
+# structurally local-LINEAR. It cannot represent a curve on its own, even one that varies
 # smoothly across space. The no-CanopyCover XGBoost SHAP-dependence check (2026-08-22,
 # figures/fig_results/q2_no_canopy_shap_dependence_check.png) found two variables with a clear
 # SATURATING (not noisy) relationship to the target: slope_degrees (steep 0-15deg, flat above) and
@@ -11,7 +11,7 @@
 # middle section of each curve, not approximate the whole curve with one slope.
 #
 # Knot values (15 for slope, -12/+6 for windward_topex) were chosen by visual inspection of that
-# SHAP-dependence plot, not a separate validation split -- a real, disclosed methodological
+# SHAP-dependence plot, not a separate validation split. A real, disclosed methodological
 # shortcut appropriate for a quick "does this help at all" robustness check, not a headline claim.
 #
 # Output: a new parquet, same content as the real environmental-features file plus 2 new columns.
@@ -28,7 +28,7 @@ WINDWARD_TOPEX_CLIP_LOW = -12.0
 WINDWARD_TOPEX_CLIP_HIGH = 6.0
 
 features = pd.read_parquet(FEATURES_PATH)
-print(f"Loaded {FEATURES_PATH} -- {len(features):,} rows, {len(features.columns)} columns")
+print(f"Loaded {FEATURES_PATH}. {len(features):,} rows, {len(features.columns)} columns")
 
 features["slope_degrees_capped15"] = features["slope_degrees"].clip(upper=SLOPE_CAP_DEGREES)
 features["windward_topex_clipped"] = features["windward_topex"].clip(
@@ -40,4 +40,4 @@ print(f"Added slope_degrees_capped15 (cap={SLOPE_CAP_DEGREES}) and "
 print(features[["slope_degrees", "slope_degrees_capped15", "windward_topex", "windward_topex_clipped"]].describe())
 
 features.to_parquet(OUTPUT_PATH)
-print(f"\nSaved {OUTPUT_PATH} ({len(features):,} rows, {len(features.columns)} columns) -- original file untouched")
+print(f"\nSaved {OUTPUT_PATH} ({len(features):,} rows, {len(features.columns)} columns). Original file untouched")

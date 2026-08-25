@@ -1,10 +1,10 @@
 # Purpose: rerun the y_max/k cluster-bootstrap CI (bootstrap_correlation_check.py) on the CURRENT
-# tier's pooled 5-fold w=0 predictions -- the flagship -0.935 correlation cited in RQ2a item 3 is
+# tier's pooled 5-fold w=0 predictions. The flagship -0.935 correlation cited in RQ2a item 3 is
 # a pooled 5-fold spatial_block_kfold number, but the existing bootstrap CI (95% CI [-0.77, -0.62])
 # was computed on the OLD, pre-restructuring tier's single-split predictions, flagged as "not yet
 # rerun current" in the draft. bootstrap_correlation_check.py's own file-reading logic expects ONE
 # predictions.csv at a single path, but a kfold run saves 5 separate predictions.csv files (one per
-# fold_N subfolder) -- this script pools those 5 files first (matching the exact pooling approach
+# fold_N subfolder). This script pools those 5 files first (matching the exact pooling approach
 # already used to recompute the -0.9345 point estimate, see
 # TEMP_rq1_physicsablation_results_2026-08-11.tex's "What does the -0.935 correlation actually look
 # like" section), then reuses cluster_bootstrap_correlation_ci() directly, unmodified.
@@ -31,7 +31,7 @@ def load_pooled_one_row_per_plot(cohort):
     pooled = pd.concat(frames, ignore_index=True)
     # learned_y_max/learned_k are static per plot (same value repeated across a plot's own survey
     # years and, since each plot appears in exactly one fold's test set under spatial_block_kfold,
-    # repeated only within that one fold) -- dedupe to one row per plot so each plot counts once.
+    # repeated only within that one fold). Dedupe to one row per plot so each plot counts once.
     one_row_per_plot = pooled.drop_duplicates(subset="identification")[["identification", "cpmt", "learned_y_max", "learned_k"]]
     return one_row_per_plot
 

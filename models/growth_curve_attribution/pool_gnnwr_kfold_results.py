@@ -1,12 +1,12 @@
 # Purpose: after running gnnwr_check.py once per fold (--held-out-fold 0..k_folds-1, via
 # jobs/growth_curve_attribution/run_gnnwr.sh), pool the resulting per-fold test-prediction CSVs
-# into ONE pooled R2 -- the same "every plot's out-of-fold prediction, all folds concatenated,
+# into ONE pooled R2. The same "every plot's out-of-fold prediction, all folds concatenated,
 # one R2 over the whole population" convention this project's Elastic Net/XGBoost spatial CV
 # already uses (see spatial_cv_check.py's summarize_spatial_cv()), so GNNWR's headline number is
 # finally comparable to the EN/XGBoost baseline (0.125/0.117 for terrain_wind), not just a single
 # train/val/test split's one noisy estimate.
 #
-# Run this AFTER all k_folds jobs have finished and saved their CSVs -- it does not run GNNWR
+# Run this AFTER all k_folds jobs have finished and saved their CSVs. It does not run GNNWR
 # itself, just reads the already-saved outputs.
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ def load_fold_predictions(
         fold_tables.append(fold_table)
 
     if missing_folds:
-        print(f"  Warning: missing CSVs for fold(s) {missing_folds} -- only pooling the {len(fold_tables)} folds found so far.")
+        print(f"  Warning: missing CSVs for fold(s) {missing_folds}. Only pooling the {len(fold_tables)} folds found so far.")
     if not fold_tables:
         raise FileNotFoundError(f"No fold CSVs found for {cohort}/{scope}/ref{reference_set_label} in {OUTPUT_DIR}")
 
@@ -78,7 +78,7 @@ def main():
         "--scope", default="terrain_wind",
         choices=list(SCOPES) + [
             # Added 2026-08-11: the new nested_set* tiers (documentation/methodlogy_env_setpick.md)
-            # aren't SCOPES entries -- scope is only ever used as a bare filename-pattern string
+            # aren't SCOPES entries. Scope is only ever used as a bare filename-pattern string
             # in load_fold_predictions()/the output path, never validated against SCOPES itself,
             # so widening this list is the only change needed to pool the new tiers' results too.
             "nested_set2_top10", "nested_set3_gated_terrain_wind_vif", "nested_set4_gated_all_vif",
@@ -86,7 +86,7 @@ def main():
     )
     parser.add_argument("--reference-set-size", type=int, default=16000, help="Pass 0 for the full-population runs.")
     parser.add_argument("--k-folds", type=int, default=DEFAULT_K_FOLDS)
-    parser.add_argument("--split-seed", type=int, default=SPLIT_SEED, help="For reseed runs (e.g. 43, 44) -- default 42 matches every existing run.")
+    parser.add_argument("--split-seed", type=int, default=SPLIT_SEED, help="For reseed runs (e.g. 43, 44). Default 42 matches every existing run.")
     args = parser.parse_args()
 
     reference_set_size = args.reference_set_size if args.reference_set_size > 0 else None
@@ -99,7 +99,7 @@ def main():
     print(f"  Per-fold R2 values: {summary['per_fold_r2_values']}")
     print(f"  n_plots={summary['n_plots']:,}  n_compartments={summary['n_compartments']}")
 
-    # Same seed-label fix as load_fold_predictions() -- without this, pooling seed 43 would
+    # Same seed-label fix as load_fold_predictions(). Without this, pooling seed 43 would
     # silently overwrite the already-saved seed-42 summary (identical filename otherwise).
     seed_label = "" if args.split_seed == SPLIT_SEED else f"_seed{args.split_seed}"
     output_path = OUTPUT_DIR / f"gnnwr_{args.scope}_{args.cohort}_ref{reference_set_size or 'full'}{seed_label}_kfold_pooled_summary.csv"

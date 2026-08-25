@@ -2,11 +2,11 @@
 #     or: python -m models.dnn_env_terrain.run_dnn_env_terrain --cohort 4survey --max-epochs 5
 #     or: python -m models.dnn_env_terrain.run_dnn_env_terrain --cohort 4survey --split-type spatial_block
 #
-# TRAINS the DNN env_terrain control -- same no-env features as dnn_noenv.py, PLUS a chosen
+# TRAINS the DNN env_terrain control. Same no-env features as dnn_noenv.py, PLUS a chosen
 # terrain/wind feature set (models/common/torch_data.py::ENV_TERRAIN_FEATURE_SETS, --feature-set
 # below) concatenated in, all fed to one flat network. Mirrors run_dnn_noenv.py's structure
 # exactly; see that file's own comments for the fit-only/evaluate-later split, --max-epochs
-# test-run convention, and run_name handling -- not repeated here.
+# test-run convention, and run_name handling. Not repeated here.
 
 import argparse
 import json
@@ -102,7 +102,7 @@ def run_for_cohort(
     )
 
     try:
-        # ----- Load and prepare the data -- load_split_table_with_terrain() merges the chosen
+        # ----- Load and prepare the data. Load_split_table_with_terrain() merges the chosen
         # terrain/wind columns in, on top of load_dnn_noenv's usual no-env table. -----
         split_df = load_split_table_with_terrain(
             cohort, split_type, feature_columns, split_seed=split_seed, k_folds=k_folds, held_out_fold=held_out_fold,
@@ -172,7 +172,7 @@ def run_for_cohort(
             json.dump(encoded_column_names, f, indent=2)
         # Saved explicitly (not just the feature_set NAME in run_metadata.json) so
         # evaluate_dnn_env_terrain.py reads back the EXACT columns used to train this specific
-        # checkpoint -- safe even if ENV_TERRAIN_FEATURE_SETS's definitions ever change later.
+        # checkpoint. Safe even if ENV_TERRAIN_FEATURE_SETS's definitions ever change later.
         with open(preprocessing_dir / "terrain_feature_columns.json", "w") as f:
             json.dump(feature_columns, f, indent=2)
 
@@ -251,7 +251,7 @@ def main():
     parser.add_argument(
         "--dropout-rate", type=float, default=0.0,
         help="Dropout probability in the main network's hidden layers. Default 0.0 (no dropout, "
-             "matching dnn_noenv's architecture) -- a real hyperparameter to sweep, not a "
+             "matching dnn_noenv's architecture). A real hyperparameter to sweep, not a "
              "guessed value, see experiment_log.md.",
     )
     parser.add_argument(
@@ -267,7 +267,7 @@ def main():
     parser.add_argument(
         "--split-seed", type=int, default=SPLIT_SEED,
         help=f"Seed for spatial_block_split's own block-shuffle (default {SPLIT_SEED}). Only "
-             "affects split_type=spatial_block -- see documentation/experiment_log.md's "
+             "affects split_type=spatial_block. See documentation/experiment_log.md's "
              "2026-08-02 split-seed robustness entries.",
     )
     args = parser.parse_args()

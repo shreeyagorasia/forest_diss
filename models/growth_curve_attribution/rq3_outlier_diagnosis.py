@@ -1,13 +1,13 @@
 # Run as: python -m models.growth_curve_attribution.rq3_outlier_diagnosis --cohort 4survey --set-name nested_set4_gated_all_vif --top-n 10
 #
-# The actual point of building per-plot SHAP values (compute_rq3_shap.py) -- pulls the N largest-
+# The actual point of building per-plot SHAP values (compute_rq3_shap.py). Pulls the N largest-
 # residual plots (worst XGBoost predictions for local_y_max_difference) and shows, for each one,
 # WHY the model predicted what it did: every feature's SHAP contribution for that specific row,
 # sorted by |SHAP|, not just "CanopyCover matters on average" (which the gain-importance/
-# aggregate-SHAP tables already answer). This is genuinely different information -- a global
+# aggregate-SHAP tables already answer). This is genuinely different information. A global
 # importance ranking can't tell you why one specific plot's prediction is 20m off.
 #
-# Reads already-saved files only (predictions.csv + xgboost_shap_values.csv) -- no fitting, no
+# Reads already-saved files only (predictions.csv + xgboost_shap_values.csv). No fitting, no
 # refitting, purely local and fast.
 
 import argparse

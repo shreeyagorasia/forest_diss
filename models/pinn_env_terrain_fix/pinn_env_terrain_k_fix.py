@@ -5,16 +5,16 @@
 # no math, no logic changed. The original stays in place under temp_results_pinn/, still used by
 # its own diagnostic job scripts there.
 #
-# FIX EXPERIMENT (2026-08-20) -- copy of models/pinn_env_terrain_k/pinn_env_terrain_k.py with
+# FIX EXPERIMENT (2026-08-20). Copy of models/pinn_env_terrain_k/pinn_env_terrain_k.py with
 # ONE real change: forward() now routes BOTH the per-plot y_max AND k through to the prediction,
 # not just to the physics/trajectory losses. See temp_results_pinn/PLAN.md and
-# pinn_env_terrain_fix.py's own header for the full reasoning -- identical mechanism here, just
+# pinn_env_terrain_fix.py's own header for the full reasoning. Identical mechanism here, just
 # with k_per_row also feeding the CR term (p stays global/frozen, same as the original).
 #
 # Prediction becomes: H_pred_i = y_max_i * (1 - exp(-k_i*age_i))^p + trunk_residual_i
 #
 # The buggy original, models/pinn_env_terrain_k/pinn_env_terrain_k.py, is intentionally left
-# untouched -- it remains the correct historical basis for interpreting any existing outputs/
+# untouched. It remains the correct historical basis for interpreting any existing outputs/
 # results produced before this fix.
 
 import itertools
@@ -75,7 +75,7 @@ class EnvTerrainRatePINN(nn.Module):
         y_max_per_row = compute_plot_specific_y_max(self, terrain_features, self.cr_params["y_max"])
         k_per_row = compute_plot_specific_k(self, terrain_features, self.cr_params["k"])
 
-        # Mistake #10 (PLAN.md): same age tensor, no detach -- physics loss differentiates the
+        # Mistake #10 (PLAN.md): same age tensor, no detach. Physics loss differentiates the
         # whole forward() output w.r.t. age, needs the CR term's contribution captured too.
         age_unscaled = age * self.scaler_age.scale_[0] + self.scaler_age.mean_[0]
 

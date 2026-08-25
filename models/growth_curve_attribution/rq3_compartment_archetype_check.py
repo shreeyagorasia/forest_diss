@@ -32,7 +32,7 @@ from models.growth_curve_attribution.temporal_stability_check import compute_sha
 
 TARGET = "local_y_max_difference"
 
-# A small, targeted set -- not the full environmental candidate pool -- chosen because each one
+# A small, targeted set. Not the full environmental candidate pool. Chosen because each one
 # is already established elsewhere in this project's RQ3 work as a real signal worth checking
 # against this new compartment-level classification: elevation/topex/windward_topex/slope/
 # gwa_wind_speed_50m (terrain/wind, already RQ3's own attribution headline variables), CanopyCover
@@ -47,14 +47,14 @@ ENVIRONMENT_COLUMNS = [
 def build_plot_table(cohort):
     plot_level = build_plot_level_table(cohort, apply_disturbance_cleaning=True)
     # any_ambiguous_disturbance/max_*_drop_frac already exist in plot_level too (same source,
-    # summarize_plot_disturbance_status()) -- drop here so the merge below doesn't collide and
+    # summarize_plot_disturbance_status()). Drop here so the merge below doesn't collide and
     # silently rename both copies with _x/_y suffixes.
     plot_level = plot_level.drop(
         columns=["any_ambiguous_disturbance", "max_height_drop_frac", "max_canopy_drop_frac", "max_volume_drop_frac"],
         errors="ignore",
     )
 
-    # k (p4), p (p5), yldc, blk are not in build_plot_level_table's own output -- pull from the
+    # k (p4), p (p5), yldc, blk are not in build_plot_level_table's own output. Pull from the
     # raw growth-curve table instead, one row per plot (these are static per plot, so any survey
     # year's row gives the same p4/p5/yldc/blk value).
     raw = load_filtered_growth_curve_table(cohort)
@@ -112,7 +112,7 @@ def classify_compartments(plot_table, env_columns=None):
     compartment_summary = plot_table.groupby("compartment_key").agg(**agg_spec).reset_index()
 
     # Fraction of the curve's own eventual asymptote reached at this compartment's mean survey
-    # age -- (1 - exp(-k*Age))^p evaluated at the compartment's own mean k/p/Age. 1.0 = fully at
+    # age. (1 - exp(-k*Age))^p evaluated at the compartment's own mean k/p/Age. 1.0 = fully at
     # the flat top of the sigmoid; well under 1.0 = still on the steep early-growth part.
     compartment_summary["frac_of_asymptote_at_mean_age"] = compute_shape_term(
         pd.DataFrame({"p4": compartment_summary["mean_k"], "p5": compartment_summary["mean_p"], "Age": compartment_summary["mean_age"]})

@@ -1,4 +1,4 @@
-# DIAGNOSTIC ONLY -- this file is never imported by run_baselines.py or
+# DIAGNOSTIC ONLY. This file is never imported by run_baselines.py or
 # evaluate_baselines.py, and its output never appears in the main
 # model-comparison tables. It exists to put a number in metres on the
 # survey-year confound visible in the growth-curve/bias-by-year plots (see
@@ -8,8 +8,8 @@
 # era at once.
 #
 # A year delta has no predictive value outside the specific calendar years it
-# was fitted on -- a plot surveyed in some future year has no fitted delta to
-# use -- so this must stay a diagnostic, not a competing baseline.
+# was fitted on. A plot surveyed in some future year has no fitted delta to
+# use. So this must stay a diagnostic, not a competing baseline.
 
 import json
 from datetime import datetime, timezone
@@ -52,7 +52,7 @@ def fit_year_effect(train_df, age_col="Age", year_col="LiDAR_year", height_col="
     # symmetric and generous rather than one-sided.
     #
     # y_max's lower bound is max_observed_height * 1.001, not exactly max_observed_height
-    # (2026-07-30 fix) -- this file reintroduced the exact degenerate bound already found and
+    # (2026-07-30 fix). This file reintroduced the exact degenerate bound already found and
     # fixed in chapman_richards.py's own fit() on 28-29 July 2026: a real asymptote is
     # approached but never reached, even by the tallest observed tree, so a bound of exactly
     # max_observed_height let curve_fit land precisely on that boundary instead of finding a
@@ -66,7 +66,7 @@ def fit_year_effect(train_df, age_col="Age", year_col="LiDAR_year", height_col="
     # until the data pulls it away from that).
     #
     # First guess is max_observed_height * 1.01, not * 1.0 (2026-07-30 fix, same reasoning as
-    # the lower_bounds fix above) -- with the bound now strictly above max_observed_height, a
+    # the lower_bounds fix above). With the bound now strictly above max_observed_height, a
     # starting guess of exactly max_observed_height would sit BELOW the lower bound, and
     # curve_fit rejects an out-of-bounds p0 outright rather than just converging poorly. Matches
     # chapman_richards.py's own first starting guess.

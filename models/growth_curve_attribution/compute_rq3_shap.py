@@ -1,19 +1,19 @@
 # Run as: python -m models.growth_curve_attribution.compute_rq3_shap --cohort 4survey --set-name nested_set4_gated_all_vif
 #
-# Per-plot, per-fold SHAP values for RQ3's XGBoost model on local_y_max_difference -- the
+# Per-plot, per-fold SHAP values for RQ3's XGBoost model on local_y_max_difference. The
 # capability nothing else in RQ3's toolkit gives: EN coefficients and XGBoost gain importance are
 # both GLOBAL (one number per variable, averaged over every plot); this is PER-PLOT, so it can
-# actually answer "why is this specific plot's prediction what it is" -- the outlier-diagnosis
+# actually answer "why is this specific plot's prediction what it is". The outlier-diagnosis
 # question RQ3 cares about, not just "which variable matters on average."
 #
 # REFITS the 5 per-fold XGBoost models (via run_columns(), same call already used for the
-# headline R2/coefficient numbers) rather than loading a saved checkpoint -- run_columns()'s
+# headline R2/coefficient numbers) rather than loading a saved checkpoint. Run_columns()'s
 # underlying run_spatial_cv() never persisted per-fold XGBoost models to disk in the first place
 # (confirmed 2026-08-11 by listing the actual output folder: no xgboost_model.json anywhere,
 # only the already-extracted coefficients/importances). Refitting is deterministic given the same
 # seed, so this reproduces the EXACT same models that already produced the coefficient/importance
-# tables -- not a new experiment, just recomputing something that was fit once and discarded.
-# Cheap (XGBoost fits in seconds) and entirely local -- no cluster time, no new rsync.
+# tables. Not a new experiment, just recomputing something that was fit once and discarded.
+# Cheap (XGBoost fits in seconds) and entirely local. No cluster time, no new rsync.
 
 import argparse
 
@@ -34,7 +34,7 @@ def run_one_set(cohort, set_name, k_folds=5, seed=42):
     continuous_requested = [column for column in raw_columns if "=" not in column]
 
     # run_columns() itself resolves the exact model_columns list (continuous + present/zero-filled
-    # dummies) internally -- rather than duplicate that resolution here, results_df/predictions
+    # dummies) internally. Rather than duplicate that resolution here, results_df/predictions
     # are thrown away (already have them from the original run) and only fold_models is used.
     _, _, _, fold_models = run_columns(cohort, raw_columns, k=k_folds, seed=seed)
 

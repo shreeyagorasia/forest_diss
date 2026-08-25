@@ -17,16 +17,16 @@ def fit(train_df, age_col="Age", height_col="elev_percentile_95th", return_covar
     # Fit y_max, k and p so the curve matches the training data as closely
     # as possible.
     #
-    # LIMITATION (2026-07-30, not fixed here -- see below): both cohorts are strict balanced
+    # LIMITATION (2026-07-30, not fixed here. See below): both cohorts are strict balanced
     # panels (every plot has the same number of survey-year rows), so every row below is
     # pooled and fit as if independent, ignoring that several rows come from the same plot
     # across different years. Because the panel is balanced, this does NOT bias the point
     # estimate the way it would with an unbalanced panel (every plot still gets equal total
-    # weight) -- but it does mean this is a single POPULATION-AVERAGE curve, not a
+    # weight). But it does mean this is a single POPULATION-AVERAGE curve, not a
     # plot-specific one, and it doesn't separate how much residual variance sits at the plot
     # level vs. the year level (relevant context for the environmental-attribution stage
     # downstream). The established fix is a nonlinear mixed-effects model with a plot-level
-    # random effect on y_max -- already planned in this project's own roadmap for the
+    # random effect on y_max. Already planned in this project's own roadmap for the
     # environmental-attribution stage (fitting y_max ~ terrain/wind with plot random
     # effects), not implemented here. y_max/k/p below remain frozen point estimates used as
     # the PINN's physics anchor and the residual baseline, same as before.
@@ -35,10 +35,10 @@ def fit(train_df, age_col="Age", height_col="elev_percentile_95th", return_covar
     max_observed_height = height_values.max()
 
     # y_max is the height the curve approaches as age goes to infinity, so it must be strictly
-    # bigger than the tallest tree we actually measured -- a real asymptote is approached but
+    # bigger than the tallest tree we actually measured. A real asymptote is approached but
     # never reached, even by the tallest observed tree. The lower bound used to be exactly
     # max_observed_height (not above it), which let curve_fit land precisely on that boundary
-    # instead of finding a genuine asymptote -- confirmed happening for both the old and new
+    # instead of finding a genuine asymptote. Confirmed happening for both the old and new
     # height target (2026-07-28, see progress_notes.md), so this is a pre-existing fragility in
     # these bounds, not something the target change caused. A 0.1% buffer is enough to stop the
     # optimizer sitting exactly on the boundary, without meaningfully changing the search space.
@@ -91,7 +91,7 @@ def fit(train_df, age_col="Age", height_col="elev_percentile_95th", return_covar
     y_max, k, p = best_params
     params = {"y_max": float(y_max), "k": float(k), "p": float(p)}
     # return_covariance (2026-08-04 addition, default False): every existing caller
-    # (run_baselines.py) is unaffected -- it never passes this flag, so it keeps getting exactly
+    # (run_baselines.py) is unaffected. It never passes this flag, so it keeps getting exactly
     # the plain params dict it always has. Set True to also get curve_fit's own parameter
     # covariance matrix (3x3, ordered y_max/k/p, from the WINNING multi-start attempt only) --
     # built for check_cr_identifiability.py's y_max/k correlation check, not used by the frozen-

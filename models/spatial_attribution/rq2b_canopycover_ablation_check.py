@@ -1,6 +1,6 @@
 # Run as: PYTHONPATH=. .venv/bin/python -m models.spatial_attribution.rq2b_canopycover_ablation_check
 # Ad-hoc re-verification of the CanopyCover-dropped ablation (TEMP_rq2_attribution_results_2026-08-11.tex),
-# reusing the exact production fit/predict/SHAP functions -- only the driving loop (drop CanopyCover,
+# reusing the exact production fit/predict/SHAP functions. Only the driving loop (drop CanopyCover,
 # loop over 5 folds) is new. Matches this project's own "ad-hoc TEMP check" convention.
 import json
 import numpy as np
@@ -58,8 +58,8 @@ for fold in range(DEFAULT_K_FOLDS):
     all_test_shap.append(shap_df)
 
 en_r2_per_fold, xgb_r2_per_fold = np.array(en_r2_per_fold), np.array(xgb_r2_per_fold)
-print(f"\nWITHOUT CanopyCover -- Elastic Net: {en_r2_per_fold.mean():.3f}+/-{en_r2_per_fold.std():.3f}")
-print(f"WITHOUT CanopyCover -- XGBoost:     {xgb_r2_per_fold.mean():.3f}+/-{xgb_r2_per_fold.std():.3f}")
+print(f"\nWITHOUT CanopyCover. Elastic Net: {en_r2_per_fold.mean():.3f}+/-{en_r2_per_fold.std():.3f}")
+print(f"WITHOUT CanopyCover. XGBoost:     {xgb_r2_per_fold.mean():.3f}+/-{xgb_r2_per_fold.std():.3f}")
 print("(compare to TEMP note: EN 0.350->0.231, XGBoost 0.388->0.249)")
 
 all_shap = pd.concat(all_test_shap, ignore_index=True)

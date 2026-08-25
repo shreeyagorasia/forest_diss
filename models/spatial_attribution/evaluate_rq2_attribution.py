@@ -1,10 +1,10 @@
 # Run as: python -m models.spatial_attribution.evaluate_rq2_attribution --cohort 4survey --set-name nested_set2_top10
 #     or: python -m models.spatial_attribution.evaluate_rq2_attribution --cohort 4survey --set-name nested_set2_top10 --split-type spatial_block_kfold --fold-index 0
 #
-# RQ2's EVALUATE step -- always local, never the cluster (this project's standing convention).
+# RQ2's EVALUATE step. Always local, never the cluster (this project's standing convention).
 # Loads the Elastic Net/XGBoost checkpoints run_rq2_attribution.py saved, re-derives the IDENTICAL
-# test split (same cohort/split_seed/fold -- deterministic given the same inputs, so the split
-# itself was never saved to disk), and scores it. NLME has nothing to do here -- see
+# test split (same cohort/split_seed/fold. Deterministic given the same inputs, so the split
+# itself was never saved to disk), and scores it. NLME has nothing to do here. See
 # run_rq2_attribution.py's own comment for why its diagnostics are already complete at fit time.
 
 import argparse
@@ -60,7 +60,7 @@ def evaluate_one_set(
             feature_columns = json.load(f)
         en_fitted = joblib.load(output_dir / "elastic_net_model.joblib")
 
-        # Loaded via XGBoost's own native load_model(), not joblib -- see run_rq2_attribution.py's
+        # Loaded via XGBoost's own native load_model(), not joblib. See run_rq2_attribution.py's
         # matching comment for why (joblib-pickling across the cluster/local boundary silently
         # gave a badly degraded model, confirmed by smoke-testing 2026-08-10).
         xgb_model = xgb.XGBRegressor()
@@ -76,7 +76,7 @@ def evaluate_one_set(
             plots_df["split"] = spatial_block_split(
                 plots_df, block_col=SPATIAL_BLOCK_COL, buffer_distance=SPATIAL_BUFFER_METRES, seed=split_seed,
             )
-        # Same drop as the fit side (run_rq2_attribution.py, 2026-08-10 fix) -- must match exactly,
+        # Same drop as the fit side (run_rq2_attribution.py, 2026-08-10 fix). Must match exactly,
         # or the test population here could differ from whatever the fit step actually trained
         # against.
         test_df = plots_df[plots_df["split"] == "test"]

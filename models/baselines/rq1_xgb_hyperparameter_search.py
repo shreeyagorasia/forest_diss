@@ -1,5 +1,5 @@
 # Purpose: a real, per-target XGBoost hyperparameter search for RQ1's own task (predicting
-# elev_percentile_95th, Set3, both cohorts) -- replacing the config borrowed from RQ3's
+# elev_percentile_95th, Set3, both cohorts). Replacing the config borrowed from RQ3's
 # explain_signal.py (n_estimators=500, max_depth=4, learning_rate=0.04), which was never actually
 # searched on RQ1's own data. Reuses the exact same data/split pipeline as
 # xgb_hyperparameter_sensitivity_check.py's fit_and_score_rq1_fold().
@@ -9,7 +9,7 @@
 #
 # Efficiency note: the spatial_block_kfold split (and the environmental-feature merge) does not
 # depend on hyperparameters at all, so each (cohort, fold)'s data is built ONCE and reused across
-# all 27 hyperparameter configs -- not recomputed per config, which would be ~27x slower for no
+# all 27 hyperparameter configs. Not recomputed per config, which would be ~27x slower for no
 # benefit.
 #
 # Run as: python -m models.baselines.rq1_xgb_hyperparameter_search

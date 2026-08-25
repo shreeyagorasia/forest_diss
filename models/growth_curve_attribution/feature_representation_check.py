@@ -1,10 +1,10 @@
 # Purpose: re-run the wind/terrain representation comparison already sketched in
 # notebooks/growth_curve_attribution/local_growth_curve_grouped_importance.ipynb (the "Compare
 # alternative wind and terrain representations" section), but on the CLEANED plot population
-# (clearfell-like/measurement-inconsistent plots excluded before the y_max fit -- see
+# (clearfell-like/measurement-inconsistent plots excluded before the y_max fit. See
 # disturbance_checks.summarize_plot_disturbance_status()). That notebook comparison found local
 # shelter (topex+windward_topex+whcl) beating every GWA wind variant, and 500m TPI beating other
-# terrain scales -- but it was computed on the UNCLEANED target, which the 2026-08-03 cleaning
+# terrain scales. But it was computed on the UNCLEANED target, which the 2026-08-03 cleaning
 # comparison found materially changes the result (4survey's R2 roughly halved after cleaning).
 # This checks whether the "local shelter wins" conclusion survives that same cleaning.
 
@@ -21,7 +21,7 @@ from models.xgb_environmental.xgb_environmental import TERRAIN_AND_WIND_COLUMNS
 from models.xgb_environmental.xgb_environmental import fit_with_columns as xgb_fit
 from models.xgb_environmental.xgb_environmental import predict_with_columns as xgb_predict
 
-# Same additional candidate columns the notebook compares -- not in the narrow, established
+# Same additional candidate columns the notebook compares. Not in the narrow, established
 # TERRAIN_AND_WIND_COLUMNS list, but already extracted and present in the environmental export
 # (confirmed directly: 0% missing for all seven, checked before writing this script).
 EXTRA_WIND_TERRAIN_COLUMNS = [
@@ -29,7 +29,7 @@ EXTRA_WIND_TERRAIN_COLUMNS = [
     "tpi_250m", "tpi_500m", "local_relief_500m",
 ]
 
-# base_columns: TERRAIN_AND_WIND_COLUMNS minus the wind-specific ones -- matches the notebook's
+# base_columns: TERRAIN_AND_WIND_COLUMNS minus the wind-specific ones. Matches the notebook's
 # own "base_without_wind" idea, so adding a wind representation is a fair one-at-a-time test
 # against a fixed non-wind foundation.
 WIND_COLUMNS_IN_BASE_SET = {"topex", "windward_topex", "whcl", "gwa_wind_speed_10m"}
@@ -75,7 +75,7 @@ def build_cleaned_table_with_extra_columns(cohort, split_seed=SPLIT_SEED):
 
 def compare_representations(train, val, test, representations, base_columns, family):
     # BUG FIX (2026-08-04): never run/reported, but had the same leak found and fixed elsewhere
-    # this session -- val must only drive XGBoost's early stopping, not double as the reported
+    # this session. Val must only drive XGBoost's early stopping, not double as the reported
     # evaluation set. Both methods are now scored on the untouched "test" partition.
     rows = []
     for representation, added_columns in representations.items():

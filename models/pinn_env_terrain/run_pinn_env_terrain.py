@@ -2,15 +2,15 @@
 #     or: python -m models.pinn_env_terrain.run_pinn_env_terrain --cohort 4survey --max-epochs 5
 #     or: python -m models.pinn_env_terrain.run_pinn_env_terrain --cohort 4survey --split-type spatial_block
 #
-# TRAINS the CR-PINN with terrain/wind-conditioned y_max -- same frozen CR anchor (split-matched
+# TRAINS the CR-PINN with terrain/wind-conditioned y_max. Same frozen CR anchor (split-matched
 # "cr_matched", see load_cr_params below) as pinn_noenv.py, but y_max in the physics/trajectory
 # loss is now global_y_max + a per-plot adjustment from the terrain/wind sub-network, not a
 # single constant.
-# Mirrors run_pinn_noenv.py's structure closely -- see that file's own comments for the
+# Mirrors run_pinn_noenv.py's structure closely. See that file's own comments for the
 # fit-only/evaluate-later split, --max-epochs test-run convention, and run_name handling.
 #
 # --physics-weight/--trajectory-weight default to 1.0 (the untested base case), NOT the no-env
-# pipeline's Stage 3 winning weight -- see pinn_env_terrain.py's own top-of-file note for why
+# pipeline's Stage 3 winning weight. See pinn_env_terrain.py's own top-of-file note for why
 # that decision does not carry over here. A dedicated env_terrain physics-weight sweep is still
 # open work.
 
@@ -136,7 +136,7 @@ def run_for_cohort(
         scaler_terrain = fit_terrain_scaler(train_df, feature_columns)
         encoded_column_names = encode_thinning_status(train_df).columns.tolist()
 
-        # Main network's inputs: age + no-env features ONLY -- terrain/wind is NOT concatenated
+        # Main network's inputs: age + no-env features ONLY. Terrain/wind is NOT concatenated
         # in here (unlike dnn_env_terrain.py), it only reaches the model via the y_max
         # sub-network below. See pinn_env_terrain.py's own top-of-file note for why.
         age_train, other_train, target_train = build_tensors(
@@ -197,7 +197,7 @@ def run_for_cohort(
             json.dump(encoded_column_names, f, indent=2)
         # Saved explicitly (not just the feature_set NAME in run_metadata.json) so
         # evaluate_pinn_env_terrain.py reads back the EXACT columns used to train this specific
-        # checkpoint -- safe even if ENV_TERRAIN_FEATURE_SETS's definitions ever change later.
+        # checkpoint. Safe even if ENV_TERRAIN_FEATURE_SETS's definitions ever change later.
         with open(preprocessing_dir / "terrain_feature_columns.json", "w") as f:
             json.dump(feature_columns, f, indent=2)
 
@@ -270,7 +270,7 @@ def main():
         "--fold-index", type=int, default=0,
         help="Which fold to hold out as test, for --split-type spatial_block_kfold (0-indexed, "
              "must be < --n-folds). Ignored for every other split type. Requires a matching "
-             "fold-specific CR anchor -- run 'python -m models.baselines.run_baselines "
+             "fold-specific CR anchor. Run 'python -m models.baselines.run_baselines "
              "--split-type spatial_block_kfold --n-folds <N> --fold-index <i>' first.",
     )
     parser.add_argument("--max-epochs", type=int, default=DEFAULT_MAX_EPOCHS)
@@ -280,7 +280,7 @@ def main():
     parser.add_argument(
         "--physics-weight", type=float, default=PHYSICS_WEIGHT,
         help=f"Weight on the instantaneous-derivative physics loss term. Default {PHYSICS_WEIGHT} "
-             "(untested base case) -- the no-env pipeline's low-weight finding is NOT assumed to "
+             "(untested base case). The no-env pipeline's low-weight finding is NOT assumed to "
              "carry over here, see pinn_env_terrain.py's own note.",
     )
     parser.add_argument(
@@ -291,7 +291,7 @@ def main():
     parser.add_argument("--pairs-batch-size", type=int, default=PAIRS_BATCH_SIZE)
     parser.add_argument(
         "--run-name", default=None,
-        help="Only changes where results are saved -- use this whenever --physics-weight/"
+        help="Only changes where results are saved. Use this whenever --physics-weight/"
              "--trajectory-weight/--feature-set/--dropout-rate differ from the defaults.",
     )
     parser.add_argument(
@@ -302,7 +302,7 @@ def main():
     parser.add_argument(
         "--dropout-rate", type=float, default=0.0,
         help="Dropout probability in both the main network's and the y_max sub-network's hidden "
-             "layers. Default 0.0 (no dropout, matching pinn_noenv's architecture) -- a real "
+             "layers. Default 0.0 (no dropout, matching pinn_noenv's architecture). A real "
              "hyperparameter to sweep, not a guessed value.",
     )
     parser.add_argument(
@@ -312,7 +312,7 @@ def main():
     )
     parser.add_argument(
         "--hidden-layer-sizes", type=str, default=None,
-        help="Comma-separated hidden layer sizes for the MAIN network only, e.g. '64,32' -- "
+        help="Comma-separated hidden layer sizes for the MAIN network only, e.g. '64,32'. "
              "does not resize the y_max sub-network. Default: the original 3x128 main network "
              "(unchanged). See documentation/experiment_log.md's 2026-08-02 entry.",
     )
@@ -320,7 +320,7 @@ def main():
         "--split-seed", type=int, default=SPLIT_SEED,
         help=f"Seed for spatial_block_split's own block-shuffle (default {SPLIT_SEED}). "
              "load_cr_params() reads the matching '_splitseed<N>'-suffixed CR anchor for a "
-             "non-default value -- run 'python -m models.baselines.run_baselines --split-type "
+             "non-default value. Run 'python -m models.baselines.run_baselines --split-type "
              "<split_type> --split-seed <N>' first to produce it (see "
              "documentation/experiment_log.md's 2026-08-02 split-seed robustness entries).",
     )

@@ -1,11 +1,11 @@
 # Purpose: a proper PAIRED fold-by-fold comparison between tuned XGBoost and DNN on RQ1's task
-# (Set3, both cohorts, spatial_block_kfold, seed 42) -- both models are evaluated on the exact
+# (Set3, both cohorts, spatial_block_kfold, seed 42). Both models are evaluated on the exact
 # same 5 folds (same split_seed=42), so the right comparison is fold-by-fold (XGBoost_r2_fold_i
 # minus DNN_r2_fold_i), not a comparison of each model's own marginal SD in isolation. A marginal-
 # SD comparison ignores that some folds are simply harder for every model (shared difficulty), so
 # it understates how consistent the direction of the gap actually is.
 #
-# No new fitting -- reads DNN's already-saved per-fold R2 from its kfold_summary.json, and
+# No new fitting. Reads DNN's already-saved per-fold R2 from its kfold_summary.json, and
 # XGBoost's per-fold R2 from a direct refit using the winning config found by
 # rq1_xgb_hyperparameter_search.py (n_estimators=500, max_depth=6, learning_rate=0.02 for
 # 4survey; n_estimators=300, max_depth=3, learning_rate=0.08 for 6survey).

@@ -1,12 +1,12 @@
-# Purpose: Moran's I on a DNN/PINN model's own held-out residuals -- "does this model still
+# Purpose: Moran's I on a DNN/PINN model's own held-out residuals. "does this model still
 # leave real, unexplained spatial pattern in its errors", the same question
 # models/xgb_environmental/grouped_analysis.py::residual_morans_i() answers for the
 # environmental-attribution notebook, but applied directly to an ALREADY-EVALUATED model's saved
-# predictions.csv instead of refitting -- cheap, since evaluate_*.py already computed and saved
+# predictions.csv instead of refitting. Cheap, since evaluate_*.py already computed and saved
 # every residual this needs.
 #
 # Scoped deliberately (2026-08-05, per documentation/experiment_log.md's dissertation-argument
-# framing): only worth running for spatial_block/spatial_block_kfold -- Moran's I answers a
+# framing): only worth running for spatial_block/spatial_block_kfold. Moran's I answers a
 # spatial-pattern question, so it's meaningless for temporal (rows aren't held out by location
 # there) and low-value for plot_level (the split's own random shuffling already tends to erase
 # whatever spatial clustering existed). Run it for the models that carry the dissertation's
@@ -39,7 +39,7 @@ def load_one_row_per_plot_residuals(model_name, cohort, split_type, run_name=Non
     output_model_name = run_name if run_name else model_name
 
     if split_type == "spatial_block_kfold":
-        # Pool every fold's own held-out residuals first -- same "whole population, not one
+        # Pool every fold's own held-out residuals first. Same "whole population, not one
         # ~20% slice" reasoning as models/common/kfold_summary.py.
         all_fold_predictions = []
         for fold_index in range(n_folds):
@@ -73,9 +73,9 @@ def compute_spatial_pattern(model_name, cohort, split_type, run_name=None, n_fol
         result["morans_i_p"] = None
         return result
 
-    # Aberfoyle is genuinely several separate forest blocks -- libpysal prints one "island (no
+    # Aberfoyle is genuinely several separate forest blocks. Libpysal prints one "island (no
     # neighbors)" line per isolated plot directly to stdout, not a catchable Python warning,
-    # which can run to thousands of lines. Expected, not an error -- suppressed so it doesn't
+    # which can run to thousands of lines. Expected, not an error. Suppressed so it doesn't
     # flood the terminal (same suppression residual_morans_i() already uses).
     with contextlib.redirect_stdout(io.StringIO()):
         morans_i, morans_p = global_morans_i(
@@ -103,7 +103,7 @@ def main():
                 args.model_name, cohort, args.split_type, run_name=args.run_name, n_folds=args.n_folds,
             )
         except FileNotFoundError as error:
-            print(f"{output_model_name} ({cohort}, {args.split_type}): SKIPPED -- {error}")
+            print(f"{output_model_name} ({cohort}, {args.split_type}): SKIPPED. {error}")
             continue
 
         print(f"===== {output_model_name} ({cohort}, {args.split_type}) =====")

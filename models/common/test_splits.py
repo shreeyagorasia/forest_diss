@@ -1,7 +1,7 @@
 # Run as: python -m models.common.test_splits
 #
 # Exercises spatial_block_split() and temporal_split() against the real
-# 4survey/6survey data -- both are now used by the baselines and by
+# 4survey/6survey data. Both are now used by the baselines and by
 # dnn_noenv/pinn_noenv (see models/common/splits.py), so this is a
 # regression check for that shared code, not a check on unused code.
 

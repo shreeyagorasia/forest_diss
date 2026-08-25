@@ -2,15 +2,15 @@
 #   python -m models.growth_curve_attribution.run_rq3_gnnwr_saturation_transform_check --held-out-fold 0 --k-folds 5 --use-gpu
 #
 # Tests whether GNNWR does better on Q2's target when given pre-saturated inputs instead of raw
-# ones. GNNWR is structurally local-LINEAR -- it cannot represent a curve, even one that varies
+# ones. GNNWR is structurally local-LINEAR. It cannot represent a curve, even one that varies
 # smoothly across space. The no-CanopyCover SHAP-dependence check (2026-08-22) found slope_degrees
 # and windward_topex both have a clear SATURATING relationship to the target (steep-then-flat), not
 # noise. This run swaps those two raw columns for pre-saturated versions
-# (slope_degrees_capped15, windward_topex_clipped -- built by
+# (slope_degrees_capped15, windward_topex_clipped. Built by
 # build_saturation_transformed_features.py, run once beforehand) so GNNWR's local straight line
 # only needs to fit the already-linear middle section, not approximate the whole curve with one
 # slope. Everything else about Set4 (the other 17 columns, the CanopyCover-inclusive population,
-# the spatial-block CV) is unchanged -- this isolates the effect of the transform alone.
+# the spatial-block CV) is unchanged. This isolates the effect of the transform alone.
 #
 # Cheap, no-new-modelling test: same GNNWR architecture, same job script convention as every other
 # GNNWR ablation in this project, only the input columns differ.
@@ -27,7 +27,7 @@ ABLATION_SCOPE_LABEL = "nested_set4_saturation_transformed"
 
 # Points every caller of load_environmental_features() (gnnwr_check.py's build_table_from_columns
 # -> broad_environmental_check.py's prepare_broad_table) at the augmented parquet instead of the
-# real one -- FEATURES_PATH is read inside load_environmental_features() at call time, so
+# real one. FEATURES_PATH is read inside load_environmental_features() at call time, so
 # reassigning the module-level constant here is enough; no need to patch every import site
 # separately. Original file is never touched (see build_saturation_transformed_features.py).
 xgb_data_module.FEATURES_PATH = (
@@ -49,7 +49,7 @@ def main():
 
     if not xgb_data_module.FEATURES_PATH.exists():
         raise FileNotFoundError(
-            f"{xgb_data_module.FEATURES_PATH} not found -- run "
+            f"{xgb_data_module.FEATURES_PATH} not found. Run "
             "`python -m models.growth_curve_attribution.build_saturation_transformed_features` first."
         )
 

@@ -7,7 +7,7 @@
 # not refit anything and does not touch the training split.
 #
 # --split-type must match whichever split_type run_baselines.py was run
-# with -- it reads the params/model files and split_assignment.csv that
+# with. It reads the params/model files and split_assignment.csv that
 # script saved for that split type, from the matching outputs/ subtree
 # (see output_dir() in run_baselines.py).
 
@@ -66,11 +66,11 @@ def load_test_rows(cohort, table_name, split_type, maturity_age_min=MATURITY_AGE
     # Chapman-Richards and average-by-age are evaluated against the same trimmed
     # (identification, LiDAR_year, blk, cpmt, Age, yldc, elev_percentile_95th) table
     # load_cohort_data() uses for fitting. Every model reads the same consolidated
-    # model_table.parquet now (2026-07-28) -- table_name only picks between that trimmed view
+    # model_table.parquet now (2026-07-28). Table_name only picks between that trimmed view
     # and the full table, it no longer selects a different source file.
     #
     # maturity_age_min/name_suffix MUST match whatever run_baselines.py was actually run with,
-    # or the row-count assertion below fails -- main() builds both the same way run_baselines.py
+    # or the row-count assertion below fails. Main() builds both the same way run_baselines.py
     # does, from the same --maturity-age-min value.
     if table_name == "cr_age":
         table = load_cohort_data(cohort)
@@ -163,7 +163,7 @@ def build_results(model_name, cohort, test_df, predicted_heights, split_type, in
     })
 
     metrics = compute_metrics(observed_heights, predicted_heights, age=test_df["Age"].values)
-    # Timed for a runtime-comparison chart -- see evaluate_dnn_noenv.py's identical comment.
+    # Timed for a runtime-comparison chart. See evaluate_dnn_noenv.py's identical comment.
     # Passed in by the caller (right around its own predict_X() call) rather than timed in
     # here, since "in here" is after the prediction already happened.
     metrics["inference_seconds_total"] = inference_elapsed_seconds
@@ -207,7 +207,7 @@ def main():
     parser.add_argument(
         "--maturity-age-min", type=int, default=MATURITY_AGE_MIN_DEFAULT,
         help=f"Must match whichever --maturity-age-min run_baselines.py was run with (default "
-             f"{MATURITY_AGE_MIN_DEFAULT}) -- reads the matching '_agemin<N>'-suffixed outputs.",
+             f"{MATURITY_AGE_MIN_DEFAULT}). Reads the matching '_agemin<N>'-suffixed outputs.",
     )
     parser.add_argument("--split-seed", type=int, default=SEED)
     parser.add_argument("--n-folds", type=int, default=DEFAULT_K_FOLDS)

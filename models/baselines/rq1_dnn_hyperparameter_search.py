@@ -3,10 +3,10 @@
 # Tests the last remaining candidate reason for "XGBoost beats the DNN on 4survey": a narrower
 # training-hyperparameter gap. XGBoost's config was grid-searched over 27 combinations
 # (n_estimators, max_depth, learning_rate; see TEMP_rq1_xgb_hyperparameter_search_2026-08-16.tex).
-# The DNN has never had its own training hyperparameters swept -- only architecture SIZE was
+# The DNN has never had its own training hyperparameters swept. Only architecture SIZE was
 # swept (TEMP_rq1_architecture_sweep_results_2026-08-13.tex, a null result). Learning rate and
 # weight decay were fixed constants throughout this project (dnn_env_terrain.py's own top-of-file
-# note: "Fixed hyperparameters -- identical to dnn_noenv.py's, on purpose").
+# note: "Fixed hyperparameters. Identical to dnn_noenv.py's, on purpose").
 #
 # Method mirrors rq1_xgb_hyperparameter_search.py's own convention exactly: grid search selected
 # on VALIDATION R2 only, never test R2 (avoids tuning-on-test leakage); test metrics reported only
@@ -15,7 +15,7 @@
 # Grid: learning_rate in {0.0001 (project default), 0.0003, 0.001} x weight_decay in
 # {1e-5 (project default), 1e-4, 1e-3} = 9 configs, on the same single spatial_block split used by
 # every other RQ1 mechanism check this session. Batch size and the LR-scheduler's own
-# factor/patience are left at their project defaults -- varying every training knob at once would
+# factor/patience are left at their project defaults. Varying every training knob at once would
 # make a 9-point coarse screen uninterpretable; learning rate and weight decay are the two most
 # standard, highest-leverage knobs to check first.
 
@@ -47,7 +47,7 @@ LEARNING_RATES = [0.0001, 0.0003, 0.001]
 WEIGHT_DECAYS = [1e-5, 1e-4, 1e-3]
 
 # Already-established single-split reference points (same split, same feature set, this session's
-# other checks) -- printed for comparison, not recomputed here.
+# other checks). Printed for comparison, not recomputed here.
 XGBOOST_SINGLE_SPLIT_TEST_R2 = 0.6402
 DEFAULT_DNN_SINGLE_SPLIT_TEST_R2 = 0.6166  # learning_rate=0.0001, weight_decay=1e-5 (the default)
 
@@ -70,7 +70,7 @@ def fit_and_evaluate(train_df, val_df, test_df, feature_columns, device, learnin
     other_val = torch.cat([other_val_noenv, terrain_val], dim=1)
 
     # WEIGHT_DECAY is read as a module-level constant inside build_optimizer(), not exposed as a
-    # fit() parameter -- temporarily override the module constant for this one config, then
+    # fit() parameter. Temporarily override the module constant for this one config, then
     # restore it, rather than duplicating dnn_env_terrain.py's training loop just to vary one knob.
     original_weight_decay = dnn_module.WEIGHT_DECAY
     dnn_module.WEIGHT_DECAY = weight_decay

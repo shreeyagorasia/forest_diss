@@ -1,7 +1,7 @@
 # Run as: python -m models.growth_curve_attribution.run_compartment_pooling_check
 #
 # Prints the compartment-variance (ICC) check agreed before building any compartment-pooled
-# growth-curve fit -- see models/growth_curve_attribution/compartment_pooling_check.py's own
+# growth-curve fit. See models/growth_curve_attribution/compartment_pooling_check.py's own
 # header for why this needs checking first.
 
 from models.growth_curve_attribution.compartment_pooling_check import (
@@ -19,7 +19,7 @@ def run_for_cohort(cohort):
     df = load_filtered_growth_curve_table(cohort)
 
     # yldc_deviation_summary() already builds the yldc_deviation column and drops rows with no
-    # valid p1-p5/yldc combination -- reused here, not recomputed, so this check reads the exact
+    # valid p1-p5/yldc combination. Reused here, not recomputed, so this check reads the exact
     # same deviation values the Phase 0 spread check already reported on.
     valid, _, _ = yldc_deviation_summary(df)
 

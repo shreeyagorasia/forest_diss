@@ -1,10 +1,10 @@
 # Run as: python -m models.spatial_attribution.compute_rq2_shap --cohort 4survey --set-name nested_set2_top10 --fold-index 0
 #
-# Per-plot SHAP values for RQ2b's XGBoost model on mean_cr_residual -- cheaper than RQ3's version
+# Per-plot SHAP values for RQ2b's XGBoost model on mean_cr_residual. Cheaper than RQ3's version
 # of this: RQ2's fit step (run_rq2_attribution.py) already saves xgboost_model.json per fold, so
 # this is a pure reload + compute, no refitting at all (unlike RQ3, whose run_spatial_cv() never
 # persisted per-fold models to disk in the first place). Reuses the already-generic
-# compute_shap_values_for_columns() built for RQ3 -- no new SHAP code needed, only this wiring.
+# compute_shap_values_for_columns() built for RQ3. No new SHAP code needed, only this wiring.
 #
 # Mirrors evaluate_rq2_attribution.py's own split-re-derivation exactly (same cohort/split_seed/
 # fold-dependent logic) so the SHAP rows are computed against the identical test population the

@@ -1,7 +1,7 @@
 # Purpose: two cheap checks for whether the temporal-stability gap (early-years-fit curve
 # increasingly mispredicting a plot's own later height, see temporal_stability_check.py) has a
-# real, findable structure -- a genuine mid-trajectory disturbance signature, or a recorded
-# thinning event -- rather than staying an unexplained "maybe environment, maybe something else"
+# real, findable structure. A genuine mid-trajectory disturbance signature, or a recorded
+# thinning event. Rather than staying an unexplained "maybe environment, maybe something else"
 # question. Both use data already on disk, no external source needed.
 
 import numpy as np
@@ -14,7 +14,7 @@ from models.growth_curve_attribution.temporal_stability_check import HEIGHT_COLU
 
 def fit_all_years_and_compute_residuals(cohort):
     # Same fit_y_max_per_plot() as the temporal stability check, but here it sees EVERY year a
-    # plot has (not just the early ones) -- this is Candidate A's own full fit, and the residual
+    # plot has (not just the early ones). This is Candidate A's own full fit, and the residual
     # left over at each individual survey year is what Check 1 looks at.
     df = load_filtered_growth_curve_table(cohort)
     df = df.dropna(subset=["y_max_yldc"]).copy()  # only plots with a valid p1-p5/yldc combination
@@ -29,7 +29,7 @@ def fit_all_years_and_compute_residuals(cohort):
 
 def residual_by_survey_year(df_with_residuals):
     # Population-level view: is a PARTICULAR calendar year systematically off across every
-    # plot, not just one -- a signature of something broad happening in that window (storm,
+    # plot, not just one. A signature of something broad happening in that window (storm,
     # drought), rather than plot-by-plot idiosyncrasy.
     return df_with_residuals.groupby("LiDAR_year")["residual"].agg(["count", "mean", "std"])
 
@@ -116,7 +116,7 @@ def summarize_plot_disturbance_status(cohort):
     mixing pre- and post-event rows into one curve), plus the ambiguous-disturbance flag and raw
     drop fractions kept as metadata for plots that stay in the modelling population.
 
-    A plot can have more than one flagged interval (up to 3-5 consecutive gaps per plot) -- ANY
+    A plot can have more than one flagged interval (up to 3-5 consecutive gaps per plot). ANY
     single clearfell-like or measurement-inconsistent interval is enough to exclude that plot,
     since the curve-fit uses every one of a plot's rows together, not interval-by-interval.
     """
@@ -135,7 +135,7 @@ def summarize_plot_disturbance_status(cohort):
 
     # Excluded from the curve-FITTING population: a felled/replanted stand (clearfell_like) or a
     # survey that doesn't agree with itself (measurement_inconsistent) has no real trajectory to
-    # fit a fixed-shape curve to. ambiguous_disturbance plots are NOT excluded -- kept in the
+    # fit a fixed-shape curve to. ambiguous_disturbance plots are NOT excluded. Kept in the
     # modelling population with a flag/feature, per the explicit decision that possible genuine
     # disturbance (e.g. partial windthrow) is part of what this analysis aims to explain, not
     # noise to remove.
@@ -146,7 +146,7 @@ def summarize_plot_disturbance_status(cohort):
 def thinning_during_gap_flag(df, gap_start_year, gap_end_year):
     # True for a plot whose recorded last_thinn falls inside (gap_start_year, gap_end_year] --
     # i.e. that plot's most recent known thinning happened during the unmeasured gap.
-    # last_thinn is CONSTANT across every one of a plot's own rows (checked directly -- 0 of
+    # last_thinn is CONSTANT across every one of a plot's own rows (checked directly. 0 of
     # 71,766 4survey plots show any variation), so this is a single per-plot fact, not something
     # that needs comparing between two specific survey rows.
     one_row_per_plot = df.drop_duplicates("identification")[["identification", "last_thinn"]].copy()

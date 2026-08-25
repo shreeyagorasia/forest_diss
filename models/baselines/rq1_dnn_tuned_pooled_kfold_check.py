@@ -3,7 +3,7 @@
 # Confirms whether the tuned-DNN gap-closing effect found on a single spatial_block split
 # (TEMP_rq1_dnn_hyperparameter_search_2026-08-19.tex: learning_rate=0.001, weight_decay=1e-3
 # closes 86% of the XGBoost-DNN gap on 4survey) survives pooling across the full 5-fold
-# spatial_block_kfold split -- the split Table 1's headline numbers actually use. A single split's
+# spatial_block_kfold split. The split Table 1's headline numbers actually use. A single split's
 # validation set could just be an easy one; pooling across all 5 held-out folds is the more
 # reliable test.
 #

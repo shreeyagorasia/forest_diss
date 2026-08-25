@@ -42,7 +42,7 @@ def run_for_cohort(cohort, top_fraction=0.02, n_to_print_in_full=15):
     print("Top 10 compartments by count of flagged plots:")
     print(plots_per_cpmt_among_flagged.head(10))
 
-    # Full row-level trajectories only for the single worst n_to_print_in_full plots -- enough to
+    # Full row-level trajectories only for the single worst n_to_print_in_full plots. Enough to
     # actually eyeball real Age/height/thinning patterns without dumping thousands of rows.
     worst_plot_ids = flagged.head(n_to_print_in_full)["identification"]
     worst_trajectories = trajectories[trajectories["identification"].isin(worst_plot_ids)]

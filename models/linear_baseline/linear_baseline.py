@@ -16,7 +16,7 @@ FEATURE_COLUMNS = [
     "recent_thinning_5yr",
     "thinning_status",
 ]
-# yldc removed 2026-07-28 -- real ablation showed it hurts generalisation, see progress_notes.md.
+# yldc removed 2026-07-28. Real ablation showed it hurts generalisation, see progress_notes.md.
 # Thin/time_since_thinning/time_since_thinning_missing/recent_thinning_5yr added 2026-07-30 --
 # this baseline previously got only the categorical thinning_status while rf_baseline got only
 # these continuous/binary ones and DNN/PINN got both, with no reason on record; now all three
@@ -26,7 +26,7 @@ CATEGORICAL_COLUMNS = ["thinning_status"]
 assert_no_split_columns_in_features(FEATURE_COLUMNS, "linear_baseline")
 
 # Fixed category order so drop_first (below) always drops "never_thinned" specifically,
-# not whatever happens to sort first alphabetically -- see encode_features().
+# not whatever happens to sort first alphabetically. See encode_features().
 THINNING_STATUS_CATEGORIES = [
     "never_thinned", "recent_0_5yr", "mid_6_10yr", "old_10plus_yr",
     "not_yet_thinned_at_survey", "unknown_timing",
@@ -59,14 +59,14 @@ def encode_features(df, feature_columns=None, encoded_column_names=None):
     # feature_columns defaults to the plain FEATURE_COLUMNS (Age + management only), matching
     # every existing baseline result exactly. Pass an extended list (e.g. FEATURE_COLUMNS +
     # terrain/wind columns) to test whether adding the same environmental information the
-    # neural models see closes any of their gap over this baseline -- added 2026-08-09 for that
+    # neural models see closes any of their gap over this baseline. Added 2026-08-09 for that
     # specific check, see models/baselines/run_baselines_env.py.
     if feature_columns is None:
         feature_columns = FEATURE_COLUMNS
     encoded = df[feature_columns].copy()
     encoded["thinning_status"] = pd.Categorical(encoded["thinning_status"], categories=THINNING_STATUS_CATEGORIES)
     # time_since_thinning is NaN for plots that have never been thinned (time_since_thinning_missing
-    # is True for those rows) -- LinearRegression can't handle NaN directly, so fill it with 0 here,
+    # is True for those rows). LinearRegression can't handle NaN directly, so fill it with 0 here,
     # same as rf_baseline does; the missing flag is what actually tells the model "never thinned".
     encoded["time_since_thinning"] = encoded["time_since_thinning"].fillna(0)
     encoded = pd.get_dummies(encoded, columns=CATEGORICAL_COLUMNS, drop_first=True)
@@ -105,7 +105,7 @@ def predict(df, params):
     # else worth checkpointing.
     #
     # feature_columns falls back to plain FEATURE_COLUMNS for params saved before this key
-    # existed (2026-08-09) -- keeps every existing saved params.json loadable unchanged.
+    # existed (2026-08-09). Keeps every existing saved params.json loadable unchanged.
     encoded = encode_features(
         df, feature_columns=params.get("feature_columns", FEATURE_COLUMNS),
         encoded_column_names=params["encoded_column_names"],

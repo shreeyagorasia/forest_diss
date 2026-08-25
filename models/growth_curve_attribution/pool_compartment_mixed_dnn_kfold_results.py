@@ -2,7 +2,7 @@
 # per-fold test-prediction CSVs. Test-set R2 is architecturally expected to match
 # simple_dnn_check.py's own pooled number fold-for-fold (see compartment_mixed_dnn_check.py's
 # module docstring: every test compartment is one the model never trained on, so its shrunk
-# intercept is exactly 0 there) -- pooling both independently is still worth doing since a
+# intercept is exactly 0 there). Pooling both independently is still worth doing since a
 # mismatch would flag a real bug, not just confirm the expected result.
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ def load_fold_predictions(cohort: str, scope: str, k_folds: int = DEFAULT_K_FOLD
         fold_tables.append(fold_table)
 
     if missing_folds:
-        print(f"  Warning: missing CSVs for fold(s) {missing_folds} -- only pooling the {len(fold_tables)} folds found so far.")
+        print(f"  Warning: missing CSVs for fold(s) {missing_folds}. Only pooling the {len(fold_tables)} folds found so far.")
     if not fold_tables:
         raise FileNotFoundError(f"No fold CSVs found for {cohort}/{scope} in {OUTPUT_DIR}")
 

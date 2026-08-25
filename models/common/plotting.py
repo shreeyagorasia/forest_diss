@@ -47,7 +47,7 @@ def plot_ordered_predictions_with_ci(y_true, y_pred, ci_low, ci_high, unit_label
 
     xlabel = "Unit (ordered by ascending target value)"
     if unit_labels is not None:
-        # Only label a handful of ticks -- with hundreds/thousands of units, labelling every
+        # Only label a handful of ticks. With hundreds/thousands of units, labelling every
         # single one would be unreadable, same reasoning as the reference figure's own sparse
         # x-axis ticks.
         tick_step = max(len(x_positions) // 10, 1)
@@ -64,7 +64,7 @@ def plot_predicted_vs_observed(y_true, y_pred, ax=None):
         _, ax = plt.subplots()
     # rasterized=True: with 7 models x 2 cohorts now calling this in a single figure
     # (baseline_results.ipynb section 5.4), tens of thousands of vector points per panel
-    # made that cell slow to render/save -- rasterizing just the point layer (axes/text
+    # made that cell slow to render/save. Rasterizing just the point layer (axes/text
     # stay vector) fixes that with no visual difference at normal zoom.
     ax.scatter(y_true, y_pred, s=8, alpha=0.4, rasterized=True)
 
@@ -156,7 +156,7 @@ def plot_loss_curve(history_df, ax=None):
     # history_df is training_history.csv read back in (one row per epoch).
     # Every model's history has train_loss/val_loss; the PINN's history also
     # has data_loss/physics_loss/trajectory_loss, which get drawn as thin
-    # dashed lines automatically if those columns exist -- so this one
+    # dashed lines automatically if those columns exist. So this one
     # function works for both the DNN and the PINN's training_history.csv,
     # nothing to change when switching between them.
     if ax is None:
@@ -165,7 +165,7 @@ def plot_loss_curve(history_df, ax=None):
     ax.plot(history_df["epoch"], history_df["train_loss"], label="train_loss", color="#1f77b4")
     ax.plot(history_df["epoch"], history_df["val_loss"], label="val_loss", color="#d62728", alpha=0.4)
 
-    # val_loss_smoothed (a short rolling average -- see fit()'s
+    # val_loss_smoothed (a short rolling average. See fit()'s
     # VAL_LOSS_SMOOTHING_WINDOW) only exists in newer training_history.csv
     # files. Drawn on top, solid, since it's what actually decides the best
     # epoch below; val_loss itself is kept faint so the raw noise is still
@@ -207,7 +207,7 @@ def plot_loss_curve_comparison(histories, ax=None, value_column="val_loss_smooth
     labels = list(histories.keys())
 
     # If every label is a number (e.g. physics_weight values), colour them
-    # from small to large using a colour gradient -- this makes "does a
+    # from small to large using a colour gradient. This makes "does a
     # higher weight trend toward a worse plateau" visible at a glance.
     # Otherwise (e.g. seed numbers just used as names), give each label its
     # own distinct colour instead.
@@ -243,7 +243,7 @@ def plot_loss_curve_comparison(histories, ax=None, value_column="val_loss_smooth
 
 def plot_learning_rate_curve(history_df, ax=None):
     # The ReduceLROnPlateau scheduler shrinks the learning rate whenever
-    # val_loss stalls -- this plot shows WHEN that happened, which is
+    # val_loss stalls. This plot shows WHEN that happened, which is
     # usually the explanation for a sudden change in the loss curve's
     # slope that looking at loss alone doesn't make obvious.
     if ax is None:
@@ -259,7 +259,7 @@ def plot_learning_rate_curve(history_df, ax=None):
 def plot_generalization_gap(history_df, ax=None):
     # val_loss - train_loss, plotted directly, epoch by epoch. A gap that
     # grows over training is the overfitting signal; a gap that's flat or
-    # shrinking is healthy -- more direct to read off one line than to
+    # shrinking is healthy. More direct to read off one line than to
     # eyeball the distance between two separate lines that are also each
     # moving.
     if ax is None:
@@ -275,7 +275,7 @@ def plot_generalization_gap(history_df, ax=None):
 
 def plot_gradient_norm_curve(history_df, ax=None, grad_clip_max_norm=None):
     # Pre-clip gradient norm per epoch (see train_one_epoch() in
-    # dnn_noenv.py/pinn_noenv.py -- clip_grad_norm_ returns this value
+    # dnn_noenv.py/pinn_noenv.py. Clip_grad_norm_ returns this value
     # before shrinking it). If grad_clip_max_norm is given, draws it as a
     # reference line: gradient norms that sit clearly above it mean
     # clipping is engaging almost every epoch (a sign of real training

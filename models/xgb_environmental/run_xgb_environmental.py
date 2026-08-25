@@ -3,15 +3,15 @@
 #     or: python -m models.xgb_environmental.run_xgb_environmental (both cohorts, one after another)
 #
 # Fits XGBoost to predict each plot's mean Chapman-Richards residual from its environmental
-# variables (terrain, wind, soil, climate, plus GPKG-derived geometry) -- two different feature
+# variables (terrain, wind, soil, climate, plus GPKG-derived geometry). Two different feature
 # sets are tried, see FEATURE_SETS in xgb_environmental.py. Unlike the DNN/PINN models in this
 # repo, XGBoost fits in seconds on this data size, so there is no separate cluster
-# fit-then-local-evaluate split -- this one script fits, evaluates, and computes SHAP values all
+# fit-then-local-evaluate split. This one script fits, evaluates, and computes SHAP values all
 # in one pass.
 #
 # Uses spatial_block_split() (whole forestry compartments held out), the same split every other
 # terrain/wind-aware model in this repo uses, for the same reason: a random plot-level split
-# would put neighbouring plots -- which share near-identical terrain/wind conditions -- on both
+# would put neighbouring plots. Which share near-identical terrain/wind conditions. On both
 # sides of the split, letting the model look like it generalises when it has really just
 # memorised local conditions.
 
@@ -29,10 +29,10 @@ COHORTS = ["4survey", "6survey"]
 SEED = 42
 DEVICE = "cpu"  # XGBoost here runs on plain CPU, no GPU needed for this data size
 
-# SHAP values are only computed for "all_environmental" -- the main deliverable.
+# SHAP values are only computed for "all_environmental". The main deliverable.
 # "terrain_and_wind_only" is a metrics-only comparison, kept for continuity with the
-# dissertation plan's original XGB-A/B framing -- no SHAP needed for that one.
-# (There used to be a second SHAP target here, "all_environmental_no_neighbour" -- removed
+# dissertation plan's original XGB-A/B framing. No SHAP needed for that one.
+# (There used to be a second SHAP target here, "all_environmental_no_neighbour". Removed
 # 2026-07-31 along with the feature set itself, once neighbour_mean_height/
 # neighbour_height_differential were confirmed to leak test-set information and dropped from
 # ALL_FEATURE_COLUMNS entirely. See xgb_environmental.py's FEATURE_PROVENANCE comment.)
@@ -44,10 +44,10 @@ def run_one_feature_set(cohort, feature_set_name, plots_df):
 
     # spatial_block_split() actually returns FOUR possible labels: "train", "val", "test", and
     # "buffer" (train plots too close to a val/test plot, excluded entirely). Earlier code here
-    # only read "train"/"test" and silently dropped every "val" row -- val was neither trained
+    # only read "train"/"test" and silently dropped every "val" row. Val was neither trained
     # on nor evaluated on, it just vanished. That meant the only real held-out numbers available
     # were test-set numbers, so the ablation/feature-selection work in the Tier-2 notebook ended
-    # up repeatedly re-using the TEST set to decide which features to keep -- exactly the kind of
+    # up repeatedly re-using the TEST set to decide which features to keep. Exactly the kind of
     # "peeking" documentation/handover_2026-07-18.md's own next-steps section had already flagged
     # as a risk. Fixed here by keeping val_df as a real, usable split: val is for any
     # feature-selection/comparison decision, test is touched only once, for the final reported
@@ -77,7 +77,7 @@ def run_one_feature_set(cohort, feature_set_name, plots_df):
         model = fit(train_df, feature_set_name, seed=SEED)
 
         def scored_metrics(df):
-            # mre/accuracy_pct divide by the OBSERVED value -- that formula assumes a height
+            # mre/accuracy_pct divide by the OBSERVED value. That formula assumes a height
             # (always positive, far from zero), not a residual (centred near zero, often
             # negative). For a residual target those two fields come out as nonsense (e.g. "109%
             # accuracy"), so they are dropped here rather than saved somewhere they could be
@@ -90,7 +90,7 @@ def run_one_feature_set(cohort, feature_set_name, plots_df):
         # val is the ONLY split used for feature-selection/comparison decisions (ablation refits,
         # SHAP-based redundancy calls, etc, in the Tier-2 notebook). test is reported here purely
         # as the single, final, only-touched-once number for whichever feature set was already
-        # decided using val -- it must never be looped back into a decision about what to keep.
+        # decided using val. It must never be looped back into a decision about what to keep.
         val_metrics, _ = scored_metrics(val_df)
         test_metrics, test_predictions = scored_metrics(test_df)
         metrics = test_metrics
@@ -106,7 +106,7 @@ def run_one_feature_set(cohort, feature_set_name, plots_df):
         predictions_out.to_csv(save_dir / "predictions.csv", index=False)
 
         # metrics.json stays the TEST metrics under the same flat keys as before (nothing reading
-        # this file needs to change) -- val metrics are saved alongside in their own file so any
+        # this file needs to change). Val metrics are saved alongside in their own file so any
         # notebook/script that wants to make a feature-selection decision has an honest, separate
         # place to look, instead of reaching for metrics.json's test numbers by habit.
         with open(save_dir / "metrics.json", "w") as f:
@@ -116,7 +116,7 @@ def run_one_feature_set(cohort, feature_set_name, plots_df):
         print(f"  Saved metrics + predictions -> {save_dir}")
 
         if feature_set_name in FEATURE_SETS_NEEDING_SHAP:
-            # SHAP is restricted to train+val rows ONLY -- test rows are never passed in here.
+            # SHAP is restricted to train+val rows ONLY. Test rows are never passed in here.
             # Computing SHAP over the full plots_df (including test) was flagged as a leakage
             # risk: it let the "held-out" test set be inspected/explained ahead of the one, final,
             # honest evaluation, the same peeking problem the val split above now exists to avoid.

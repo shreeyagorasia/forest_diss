@@ -4,7 +4,7 @@
 #
 # Fits Chapman-Richards, average-by-age, linear regression, and random
 # forest baselines for both cohorts. This pass only fits and saves
-# parameters/models -- evaluation happens separately in evaluate_baselines.py.
+# parameters/models. Evaluation happens separately in evaluate_baselines.py.
 #
 # --split-type plot_level (default) is the easy, already-established split:
 # individual plots are shuffled randomly into train/val/test, so a test plot
@@ -13,17 +13,17 @@
 # shuffled into train/val/test instead, so a test plot's nearest training
 # neighbour can be kilometres away. --split-type temporal is a third,
 # different question: does the model predict a real FUTURE survey it never
-# trained on -- train on 2008+2012 (4survey) / 2002-2012 (6survey), validate
+# trained on. Train on 2008+2012 (4survey) / 2002-2012 (6survey), validate
 # on 2021, test on 2023 (see TEMPORAL_YEARS in models/common/splits.py).
 # Unlike the other two splits, the same plot legitimately appears in both
-# train and test rows here -- that is expected, not a leak, since this
+# train and test rows here. That is expected, not a leak, since this
 # split tests time generalisation, not plot or place generalisation. Every
 # output path is kept separate per split type (outputs/spatial_block/...,
 # outputs/temporal/... vs outputs/...), so running one never overwrites
 # another.
 #
 # Every model's fit attempt is logged to outputs/run_logs/, one JSON file
-# per model per cohort, whether it succeeds or fails -- see
+# per model per cohort, whether it succeeds or fails. See
 # models/common/run_logging.py. A failed fit is caught, logged, and printed
 # as a warning; it does NOT stop the other three models from being fit.
 
@@ -58,12 +58,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 COHORTS = ["4survey", "6survey"]
 SEED = 42
 
-# filter_data()'s own default -- kept as its own named constant here (not just re-typing "30")
+# filter_data()'s own default. Kept as its own named constant here (not just re-typing "30")
 # so build_split_for_cohort()/run_for_cohort() can compare against it to decide whether a
 # non-default --maturity-age-min needs its own suffixed output path, same pattern as split_seed.
 MATURITY_AGE_MIN_DEFAULT = 30
 
-# None of these four baselines use a GPU -- sklearn/scipy only. Recorded in
+# None of these four baselines use a GPU. Sklearn/scipy only. Recorded in
 # every log entry anyway for schema consistency with the DNN/PINN logs,
 # where device actually varies (cpu/cuda/mps).
 DEVICE = "cpu"
@@ -81,14 +81,14 @@ def build_split_for_cohort(
     # everything Chapman-Richards and average-by-age need), then saved.
     # linear_baseline and rf_baseline reuse this exact split by merging onto
     # it (in load_train_rows), rather than recomputing the split separately
-    # -- that guarantees all four baselines share identical train/val/test
+    #. That guarantees all four baselines share identical train/val/test
     # membership, even though every model now reads from the same
     # consolidated model_table.parquet (2026-07-28, see
     # data_processing/export_model_tables.py).
     #
     # filter_data() now gates whole plots on their Age at the 2023 survey
     # (see models/common/data.py), so a plot's early rows here can still show
-    # Age well under 20 -- that is expected, not a bug.
+    # Age well under 20. That is expected, not a bug.
     df = load_cohort_data(cohort)
     filtered_df = filter_data(df, maturity_age_min=maturity_age_min)
 
@@ -97,7 +97,7 @@ def build_split_for_cohort(
         # Chapman-Richards, average-by-age, nor linear regression has
         # anything to tune (no hyperparameters, no early stopping), and the
         # RF baseline isn't tuned yet either, so val is saved here for
-        # schema consistency with later models only -- it is not read by
+        # schema consistency with later models only. It is not read by
         # any model fitted in this script. Only train is used for fitting.
         filtered_df["split"] = plot_level_split(filtered_df, seed=split_seed)
     elif split_type == "spatial_block":
@@ -115,7 +115,7 @@ def build_split_for_cohort(
     elif split_type == "temporal":
         # Every plot in this data has full year coverage for its cohort (see
         # documentation/model_instructions), so this always covers every row
-        # -- no "unassigned" rows are expected here.
+        #. No "unassigned" rows are expected here.
         filtered_df["split"] = temporal_split(
             filtered_df,
             year_col="LiDAR_year",
@@ -123,7 +123,7 @@ def build_split_for_cohort(
         )
     elif split_type == "temporal_narrow_gap":
         # Same temporal_split() function, a different year assignment (2-year
-        # train-to-test gap instead of temporal's 11 years) -- see
+        # train-to-test gap instead of temporal's 11 years). See
         # TEMPORAL_YEARS_NARROW_GAP in models/common/splits.py.
         filtered_df["split"] = temporal_split(
             filtered_df,
@@ -133,7 +133,7 @@ def build_split_for_cohort(
     elif split_type == "spatial_block_kfold":
         # A CR anchor fit on a plain spatial_block split's train set would leak some of THIS
         # fold's held-out compartments into the "frozen" physics anchor pinn_env_terrain/
-        # pinn_env_terrain_k read -- fitting CR (and, for consistency, the other three baselines)
+        # pinn_env_terrain_k read. Fitting CR (and, for consistency, the other three baselines)
         # separately per fold, on that fold's own train set, keeps the anchor genuinely
         # fold-matched. See models/common/splits.py::spatial_kfold_split() for the fold mechanics.
         filtered_df["split"] = spatial_kfold_split(
@@ -166,14 +166,14 @@ def load_train_rows(cohort, table_name, split_assignment, maturity_age_min=MATUR
     # a different source file.
     #
     # maturity_age_min MUST match whatever build_split_for_cohort() used to build
-    # split_assignment, or the row-count assertion below fails -- run_for_cohort() passes the
+    # split_assignment, or the row-count assertion below fails. Run_for_cohort() passes the
     # same value to both, so this can only drift if a caller bypasses run_for_cohort().
     table = load_model_table(cohort)
     filtered_table = filter_data(table, maturity_age_min=maturity_age_min)
 
     merged = filtered_table.merge(split_assignment, on=["identification", "LiDAR_year"], how="inner")
     assert len(merged) == len(filtered_table), (
-        f"Row count changed after merging {table_name} with the shared split assignment -- "
+        f"Row count changed after merging {table_name} with the shared split assignment. "
         "the source tables may no longer agree on which rows survive filtering."
     )
 
@@ -181,12 +181,12 @@ def load_train_rows(cohort, table_name, split_assignment, maturity_age_min=MATUR
 
 
 def fit_chapman_richards_logged(cohort, split_type, cr_train_df, n_rows_fit, split_seed=SEED, maturity_age_min=MATURITY_AGE_MIN_DEFAULT, name_suffix=""):
-    # Returns cr_params, or None if the fit failed/didn't converge -- callers
+    # Returns cr_params, or None if the fit failed/didn't converge. Callers
     # already handle a None result (average-by-age and the summary printers
     # skip it gracefully).
     #
     # name_suffix (2026-08-02 addition): "" for the default split_seed (SEED, every prior
-    # result in this repo) -- writes to the exact same plain path as before, zero change.
+    # result in this repo). Writes to the exact same plain path as before, zero change.
     # Non-default split_seed appends "_splitseed<N>" so a robustness-check refit never
     # overwrites the primary CR anchor pinn_noenv/pinn_env_terrain's load_cr_params() reads by
     # default. See documentation/experiment_log.md's 2026-08-02 split-seed robustness entries --
@@ -341,10 +341,10 @@ def run_for_cohort(
     k_folds=DEFAULT_K_FOLDS, held_out_fold=0,
 ):
     # name_suffix: "" only when split_seed/maturity_age_min are at their defaults AND split_type
-    # isn't spatial_block_kfold -- every existing output then stays at its exact original plain
+    # isn't spatial_block_kfold. Every existing output then stays at its exact original plain
     # path, zero change. Each non-default piece appends its own tag ("_splitseed<N>",
     # "_agemin<N>", "_fold<i>"), same "only non-default gets a suffix" convention already used for
-    # split_seed alone (2026-08-02) -- multiple can be non-default at once, the tags concatenate.
+    # split_seed alone (2026-08-02). Multiple can be non-default at once, the tags concatenate.
     # A fold tag is always added under spatial_block_kfold (never omitted), since held_out_fold=0
     # is still a genuinely different split from every other fold, not a "default" in the same
     # sense split_seed=SEED is.
@@ -438,7 +438,7 @@ def main():
         help=(
             "plot_level (default, easy/established), spatial_block (harder, "
             "unseen-compartment test), spatial_block_kfold (rotates which compartments are held "
-            "out across --n-folds folds -- use with --fold-index to fit a fold-matched CR anchor "
+            "out across --n-folds folds. Use with --fold-index to fit a fold-matched CR anchor "
             "for pinn_env_terrain/pinn_env_terrain_k's k-fold runs), temporal (predict a real "
             "future survey, 11-year train-to-test gap), or temporal_narrow_gap (same idea, 2-year "
             "gap)."
@@ -459,7 +459,7 @@ def main():
         "--split-seed", type=int, default=SEED,
         help=f"Seed for spatial_block_split's/plot_level_split's own shuffle (default {SEED}, "
              "every existing baseline output). Non-default writes to a "
-             "'_splitseed<N>'-suffixed path, never overwriting the primary outputs -- see "
+             "'_splitseed<N>'-suffixed path, never overwriting the primary outputs. See "
              "documentation/experiment_log.md's 2026-08-02 split-seed robustness entries. "
              "pinn_noenv/pinn_env_terrain's load_cr_params() needs a matching CR anchor refit "
              "here before a non-default --split-seed on those models is a valid comparison.",
@@ -469,7 +469,7 @@ def main():
         help=f"Passed straight through to filter_data()'s maturity_age_min (default "
              f"{MATURITY_AGE_MIN_DEFAULT}, every existing baseline output). A plot whose Age at "
              "the 2023 survey is below this is dropped ENTIRELY (every one of its survey years, "
-             "not just the young one) -- see models/common/data.py::filter_data(). Pass 0 to "
+             "not just the young one). See models/common/data.py::filter_data(). Pass 0 to "
              "disable the gate and keep every plot regardless of maturity, to check whether this "
              "filter is helping or hurting model accuracy. Non-default writes to a "
              "'_agemin<N>'-suffixed path, never overwriting the primary outputs.",

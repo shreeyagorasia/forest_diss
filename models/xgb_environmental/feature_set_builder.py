@@ -1,11 +1,11 @@
 """Builds the "Set1-5" nested feature hierarchy, shared across three different questions:
 
   - RSQ1: Avenue 1's predictive tiers (feeds dnn_env_terrain/pinn_env_terrain*, target
-    elev_percentile_95th -- see models/common/torch_data.py::ENV_TERRAIN_FEATURE_SETS).
+    elev_percentile_95th. See models/common/torch_data.py::ENV_TERRAIN_FEATURE_SETS).
   - RSQ2: Avenue 1's attribution screen (feeds Elastic Net/XGBoost/NLME, target
-    mean_cr_residual -- see models/xgb_environmental/xgb_environmental.py::FEATURE_SETS).
+    mean_cr_residual. See models/xgb_environmental/xgb_environmental.py::FEATURE_SETS).
   - RSQ3: Avenue 2's scope system (feeds Elastic Net/XGBoost/GNNWR, target
-    local_y_max_difference -- see models/growth_curve_attribution/broad_environmental_check.py).
+    local_y_max_difference. See models/growth_curve_attribution/broad_environmental_check.py).
 
 Same five-set recipe every time, only the target column and candidate pool change per RSQ:
 
@@ -16,15 +16,15 @@ Same five-set recipe every time, only the target column and candidate pool chang
   Set4 = Set1 + every remaining category's candidates that individually clear the same gate.
   Set5 = Set1 + every deduplicated candidate, gate not applied.
 
-Every function here takes target_column as an explicit argument -- never a shared module-level
-constant -- specifically so RSQ1/RSQ2/RSQ3 can never accidentally rank against each other's
+Every function here takes target_column as an explicit argument. Never a shared module-level
+constant. Specifically so RSQ1/RSQ2/RSQ3 can never accidentally rank against each other's
 target by reusing the wrong constant (a real bug found in the existing stage1-4 tiers: they were
 built ranking against mean_cr_residual even though they feed a model that predicts
 elev_percentile_95th, a completely different target).
 
 The dedup step (drop_deterministic_duplicates, find_near_exact_duplicates,
 choose_representative_loser) and the VIF step (iterative_vif_reduction) are NOT reimplemented
-here -- they're imported as-is from models/xgb_environmental/multicollinearity_screen.py, the
+here. They're imported as-is from models/xgb_environmental/multicollinearity_screen.py, the
 same shared module Avenue 2's own screening notebook already imports from. This file only adds
 the layer on top: ranking, per-column gating, and Set1-5 assembly.
 """
@@ -49,14 +49,14 @@ from models.xgb_environmental.xgb_environmental import fit_with_columns as xgb_f
 from models.xgb_environmental.xgb_environmental import predict_with_columns as xgb_predict_with_columns
 
 # Set1's baseline columns. Starts from CATEGORY_GROUPS["stand_structure"] (already the single
-# existing definition of these 5 columns -- confirmed identical to broad_environmental_check.py's
+# existing definition of these 5 columns. Confirmed identical to broad_environmental_check.py's
 # own MANAGEMENT_COLUMNS), with two further exclusions on top:
 #
 # 1. thinning_status deliberately NOT included, matching existing precedent: both
 #    CATEGORY_GROUPS["stand_structure"] and MANAGEMENT_COLUMNS already exclude it, since it's a
 #    derived re-bucketing of time_since_thinning/recent_thinning_5yr/Thin (already in this list)
-#    -- adding it too would feed overlapping information twice.
-# 2. Thin deliberately NOT included -- confirmed, directly against the real plot-level data (not
+#   . Adding it too would feed overlapping information twice.
+# 2. Thin deliberately NOT included. Confirmed, directly against the real plot-level data (not
 #    assumed from the VIF number alone), that Thin + time_since_thinning_missing == 1.0 EXACTLY
 #    for all 71,766 plots in plot_environmental_features.parquet, no exceptions. This is why the
 #    first version of run_rsq2_vif_pass below saw VIF=inf for these two: it's a genuine
@@ -64,26 +64,26 @@ from models.xgb_environmental.xgb_environmental import predict_with_columns as x
 #    multicollinearity_screen.py already documents for other pairs (e.g. inverse_slope_proxy =
 #    -slope_degrees), just never previously written down for this pair. time_since_thinning_missing
 #    is kept, not Thin: its actual job is as a missingness flag paired with time_since_thinning
-#    (torch_data.py's fill_missing_time_since_thinning -- "the missingness flag is what actually
+#    (torch_data.py's fill_missing_time_since_thinning. "the missingness flag is what actually
 #    tells the model this is a placeholder, not a real elapsed time"), so time_since_thinning +
 #    time_since_thinning_missing together already carry everything Thin does, losslessly. This
-#    only changes what this module unions onto Set1-5 -- it does NOT touch the existing production
+#    only changes what this module unions onto Set1-5. It does NOT touch the existing production
 #    DNN/PINN pipeline in torch_data.py, which still feeds both columns through its own separate
 #    NUMERIC_SCALED_COLUMNS/BINARY_PASSTHROUGH_COLUMNS pathway (a pre-existing, separate design
-#    decision, out of scope for this fix -- flagged, not silently changed).
+#    decision, out of scope for this fix. Flagged, not silently changed).
 SET1_BASELINE_COLUMNS = [
     column for column in CATEGORY_GROUPS["stand_structure"] if column != "Thin"
 ]
 
 # The gate used for Set3/Set4. Deliberately low ("carries any real individual signal at all", not
-# "is a strong predictor on its own") -- same threshold and same reasoning as the existing
+# "is a strong predictor on its own"). Same threshold and same reasoning as the existing
 # STAGE3_SIGNAL_THRESHOLD in notebooks/environmental_data/multicollinearity_screen_av1.ipynb.
 SIGNAL_GATE_THRESHOLD = 0.10
 
 
 def dedup_candidates(df, candidate_columns, feature_provenance, target_column, near_exact_threshold=0.95):
     """Stages 1-2 only: drop deterministic duplicates, then drop near-exact empirical duplicates
-    (|Spearman rho| >= near_exact_threshold). No VIF here -- VIF is a separate, later step, and
+    (|Spearman rho| >= near_exact_threshold). No VIF here. VIF is a separate, later step, and
     (per the project's own design) only RSQ2 ever needs it (see run_rsq2_vif_pass below).
 
     This is the exact same two-stage logic as the existing multicollinearity_screen_av1.ipynb's
@@ -103,7 +103,7 @@ def dedup_candidates(df, candidate_columns, feature_provenance, target_column, n
     kept = list(after_stage1)
     for column_a, column_b, rho in near_exact_pairs:
         # A column may already have been dropped by an earlier pair in this same loop (e.g. a
-        # three-way near-exact cluster) -- skip pairs where that's already happened.
+        # three-way near-exact cluster). Skip pairs where that's already happened.
         if column_a not in kept or column_b not in kept:
             continue
         losers = choose_representative_loser([column_a, column_b], feature_provenance, df, target_column)
@@ -123,15 +123,15 @@ def drop_reference_level_per_category(columns, category_prefixes):
     correct for the tree/local models it was originally built for (XGBoost/GNNWR don't need a
     reference level), but wrong for VIF/linear-regression purposes: with every level present, one
     categorical's own dummies structurally sum to a constant, perfectly collinear with the
-    intercept VIF's own add_constant() adds -- confirmed directly: RSQ3's Set5 showed VIF=inf for
+    intercept VIF's own add_constant() adds. Confirmed directly: RSQ3's Set5 showed VIF=inf for
     multiple ceh_* dummy columns, an encoding artifact, not evidence of real redundancy between
     meaningful variables.
 
     Drops exactly one level per categorical (the alphabetically/numerically first, for
-    determinism) from `columns`, BEFORE dedup/ranking/VIF ever run -- not just at VIF time, so
+    determinism) from `columns`, BEFORE dedup/ranking/VIF ever run. Not just at VIF time, so
     every signal (Spearman, permutation, ablation, VIF) sees the same k-1-per-categorical
     representation, standard practice for a design matrix that includes an intercept. Only
-    affects this Set1-5 pipeline's own candidate pool -- prepare_broad_table() itself, and every
+    affects this Set1-5 pipeline's own candidate pool. Prepare_broad_table() itself, and every
     OTHER caller of it (the existing SCOPE_GROUPS system), is untouched.
 
     category_prefixes: e.g. ["ceh_pedotope=", "ceh_subsurface_drainage=", "ceh_textural_composition="].
@@ -151,8 +151,8 @@ def rank_by_target_correlation(df, candidate_columns, target_column):
 
     Uses nan_policy="omit" throughout, matching multicollinearity_screen.py's own convention
     (choose_representative_loser already uses this). Deliberately NOT
-    explain_signal.spearman_with_target -- that function relies on the caller having already
-    dropped every NaN row first (an implicit precondition, fine for its one call site) -- unsafe
+    explain_signal.spearman_with_target. That function relies on the caller having already
+    dropped every NaN row first (an implicit precondition, fine for its one call site). Unsafe
     to reuse generically here across three tables with different missingness patterns.
     """
     rows = []
@@ -173,7 +173,7 @@ def gate_columns_by_signal(df, candidate_columns, target_column, threshold=SIGNA
     variable inside an otherwise-strong category should not ride along just because a neighbour in
     the same category is strong.
 
-    Returns (passed_columns, rho_table) -- rho_table has every candidate's own rho, not just the
+    Returns (passed_columns, rho_table). Rho_table has every candidate's own rho, not just the
     ones that passed, so a human reading the notebook can see exactly what just missed the cut.
     """
     rho_table = rank_by_target_correlation(df, candidate_columns, target_column)
@@ -183,9 +183,9 @@ def gate_columns_by_signal(df, candidate_columns, target_column, threshold=SIGNA
 
 def _spatial_holdout_split(df, seed=SPLIT_SEED):
     """One spatial_block_split (a single train/test partition, NOT the project's real pooled
-    5-fold spatial CV) -- deliberately cheaper, screening-only. The Set eventually CHOSEN from
+    5-fold spatial CV). Deliberately cheaper, screening-only. The Set eventually CHOSEN from
     this notebook still gets evaluated properly under the project's real 5-fold spatial CV later
-    (that's a separate, later step -- this is just deciding which candidates are worth including
+    (that's a separate, later step. This is just deciding which candidates are worth including
     in the first place). Still spatially blocked, not a plain random split, matching this
     project's own standard discipline throughout (a random split lets a model see near-identical
     neighbouring plots on both sides of the split, overstating how well it generalises).
@@ -202,7 +202,7 @@ def _spatial_holdout_split(df, seed=SPLIT_SEED):
 def permutation_importance_ranking(df, candidate_columns, baseline_columns, target_column, control_columns=None, seed=SPLIT_SEED):
     """Fits ONE reference XGBoost model (baseline + control + every candidate together) on a
     spatial train/test split, then for each candidate column, shuffles that column's values in
-    the test set and re-predicts with the SAME already-fitted model (no retraining) -- the drop
+    the test set and re-predicts with the SAME already-fitted model (no retraining). The drop
     in test R2 is that column's permutation importance. XGBoost is used as a common reference
     model across all three RSQs: fast, handles both continuous and categorical (one-hot) columns
     natively, and already the shared model family used elsewhere in this project's own
@@ -210,20 +210,20 @@ def permutation_importance_ranking(df, candidate_columns, baseline_columns, targ
 
     control_columns (default: none) are included in the reference model's design matrix, exactly
     like baseline_columns, but are NEVER permuted/ablated themselves and never appear in the
-    returned ranking -- they exist purely so importance gets measured "given this column is
+    returned ranking. They exist purely so importance gets measured "given this column is
     already in the model," not in a model missing it. RSQ1 needs this for Age: the first real run
     of this notebook, without Age in the reference model at all, got a reference R2 of -0.168
-    (worse than predicting the mean) on elev_percentile_95th (raw height) -- Age is this
+    (worse than predicting the mean) on elev_percentile_95th (raw height). Age is this
     project's own single dominant predictor of height (~63% of variance elsewhere in this
     project's notes), so a model missing it entirely is badly misspecified, and every
     permutation/ablation number computed against it is unreliable. Age is NOT circular for RSQ1
     the way it is for RSQ2/RSQ3 (whose targets are residuals already built FROM Age via the CR
-    curve) -- it only needs to be excluded from what gets UNIONED into the exported Set2-5 lists
+    curve). It only needs to be excluded from what gets UNIONED into the exported Set2-5 lists
     (RSQ1's real dnn_env_terrain model already gets Age through its own separate pathway), not
     from the reference model used to rank everything else correctly.
 
     Known limitation, disclosed rather than hidden: permutation importance is biased under
-    correlated predictors (Strobl et al. 2008) -- shuffling one column while its correlated
+    correlated predictors (Strobl et al. 2008). Shuffling one column while its correlated
     partners stay fixed creates combinations that never occur in the real data, which can over-
     or under-state a column's importance. Dedup (stages 1-2) already removes near-exact
     duplicates before this runs, which reduces but does not eliminate the risk for the more
@@ -231,7 +231,7 @@ def permutation_importance_ranking(df, candidate_columns, baseline_columns, targ
     Spearman ranking specifically so disagreement between methods is visible, not hidden inside
     one number treated as ground truth.
 
-    Returns (ranked_table, baseline_r2) -- ranked_table sorted by r2_drop_from_permutation, most
+    Returns (ranked_table, baseline_r2). Ranked_table sorted by r2_drop_from_permutation, most
     important first.
     """
     control_columns = list(control_columns) if control_columns else []
@@ -264,13 +264,13 @@ def drop_column_ablation_ranking(df, candidate_columns, baseline_columns, target
     and measures the drop in test R2 against the full model. Slower than permutation importance
     (one full refit per candidate, not just a reshuffle) but answers a more direct question: does
     the model's actual held-out performance get worse without this column, given everything else
-    already in the model -- the "remove one and see what happens" check.
+    already in the model. The "remove one and see what happens" check.
 
-    control_columns: see permutation_importance_ranking's own docstring -- same purpose (RSQ1
+    control_columns: see permutation_importance_ranking's own docstring. Same purpose (RSQ1
     needs Age here for the same reason), same guarantee (never itself ablated, never in the
     returned ranking).
 
-    Returns (ranked_table, full_r2) -- ranked_table sorted by r2_drop_from_removal, most
+    Returns (ranked_table, full_r2). Ranked_table sorted by r2_drop_from_removal, most
     important first (removing it hurt the most).
     """
     control_columns = list(control_columns) if control_columns else []
@@ -295,16 +295,16 @@ def drop_column_ablation_ranking(df, candidate_columns, baseline_columns, target
 
 
 def combine_importance_ranks(spearman_table, permutation_table, ablation_table):
-    """Combines all three importance signals into one rank-aggregated table -- an item has to
+    """Combines all three importance signals into one rank-aggregated table. An item has to
     look important across MULTIPLE different lenses to rank highly overall, not just fool one
     particular method's own blind spot (Spearman ignores context/interactions; permutation is
     biased under correlation; drop-column ablation depends on one model/split). Rank aggregation
     (not averaging the raw numbers) is used because the three signals are on completely different
-    scales (a correlation coefficient vs. an R2 drop) -- ranks are the one thing directly
+    scales (a correlation coefficient vs. an R2 drop). Ranks are the one thing directly
     comparable across all three.
 
     Returns one row per variable: each method's own raw score, each method's own rank (1 = most
-    important), and average_rank across all three -- sorted by average_rank ascending (most
+    important), and average_rank across all three. Sorted by average_rank ascending (most
     important first). build_set2/gate_columns_by_combined_rank below both just read the
     "variable" column off the top of this table, in order, same interface as the old
     Spearman-only rho_table had.
@@ -315,7 +315,7 @@ def combine_importance_ranks(spearman_table, permutation_table, ablation_table):
         ablation_table[["variable", "r2_drop_from_removal"]], on="variable", how="outer"
     )
     # rank(ascending=False): the BIGGEST score gets rank 1 (most important), for all three
-    # columns -- a bigger |rho|, a bigger permutation R2 drop, and a bigger ablation R2 drop all
+    # columns. A bigger |rho|, a bigger permutation R2 drop, and a bigger ablation R2 drop all
     # mean "more important" in the same direction.
     merged["spearman_rank"] = merged["abs_rho"].rank(ascending=False)
     merged["permutation_rank"] = merged["r2_drop_from_permutation"].rank(ascending=False)
@@ -331,7 +331,7 @@ def gate_columns_by_combined_rank(combined_table, candidate_columns, top_fractio
     defended. Ties (e.g. a category of 3 candidates asking for the "top half") round UP, so a
     small category doesn't lose every member to integer rounding.
 
-    Returns (passed_columns, category_table) -- category_table is combined_table filtered and
+    Returns (passed_columns, category_table). Category_table is combined_table filtered and
     re-sorted to just this category's own candidates, so a human can see the whole category's
     ranking, not just who passed.
     """
@@ -346,19 +346,19 @@ def build_set2(df, ranked_table, baseline_columns, top_n=10, vif_threshold=5.0):
     """Set2 = baseline + top N candidates by importance rank, VIF-screened WITH backfill.
 
     Walks down ranked_table (combine_importance_ranks()'s combined table, most-important-first)
-    in order. A candidate is added only if its OWN VIF -- computed against baseline + every
-    candidate already kept -- stays at or below vif_threshold; a candidate that would push VIF
+    in order. A candidate is added only if its OWN VIF. Computed against baseline + every
+    candidate already kept. Stays at or below vif_threshold; a candidate that would push VIF
     over the threshold is skipped, and the NEXT-ranked candidate is tried instead, so Set2 still
     ends up with top_n members (unless the ranked list runs out first).
 
     Fixes a real gap found in review: the earlier top_n=10 fix (2026-08-10) widened Set2 but
-    never VIF-checked it -- dist_to_scpt_boundary/dist_to_cpmt_boundary (mutually VIF~9.14) both
+    never VIF-checked it. Dist_to_scpt_boundary/dist_to_cpmt_boundary (mutually VIF~9.14) both
     stayed in RSQ1's Set2 regardless. Checked at ADD TIME (skip and try the next candidate), not
     after the fact like Set3/4/5's run_vif_pass (which only ever shrinks a fixed set, no
-    backfill) -- Set2's whole point is being a fixed-size "top N" list, so shrinking it silently
+    backfill). Set2's whole point is being a fixed-size "top N" list, so shrinking it silently
     would defeat that.
 
-    Returns (set2_columns, skip_log) -- skip_log records every candidate passed over because its
+    Returns (set2_columns, skip_log). Skip_log records every candidate passed over because its
     VIF would have exceeded the threshold, and what its VIF would have been, so a human can see
     what got skipped and why, not just the final list.
     """
@@ -370,7 +370,7 @@ def build_set2(df, ranked_table, baseline_columns, top_n=10, vif_threshold=5.0):
         column = row["variable"]
         trial_columns = list(baseline_columns) + kept_candidates + [column]
         if len(trial_columns) < 3:
-            # VIF needs at least 2 OTHER columns to regress against -- nothing to compare yet,
+            # VIF needs at least 2 OTHER columns to regress against. Nothing to compare yet,
             # so the first couple of candidates are accepted automatically.
             kept_candidates.append(column)
             continue
@@ -387,7 +387,7 @@ def build_set2(df, ranked_table, baseline_columns, top_n=10, vif_threshold=5.0):
 
 
 def build_set3(terrain_wind_gated_columns, baseline_columns):
-    """Set3 = baseline + gated terrain/wind candidates only -- the narrowest environmental
+    """Set3 = baseline + gated terrain/wind candidates only. The narrowest environmental
     addition, aimed at keeping the variable count low to avoid multicollinearity."""
     return list(baseline_columns) + list(terrain_wind_gated_columns)
 
@@ -399,7 +399,7 @@ def build_set4(terrain_wind_gated_columns, other_gated_columns, baseline_columns
 
 
 def build_set5(dedup_survivors, baseline_columns):
-    """Set5 = baseline + every deduplicated candidate, gate not applied -- the widest,
+    """Set5 = baseline + every deduplicated candidate, gate not applied. The widest,
     "for the sake of proof" tier."""
     return list(baseline_columns) + list(dedup_survivors)
 
@@ -410,7 +410,7 @@ def run_vif_pass(df, set_columns, protected_columns=None, threshold=5.0, max_ite
     Originally RSQ2-only (Elastic Net/NLME coefficients and SHAP are collinearity-sensitive).
     Extended to RSQ1 and RSQ3 after two pieces of evidence, not just principle: (1) this
     project's own earlier E6 tier sweep found dnn_env_terrain's held-out R2 actually DEGRADED as
-    tiers widened with more redundant columns -- an empirical, project-specific reason for RSQ1
+    tiers widened with more redundant columns. An empirical, project-specific reason for RSQ1
     beyond the generic "NNs tolerate collinearity" argument; RSQ1's exported Set2 was independently
     checked and found 4-of-5 columns with VIF>=5 (dist_to_scpt_boundary/dist_to_cpmt_boundary
     mutually ~9.1, geometrically expected but redundant). (2) RSQ3 feeds Elastic Net AND GNNWR --
@@ -420,18 +420,18 @@ def run_vif_pass(df, set_columns, protected_columns=None, threshold=5.0, max_ite
     (see drop_reference_level_per_category below, a required prerequisite for RSQ3's VIF numbers
     to mean anything).
 
-    NOT a plain call to multicollinearity_screen.py's own iterative_vif_reduction() -- that
+    NOT a plain call to multicollinearity_screen.py's own iterative_vif_reduction(). That
     function treats every column symmetrically and will happily drop a Set1 baseline column if
     ITS OWN VIF is worst. First real run of this notebook hit exactly that: Thin and
-    time_since_thinning_missing (both baseline) came back VIF=inf against each other -- a plot
+    time_since_thinning_missing (both baseline) came back VIF=inf against each other. A plot
     never thinned in any survey has Thin=0 and time_since_thinning_missing=1 in EVERY one of its
     survey rows, so the two are close to perfect complements. Baseline is supposed to be present
-    in every set unconditionally (the agreed Set1-5 design) -- silently dropping it here would
+    in every set unconditionally (the agreed Set1-5 design). Silently dropping it here would
     break that promise. protected_columns (default: SET1_BASELINE_COLUMNS) are still included in
-    the design matrix, so they still affect every OTHER column's VIF number correctly -- they are
+    the design matrix, so they still affect every OTHER column's VIF number correctly. They are
     only ever exempt from being the one column removed each iteration.
 
-    Returns (kept_columns, drop_log_rows) -- same shape as multicollinearity_screen.py's
+    Returns (kept_columns, drop_log_rows). Same shape as multicollinearity_screen.py's
     iterative_vif_reduction.
     """
     if protected_columns is None:
@@ -444,11 +444,11 @@ def run_vif_pass(df, set_columns, protected_columns=None, threshold=5.0, max_ite
         droppable_columns = [column for column in remaining_columns if column not in protected_columns]
         if len(droppable_columns) == 0 or len(remaining_columns) <= 2:
             # Nothing left that's allowed to be dropped, or too few columns left for VIF to mean
-            # anything -- stop either way.
+            # anything. Stop either way.
             break
 
         # compute_vif_table already sorts worst-first across ALL remaining_columns (protected and
-        # not) -- filtering to droppable rows afterward, rather than computing VIF on only the
+        # not). Filtering to droppable rows afterward, rather than computing VIF on only the
         # droppable subset, keeps every protected column in the design matrix so its collinearity
         # with the droppable columns is still fully accounted for.
         vif_table = compute_vif_table(df, remaining_columns)
@@ -476,17 +476,17 @@ MANIFEST_PATH = PROJECT_ROOT / "documentation" / "env_feature_sets_manifest.csv"
 
 def load_feature_set(rsq, set_name, manifest_path=MANIFEST_PATH):
     """Reads one (rsq, set_name) column list straight out of
-    documentation/env_feature_sets_manifest.csv -- the single already-computed source of truth
+    documentation/env_feature_sets_manifest.csv. The single already-computed source of truth
     for every RSQ1/RSQ2/RSQ3 Set1-5, so nothing that fits a model ever has to re-derive or
     hand-copy a variable list (and risk it silently drifting from what the manifest says).
 
     Confirmed directly against the manifest, not assumed: each row's "column" is already the
-    FULL, ready-to-use list for that (rsq, set_name) -- e.g. RSQ1/nested_set4_gated_all's 17 rows
+    FULL, ready-to-use list for that (rsq, set_name). E.g. RSQ1/nested_set4_gated_all's 17 rows
     already include RSQ1/nested_set3_gated_terrain_wind's 11, which already include none of
-    RSQ1's baseline (RSQ1's baseline is fed through a separate pathway -- see
+    RSQ1's baseline (RSQ1's baseline is fed through a separate pathway. See
     strip_baseline_for_export() below); RSQ2/RSQ3's manifest rows DO include their own baseline
     columns directly, since those two RSQs have no second pathway for it. No union/nesting logic
-    needed here -- just filter and return.
+    needed here. Just filter and return.
     """
     manifest = pd.read_csv(manifest_path)
     matching_rows = manifest[(manifest["rsq"] == rsq) & (manifest["set_name"] == set_name)]
@@ -499,10 +499,10 @@ def strip_baseline_for_export(full_columns, baseline_columns):
     """RSQ1 only: models/common/torch_data.py::assert_env_terrain_features_disjoint_from_noenv()
     rejects any terrain-tier feature list that repeats a baseline column, because RSQ1's baseline
     is already fed to the main network through a separate pathway (NUMERIC_SCALED_COLUMNS/
-    BINARY_PASSTHROUGH_COLUMNS) -- listing it again here would feed the same information twice.
+    BINARY_PASSTHROUGH_COLUMNS). Listing it again here would feed the same information twice.
     Set1-5 are built WITH baseline included (so all three RSQs share one comparable recipe), then
     this strips it back out at the point of exporting an RSQ1 tier into ENV_TERRAIN_FEATURE_SETS.
-    RSQ2/RSQ3 exports do NOT call this -- their models take one flat column list with no second
+    RSQ2/RSQ3 exports do NOT call this. Their models take one flat column list with no second
     baseline pathway, so baseline must stay in for management to have any effect there at all.
     """
     baseline_set = set(baseline_columns)

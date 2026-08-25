@@ -6,7 +6,7 @@
 # Trees split feature space into boxes; each leaf predicts a value bounded by what training rows
 # landed in that leaf. A DNN predicts with a smooth, continuous function that can extrapolate
 # further from the training data, in either direction. Under spatial_block testing, held-out
-# compartments can have terrain/environment combinations the model never trained on -- that is
+# compartments can have terrain/environment combinations the model never trained on. That is
 # the whole point of the split (it is what makes this a genuine generalisation test, not
 # interpolation).
 #
@@ -48,7 +48,7 @@ DNN_MAX_EPOCHS = 500
 DNN_EARLY_STOPPING_PATIENCE = 40
 XGB_PARAMS = dict(n_estimators=500, max_depth=6, learning_rate=0.02, random_state=42, n_jobs=1)
 
-# Continuous columns only -- binary flags (Thin, time_since_thinning_missing, recent_thinning_5yr)
+# Continuous columns only. Binary flags (Thin, time_since_thinning_missing, recent_thinning_5yr)
 # and the categorical thinning_status have no meaningful continuous "out of training range" idea
 # the same way a continuous terrain/age value does.
 CONTINUOUS_NOENV_COLUMNS = ["Age", "CanopyCover", "time_since_thinning"]
@@ -106,7 +106,7 @@ def fit_xgb_and_predict(train_df, test_df, feature_columns):
 def compute_extrapolation_score(train_df, test_df, continuous_columns):
     # For each continuous column, how far outside the TRAINING min/max does each test row sit,
     # in units of that column's own training standard deviation (so columns on different scales
-    # -- e.g. elevation in metres vs. a 0-1 index -- contribute comparably). 0 if inside range.
+    #. E.g. elevation in metres vs. a 0-1 index. Contribute comparably). 0 if inside range.
     scores = pd.DataFrame(index=test_df.index)
     n_out_of_range = pd.Series(0, index=test_df.index)
     for column in continuous_columns:
@@ -140,7 +140,7 @@ def main():
     dnn_abs_error = np.abs(observed - dnn_predictions)
     xgb_abs_error = np.abs(observed - xgb_predictions)
 
-    print(f"\nSanity check -- DNN R2: {compute_metrics(observed, dnn_predictions)['r2']:.4f}  "
+    print(f"\nSanity check. DNN R2: {compute_metrics(observed, dnn_predictions)['r2']:.4f}  "
           f"XGB R2: {compute_metrics(observed, xgb_predictions)['r2']:.4f}")
 
     continuous_columns = CONTINUOUS_NOENV_COLUMNS + list(feature_columns)
@@ -160,7 +160,7 @@ def main():
 
     dnn_ratio = dnn_abs_error[out_of_range_mask].mean() / dnn_abs_error[in_range_mask].mean()
     xgb_ratio = xgb_abs_error[out_of_range_mask].mean() / xgb_abs_error[in_range_mask].mean()
-    print(f"\nOut-of-range / in-range MAE ratio -- DNN: {dnn_ratio:.3f}  XGB: {xgb_ratio:.3f}")
+    print(f"\nOut-of-range / in-range MAE ratio. DNN: {dnn_ratio:.3f}  XGB: {xgb_ratio:.3f}")
     print("(ratio > 1 means the model does worse on out-of-range rows; if the DNN's ratio is")
     print(" clearly larger than XGBoost's, that supports the extrapolation-sensitivity guess)")
 

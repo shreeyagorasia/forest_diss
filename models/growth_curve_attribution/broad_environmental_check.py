@@ -182,10 +182,10 @@ def run_scope(cohort: str, scope: str, k: int = 5, seed: int = 42):
 def add_missing_dummy_columns_as_zero(table, requested_dummy_columns, available_columns):
     # A requested one-hot dummy (e.g. "ceh_pedotope=2.0") can be entirely absent from a cohort's
     # own pd.get_dummies() output if that cohort's population happens to have ZERO plots in that
-    # rare category -- confirmed 2026-08-11: RSQ3 Set4's `ceh_pedotope=2.0`/`=8.0`,
+    # rare category. Confirmed 2026-08-11: RSQ3 Set4's `ceh_pedotope=2.0`/`=8.0`,
     # `ceh_textural_composition=2.0` are absent from 6survey (7,467 plots) even though present in
     # 4survey (56,000+ plots), where the manifest's rank-aggregate screening was run. This is not
-    # a data error -- "0% prevalence of this rare soil category in this cohort" is real
+    # a data error. "0% prevalence of this rare soil category in this cohort" is real
     # information, not a missing value. Zero-filling here (rather than crashing, the previous
     # behaviour, or silently dropping the column, which would make Set4's column COUNT differ
     # between cohorts and break a fair cross-cohort comparison) is mathematically inert for both
@@ -200,21 +200,21 @@ def add_missing_dummy_columns_as_zero(table, requested_dummy_columns, available_
 
 
 def run_columns(cohort: str, raw_columns: list[str], k: int = 5, seed: int = 42):
-    """Raw-column-list sibling of run_scope() -- same spatial CV, but takes an explicit column
+    """Raw-column-list sibling of run_scope(). Same spatial CV, but takes an explicit column
     list directly instead of a named scope resolved through SCOPE_GROUPS. Built for the new
     rank-aggregate environmental-feature methodology (see
     models/xgb_environmental/feature_set_builder.py), whose Set2-5 membership isn't a named
-    SCOPE_GROUPS entry -- a new function, not a parameter added to run_scope() itself, so no
+    SCOPE_GROUPS entry. A new function, not a parameter added to run_scope() itself, so no
     existing named-scope caller's behaviour can change.
 
     raw_columns can mix plain continuous column names with SPECIFIC one-hot dummy names already
-    in "category=value" form (e.g. "ceh_textural_composition=5.0") -- exactly what
+    in "category=value" form (e.g. "ceh_textural_composition=5.0"). Exactly what
     documentation/env_feature_sets_manifest.csv stores for RSQ3's Set4/Set5, which rank
     individual dummy values, not whole categories. prepare_broad_table() only knows how to take a
     BARE categorical name and expand it to EVERY one of its dummies, so this function unpacks the
     specific-dummy entries back to their bare category name for that call, then filters
     prepare_broad_table's output back down to just the requested continuous columns + requested
-    specific dummies -- never every dummy of a category unless every one of them was actually
+    specific dummies. Never every dummy of a category unless every one of them was actually
     requested.
     """
     bare_columns = []
@@ -237,8 +237,8 @@ def run_columns(cohort: str, raw_columns: list[str], k: int = 5, seed: int = 42)
     model_columns = continuous_requested + requested_dummy_columns
 
     # collect_fold_models=True here (only caller of this function is RQ3's attribution driver,
-    # run_rq3_en_xgb.py -- unlike run_scope()/run_comparison() above, which are pooled-R2-only
-    # comparisons and stay on the cheap default) -- RQ3's whole point is "which variable matters",
+    # run_rq3_en_xgb.py. Unlike run_scope()/run_comparison() above, which are pooled-R2-only
+    # comparisons and stay on the cheap default). RQ3's whole point is "which variable matters",
     # so the fitted models themselves (for coefficients/SHAP) are the actual output, not a
     # side-effect. EN/XGBoost fit in seconds, so keeping the fitted objects around costs nothing.
     predictions, fold_counts, fold_models = run_spatial_cv(table, model_columns, k=k, seed=seed, collect_fold_models=True)

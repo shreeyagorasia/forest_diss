@@ -1,10 +1,10 @@
 # Purpose: two of the LLM Council's remaining pre-SHAP checks (documentation/experiment_log.md,
-# 2026-08-04 variable council entry) -- both flagged as "waved through without an actual number"
+# 2026-08-04 variable council entry). Both flagged as "waved through without an actual number"
 # by multiple advisors, so this computes the real numbers rather than assuming an answer:
 #   1. Are TPI at 100m (native), 250m, 500m, and local_relief_500m redundant with each other, or
 #      genuinely distinct spatial scales? (Only GWA-vs-GWA correlation had been checked before.)
 #   2. Is inverse_slope_proxy really a near-exact duplicate of slope_degrees, as its own code
-#      comment in xgb_environmental.py claims -- confirmed with a number, not narrative.
+#      comment in xgb_environmental.py claims. Confirmed with a number, not narrative.
 
 import numpy as np
 import pandas as pd
@@ -25,7 +25,7 @@ def compute_correlation_matrix(columns, method="spearman"):
 
 def summarize_pairwise(correlation):
     # Flattens the correlation matrix into one row per pair (excluding a variable with itself),
-    # sorted by absolute correlation -- easier to read than a full matrix when there are only a
+    # sorted by absolute correlation. Easier to read than a full matrix when there are only a
     # handful of columns.
     pairs = []
     for i, row_name in enumerate(correlation.index):

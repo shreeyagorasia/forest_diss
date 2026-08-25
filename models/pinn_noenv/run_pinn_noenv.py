@@ -5,14 +5,14 @@
 # TRAINS the CR-PINN (no-environment feature set, two physics loss terms on
 # top of plain MSE) under either temporal_split or spatial_block_split --
 # see --split-type below. Meant to run on the SLURM cluster where the GPU
-# is -- see jobs/pinn_noenv/run_pinn_noenv.sh.
+# is. See jobs/pinn_noenv/run_pinn_noenv.sh.
 #
 # The frozen CR physics anchor (load_cr_params below) reads the split-MATCHED
-# Chapman-Richards fit -- fit using only THIS split_type's own train-assigned plots, not the
+# Chapman-Richards fit. Fit using only THIS split_type's own train-assigned plots, not the
 # pooled/"cr_pooled" plot_level fit this file used before 2026-08-01. See load_cr_params()'s own
 # comment for why: cr_pooled was confirmed to leak (its random 60% training plots inevitably
 # overlapped with whichever plots a given split_type later assigned to test). There is no
-# --cr-variant flag to opt back into cr_pooled -- it wasn't a legitimate alternative to keep
+# --cr-variant flag to opt back into cr_pooled. It wasn't a legitimate alternative to keep
 # choosable, just a bug, so both PINN models now always use cr_matched, unconditionally.
 #
 # This script deliberately does NOT touch the test split (2023) or compute
@@ -28,7 +28,7 @@
 # run_logging.py) is automatically tagged is_test_run=True in the log.
 #
 # The WHOLE run (data loading through saving) is wrapped in one
-# started/success/failed log triple in outputs/run_logs/ -- including data
+# started/success/failed log triple in outputs/run_logs/. Including data
 # loading and reading CR's frozen params, since a missing input file is
 # exactly the kind of failure this log exists to catch, not just a
 # training-loop error.
@@ -91,13 +91,13 @@ def run_for_cohort(
     k_folds=DEFAULT_K_FOLDS, held_out_fold=0,
 ):
     # run_name only changes where results are SAVED (output_dir below) and
-    # how this run is labelled in outputs/run_logs/ -- it never changes
+    # how this run is labelled in outputs/run_logs/. It never changes
     # which underlying data table gets loaded (that always uses the plain
     # MODEL_NAME, "pinn_noenv", a few lines down), since a physics_weight/
     # trajectory_weight sweep is still the same network on the same data,
     # just a different loss-weighting choice. Without a distinct run_name,
     # every sweep run would silently overwrite the primary result at the
-    # same output_dir -- see the pinn_noenv_crmatched naming precedent in
+    # same output_dir. See the pinn_noenv_crmatched naming precedent in
     # documentation/experiment_log.md for why a different PINN
     # configuration gets its own name rather than reusing MODEL_NAME.
     output_model_name = run_name if run_name else MODEL_NAME
@@ -127,12 +127,12 @@ def run_for_cohort(
         "early_stopping_patience": early_stopping_patience,
         "seed": seed,
     }
-    # See the matching note in run_dnn_noenv.py -- only meaningful for
+    # See the matching note in run_dnn_noenv.py. Only meaningful for
     # temporal_split, where train/val/test years are fixed ahead of time.
     if split_type == "temporal":
         hyperparameters["temporal_split_years"] = TEMPORAL_YEARS[cohort]
 
-    # Write a "started" log entry BEFORE doing any real work -- if SLURM
+    # Write a "started" log entry BEFORE doing any real work. If SLURM
     # kills this job (out of memory, out of time, node crash) rather than
     # it failing with a normal Python error, this entry is the only record
     # left behind, and having no matching "success"/"failed" entry later
@@ -188,7 +188,7 @@ def run_for_cohort(
         )
         last_row = history_df.iloc[-1]
         # The smoothed column is what actually decided which epoch's
-        # weights got saved as "best" (see pinn_noenv.py::fit()) -- reporting
+        # weights got saved as "best" (see pinn_noenv.py::fit()). Reporting
         # its minimum here keeps this number consistent with the checkpoint
         # this run actually kept.
         best_val_loss = float(history_df["val_loss_smoothed"].min())
@@ -230,7 +230,7 @@ def run_for_cohort(
         save_run_metadata(cohort, len(train_df), run_metadata_hyperparameters, output_dir / "run_metadata.json")
 
         # "metrics" here is just the loss numbers reached during training
-        # -- NOT the real MAE/RMSE/R2/Bias test-set metrics, which only
+        #. NOT the real MAE/RMSE/R2/Bias test-set metrics, which only
         # exist once evaluate_pinn_noenv.py has been run.
         write_run_log(
             attempt_id=attempt_id,
@@ -301,8 +301,8 @@ def main():
     parser.add_argument(
         "--batch-size", type=int, default=BATCH_SIZE,
         help=(
-            f"Main training batch size. Default {BATCH_SIZE} -- smaller than dnn_noenv's current "
-            "default (256, as of 2026-08-22 -- was 512 when this comparison was first made), "
+            f"Main training batch size. Default {BATCH_SIZE}. Smaller than dnn_noenv's current "
+            "default (256, as of 2026-08-22. Was 512 when this comparison was first made), "
             "never tuned/matched before; exposed here specifically to test whether that mismatch "
             "(not the physics terms) explains a DNN-vs-PINN convergence difference."
         ),
@@ -315,7 +315,7 @@ def main():
         "--run-name", default=None,
         help=(
             "Only changes where results are saved and how this run is labelled in "
-            "outputs/run_logs/ -- use this whenever --physics-weight/--trajectory-weight "
+            "outputs/run_logs/. Use this whenever --physics-weight/--trajectory-weight "
             "differ from the defaults, so a sweep run doesn't overwrite the primary "
             "pinn_noenv result at the same output_dir. E.g. pinn_noenv_pw2_tw2."
         ),
@@ -328,7 +328,7 @@ def main():
     parser.add_argument(
         "--dropout-rate", type=float, default=0.0,
         help="Dropout probability in the network's hidden layers. Default 0.0 (no dropout, "
-             "matching every pinn_noenv result reported so far) -- see "
+             "matching every pinn_noenv result reported so far). See "
              "documentation/experiment_log.md's 2026-08-01 entry for why this is the "
              "better-motivated fix for the overfitting-shaped training curves already on record.",
     )
@@ -341,7 +341,7 @@ def main():
         "--split-seed", type=int, default=SPLIT_SEED,
         help=f"Seed for spatial_block_split's own block-shuffle (default {SPLIT_SEED}). Only "
              "affects split_type=spatial_block. load_cr_params() reads the matching "
-             "'_splitseed<N>'-suffixed CR anchor for a non-default value -- run 'python -m "
+             "'_splitseed<N>'-suffixed CR anchor for a non-default value. Run 'python -m "
              "models.baselines.run_baselines --split-type <split_type> --split-seed <N>' first "
              "to produce it. See documentation/experiment_log.md's 2026-08-02 split-seed "
              "robustness entries.",

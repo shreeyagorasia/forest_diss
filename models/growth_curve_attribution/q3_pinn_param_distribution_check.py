@@ -3,7 +3,7 @@
 # Plots the full distribution of PINN-k's per-plot y_max_i and k_i predictions, pooled across
 # all 5 spatial-block folds, bucketed against EACH FOLD'S OWN population Chapman-Richards curve.
 # Built to check whether the single example plot used in Figure~\ref{fig:pinn-example-plot}
-# (Q3 results) is representative or a special case -- reuses already-saved prediction files,
+# (Q3 results) is representative or a special case. Reuses already-saved prediction files,
 # no retraining.
 #
 # UPDATED 2026-08-24: was fold-0-only (n=11,508). Pooled here the same way as the rest of this
@@ -15,7 +15,7 @@
 #
 # Finding still confirms, now on the full pooled set: y_max_i is tightly pinned near the
 # population value for the large majority of plots (no implausible values at all); k_i is skewed
-# strongly toward FASTER than population for the large majority -- not a symmetric spread of
+# strongly toward FASTER than population for the large majority. Not a symmetric spread of
 # "some faster, some slower" real heterogeneity.
 
 import matplotlib.pyplot as plt
@@ -37,7 +37,7 @@ fold0["k_diff_pct"] = (fold0["k_pred"] - cr0["k"]) / cr0["k"] * 100
 fold0 = fold0[["identification", "y_max_diff", "k_diff_pct"]]
 
 # --- Folds 1-4: from the CORRECTED mechanism-check predictions, each carrying its OWN fold's
-# population_y_max/population_k columns -- same files load_pooled_pinn_k_deviation_data() uses. ---
+# population_y_max/population_k columns. Same files load_pooled_pinn_k_deviation_data() uses. ---
 other_folds = []
 for i in [1, 2, 3, 4]:
     df = pd.read_csv(

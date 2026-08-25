@@ -4,7 +4,7 @@
 # measurement-inconsistent plots from the y_max curve fit (see disturbance_checks.py's
 # summarize_plot_disturbance_status() and scale_comparison_check.py's build_plot_level_table()).
 # Answers: does the data-quality cleaning actually change the reported R2, or was the uncleaned
-# number already close to the truth? Plot-level only -- subcompartment is already dead-on-arrival
+# number already close to the truth? Plot-level only. Subcompartment is already dead-on-arrival
 # regardless of cleaning.
 
 import pandas as pd

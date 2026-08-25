@@ -6,7 +6,7 @@
 # extends models/pinn_env_terrain (which conditions y_max only) with a second sub-network for k,
 # per an explicit 2026-08-03 supervisor-prompted extension. See pinn_env_terrain_k.py's own
 # top-of-file note for the full reasoning (why k not p, the Socha et al. 2021 lineage this
-# departs from, the y_max/k confound risk to check once fit). A new, separate model -- not an
+# departs from, the y_max/k confound risk to check once fit). A new, separate model. Not an
 # edit to pinn_env_terrain, and no shared code with models/growth_curve_attribution/ (a
 # different, parallel investigation).
 #
@@ -137,7 +137,7 @@ def run_for_cohort(
         scaler_terrain = fit_terrain_scaler(train_df, feature_columns)
         encoded_column_names = encode_thinning_status(train_df).columns.tolist()
 
-        # Main network's inputs: age + no-env features ONLY -- terrain/wind is NOT concatenated
+        # Main network's inputs: age + no-env features ONLY. Terrain/wind is NOT concatenated
         # in here, it only reaches the model via the y_max/k sub-networks below.
         age_train, other_train, target_train = build_tensors(
             train_df, scaler_age, scaler_other_features, scaler_height, encoded_column_names, device
@@ -177,7 +177,7 @@ def run_for_cohort(
 
         # ----- Save everything needed to evaluate this model LATER -----
         # An extra "fold_<i>" path segment under spatial_block_kfold, so a full k-fold sweep's
-        # 5 (or n_folds) runs never overwrite each other -- model_output_dir() already accepts
+        # 5 (or n_folds) runs never overwrite each other. Model_output_dir() already accepts
         # arbitrary extra *parts, no change needed there.
         if split_type == "spatial_block_kfold":
             output_dir = model_output_dir(output_model_name, cohort, f"fold_{held_out_fold}", split_type=split_type)
@@ -271,7 +271,7 @@ def main():
         "--fold-index", type=int, default=0,
         help="Which fold to hold out as test, for --split-type spatial_block_kfold (0-indexed, "
              "must be < --n-folds). Ignored for every other split type. Requires a matching "
-             "fold-specific CR anchor -- run 'python -m models.baselines.run_baselines "
+             "fold-specific CR anchor. Run 'python -m models.baselines.run_baselines "
              "--split-type spatial_block_kfold --n-folds <N> --fold-index <i>' first.",
     )
     parser.add_argument("--max-epochs", type=int, default=DEFAULT_MAX_EPOCHS)
@@ -291,7 +291,7 @@ def main():
     parser.add_argument("--pairs-batch-size", type=int, default=PAIRS_BATCH_SIZE)
     parser.add_argument(
         "--run-name", default=None,
-        help="Only changes where results are saved -- use this whenever --physics-weight/"
+        help="Only changes where results are saved. Use this whenever --physics-weight/"
              "--trajectory-weight/--feature-set/--dropout-rate differ from the defaults.",
     )
     parser.add_argument(
@@ -310,23 +310,23 @@ def main():
     )
     parser.add_argument(
         "--hidden-layer-sizes", type=str, default=None,
-        help="Comma-separated hidden layer sizes for the MAIN network only, e.g. '64,32' -- "
+        help="Comma-separated hidden layer sizes for the MAIN network only, e.g. '64,32'. "
              "does not resize either sub-network. Default: the original 3x128 main network.",
     )
     parser.add_argument(
         "--freeze-y-max", action="store_true",
         help="Council's freeze-one-vary-other ablation (2026-08-04): pins y_max to the plain "
              "global CR constant (y_max_subnetwork gets no gradient and stays at its random "
-             "init -- ignore 'learned_y_max' in this run's predictions.csv, it's untrained "
+             "init. Ignore 'learned_y_max' in this run's predictions.csv, it's untrained "
              "noise) so only k is a free per-plot parameter. Tests whether a wide, implausible "
-             "learned-k range persists with a single degree of freedom per plot -- use --run-name "
+             "learned-k range persists with a single degree of freedom per plot. Use --run-name "
              "to keep this separate from the full two-parameter model's output.",
     )
     parser.add_argument(
         "--split-seed", type=int, default=SPLIT_SEED,
         help=f"Seed for spatial_block_split's own block-shuffle (default {SPLIT_SEED}). "
              "load_cr_params() reads the matching '_splitseed<N>'-suffixed CR anchor for a "
-             "non-default value -- run 'python -m models.baselines.run_baselines --split-type "
+             "non-default value. Run 'python -m models.baselines.run_baselines --split-type "
              "<split_type> --split-seed <N>' first to produce it.",
     )
     args = parser.parse_args()

@@ -1,21 +1,21 @@
 # Run as: python -m models.spatial_attribution.run_rq2_attribution --cohort 4survey --set-name nested_set2_top10
 #     or: python -m models.spatial_attribution.run_rq2_attribution --cohort 4survey --set-name nested_set2_top10 --split-type spatial_block_kfold --fold-index 0
 #
-# RQ2's FIT step -- deliberately separate from evaluate_rq2_attribution.py, matching this
+# RQ2's FIT step. Deliberately separate from evaluate_rq2_attribution.py, matching this
 # project's dnn_noenv/pinn_noenv convention (fit on the cluster, evaluate locally afterwards),
 # even though NLME/Elastic Net/XGBoost are all cheap enough that the split isn't about saving
-# compute -- it's about keeping the same workflow shape everywhere in this project.
+# compute. It's about keeping the same workflow shape everywhere in this project.
 #
 # NLME (fit_nlme) is genuinely different from Elastic Net/XGBoost here: it has no held-out
-# test-set prediction step at all -- its "evaluation" (fixed_effects_table, residual normality,
+# test-set prediction step at all. Its "evaluation" (fixed_effects_table, residual normality,
 # variance explained) is computed directly from the fitted model on its OWN training data, not by
 # scoring test rows. So NLME's diagnostics are saved here, at fit time, not in the evaluate
-# script -- there is nothing for evaluate_rq2_attribution.py to do for NLME.
+# script. There is nothing for evaluate_rq2_attribution.py to do for NLME.
 #
 # Elastic Net and XGBoost's raw fitted model objects are saved via joblib (matching how every
 # PyTorch model in this project saves a checkpoint at fit time and reloads it at evaluate time)
-# -- evaluate_rq2_attribution.py loads them back, re-derives the identical test split (same
-# cohort/split_seed/fold -- spatial_kfold_split()/spatial_block_split() are deterministic given
+#. Evaluate_rq2_attribution.py loads them back, re-derives the identical test split (same
+# cohort/split_seed/fold. Spatial_kfold_split()/spatial_block_split() are deterministic given
 # the same inputs, so the split itself never needs to be saved to disk), and scores it.
 
 import argparse
@@ -83,21 +83,21 @@ def fit_one_set(
         # Set2 (10 columns, all zero-missingness in this project's export) never hit this, which is
         # why it was the only set this driver got real-tested against before the cluster run --
         # Set3/Set4 pull in columns with a small but nonzero missing fraction (soilgrids_ph,
-        # the CEH layers -- see documentation/methodlogy_env_setpick.md's data-source tables),
+        # the CEH layers. See documentation/methodlogy_env_setpick.md's data-source tables),
         # which crashed ElasticNetCV outright (sklearn has no native NaN handling). Dropped here,
         # once, BEFORE any of the three models fit, so NLME/EN/XGBoost all train on the exact same
-        # rows -- not just patching EN's crash while leaving NLME/XGBoost silently trained on a
+        # rows. Not just patching EN's crash while leaving NLME/XGBoost silently trained on a
         # different, larger row set.
         train_df = plots_df[plots_df["split"] == "train"]
         train_df = drop_rows_with_missing_features(train_df, feature_columns)
-        # val_df added 2026-08-15 -- XGBoost's fit previously ran on raw library defaults
+        # val_df added 2026-08-15. XGBoost's fit previously ran on raw library defaults
         # (n_estimators=100, max_depth=6, learning_rate=0.3, no early stopping) since no val_df
         # was ever passed to xgb_fit_with_columns below, even though spatial_kfold_split()/
-        # spatial_block_split() always produce a "val" partition -- it just sat unused. Confirmed
+        # spatial_block_split() always produce a "val" partition. It just sat unused. Confirmed
         # via a real sensitivity check (models/baselines/xgb_hyperparameter_sensitivity_check.py,
         # TEMP_results/TEMP_rq2_attribution_results_2026-08-11.tex) that RQ3's own fixed config
         # (500/4/0.04 + early stopping) gives a real, substantial R2 improvement here (+0.07-0.09
-        # pooled per set) -- adopted as the real default below, not left as a one-off check.
+        # pooled per set). Adopted as the real default below, not left as a one-off check.
         val_df = plots_df[plots_df["split"] == "val"]
         val_df = drop_rows_with_missing_features(val_df, feature_columns)
         print(f"  train rows: {len(train_df):,}  val rows: {len(val_df):,}  features: {len(feature_columns)}")
@@ -108,7 +108,7 @@ def fit_one_set(
             output_dir = model_output_dir(run_name, cohort, split_type=split_type)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # ---- NLME: fit + save its own diagnostics now -- no held-out evaluate step exists for it ----
+        # ---- NLME: fit + save its own diagnostics now. No held-out evaluate step exists for it ----
         nlme_result, _ = fit_nlme(train_df, feature_columns, group_col=GROUP_COLUMN, target_col=TARGET_COLUMN)
         nlme_diagnostics = {
             "fixed_effects": fixed_effects_table(nlme_result).to_dict(orient="index"),
@@ -124,18 +124,18 @@ def fit_one_set(
         en_fitted = en_fit_with_columns(train_df, feature_columns, target_col=TARGET_COLUMN)
         joblib.dump(en_fitted, output_dir / "elastic_net_model.joblib")
         # Coefficients extracted and saved as their own readable CSV too, not just left buried
-        # inside the joblib blob -- this is the "which variable matters" table a later plotting
+        # inside the joblib blob. This is the "which variable matters" table a later plotting
         # script (e.g. a coefficient forest plot) would otherwise have to reload the whole model
         # object just to get.
         get_coefficients_table(en_fitted).to_csv(output_dir / "elastic_net_coefficients.csv", header=True)
 
-        # XGBoost model saved via its OWN native format (save_model), not joblib -- confirmed by
+        # XGBoost model saved via its OWN native format (save_model), not joblib. Confirmed by
         # smoke-testing across the cluster/local boundary (2026-08-10): joblib-pickling a raw
         # XGBRegressor and reloading it on a different machine/XGBoost version triggers XGBoost's
         # own documented cross-version-pickle warning and silently gave a badly degraded R2
-        # (0.15 instead of the correct ~0.24) -- not an error, just a quietly wrong model. Elastic
+        # (0.15 instead of the correct ~0.24). Not an error, just a quietly wrong model. Elastic
         # Net (plain sklearn) had no such issue in the same test, so only XGBoost needs this.
-        # Fixed config + early stopping -- matches RQ3's own always-used procedure
+        # Fixed config + early stopping. Matches RQ3's own always-used procedure
         # (spatial_cv_check.py's xgb_fit call), adopted here 2026-08-15 to replace the raw-default
         # fit this line used to do (see the val_df comment above for the full reasoning).
         xgb_model = xgb_fit_with_columns(

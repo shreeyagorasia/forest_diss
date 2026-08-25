@@ -1,5 +1,5 @@
 # Purpose: pool a DNN/PINN model's k-fold spatial CV results into one whole-population score,
-# plus the per-fold spread -- the same "precision fix" idea already proven for the Elastic Net/
+# plus the per-fold spread. The same "precision fix" idea already proven for the Elastic Net/
 # XGBoost attribution work in models/growth_curve_attribution/spatial_cv_check.py
 # (summarize_spatial_cv), generalised here to read the DNN/PINN family's own predictions.csv
 # format (which run_*.py/evaluate_*.py already save per fold, one file per
@@ -18,7 +18,7 @@ from models.common.bootstrap_ci import cluster_bootstrap_ci, r2_statistic
 
 
 def load_all_folds(model_name, cohort, n_folds, split_type="spatial_block_kfold"):
-    # Every fold's evaluate_*.py already wrote its own test-set predictions.csv -- this just
+    # Every fold's evaluate_*.py already wrote its own test-set predictions.csv. This just
     # reads all of them and stacks them into one table. Every plot appears in exactly one fold's
     # test set (spatial_kfold_split's own guarantee, see models/common/splits.py), so stacking
     # them gives one row per plot-year across the WHOLE population, not one arbitrary ~20% slice.
@@ -27,7 +27,7 @@ def load_all_folds(model_name, cohort, n_folds, split_type="spatial_block_kfold"
         predictions_path = model_output_dir(model_name, cohort, f"fold_{fold_index}", split_type=split_type) / "predictions.csv"
         if not predictions_path.exists():
             raise FileNotFoundError(
-                f"Missing {predictions_path} -- run both run_{model_name}.py and "
+                f"Missing {predictions_path}. Run both run_{model_name}.py and "
                 f"evaluate_{model_name}.py for fold {fold_index} first."
             )
         fold_predictions = pd.read_csv(predictions_path)
@@ -41,7 +41,7 @@ def summarize_kfold(model_name, cohort, n_folds, split_type="spatial_block_kfold
     pooled_predictions = load_all_folds(model_name, cohort, n_folds, split_type=split_type)
 
     # Pooled metrics: every plot's own out-of-fold prediction, all folds concatenated, ONE score
-    # computed over the whole population -- the headline number, since it uses every compartment
+    # computed over the whole population. The headline number, since it uses every compartment
     # rather than one arbitrary ~20% test slice.
     pooled_metrics = compute_metrics(
         pooled_predictions["observed_top_height"].values,
@@ -51,7 +51,7 @@ def summarize_kfold(model_name, cohort, n_folds, split_type="spatial_block_kfold
 
     # Per-fold metrics: how much the estimate would have varied if only ONE fold's worth of
     # compartments had been used as the held-out set (i.e. what a single spatial_block_split
-    # call is actually doing) -- shown alongside the pooled number so the precision gain from
+    # call is actually doing). Shown alongside the pooled number so the precision gain from
     # k-fold is visible directly, not just asserted.
     per_fold_r2 = []
     for fold_index in range(n_folds):
@@ -63,7 +63,7 @@ def summarize_kfold(model_name, cohort, n_folds, split_type="spatial_block_kfold
 
     # A single pooled R2 number invites over-reading ("0.42 beats 0.38") without knowing whether
     # that gap is even distinguishable from resampling noise. Cluster-bootstrap the pooled R2
-    # itself (resampling whole compartments -- see models/common/bootstrap_ci.py for why), so
+    # itself (resampling whole compartments. See models/common/bootstrap_ci.py for why), so
     # every model's headline number comes with a 95% CI, not just a point estimate.
     r2_ci = cluster_bootstrap_ci(pooled_predictions, "cpmt", r2_statistic, n_resamples=1000, seed=42)
 
@@ -86,7 +86,7 @@ def summarize_kfold(model_name, cohort, n_folds, split_type="spatial_block_kfold
     }
 
     # If this model also learns a per-plot y_max/k map (pinn_env_terrain/pinn_env_terrain_k),
-    # pool that too -- gives a much larger, less noisy sample of the y_max/k correlation than
+    # pool that too. Gives a much larger, less noisy sample of the y_max/k correlation than
     # any single fold's ~20% slice could.
     if "learned_y_max" in pooled_predictions.columns and "learned_k" in pooled_predictions.columns:
         one_row_per_plot = pooled_predictions.drop_duplicates(subset="identification")

@@ -3,7 +3,7 @@ import numpy as np
 # Chronological train/val/test years per cohort, holding out the most recent
 # survey as test so the split matches "does the model predict future growth".
 # 2021 is held out as val (not folded into train) so early stopping has a
-# genuine, untouched validation year -- confirmed as the year assignment to
+# genuine, untouched validation year. Confirmed as the year assignment to
 # use for both the baseline models and the DNN/PINN work. Moved here (out of
 # test_splits.py, where it started as a local test config) so every script
 # that needs a temporal split reads this one definition, not several copies
@@ -16,12 +16,12 @@ TEMPORAL_YEARS = {
 # The "narrow gap" temporal split (see documentation/experiment_log.md's naming
 # glossary): trains through 2021 instead of stopping at the earliest years, so
 # the gap between the last trained-on year and the test year (2023) shrinks
-# from 11 years (TEMPORAL_YEARS above) to 2 -- closer to interpolation than
+# from 11 years (TEMPORAL_YEARS above) to 2. Closer to interpolation than
 # extrapolation. Kept as its own dict, not a rename of TEMPORAL_YEARS above,
 # so both split designs stay independently runnable and comparable.
 #
 # val_years holds out the EARLIEST available pre-test year, not 2021 or a
-# middle year -- two things forced this, found by an actual smoke test, not
+# middle year. Two things forced this, found by an actual smoke test, not
 # guessed upfront:
 #   1. 2021 must be in TRAIN for the gap to actually be 2 years; a held-out
 #      2021 would leave the last TRAINED year at 2012, identical to the
@@ -41,30 +41,30 @@ TEMPORAL_YEARS_NARROW_GAP = {
     "6survey": {"train_years": [2006, 2008, 2012, 2021], "val_years": [2002], "test_years": [2023]},
 }
 
-# Shared spatial_block_split() settings -- one definition every script reads
+# Shared spatial_block_split() settings. One definition every script reads
 # (baselines and DNN/PINN alike), same reasoning as TEMPORAL_YEARS above.
 # cpmt is the forestry-compartment column to group by (see spatial_block_split
 # below for why, not 'blk'). buffer_distance=60m is 3x the ~20m grid cell
-# width -- validated in
+# width. Validated in
 # data_exploration_gpkg/notebooks/spatial_temporal_split_visualisation.ipynb.
 # Worth noting (2026-07-30, not changed): this justification is about plot spacing, not actual
-# measured spatial autocorrelation -- the CR residual's own semivariogram range (computed
+# measured spatial autocorrelation. The CR residual's own semivariogram range (computed
 # later, in notebooks/spatial_analysis/spatial_autocorrelation_terrain.ipynb) is ~3,956m, nearly
 # two orders of magnitude larger than this 60m buffer. That doesn't necessarily mean 60m is
 # wrong (a full 3,956m buffer would likely remove most of the forest from every split), but the
 # buffer's real purpose (stopping a near-duplicate neighbouring plot leaking across train/test)
 # and the semivariogram's finding (real spatial structure reaches much further than 60m) are two
-# different questions -- section 5's spatial-block split still relies on whole COMPARTMENTS
+# different questions. Section 5's spatial-block split still relies on whole COMPARTMENTS
 # being held out, not the buffer alone, for its actual leakage protection at that larger scale.
-# SPLIT_SEED controls which compartments land in train/val/test -- it is
+# SPLIT_SEED controls which compartments land in train/val/test. It is
 # fixed and shared so every model gets the identical split, independent of
 # whatever --seed a particular training run uses for its own weight init.
 SPATIAL_BLOCK_COL = "cpmt"
 SPATIAL_BUFFER_METRES = 60
 SPLIT_SEED = 42
 
-# The invariant that makes spatial_block_split meaningful -- the split column must never leak
-# into a model's own features -- used to be enforced only by comment discipline across
+# The invariant that makes spatial_block_split meaningful. The split column must never leak
+# into a model's own features. Used to be enforced only by comment discipline across
 # rf_baseline.py, linear_baseline.py, and torch_data.py, with nothing to actually catch a future
 # accidental inclusion (2026-07-30 fix). cpmt is the one actually used to split; blk/scpt are the
 # coarser/finer compartment-identifier columns sitting right next to it in the master table --
@@ -74,14 +74,14 @@ FORBIDDEN_FEATURE_COLUMNS = {"cpmt", "blk", "scpt"}
 
 
 def assert_no_split_columns_in_features(feature_columns, model_name):
-    # Call this once, right after defining a model's FEATURE_COLUMNS list -- raises immediately
+    # Call this once, right after defining a model's FEATURE_COLUMNS list. Raises immediately
     # at import time if a split-identifier column ever sneaks in, rather than silently letting a
     # model memorise "which compartment am I" instead of learning anything about the compartment
     # itself.
     leaked = FORBIDDEN_FEATURE_COLUMNS & set(feature_columns)
     if leaked:
         raise ValueError(
-            f"{model_name}'s FEATURE_COLUMNS includes {sorted(leaked)} -- these are split-"
+            f"{model_name}'s FEATURE_COLUMNS includes {sorted(leaked)}. These are split-"
             "identifier columns (spatial_block_split groups by cpmt), not real features. "
             "Training on them would let the model learn 'which compartment is this plot in' "
             "directly, making spatial_block_split's train/test separation meaningless."
@@ -252,7 +252,7 @@ def assign_spatial_folds(df, block_col=SPATIAL_BLOCK_COL, k=DEFAULT_K_FOLDS, see
     # comment above), so balancing purely by compartment COUNT would leave wildly uneven folds.
     #
     # Lifted here (2026-08-04) from models/growth_curve_attribution/spatial_cv_check.py, which
-    # built this first for the Elastic Net/XGBoost terrain-attribution work -- that file now
+    # built this first for the Elastic Net/XGBoost terrain-attribution work. That file now
     # imports this one instead of keeping its own copy, so there is a single shared
     # implementation, not two that could silently drift apart.
     rows_per_block = df.groupby(block_col).size()
@@ -281,13 +281,13 @@ def spatial_kfold_split(
     seed=SPLIT_SEED,
 ):
     # One fold of a K-fold spatial cross-validation scheme, in this project's usual train/val/test
-    # shape -- unlike assign_spatial_folds' original caller (spatial_cv_check.py), which only
+    # shape. Unlike assign_spatial_folds' original caller (spatial_cv_check.py), which only
     # needs train/test since it doesn't do early stopping, DNN/PINN models need a real val split
     # too. held_out_fold becomes "test"; the NEXT fold around (wrapping with % k) becomes "val";
     # everything else is "train". Every compartment lands in "test" exactly once across
     # held_out_fold=0..k-1 (and in "val" exactly once too, just shifted by one fold), so a full
     # K-fold sweep evaluates the WHOLE population instead of the one arbitrary ~20% slice a single
-    # spatial_block_split() call holds out -- the precision problem this function exists to fix
+    # spatial_block_split() call holds out. The precision problem this function exists to fix
     # (see documentation/experiment_log.md's 2026-08-04 entries for the bootstrap-CI finding that
     # motivated this).
     if not (0 <= held_out_fold < k):

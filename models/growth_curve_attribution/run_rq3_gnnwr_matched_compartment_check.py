@@ -4,7 +4,7 @@
 # Tests the leading open hypothesis for the unexplained 6-survey R2 collapse: is it having FEW
 # COMPARTMENTS (47, vs. 4-survey's 231), not just fewer total points? An earlier check downsampled
 # 4-survey's POINT COUNT to match 6-survey's while keeping all ~231 compartments (stratified
-# sampling) and did NOT trigger a collapse (R2 stayed 0.12-0.34) -- that ruled out "too few points"
+# sampling) and did NOT trigger a collapse (R2 stayed 0.12-0.34). That ruled out "too few points"
 # but never actually tested "too few compartments" on its own, since it kept every compartment
 # represented. This script does the opposite: keeps FULL point density, but restricts 4-survey to
 # a random 47-compartment subset (matching 6-survey's own compartment count exactly), using

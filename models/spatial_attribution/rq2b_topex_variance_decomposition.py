@@ -1,16 +1,16 @@
 # Which RQ this closes a gap in, and why: RQ2b item 3 (why NLME and Elastic Net disagree on
-# `topex`'s coefficient -- strong and stable in NLME, weak and sign-flipping in EN -- while
+# `topex`'s coefficient. Strong and stable in NLME, weak and sign-flipping in EN. While
 # `slope_degrees` is stable in both). The results draft flagged this as an untested candidate
 # mechanism: NLME has an explicit compartment-level random intercept that absorbs compartment-
 # level correlation; Elastic Net has no such term. If a predictor's real variation sits mostly
 # BETWEEN compartments rather than within them, a plain regression with no random-effect term
 # has nothing to separate "this predictor's real effect" from "whatever unmeasured
 # compartment-level factors happen to correlate with it in this particular fold's training
-# data" -- a textbook spatial-confounding setup. This only applies if the precondition holds:
+# data". A textbook spatial-confounding setup. This only applies if the precondition holds:
 # does `topex` actually vary mostly between compartments? That precondition is checked here,
-# directly, on already-loaded data -- no model fitting at all.
+# directly, on already-loaded data. No model fitting at all.
 #
-# Method: a one-way random-effects ANOVA intraclass correlation (ICC) -- the standard
+# Method: a one-way random-effects ANOVA intraclass correlation (ICC). The standard
 # between/within variance decomposition. ICC close to 1 means a variable is almost constant
 # within a compartment and varies mostly across compartments; ICC close to 0 means the opposite
 # (mostly plot-to-plot variation within the same compartment).

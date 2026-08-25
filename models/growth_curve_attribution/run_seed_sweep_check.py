@@ -1,10 +1,10 @@
 # Run as: python -m models.growth_curve_attribution.run_seed_sweep_check
 #
 # Checks whether 6survey's near-zero/negative plot-level R2 (found in the 2026-08-03
-# scale-comparison check, seed=42 only) is a real, stable result or a seed artefact -- this
+# scale-comparison check, seed=42 only) is a real, stable result or a seed artefact. This
 # project already found one real precedent for exactly this trap (2026-08-02 split-seed
 # robustness entries: "terrain hurts the DNN" held only under seed 42, reversed under other
-# seeds). Plot-level only -- subcompartment is already settled as dead-on-arrival (see the
+# seeds). Plot-level only. Subcompartment is already settled as dead-on-arrival (see the
 # 2026-08-03 scale-comparison entry), no need to re-check it here.
 
 import pandas as pd

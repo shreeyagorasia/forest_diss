@@ -5,13 +5,13 @@
 # TRAINS the plain DNN (no-environment feature set) under either
 # temporal_split (train on the earliest years, early-stop on 2021) or
 # spatial_block_split (train on whole held-in compartments, early-stop on
-# held-out val compartments) -- see --split-type below. Meant to run on the
-# SLURM cluster where the GPU is -- see jobs/dnn_noenv/run_dnn_noenv.sh.
+# held-out val compartments). See --split-type below. Meant to run on the
+# SLURM cluster where the GPU is. See jobs/dnn_noenv/run_dnn_noenv.sh.
 #
 # This script deliberately does NOT touch the test split (2023) or compute
 # any accuracy metrics. That is a separate, cheap step
 # (models/dnn_noenv/evaluate_dnn_noenv.py) meant to run afterwards, locally
-# on a laptop CPU -- there is no reason to spend GPU cluster time on a
+# on a laptop CPU. There is no reason to spend GPU cluster time on a
 # quick forward pass over the test rows once training is already done.
 # See documentation/model_instructions/age_only_dnn_pinn_instructions.md.
 #
@@ -22,7 +22,7 @@
 # run_logging.py) is automatically tagged is_test_run=True in the log.
 #
 # The WHOLE run (data loading through saving) is wrapped in one
-# started/success/failed log triple in outputs/run_logs/ -- including data
+# started/success/failed log triple in outputs/run_logs/. Including data
 # loading, since a missing input file (e.g. data/processed/ not yet
 # regenerated on a fresh machine) is exactly the kind of failure this log
 # exists to catch, not just a training-loop error.
@@ -78,7 +78,7 @@ def run_for_cohort(
     hidden_layer_sizes=None, split_seed=SPLIT_SEED, k_folds=DEFAULT_K_FOLDS, held_out_fold=0,
 ):
     # run_name only changes where results are SAVED (output_dir below) and
-    # how this run is labelled in outputs/run_logs/ -- it never changes
+    # how this run is labelled in outputs/run_logs/. It never changes
     # which underlying data table gets loaded (that always uses the plain
     # MODEL_NAME, "dnn_noenv", a few lines down). Without a distinct
     # run_name, a reseed (different --seed, same everything else) would
@@ -90,7 +90,7 @@ def run_for_cohort(
     print(f"===== {cohort} ({output_model_name}, {split_type}{fold_suffix}) — FIT ONLY, no test-set evaluation =====")
 
     # A "test run" is just a quick sanity check with very few epochs (see
-    # TEST_RUN_MAX_EPOCHS_THRESHOLD) -- recorded in the log automatically,
+    # TEST_RUN_MAX_EPOCHS_THRESHOLD). Recorded in the log automatically,
     # no extra flag needed, so a 5-epoch debug run never gets mistaken for
     # a real result later.
     is_test_run = max_epochs < TEST_RUN_MAX_EPOCHS_THRESHOLD
@@ -124,7 +124,7 @@ def run_for_cohort(
     # Write a "started" log entry BEFORE doing any real work. If this job
     # gets killed by SLURM (out of memory, ran out of time, node crashed)
     # rather than failing with a normal Python error, this "started" entry
-    # is the only record left behind -- there will be no matching
+    # is the only record left behind. There will be no matching
     # "success"/"failed" entry, and that gap is itself the signal that
     # something went wrong. attempt_id links this entry to whichever one
     # gets written at the end.
@@ -168,7 +168,7 @@ def run_for_cohort(
             hidden_layer_sizes=hidden_layer_sizes,
         )
         # The smoothed column is what actually decided which epoch's
-        # weights got saved as "best" (see dnn_noenv.py::fit()) -- reporting
+        # weights got saved as "best" (see dnn_noenv.py::fit()). Reporting
         # its minimum here, not the raw val_loss column's, keeps this
         # number consistent with which checkpoint this run actually kept.
         best_val_loss = float(history_df["val_loss_smoothed"].min())
@@ -208,7 +208,7 @@ def run_for_cohort(
         save_run_metadata(cohort, len(train_df), run_metadata_hyperparameters, output_dir / "run_metadata.json")
 
         # "metrics" here is just the validation loss reached during
-        # training -- NOT the real MAE/RMSE/R2/Bias test-set metrics,
+        # training. NOT the real MAE/RMSE/R2/Bias test-set metrics,
         # which only exist once evaluate_dnn_noenv.py has been run. Kept
         # small and clearly named so the two are never confused.
         write_run_log(
@@ -277,7 +277,7 @@ def main():
         "--batch-size", type=int, default=BATCH_SIZE,
         help=(
             f"Training batch size. Default {BATCH_SIZE}, matching pinn_noenv's default before "
-            "2026-07-29 -- exposed here (previously hardcoded) for symmetry with "
+            "2026-07-29. Exposed here (previously hardcoded) for symmetry with "
             "run_pinn_noenv.py's --batch-size, so a batch-size sweep can vary either model's "
             "batch size independently. See documentation/experiment_log.md's 2026-07-29 entry "
             "for why this matters: pinn_noenv's smaller batch size (128 vs this model's 512) "
@@ -287,14 +287,14 @@ def main():
     parser.add_argument(
         "--learning-rate", type=float, default=LEARNING_RATE,
         help=f"Adam/SGD starting learning rate. Default {LEARNING_RATE}, never swept before "
-             "2026-08-01. See documentation/experiment_log.md's 2026-08-01 entry -- exposed to "
+             "2026-08-01. See documentation/experiment_log.md's 2026-08-01 entry. Exposed to "
              "test whether a bigger starting rate changes best_val_loss, not just where in "
              "training the best epoch lands.",
     )
     parser.add_argument(
         "--dropout-rate", type=float, default=0.0,
         help="Dropout probability in the network's hidden layers. Default 0.0 (no dropout, "
-             "matching every dnn_noenv/pinn_noenv result reported so far) -- exposed 2026-08-01 "
+             "matching every dnn_noenv/pinn_noenv result reported so far). Exposed 2026-08-01 "
              "as the better-motivated fix for the overfitting-shaped training curves already on "
              "record (train_loss keeps falling while val_loss stalls early), see "
              "documentation/experiment_log.md's 2026-08-01 entry.",
@@ -302,7 +302,7 @@ def main():
     parser.add_argument(
         "--hidden-layer-sizes", type=str, default=None,
         help="Comma-separated hidden layer sizes, e.g. '64,32'. Default: the original 3x128 "
-             "network (unchanged). Exposed 2026-08-02 for the architecture-sensitivity sweep -- "
+             "network (unchanged). Exposed 2026-08-02 for the architecture-sensitivity sweep. "
              "the dropout/learning-rate diagnostic found neither moved best_val_loss, raising "
              "the question of whether fixed capacity is the actual limiting factor. See "
              "documentation/experiment_log.md's 2026-08-02 entry.",
@@ -310,7 +310,7 @@ def main():
     parser.add_argument(
         "--split-seed", type=int, default=SPLIT_SEED,
         help=f"Seed for spatial_block_split's own block-shuffle (default {SPLIT_SEED}, every "
-             "prior result in this repo). Only affects split_type=spatial_block -- exposed "
+             "prior result in this repo). Only affects split_type=spatial_block. Exposed "
              "2026-08-02 for the split-seed robustness check flagged in experiment_log.md: every "
              "result up to now used the SAME fixed compartment partition, never varied.",
     )

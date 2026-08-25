@@ -1,11 +1,11 @@
 # Purpose: after running simple_dnn_check.py once per fold (--held-out-fold 0..k_folds-1), pool
-# the resulting per-fold test-prediction CSVs into ONE pooled R2 -- the same "every plot's
+# the resulting per-fold test-prediction CSVs into ONE pooled R2. The same "every plot's
 # out-of-fold prediction, all folds concatenated, one R2 over the whole population" convention
 # Elastic Net/XGBoost/GNNWR already use (see pool_gnnwr_kfold_results.py), so this plain-MLP
 # control is finally comparable to those other models' own pooled 5-fold numbers instead of a
 # single ~20% test-slice estimate.
 #
-# Run this AFTER all k_folds runs have finished and saved their CSVs -- it does not train
+# Run this AFTER all k_folds runs have finished and saved their CSVs. It does not train
 # anything itself, just reads the already-saved outputs.
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ def load_fold_predictions(cohort: str, scope: str, k_folds: int = DEFAULT_K_FOLD
         fold_tables.append(fold_table)
 
     if missing_folds:
-        print(f"  Warning: missing CSVs for fold(s) {missing_folds} -- only pooling the {len(fold_tables)} folds found so far.")
+        print(f"  Warning: missing CSVs for fold(s) {missing_folds}. Only pooling the {len(fold_tables)} folds found so far.")
     if not fold_tables:
         raise FileNotFoundError(f"No fold CSVs found for {cohort}/{scope} in {OUTPUT_DIR}")
 

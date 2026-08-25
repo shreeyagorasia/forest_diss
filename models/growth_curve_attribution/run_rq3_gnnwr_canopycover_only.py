@@ -1,11 +1,11 @@
 # Run as (cluster only, see jobs/growth_curve_attribution/run_rq3_gnnwr_canopycover_only.sh):
 #   python -m models.growth_curve_attribution.run_rq3_gnnwr_canopycover_only --cohort 4survey --held-out-fold 0 --k-folds 5 --use-gpu
 #
-# CanopyCover-ONLY GNNWR on Q2's target (local_y_max_difference), Set4/4survey -- the mirror image
+# CanopyCover-ONLY GNNWR on Q2's target (local_y_max_difference), Set4/4survey. The mirror image
 # of run_rq3_gnnwr_canopycover_ablation.py (which drops CanopyCover, keeping the other 18
 # columns). Together the two ablations complete the matrix: with-all-19 (already run, R2=0.294),
 # without-CanopyCover (already run, R2=0.049), and this one (CanopyCover alone). Purpose: check
-# how much of GNNWR's full-Set4 R2 a single dominant variable can reach on its own -- if this gets
+# how much of GNNWR's full-Set4 R2 a single dominant variable can reach on its own. If this gets
 # close to 0.294, the other 18 variables are adding almost nothing even when CanopyCover is
 # present, not just when it's absent.
 

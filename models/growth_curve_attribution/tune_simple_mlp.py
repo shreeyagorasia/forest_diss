@@ -1,12 +1,12 @@
 # Purpose: a small hyperparameter search over the plain-MLP architecture (SimpleMLP), trying to
-# see whether tuning -- rather than just using one default architecture -- can close the gap with
+# see whether tuning. Rather than just using one default architecture. Can close the gap with
 # XGBoost (0.302 test R2 for terrain_wind_plus_management, 0.117 for terrain_wind).
 #
 # IMPORTANT: because compartment_mixed_dnn_check.py's compartment intercepts never apply to a
-# held-out compartment (every val/test compartment is one the model never saw in training -- see
+# held-out compartment (every val/test compartment is one the model never saw in training. See
 # that file's own module docstring), its TEST R2 is architecturally IDENTICAL to whatever this
 # plain fixed-effects-only MLP gets. So tuning THIS architecture is exactly the same optimisation
-# problem as tuning the compartment-mixed DNN's test performance -- one search covers both models.
+# problem as tuning the compartment-mixed DNN's test performance. One search covers both models.
 #
 # Selection discipline: every candidate configuration is picked by VALIDATION loss only. The test
 # set is touched exactly ONCE, at the very end, for the single best-on-validation configuration --
@@ -32,7 +32,7 @@ from models.growth_curve_attribution.simple_dnn_check import SimpleMLP, fit_mlp_
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_DIR = PROJECT_ROOT / "outputs" / "growth_curve_attribution" / "simple_dnn"
 
-# A modest, sensible grid -- not exhaustive, but covering the main knobs that actually change how
+# A modest, sensible grid. Not exhaustive, but covering the main knobs that actually change how
 # much an MLP can fit: depth/width (hidden_sizes), regularisation strength (dropout, weight_decay),
 # and how fast/coarsely it learns (learning_rate).
 CANDIDATE_HIDDEN_SIZES = [(32, 16), (64, 32), (128, 64), (128, 64, 32), (256, 128, 64), (256, 128, 64, 32)]

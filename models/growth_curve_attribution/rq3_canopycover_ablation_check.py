@@ -1,10 +1,10 @@
 # Run as: PYTHONPATH=. .venv/bin/python -m models.growth_curve_attribution.rq3_canopycover_ablation_check
 #
 # Re-verification of the CanopyCover-dropped ablation for Q2's OWN target (local_y_max_difference,
-# Set4, 4survey) -- the equivalent check already exists for Q1's target (mean_cr_residual, see
+# Set4, 4survey). The equivalent check already exists for Q1's target (mean_cr_residual, see
 # models/spatial_attribution/rq2b_canopycover_ablation_check.py) but had never been run for Q2's
 # own model. Reuses the exact production fit/SHAP functions (run_columns, compute_shap_values_for_columns)
-# with CanopyCover removed from the Set4 feature list -- not a new experiment, just the same
+# with CanopyCover removed from the Set4 feature list. Not a new experiment, just the same
 # already-used pipeline with one column dropped.
 
 import json
@@ -24,7 +24,7 @@ ablated_columns = [c for c in raw_columns if c != "CanopyCover"]
 print(f"Full Set4: {len(raw_columns)} cols. Ablated (no CanopyCover): {len(ablated_columns)} cols.")
 
 results_df, predictions, fold_counts, fold_models = run_columns(COHORT, ablated_columns, k=5, seed=42)
-print("\nWITHOUT CanopyCover -- pooled results:")
+print("\nWITHOUT CanopyCover. Pooled results:")
 print(results_df[["method", "pooled_r2", "per_fold_r2_mean", "per_fold_r2_std"]].to_string(index=False))
 
 shap_rows = []

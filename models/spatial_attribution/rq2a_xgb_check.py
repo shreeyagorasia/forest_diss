@@ -1,17 +1,17 @@
-# Purpose: XGBoost's own version of RQ2a's residual-reduction question -- "does giving a model
+# Purpose: XGBoost's own version of RQ2a's residual-reduction question. "does giving a model
 # environmental information shrink its departure from the shared Chapman-Richards curve, and does
 # that shrinkage concentrate on the plots CR already does worst on?" RQ2a's existing table only
 # ever answers this for DNN/PINN/PINN_k. Since the XGBoost hyperparameter correction
 # (xgb_hyperparameter_sensitivity_check.py) found a fairly-configured XGBoost beats DNN on raw
 # RQ1 accuracy, this checks whether XGBoost's OWN residual shrinks the same clean, quartile-
-# concentrated way PINN's does -- if it doesn't, that's real evidence for PINN's specific
+# concentrated way PINN's does. If it doesn't, that's real evidence for PINN's specific
 # attribution value, not just an accuracy-contest rerun.
 #
 # Fits TWO XGBoost arms per fold (env-conditioned Set3, and a no-env control), both using the
 # corrected fixed config (n_estimators=500, max_depth=4, learning_rate=0.04, early stopping --
 # see xgb_hyperparameter_sensitivity_check.py for why raw defaults would be unfair here), saves
 # predictions.csv in the exact schema rq2_residual_reduction.py already expects, then reuses that
-# script's own compute_residual_reduction() directly -- no reimplementation of the quartile logic.
+# script's own compute_residual_reduction() directly. No reimplementation of the quartile logic.
 #
 # Run as: python -m models.spatial_attribution.rq2a_xgb_check
 
@@ -44,7 +44,7 @@ def fit_one_arm(train_df, val_df, test_df, feature_columns):
     predicted = model.predict(features_test)
 
     # Same schema as every other predictions.csv in this project (chapman_richards, dnn_env_terrain,
-    # etc.) -- rq2_residual_reduction.py's load_predictions()/compute_residual_reduction() expect
+    # etc.). Rq2_residual_reduction.py's load_predictions()/compute_residual_reduction() expect
     # exactly these columns, joined on (identification, LiDAR_year).
     out = test_df[["identification", "blk", "cpmt", "LiDAR_year", "Age"]].copy()
     out["observed_top_height"] = test_df[TARGET].to_numpy()

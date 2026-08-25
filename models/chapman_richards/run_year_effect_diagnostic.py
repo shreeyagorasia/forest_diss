@@ -1,7 +1,7 @@
 # Run as: python -m models.chapman_richards.run_year_effect_diagnostic
 #     or: python -m models.chapman_richards.run_year_effect_diagnostic --split-type spatial_block
 #
-# DIAGNOSTIC ONLY -- see year_effect_diagnostic.py for why this must never be
+# DIAGNOSTIC ONLY. See year_effect_diagnostic.py for why this must never be
 # wired into run_baselines.py or evaluate_baselines.py. Fits the plain
 # age-only Chapman-Richards baseline and the year-effect version on the
 # exact same training rows, so the two are directly comparable, then prints
@@ -9,12 +9,12 @@
 # reference year, and how much of the sum-of-squared-error the year effect
 # accounts for.
 #
-# --split-type defaults to plot_level (this diagnostic's only option before 2026-07-30) -- the
+# --split-type defaults to plot_level (this diagnostic's only option before 2026-07-30). The
 # survey-year confound this measures has never actually been checked under spatial_block_split,
 # the dissertation's stated PRIMARY split, until that option existed. The Chapman-Richards params
 # read for the plain-CR comparison (plain_cr_sum_squared_error below) are always the plot_level
 # fit regardless of --split-type, matching this project's standing convention (see
-# run_pinn_noenv.py's own module docstring for the same rule) -- only which ROWS get trained on
+# run_pinn_noenv.py's own module docstring for the same rule). Only which ROWS get trained on
 # changes with --split-type, not which frozen CR curve they're compared against.
 
 import argparse
@@ -63,7 +63,7 @@ def main():
         choices=["plot_level", "spatial_block", "temporal", "temporal_narrow_gap"],
         default="plot_level",
         help="plot_level (default, matches this diagnostic's original/only behaviour before "
-             "2026-07-30) -- pass spatial_block to check the survey-year confound under the "
+             "2026-07-30). Pass spatial_block to check the survey-year confound under the "
              "dissertation's primary split instead.",
     )
     args = parser.parse_args()

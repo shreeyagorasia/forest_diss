@@ -1,37 +1,37 @@
 # CR-PINN, WITH terrain/wind conditioning BOTH `y_max` AND `k` (the Chapman-Richards growth-rate
-# parameter). A new, separate model from models/pinn_env_terrain/pinn_env_terrain.py -- not an
+# parameter). A new, separate model from models/pinn_env_terrain/pinn_env_terrain.py. Not an
 # edit to it, per an explicit 2026-08-03 instruction to keep this fully separate from that
 # model AND from the unrelated per-plot growth-curve work in models/growth_curve_attribution/
-# (see documentation/model_instructions/growth_curve_stage2_handover.md -- that is a different,
+# (see documentation/model_instructions/growth_curve_stage2_handover.md. That is a different,
 # parallel investigation, not touched by anything in this file).
 #
 # WHY k, not p (2026-08-03, supervisor-prompted): pinn_env_terrain.py's own YMaxSubNetwork
-# docstring already documents a deliberate prior choice -- terrain/wind conditions ONLY y_max,
+# docstring already documents a deliberate prior choice. Terrain/wind conditions ONLY y_max,
 # citing Socha et al. 2021's ADA/GADA framework ("the asymptote parameter is the site-varying
 # one"). This file is a real, deliberate departure from that citation, not a simple missing
-# feature -- prompted by the supervisor asking, in plain language, whether an exponent could be
+# feature. Prompted by the supervisor asking, in plain language, whether an exponent could be
 # environment-conditioned so that "all trees reach their height eventually but not at the same
 # time". Checked the actual ecological literature before picking a parameter (not guessed from
 # the maths alone): k is described as "an empirical growth parameter scaling the absolute growth
-# rate" -- directly the kind of thing site quality/environment would plausibly affect. p is tied
+# rate". Directly the kind of thing site quality/environment would plausibly affect. p is tied
 # to catabolic/metabolic-scaling theory in the classical von Bertalanffy-style derivation and is
-# "often restricted to a value... for theoretical, biological reasons" -- treated in the
+# "often restricted to a value... for theoretical, biological reasons". Treated in the
 # literature as a fixed biological constant, not something expected to vary by site. The broader
 # forestry site-index/GADA literature (polymorphic curve families) independently confirms site
 # quality classically varies the asymptote and/or growth rate, not the shape exponent. So: k gets
 # a new per-plot adjustment here, alongside the EXISTING y_max adjustment (unchanged mechanism,
-# reused from pinn_env_terrain.py) -- p stays global and frozen, same as pinn_env_terrain.py.
+# reused from pinn_env_terrain.py). P stays global and frozen, same as pinn_env_terrain.py.
 #
 # k must stay strictly positive (it sits inside exp(-k*age); a non-positive k breaks the growth
 # curve and risks numerical blow-up during training). Parameterised multiplicatively in log-space
-# (k_per_row = global_k * exp(k_log_adjustment)), not additively like y_max's adjustment -- this
+# (k_per_row = global_k * exp(k_log_adjustment)), not additively like y_max's adjustment. This
 # guarantees positivity for any real-valued sub-network output, and a fresh sub-network
 # (near-zero output at initialisation) starts at k_log_adjustment≈0, i.e. k_per_row≈global_k,
 # same "start near the known-good global constant" stability reasoning y_max's adjustment already
 # uses.
 #
 # Real, open risk worth checking once this is fit, not assumed away: y_max and k are both learned
-# per-plot from the SAME terrain inputs via two separate small sub-networks -- they could become
+# per-plot from the SAME terrain inputs via two separate small sub-networks. They could become
 # confounded (a lower k mimicking what should really be a lower y_max, especially for plots that
 # never reach anywhere near their true asymptote within the observed age range, common in this
 # dataset). predict_k()/predict_y_max() below both exist so this can be checked directly
@@ -50,7 +50,7 @@ import torch.nn as nn
 
 from models.common.torch_model import NoEnvNetwork, YMaxSubNetwork, chapman_richards_derivative, compute_l1_penalty
 
-# ----- Fixed hyperparameters -- identical to pinn_env_terrain.py's, on purpose (same reasoning:
+# ----- Fixed hyperparameters. Identical to pinn_env_terrain.py's, on purpose (same reasoning:
 # any difference in results should come from the new k-conditioning, not an unrelated knob). -----
 L1_COEFFICIENT = 1e-5
 PHYSICS_WEIGHT = 1.0
@@ -65,7 +65,7 @@ GRAD_CLIP_MAX_NORM = 1.0
 VAL_LOSS_SMOOTHING_WINDOW = 5
 PRINT_EVERY_N_EPOCHS = 10
 
-# Same size as pinn_env_terrain.py's y_max sub-network -- a small, separate job (one scalar
+# Same size as pinn_env_terrain.py's y_max sub-network. A small, separate job (one scalar
 # adjustment from a handful of terrain inputs), not a reason to need more capacity.
 Y_MAX_SUBNETWORK_HIDDEN_SIZE = 16
 K_SUBNETWORK_HIDDEN_SIZE = 16
@@ -84,7 +84,7 @@ class EnvTerrainRatePINN(nn.Module):
             n_terrain_features=n_terrain_features, hidden_size=Y_MAX_SUBNETWORK_HIDDEN_SIZE,
             dropout_rate=dropout_rate,
         )
-        # Reusing YMaxSubNetwork's class for the k-adjustment too -- it's already a generic
+        # Reusing YMaxSubNetwork's class for the k-adjustment too. It's already a generic
         # "terrain features -> one scalar" network, nothing about its name stops a second,
         # separately-initialised instance being used for a different scalar. Not renamed to a
         # more generic class name because pinn_env_terrain.py imports YMaxSubNetwork by this
@@ -96,7 +96,7 @@ class EnvTerrainRatePINN(nn.Module):
 
     def forward(self, other_features, age):
         # Same as pinn_env_terrain.py: only the main network answers an ordinary "predict
-        # height" call -- both sub-networks are only ever called directly (see
+        # height" call. Both sub-networks are only ever called directly (see
         # compute_physics_loss/compute_trajectory_loss below), never as part of this forward
         # pass, since neither is part of the height PREDICTION itself, only the physics loss's
         # target construction.
@@ -113,14 +113,14 @@ def build_model(n_other_features, n_terrain_features, device, seed, dropout_rate
 
 
 def compute_plot_specific_y_max(model, terrain_batch, global_y_max):
-    # Identical mechanism to pinn_env_terrain.py's own function of the same name -- additive
+    # Identical mechanism to pinn_env_terrain.py's own function of the same name. Additive
     # adjustment, global_y_max stays a plain Python float (never accumulates gradient itself).
     y_max_adjustment = model.y_max_subnetwork(terrain_batch)
     return global_y_max + y_max_adjustment
 
 
 def compute_plot_specific_k(model, terrain_batch, global_k):
-    # Multiplicative, log-space adjustment -- see this file's own top-of-file note for why k
+    # Multiplicative, log-space adjustment. See this file's own top-of-file note for why k
     # needs a different parameterisation to y_max's additive one (k must stay strictly positive;
     # exp() of any real-valued sub-network output is always positive; near-zero output at
     # initialisation means k_per_row starts at global_k, the same "start near the known-good
@@ -135,10 +135,10 @@ def compute_physics_loss(model, age_batch, other_batch, terrain_batch, cr_params
     # single frozen global float, exactly as in pinn_env_terrain.py.
     #
     # freeze_y_max (2026-08-04 addition, default False): the council's "freeze-one-vary-other"
-    # ablation -- when True, y_max is pinned to the plain global constant (never adjusted by
+    # ablation. When True, y_max is pinned to the plain global constant (never adjusted by
     # y_max_subnetwork, which then gets no gradient at all since it's never called here) so only
     # k is a per-plot free parameter. Tests whether a wide, implausible learned-k range persists
-    # even with a single degree of freedom per plot -- if so, that points at overparameterisation
+    # even with a single degree of freedom per plot. If so, that points at overparameterisation
     # of ANY second per-plot knob, not something specific to k.
     age_batch = age_batch.clone().requires_grad_(True)
 
@@ -170,9 +170,9 @@ def compute_trajectory_loss(
     model, age_earlier, other_earlier, age_later, other_later, delta_age, age_mid, terrain_pairs,
     cr_params, scaler_age, scaler_height, freeze_y_max=False,
 ):
-    # Same finite-difference mechanism as pinn_env_terrain.py -- terrain_pairs is ONE tensor per
+    # Same finite-difference mechanism as pinn_env_terrain.py. Terrain_pairs is ONE tensor per
     # pair, same reasoning (terrain/wind is static per plot across a pair's two survey years).
-    # freeze_y_max: see compute_physics_loss's own note above -- same meaning here.
+    # freeze_y_max: see compute_physics_loss's own note above. Same meaning here.
     predicted_earlier_scaled = model(other_earlier, age_earlier)
     predicted_later_scaled = model(other_later, age_later)
 
@@ -391,7 +391,7 @@ def predict_y_max(model, terrain_features, global_y_max):
 
 
 def predict_k(model, terrain_features, global_k):
-    # Not used for height prediction -- exposed so the learned per-plot k map can be inspected
+    # Not used for height prediction. Exposed so the learned per-plot k map can be inspected
     # directly, same reasoning as predict_y_max(). Also needed to check the confound risk flagged
     # at the top of this file: correlate this against predict_y_max()'s output across the same
     # plots before trusting the two adjustments as independently meaningful.

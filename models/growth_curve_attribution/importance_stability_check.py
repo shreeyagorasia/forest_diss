@@ -1,7 +1,7 @@
 # Purpose: does the variable ranking from explain_signal.py hold up across different held-out
 # compartment sets, or would a different spatial split reorder it? Cheap version: XGBoost's own
 # built-in gain-based feature_importances_ per fold's TRAIN-only fit (already computed as a
-# byproduct of fitting, no separate SHAP recomputation needed) -- not full SHAP per fold, which
+# byproduct of fitting, no separate SHAP recomputation needed). Not full SHAP per fold, which
 # would be five times the cost of the single fit already done for no real extra insight into
 # RANK stability specifically.
 
@@ -40,7 +40,7 @@ def per_fold_gain_importance(table, feature_columns, k=5, seed=SPLIT_SEED):
 
 def summarize_rank_stability(per_fold_gain):
     # Rank within each fold (1 = most important), then look at how much a variable's rank moves
-    # across the 5 folds -- a variable that's consistently top-5 tells a more trustworthy story
+    # across the 5 folds. A variable that's consistently top-5 tells a more trustworthy story
     # than one that's #2 in one fold and #14 in another.
     per_fold_gain = per_fold_gain.copy()
     per_fold_gain["rank"] = per_fold_gain.groupby("fold")["gain"].rank(ascending=False)

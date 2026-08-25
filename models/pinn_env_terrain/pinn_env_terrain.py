@@ -3,27 +3,27 @@
 # extra sub-network (models/common/torch_model.py::YMaxSubNetwork) that turns the chosen
 # terrain/wind feature set (models/common/torch_data.py::ENV_TERRAIN_FEATURE_SETS, picked by name
 # via run_pinn_env_terrain.py's --feature-set) into a plot-specific ADJUSTMENT to the
-# Chapman-Richards curve's y_max -- replacing the single global y_max constant pinn_noenv uses in
+# Chapman-Richards curve's y_max. Replacing the single global y_max constant pinn_noenv uses in
 # its physics/trajectory loss with y_max_i = global_y_max + adjustment_i.
 #
-# Design choice (deliberate, not default -- see progress_notes.md's Env-PINN discussion and
+# Design choice (deliberate, not default. See progress_notes.md's Env-PINN discussion and
 # models/common/torch_model.py::YMaxSubNetwork's own note): terrain/wind conditions ONLY y_max,
 # never the main network's inputs directly, and k/p stay global, frozen floats, never
-# plot-specific. This keeps the dissertation's actual claim clean -- environment determines the
-# growth CEILING, not the trajectory shape -- rather than diluting it into "terrain is just
+# plot-specific. This keeps the dissertation's actual claim clean. Environment determines the
+# growth CEILING, not the trajectory shape. Rather than diluting it into "terrain is just
 # another generic input mixed in with everything else", which is already what XGBoost/SHAP
 # established (models/xgb_environmental/) and isn't the novel contribution here.
 #
 # Consequence worth stating plainly: because terrain/wind ONLY reaches the model through the
 # physics/trajectory loss terms, the physics_weight/trajectory_weight choice matters MORE here
-# than it did for pinn_noenv -- at w=0, the y_max sub-network gets no gradient at all and
+# than it did for pinn_noenv. At w=0, the y_max sub-network gets no gradient at all and
 # terrain/wind would be completely unused. The no-env Stage 3 weight decision (low/zero weight
-# wins) is explicitly NOT assumed to carry over here -- this file defaults to physics_weight=
+# wins) is explicitly NOT assumed to carry over here. This file defaults to physics_weight=
 # trajectory_weight=1.0 (the untested base case, same "what base case means" convention
 # pinn_noenv.py uses), and a dedicated env_terrain physics-weight sweep is still-open work (see
 # the handover), not resolved by this file.
 #
-# Same fit-only/evaluate-only split as every other model in this repo -- this file only builds,
+# Same fit-only/evaluate-only split as every other model in this repo. This file only builds,
 # trains, and saves/loads; run_pinn_env_terrain.py (cluster) and evaluate_pinn_env_terrain.py
 # (local CPU) are the two separate scripts that actually use it.
 
@@ -38,7 +38,7 @@ import torch.nn as nn
 
 from models.common.torch_model import NoEnvNetwork, YMaxSubNetwork, chapman_richards_derivative, compute_l1_penalty
 
-# ----- Fixed hyperparameters -- identical to pinn_noenv.py's, on purpose (same reasoning: any
+# ----- Fixed hyperparameters. Identical to pinn_noenv.py's, on purpose (same reasoning: any
 # difference in results should come from the terrain-conditioned y_max, not an unrelated knob). -----
 L1_COEFFICIENT = 1e-5
 PHYSICS_WEIGHT = 1.0
@@ -53,7 +53,7 @@ GRAD_CLIP_MAX_NORM = 1.0
 VAL_LOSS_SMOOTHING_WINDOW = 5
 PRINT_EVERY_N_EPOCHS = 10
 
-# The y_max sub-network's own hidden layer size -- much smaller than the main network's 128,
+# The y_max sub-network's own hidden layer size. Much smaller than the main network's 128,
 # since it only has 5 terrain/wind inputs and one simple job (a single scalar adjustment), not
 # the main network's job of learning the whole growth trajectory shape.
 Y_MAX_SUBNETWORK_HIDDEN_SIZE = 16
@@ -61,10 +61,10 @@ Y_MAX_SUBNETWORK_HIDDEN_SIZE = 16
 
 class EnvTerrainPINN(nn.Module):
     # Bundles the two sub-networks into one module so a single state_dict/save/load covers both
-    # -- PyTorch already tracks a sub-module's parameters automatically once it's an attribute,
+    #. PyTorch already tracks a sub-module's parameters automatically once it's an attribute,
     # so this needs no special handling beyond normal nn.Module composition.
     # hidden_layer_sizes (2026-08-02) only ever resizes the MAIN network (age + no-env features
-    # -> height) -- the y_max sub-network's own capacity (Y_MAX_SUBNETWORK_HIDDEN_SIZE) is a
+    # -> height). The y_max sub-network's own capacity (Y_MAX_SUBNETWORK_HIDDEN_SIZE) is a
     # separate, not-yet-exposed hyperparameter (see experiments_to_run.txt's still-open
     # "y_max sub-network hidden_size sweep" item), deliberately not conflated with this one.
     def __init__(self, n_other_features, n_terrain_features, dropout_rate=0.0, hidden_layer_sizes=None):
@@ -78,7 +78,7 @@ class EnvTerrainPINN(nn.Module):
         )
 
     def forward(self, other_features, age):
-        # Only the main network answers an ordinary "predict height" call -- the y_max
+        # Only the main network answers an ordinary "predict height" call. The y_max
         # sub-network is only ever called directly (see compute_physics_loss/
         # compute_trajectory_loss below), never as part of this forward pass, since it isn't
         # part of the height PREDICTION itself, only the physics loss's target.
@@ -96,7 +96,7 @@ def build_model(n_other_features, n_terrain_features, device, seed, dropout_rate
 
 def compute_plot_specific_y_max(model, terrain_batch, global_y_max):
     # global_y_max is a plain Python float (the frozen cr_pooled value, same source pinn_noenv
-    # uses) -- adding a tensor adjustment to it is fine and keeps the RESULT a tensor (part of
+    # uses). Adding a tensor adjustment to it is fine and keeps the RESULT a tensor (part of
     # the autograd graph, so gradients flow back into the y_max sub-network's weights), while
     # global_y_max itself is never a tensor and so can never itself accumulate a gradient --
     # same "the process model's known constants can never be updated by training" guarantee
@@ -106,7 +106,7 @@ def compute_plot_specific_y_max(model, terrain_batch, global_y_max):
 
 
 def compute_physics_loss(model, age_batch, other_batch, terrain_batch, cr_params, scaler_age, scaler_height):
-    # Same instantaneous-derivative mechanism as pinn_noenv.py's compute_physics_loss -- the one
+    # Same instantaneous-derivative mechanism as pinn_noenv.py's compute_physics_loss. The one
     # change is the CR target uses a PER-ROW y_max (from the sub-network) instead of a single
     # global float, which chapman_richards_derivative() supports with no change needed (elementwise
     # tensor broadcasting against age_unscaled, which is the same shape).
@@ -136,7 +136,7 @@ def compute_trajectory_loss(
     model, age_earlier, other_earlier, age_later, other_later, delta_age, age_mid, terrain_pairs,
     cr_params, scaler_age, scaler_height,
 ):
-    # Same finite-difference mechanism as pinn_noenv.py -- terrain_pairs is ONE tensor per pair
+    # Same finite-difference mechanism as pinn_noenv.py. Terrain_pairs is ONE tensor per pair
     # (not separate earlier/later versions), since terrain/wind is a static per-plot property
     # that doesn't change between a pair's two survey years (see
     # models/common/torch_data.py::build_pair_terrain_tensor()).
@@ -348,7 +348,7 @@ def predict(model, age, other_features):
 
 
 def predict_y_max(model, terrain_features, global_y_max):
-    # Not used for the main height prediction (predict() above already covers that) -- exposed
+    # Not used for the main height prediction (predict() above already covers that). Exposed
     # separately so evaluate_pinn_env_terrain.py (or a future notebook) can inspect the LEARNED
     # plot-specific y_max map directly, the actual interpretable output this whole model exists
     # to produce.

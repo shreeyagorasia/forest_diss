@@ -3,7 +3,7 @@
 # Cheap pilot for the "would freeing k help Q2's target?" question (see q2_brain_dump_21_08.md,
 # section 7). Instead of building the full shrinkage/mixed-effects fix (days of work, not
 # attempted), this fits each plot's own y_max AND growth-rate parameter (p4, "k" in
-# Chapman-Richards terms) freely via per-plot non-linear least squares -- NO shrinkage toward the
+# Chapman-Richards terms) freely via per-plot non-linear least squares. NO shrinkage toward the
 # yield-class value, the cheap/crude version of the idea. p5 (the other shape parameter) stays
 # fixed at the plot's own yldc value; freeing 3 parameters from 4 survey points is not attempted.
 #
@@ -11,12 +11,12 @@
 # expensive proper fix. If XGBoost's R2 on this new (free-k, no-shrinkage) target improves a lot
 # over the current fixed-k target, that's evidence the entanglement really is costing real signal,
 # and justifies the harder shrinkage build. If it does NOT improve (or gets worse), that's useful
-# negative evidence too -- consistent with the identifiability concern (42% of plots never
+# negative evidence too. Consistent with the identifiability concern (42% of plots never
 # observed past age 40, so freely fitting 2 parameters from a still-rising curve is
 # poorly-determined for a large share of the population) actually biting in practice, not just in
 # theory.
 #
-# NOT the same as the honest future-work fix (shrinkage) -- this is the crude, no-shrinkage
+# NOT the same as the honest future-work fix (shrinkage). This is the crude, no-shrinkage
 # version, expected to be noisy for the young/short-window plots. That's the point: it's a cheap
 # way to see whether pursuing the expensive, correct version is worth it at all.
 
@@ -44,7 +44,7 @@ def chapman_richards_free_k(age, y_max, p4, p5):
 def fit_free_k_per_plot(growth_rows):
     """Per-plot non-linear least squares for (y_max, p4), p5 held fixed at the plot's own yldc
     value. Initial guess and starting point taken from the plot's own yldc curve, since that's
-    the best prior available -- not because we trust it, just to give the optimiser a sane start.
+    the best prior available. Not because we trust it, just to give the optimiser a sane start.
     Returns one row per plot: y_max_free, p4_free, converged (bool), n_fitting_points.
     """
     results = []
@@ -65,7 +65,7 @@ def fit_free_k_per_plot(growth_rows):
                 lambda a, y_max, p4: chapman_richards_free_k(a, y_max, p4, p5_fixed),
                 age, height,
                 p0=[y_max_guess, p4_guess],
-                bounds=([1.0, 1e-5], [200.0, 5.0]),  # y_max in [1,200]m, p4 positive -- generous, not tuned
+                bounds=([1.0, 1e-5], [200.0, 5.0]),  # y_max in [1,200]m, p4 positive. Generous, not tuned
                 maxfev=2000,
             )
             y_max_free, p4_free = popt
@@ -105,7 +105,7 @@ def main():
     print(f"  (compare: {converged['never_near_ceiling'].mean()*100:.1f}% of ALL converged plots never observed past age 40)")
 
     # Build the new target: Delta y_max_free = y_max_free - y_max_yldc, only for converged,
-    # non-extreme fits (a real pipeline would need to decide what to do with the rest -- this
+    # non-extreme fits (a real pipeline would need to decide what to do with the rest. This
     # pilot just drops them, disclosed here, not hidden).
     plot_static = (
         growth_rows.sort_values("LiDAR_year").groupby("identification", as_index=False).first()
@@ -120,7 +120,7 @@ def main():
     # Cheap-pilot simplification: use only the Set4 columns present bare in the raw environmental
     # parquet, dropping cohort-suffixed (tas_mean) and one-hot categorical (ceh_*) columns rather
     # than reimplementing prepare_broad_table()'s cohort/dummy resolution for this pilot. Loses 5
-    # of 19 columns -- an acceptable simplification for a fast "is this worth pursuing" signal,
+    # of 19 columns. An acceptable simplification for a fast "is this worth pursuing" signal,
     # not a headline number; disclosed here, not hidden.
     raw_columns_full = load_feature_set("RSQ3", SET_NAME)
     env = load_environmental_features()

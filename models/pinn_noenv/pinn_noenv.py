@@ -1,6 +1,6 @@
 # CR-PINN Version 1, no-environment feature set. Same architecture as the
 # DNN (models/common/torch_model.py::NoEnvNetwork), same data, but with two
-# additional physics loss terms on top of plain MSE -- see
+# additional physics loss terms on top of plain MSE. See
 # documentation/model_instructions/age_only_dnn_pinn_instructions.md.
 #
 # Term 1 (physics_loss, weight lambda_ph): the network's own instantaneous
@@ -13,15 +13,15 @@
 # own predicted height CHANGE between the two must match the CR curve's
 # derivative at the pair's mid-age. This is a finite-difference check
 # across two real measurements, not an instantaneous derivative at one
-# point -- see section 2 of the instructions doc for why these are
+# point. See section 2 of the instructions doc for why these are
 # genuinely different checks, not two versions of the same thing.
 #
 # CR's y_max/k/p are always plain Python floats (never tensors) so they can
-# never accumulate a gradient -- training only ever updates the network,
+# never accumulate a gradient. Training only ever updates the network,
 # never the process model.
 #
 # This file only knows how to build, train, and save/load the PINN. It does
-# NOT load data or evaluate on the test set -- that split is deliberate:
+# NOT load data or evaluate on the test set. That split is deliberate:
 # models/pinn_noenv/run_pinn_noenv.py (fit only, meant to run on the SLURM
 # cluster where the GPU is) and models/pinn_noenv/evaluate_pinn_noenv.py
 # (evaluate only, cheap enough to run locally on a laptop CPU) are two
@@ -39,7 +39,7 @@ from models.common.torch_model import NoEnvNetwork, chapman_richards_derivative,
 
 # ----- Fixed hyperparameters for this model -----
 # These are not swept or tuned in this project (see the instructions doc
-# for why) -- they are simple constants so every part of the code, and
+# for why). They are simple constants so every part of the code, and
 # every log file, uses the exact same numbers.
 L1_COEFFICIENT = 1e-5
 PHYSICS_WEIGHT = 1.0
@@ -51,7 +51,7 @@ BATCH_SIZE = 128
 PAIRS_BATCH_SIZE = 128
 
 # See the matching constants in models/dnn_noenv/dnn_noenv.py for why each
-# of these exists -- same reasoning, shared across both models so a
+# of these exists. Same reasoning, shared across both models so a
 # DNN-vs-PINN comparison never differs because of an unrelated training
 # knob.
 WEIGHT_DECAY = 1e-5
@@ -60,7 +60,7 @@ VAL_LOSS_SMOOTHING_WINDOW = 5
 
 # How often to PRINT progress during training (every 10 epochs, not every
 # epoch). This only affects what gets printed to the screen / the SLURM
-# .out file -- every single epoch's numbers (including the three separate
+# .out file. Every single epoch's numbers (including the three separate
 # loss terms) are still saved to training_history.csv regardless, so
 # nothing is ever lost, this just keeps the printed log readable over a
 # run of hundreds of epochs.
@@ -69,13 +69,13 @@ PRINT_EVERY_N_EPOCHS = 10
 
 def build_model(n_other_features, device, seed, dropout_rate=0.0, hidden_layer_sizes=None):
     # dropout_rate=0.0 (no dropout) is still the default, matching every
-    # pinn_noenv result reported so far -- see
+    # pinn_noenv result reported so far. See
     # models/dnn_noenv/dnn_noenv.py::build_model()'s own note (2026-08-01)
     # for why dropout, not a bigger learning rate, is the better-motivated
     # fix for the overfitting-shaped training curves seen across this whole
     # model family, this one included.
     #
-    # hidden_layer_sizes=None (2026-08-02) keeps the original 3x128 network -- see
+    # hidden_layer_sizes=None (2026-08-02) keeps the original 3x128 network. See
     # models/common/torch_model.py::NoEnvNetwork's own note and
     # models/dnn_noenv/dnn_noenv.py::build_model()'s matching note.
     torch.manual_seed(seed)
@@ -105,7 +105,7 @@ def compute_physics_loss(model, age_batch, other_batch, cr_params, scaler_age, s
     height_wrt_age = height_wrt_age_scaled * scale_factor
 
     # .detach() here: the CR target must never itself be part of the graph
-    # that autograd.grad already built above -- y_max/k/p are plain floats
+    # that autograd.grad already built above. Y_max/k/p are plain floats
     # with nothing to update, so there is nothing useful to backpropagate
     # through this branch, and detaching keeps the retained graph (needed
     # for create_graph=True) as small as possible.
@@ -121,7 +121,7 @@ def compute_trajectory_loss(
     scaler_age, scaler_height,
 ):
     # Finite-difference-consistency term, using two REAL forward passes on
-    # two real observations of the same plot -- no autograd.grad needed
+    # two real observations of the same plot. No autograd.grad needed
     # here, since this compares two ordinary predictions, not a derivative.
     predicted_earlier_scaled = model(other_earlier, age_earlier)
     predicted_later_scaled = model(other_later, age_later)
@@ -156,7 +156,7 @@ def train_one_epoch(
 
     # There are usually fewer pairs than main rows (one pair per plot vs.
     # several survey-year rows per plot), so the pairs batches are cycled
-    # to line up with every main batch -- every training step sees all
+    # to line up with every main batch. Every training step sees all
     # three loss terms, and "one epoch" still means one full pass over the
     # main per-row training data, same meaning as for the DNN.
     pair_batch_cycle = itertools.cycle(pair_batch_starts)
@@ -197,7 +197,7 @@ def train_one_epoch(
         # so one noisy batch (or one batch where the physics/trajectory
         # terms disagree sharply with the data) can never cause an
         # oversized, destabilising weight update. clip_grad_norm_ returns
-        # the norm BEFORE clipping -- logging that (not a post-clip value,
+        # the norm BEFORE clipping. Logging that (not a post-clip value,
         # which would just be min(norm, max_norm)) is what actually shows
         # whether clipping is engaging often or rarely across training.
         grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=GRAD_CLIP_MAX_NORM)
@@ -214,7 +214,7 @@ def train_one_epoch(
 
 def evaluate_on_validation_set(model, age_val, other_val, target_val):
     # Validation loss is data_loss only (plain MSE), never the physics or
-    # trajectory terms -- trajectory pairs never touch the validation year
+    # trajectory terms. Trajectory pairs never touch the validation year
     # by construction (see the leakage rule in the instructions doc), and
     # early stopping should track prediction accuracy, not physics-term
     # agreement.
@@ -226,7 +226,7 @@ def evaluate_on_validation_set(model, age_val, other_val, target_val):
 
 
 def build_optimizer(model, optimizer_name, learning_rate=LEARNING_RATE):
-    # See models/dnn_noenv/dnn_noenv.py::build_optimizer() -- identical
+    # See models/dnn_noenv/dnn_noenv.py::build_optimizer(). Identical
     # reasoning, kept in sync so a DNN-vs-PINN comparison never differs
     # because of a mismatched optimizer choice.
     if optimizer_name == "adam":
@@ -279,13 +279,13 @@ def fit(
         current_lr = optimizer.param_groups[0]["lr"]
 
         # elapsed_seconds is the time since training started, not the time
-        # for this one epoch -- lets loss be plotted against wall-clock time
+        # for this one epoch. Lets loss be plotted against wall-clock time
         # instead of epoch count, useful for comparing cluster GPU speed to
         # a local CPU sanity check.
         elapsed_seconds = time.time() - training_start_time
 
         # Smoothed val_loss: see models/dnn_noenv/dnn_noenv.py::fit() for
-        # why -- same rolling-window logic, used instead of the raw
+        # why. Same rolling-window logic, used instead of the raw
         # per-epoch val_loss for the best-model/early-stopping decision
         # below, so one noisy epoch can't be mistaken for real progress or
         # real stalling.
@@ -309,11 +309,11 @@ def fit(
         })
 
         # Has this epoch beaten every previous epoch's SMOOTHED validation
-        # loss? (Not the raw val_loss -- see above.)
+        # loss? (Not the raw val_loss. See above.)
         is_new_best = best_smoothed_val_loss is None or smoothed_val_loss < best_smoothed_val_loss
         if is_new_best:
             best_smoothed_val_loss = smoothed_val_loss
-            # .clone() makes an independent copy of the weights -- without
+            # .clone() makes an independent copy of the weights. Without
             # it, best_model_state would just keep pointing at the SAME
             # weights that keep changing every epoch.
             best_model_state = {key: value.clone() for key, value in model.state_dict().items()}
@@ -322,7 +322,7 @@ def fit(
             epochs_without_improvement = epochs_without_improvement + 1
 
         # Only PRINT every PRINT_EVERY_N_EPOCHS epochs (plus always print
-        # epoch 1) -- every epoch is still in history_rows above either
+        # epoch 1). Every epoch is still in history_rows above either
         # way. Shows all three loss terms separately so it's visible at a
         # glance whether the physics/trajectory terms are doing anything.
         should_print_this_epoch = (epoch == 1) or (epoch % PRINT_EVERY_N_EPOCHS == 0)
@@ -361,7 +361,7 @@ def predict(model, age, other_features):
 def save_checkpoints(best_model, final_model_state, n_other_features, output_dir, hidden_layer_sizes=None):
     # n_other_features is saved alongside the weights so a fresh script --
     # possibly on a different machine, evaluating a checkpoint trained on
-    # the SLURM cluster -- can rebuild the exact same
+    # the SLURM cluster. Can rebuild the exact same
     # NoEnvNetwork(n_other_features=...) architecture before calling
     # load_state_dict(). hidden_layer_sizes saved too, same reasoning as
     # models/dnn_noenv/dnn_noenv.py::save_checkpoints() (2026-08-02).
@@ -375,9 +375,9 @@ def save_checkpoints(best_model, final_model_state, n_other_features, output_dir
 def load_best_model(n_other_features, device, checkpoint_dir, hidden_layer_sizes=None):
     # The other half of save_checkpoints(): rebuilds the network
     # architecture, then loads the saved best-epoch weights into it. Used
-    # by evaluate_pinn_noenv.py, which never calls fit() at all -- it only
+    # by evaluate_pinn_noenv.py, which never calls fit() at all. It only
     # needs a trained model to make predictions with. Note this loads the
-    # PLAIN network only -- the physics/trajectory loss terms are a
+    # PLAIN network only. The physics/trajectory loss terms are a
     # TRAINING-time concept, nothing to load or reuse at evaluation time.
     model = NoEnvNetwork(n_other_features=n_other_features, hidden_layer_sizes=hidden_layer_sizes)
     model.load_state_dict(torch.load(checkpoint_dir / "best_model.pt", map_location=device))

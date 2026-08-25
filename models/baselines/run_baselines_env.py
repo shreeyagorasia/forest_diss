@@ -1,11 +1,11 @@
 # Run as: python -m models.baselines.run_baselines_env --cohort 4survey --split-type plot_level --feature-set stage2_terrain_wind
 #
-# Standalone script, deliberately separate from run_baselines.py -- added 2026-08-09 to check
+# Standalone script, deliberately separate from run_baselines.py. Added 2026-08-09 to check
 # whether linear/RF/XGBoost baselines given the SAME terrain/wind/environmental features the
 # neural models see (dnn_env_terrain, pinn_env_terrain, pinn_env_terrain_k) can match them, or
 # whether the neural models' added complexity/physics-conditioning earns its keep. Kept separate
 # from run_baselines.py so this never touches the already-established, already-cited baseline
-# numbers in that shared script -- this only ADDS a new comparison, it doesn't replace anything.
+# numbers in that shared script. This only ADDS a new comparison, it doesn't replace anything.
 #
 # Reuses run_baselines.py's own split-building logic directly (imported, not copied) so the
 # train/val/test rows are identical to the ones the plain baselines and every neural model use.
@@ -47,9 +47,9 @@ def merge_environmental_features(filtered_df, feature_columns, cohort):
               f"(using plot_environmental_features.parquet as the canonical source instead).")
         filtered_df = filtered_df.drop(columns=already_present)
 
-    # A handful of features (tas_mean, groundfrost_mean -- COHORT_SPECIFIC_COLUMNS, see
+    # A handful of features (tas_mean, groundfrost_mean. COHORT_SPECIFIC_COLUMNS, see
     # xgb_environmental/data.py) are stored per-cohort in the raw export (tas_mean_4survey /
-    # tas_mean_6survey), not as one shared column -- rename this cohort's version to the plain
+    # tas_mean_6survey), not as one shared column. Rename this cohort's version to the plain
     # name before selecting, same pattern xgb_environmental's load_plots_for_cohort() uses
     # (not reused directly here since that function also does an unrelated mean_cr_residual
     # dropna this script has no use for).
@@ -64,7 +64,7 @@ def merge_environmental_features(filtered_df, feature_columns, cohort):
     if n_missing:
         print(
             f"  Warning: {n_missing}/{n_before} rows have no environmental data for one or more "
-            f"of {feature_columns} -- dropping these rows (not imputing)."
+            f"of {feature_columns}. Dropping these rows (not imputing)."
         )
         merged = merged.dropna(subset=feature_columns)
     return merged
@@ -103,14 +103,14 @@ def run_one_model(model_name, fit_fn, predict_fn, train_df, test_df, extra_featu
 
 def load_full_rows_with_split(cohort, split_assignment):
     # build_split_for_cohort()'s own returned table is the minimal split-building table (no
-    # management columns) -- the real baselines pull the full feature set from model_table.parquet
+    # management columns). The real baselines pull the full feature set from model_table.parquet
     # separately (see run_baselines.py's load_train_rows(), which this mirrors but keeps both
     # train AND test rows, not just train).
     table = load_model_table(cohort)
     filtered_table = filter_data(table, maturity_age_min=MATURITY_AGE_MIN_DEFAULT)
     merged = filtered_table.merge(split_assignment, on=["identification", "LiDAR_year"], how="inner")
     assert len(merged) == len(filtered_table), (
-        "Row count changed after merging with the split assignment -- source tables disagree "
+        "Row count changed after merging with the split assignment. Source tables disagree "
         "on which rows survive filtering."
     )
     return merged
@@ -154,7 +154,7 @@ def main():
     parser.add_argument("--cohort", choices=["4survey", "6survey"], required=True)
     parser.add_argument(
         "--split-type", choices=["plot_level", "spatial_block_kfold"], required=True,
-        help="Only these two are supported here -- plot_level as the cheap first-pass check, "
+        help="Only these two are supported here. Plot_level as the cheap first-pass check, "
              "spatial_block_kfold to match E6_stage_sweep's own rigor level directly.",
     )
     parser.add_argument(
@@ -162,14 +162,14 @@ def main():
         choices=[
             "stage1_terrain", "stage2_terrain_wind", "stage4_all_environmental",
             # Added 2026-08-10: the new rank-aggregate, VIF-screened RQ1 tiers (see
-            # documentation/methodlogy_env_setpick.md) -- lets this script's baseline-vs-neural
+            # documentation/methodlogy_env_setpick.md). Lets this script's baseline-vs-neural
             # comparison run on the SAME feature membership as the current RQ1 DNN/PINN sweep,
-            # not just the older stage1-4 tiers. Both left in choices -- old stage-tier numbers
+            # not just the older stage1-4 tiers. Both left in choices. Old stage-tier numbers
             # already cited (TEMP_baseline_env_results_2026-08-09.tex) stay reproducible.
             "nested_set2_top10", "nested_set3_gated_terrain_wind_vif", "nested_set4_gated_all_vif",
         ],
         required=True, help="Matches E6_stage_sweep's own three tiers exactly (stage3 excluded there "
-                             "too -- identical column list to stage4), or the new nested_set* tiers "
+                             "too. Identical column list to stage4), or the new nested_set* tiers "
                              "for a controlled comparison against the current RQ1 sweep.",
     )
     parser.add_argument("--split-seed", type=int, default=SEED)

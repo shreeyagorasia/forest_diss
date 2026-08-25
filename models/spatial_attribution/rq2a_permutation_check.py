@@ -14,10 +14,10 @@
 # rq2a_xgb_check.py), that is evidence the degradation doesn't require real environmental signal at
 # all. If it shows much less degradation, that supports the current write-up's story as-is.
 #
-# Fits ONLY the permuted arm -- the real env-conditioned and no-env arms already exist from
+# Fits ONLY the permuted arm. The real env-conditioned and no-env arms already exist from
 # rq2a_xgb_check.py's own run and are reused unchanged for comparison. Reuses fit_one_arm() and
 # run_reduction_check() directly from that script, and compute_residual_reduction() from
-# rq2_residual_reduction.py -- no reimplementation of the fitting or quartile logic.
+# rq2_residual_reduction.py. No reimplementation of the fitting or quartile logic.
 #
 # Run as: python -m models.spatial_attribution.rq2a_permutation_check
 
@@ -38,7 +38,7 @@ def permute_env_columns(df, env_columns, seed):
     # One shared row-permutation applied to the whole environmental block together, not one
     # independent shuffle per column. This keeps the environmental variables' own correlation
     # structure intact (e.g. elevation and temperature still covary the way they really do in
-    # Aberfoyle) -- it only breaks which plot each environmental vector is actually attached to.
+    # Aberfoyle). It only breaks which plot each environmental vector is actually attached to.
     # An independent per-column shuffle would additionally scramble that correlation structure,
     # which is not the property this test is checking.
     rng = np.random.RandomState(seed)

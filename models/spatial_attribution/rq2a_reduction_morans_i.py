@@ -1,6 +1,6 @@
 # Purpose: does RQ2a's own residual-REDUCTION value (how much environmental conditioning helped
 # or hurt a given row, |CR error| - |model error|) cluster spatially, or is it scattered randomly
-# across Aberfoyle? This was flagged as an open question during the figure-planning pass -- a
+# across Aberfoyle? This was flagged as an open question during the figure-planning pass. A
 # spatial "help map" was explicitly NOT proposed there because no supporting spatial-clustering
 # statistic existed yet for the reduction values themselves (only for raw residuals, in RQ2b/RQ3).
 # This closes that gap using entirely existing pieces, no new fitting:
@@ -8,7 +8,7 @@
 #     per-row reduction value, already the exact function behind RQ2a's own quartile tables.
 #   - load_plot_coordinates() (models/common/geo.py) for x/y.
 #   - compute_residual_morans_i() (models/growth_curve_attribution/
-#     residual_spatial_autocorrelation_check.py) for the actual test -- the same function, same
+#     residual_spatial_autocorrelation_check.py) for the actual test. The same function, same
 #     semivariogram-informed distance-band weights, same convention already used for RQ2b's and
 #     RQ3's own residual Moran's I.
 #

@@ -1,22 +1,22 @@
 # MIGRATED 2026-08-25 from temp_results_pinn/pinn_env_terrain_fix/pinn_env_terrain_fix.py into
 # models/ so the CORRECTED forward pass has a canonical, discoverable home alongside the other
-# model families. Byte-identical to the original except for this header -- no math, no logic
+# model families. Byte-identical to the original except for this header. No math, no logic
 # changed. The original stays in place under temp_results_pinn/ (still used by ~12 diagnostic
 # job scripts there, e.g. run_pinn_fix_cluster.sh, run_pinn_mechanism_checks.py) and is the full
 # record of the bug discovery/fix investigation (see temp_results_pinn/PLAN.md).
 #
-# FIX EXPERIMENT (2026-08-20) -- copy of models/pinn_env_terrain/pinn_env_terrain.py with ONE
+# FIX EXPERIMENT (2026-08-20). Copy of models/pinn_env_terrain/pinn_env_terrain.py with ONE
 # real change: forward() now actually routes the per-plot y_max through to the prediction,
 # instead of only to the physics/trajectory losses. See temp_results_pinn/PLAN.md for the full
 # plan, the 15 documented pitfalls, and why this originally lived outside models/ instead of
 # editing the original file in place.
 #
 # Prediction becomes: H_pred_i = y_max_i * (1 - exp(-k*age_i))^p + trunk_residual_i
-# (k, p stay global frozen floats, same as the original -- only y_max is per-plot here; the k
+# (k, p stay global frozen floats, same as the original. Only y_max is per-plot here; the k
 # version is a separate file, pinn_env_terrain_k_fix.py).
 #
 # The buggy original, models/pinn_env_terrain/pinn_env_terrain.py, is intentionally left
-# untouched -- it remains the correct historical basis for interpreting any existing outputs/
+# untouched. It remains the correct historical basis for interpreting any existing outputs/
 # results produced before this fix (see outputs/pinn_env_terrain* naming).
 
 import itertools
@@ -30,7 +30,7 @@ import torch.nn as nn
 
 from models.common.torch_model import NoEnvNetwork, YMaxSubNetwork, chapman_richards_derivative, compute_l1_penalty
 
-# ----- Fixed hyperparameters -- identical to the original pinn_env_terrain.py, on purpose. Any
+# ----- Fixed hyperparameters. Identical to the original pinn_env_terrain.py, on purpose. Any
 # difference in results should come from the now-functional y_max path, not an unrelated knob. -----
 L1_COEFFICIENT = 1e-5
 PHYSICS_WEIGHT = 1.0
@@ -49,7 +49,7 @@ Y_MAX_SUBNETWORK_HIDDEN_SIZE = 16
 
 
 def chapman_richards_value(age, y_max, k, p):
-    # FIX: new function, not in the original file (Mistake #12 in PLAN.md -- need H(a) now, not
+    # FIX: new function, not in the original file (Mistake #12 in PLAN.md. Need H(a) now, not
     # just H'(a)). Mirrors chapman_richards_derivative()'s own style line-by-line on purpose:
     # same broadcasting convention (age/y_max both [batch, 1] tensors, k/p plain floats), so if
     # the derivative function's shapes are already trusted, this one's are too.
@@ -72,7 +72,7 @@ class EnvTerrainPINN(nn.Module):
             dropout_rate=dropout_rate,
         )
         # FIX: cr_params/scaler_age/scaler_height stored on the model itself, not threaded
-        # through every call site's arguments -- these are fixed constants for the whole run
+        # through every call site's arguments. These are fixed constants for the whole run
         # (same "process model constants never get a gradient" guarantee the original file
         # already relies on for cr_params elsewhere). Only terrain_features is a genuinely new
         # required argument to forward() below.
@@ -82,7 +82,7 @@ class EnvTerrainPINN(nn.Module):
 
     def forward(self, other_features, age, terrain_features):
         # FIX: this is the actual fix. Original file only ever returned
-        # self.main_network(other_features, age) -- terrain never reached the prediction, only
+        # self.main_network(other_features, age). Terrain never reached the prediction, only
         # the physics/trajectory losses (via compute_plot_specific_y_max, called separately).
         # Now: trunk output is treated as a RESIDUAL on top of the CR curve evaluated at this
         # plot's own adjusted y_max, not the whole prediction by itself.
@@ -91,7 +91,7 @@ class EnvTerrainPINN(nn.Module):
         y_max_per_row = compute_plot_specific_y_max(self, terrain_features, self.cr_params["y_max"])
 
         # Mistake #10 (PLAN.md): do NOT detach age here. The physics loss differentiates this
-        # forward() output w.r.t. age via torch.autograd.grad -- if the CR term's age input were
+        # forward() output w.r.t. age via torch.autograd.grad. If the CR term's age input were
         # a different tensor (e.g. a detached copy), that call would silently miss the CR term's
         # own contribution to the derivative and only return the residual's. Same age tensor,
         # same graph, all the way through.
@@ -359,7 +359,7 @@ def fit(
 
 
 def predict(model, age, other_features, terrain_features):
-    # FIX: needs terrain_features now -- this is the whole point of the fix, so the prediction
+    # FIX: needs terrain_features now. This is the whole point of the fix, so the prediction
     # itself can no longer be made without it.
     model.eval()
     with torch.no_grad():

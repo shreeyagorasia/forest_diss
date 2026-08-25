@@ -1,15 +1,15 @@
 # Run as: python -m models.pinn_noenv.evaluate_pinn_noenv --cohort 4survey
 #
 # EVALUATES an already-trained PINN on the held-out test split (2023). Does
-# not train anything -- just loads the checkpoint + scalers that
+# not train anything. Just loads the checkpoint + scalers that
 # run_pinn_noenv.py already saved, makes predictions on the test rows, and
 # computes accuracy metrics (MAE, RMSE, R2, Bias, etc). The physics and
-# trajectory loss terms are a TRAINING-time concept only -- there is
+# trajectory loss terms are a TRAINING-time concept only. There is
 # nothing to evaluate about them here, this is a plain forward pass.
 #
 # Deliberately cheap and CPU-friendly: this is a small network doing a
 # single forward pass over a few tens of thousands of rows, not a training
-# loop -- there is no need for a GPU or a SLURM job for this step. Meant
+# loop. There is no need for a GPU or a SLURM job for this step. Meant
 # to be run locally, after copying the trained checkpoint down from the
 # cluster. If evaluating on the cluster instead, use
 # jobs/pinn_noenv/evaluate_pinn_noenv.sh.
@@ -35,7 +35,7 @@ def run_for_cohort(
     cohort, split_type, run_name=None, split_seed=SPLIT_SEED,
     k_folds=DEFAULT_K_FOLDS, held_out_fold=0,
 ):
-    # run_name only changes where the checkpoint is READ from -- see the
+    # run_name only changes where the checkpoint is READ from. See the
     # matching note in run_pinn_noenv.py. The underlying data table to
     # evaluate on always uses the plain MODEL_NAME.
     output_model_name = run_name if run_name else MODEL_NAME
@@ -63,7 +63,7 @@ def run_for_cohort(
             architecture = json.load(f)
         n_other_features = architecture["n_other_features"]
         # .get(...): a checkpoint saved before 2026-08-02 has no "hidden_layer_sizes" key at
-        # all -- treated the same as an explicit None (the original 3x128 network).
+        # all. Treated the same as an explicit None (the original 3x128 network).
         hidden_layer_sizes = architecture.get("hidden_layer_sizes")
 
         scaler_age = joblib.load(preprocessing_dir / "scaler_age.joblib")
@@ -86,7 +86,7 @@ def run_for_cohort(
         )
 
         # ----- Make predictions and unscale them back to real metres -----
-        # Timed for a runtime-comparison chart -- see evaluate_dnn_noenv.py's identical comment.
+        # Timed for a runtime-comparison chart. See evaluate_dnn_noenv.py's identical comment.
         inference_start_time = time.time()
         predicted_height_test_scaled = predict(model, age_test, other_test)
         inference_elapsed_seconds = time.time() - inference_start_time

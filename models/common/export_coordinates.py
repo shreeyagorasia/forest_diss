@@ -22,10 +22,10 @@ OUTPUT_PATH = PROJECT_ROOT / "data" / "interim" / "plot_coordinates.csv.gz"
 
 # Every distance-based statistic downstream (Moran's I, semivariograms, the spatial-block split
 # buffer, TOPEX radius) assumes this. This is the ONE place in the whole pipeline where a real
-# CRS object still exists (the GeoPackage read below) -- once x/y are split into plain float
+# CRS object still exists (the GeoPackage read below). Once x/y are split into plain float
 # columns for the CSV, that metadata is gone for good, so this assertion is the only thing that
 # can ever actually catch a wrong CRS, not just print it and hope someone reads the log
-# (2026-07-30 fix -- this used to only print gdf.crs, never check it).
+# (2026-07-30 fix. This used to only print gdf.crs, never check it).
 EXPECTED_CRS_EPSG = 27700
 
 
@@ -35,7 +35,7 @@ def export_plot_coordinates():
     print(f"  Read {len(gdf):,} rows, CRS = {gdf.crs}")
     if gdf.crs is None or gdf.crs.to_epsg() != EXPECTED_CRS_EPSG:
         raise ValueError(
-            f"{GPKG_PATH} has CRS={gdf.crs!r}, expected EPSG:{EXPECTED_CRS_EPSG} -- refusing to "
+            f"{GPKG_PATH} has CRS={gdf.crs!r}, expected EPSG:{EXPECTED_CRS_EPSG}. Refusing to "
             "export coordinates in the wrong projection."
         )
 

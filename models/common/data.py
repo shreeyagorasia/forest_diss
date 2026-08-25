@@ -5,7 +5,7 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 # Both the Chapman-Richards and average-by-age baselines only need these columns, out of the one
-# consolidated table every model now reads (see data_processing/export_model_tables.py -- one
+# consolidated table every model now reads (see data_processing/export_model_tables.py. One
 # model_table.parquet per cohort replaced five near-duplicate per-model files 2026-07-28).
 COLUMNS_NEEDED = ["identification", "LiDAR_year", "blk", "cpmt", "Age", "yldc", "elev_percentile_95th"]
 
@@ -18,16 +18,16 @@ def load_cohort_data(cohort):
 
 
 def load_model_table(cohort):
-    # Returns every column in the one consolidated table -- different models select their own
+    # Returns every column in the one consolidated table. Different models select their own
     # feature subset from it (e.g. models/rf_baseline/rf_baseline.py's own FEATURE_COLUMNS).
     path = PROJECT_ROOT / "data" / "processed" / "current_state" / cohort / "model_table.parquet"
     return pd.read_parquet(path)
 
 
 def filter_data(df, maturity_age_min=30, reference_year=2023, yldc_min=2, yldc_max=50):
-    # maturity_age_min=30 is NOT an arbitrary round number -- it's the forester-consulted
+    # maturity_age_min=30 is NOT an arbitrary round number. It's the forester-consulted
     # cutoff (UK forestry practice switches from measuring top height to estimating Yield
-    # Class at this age; see progress_notes.md, "Age filter -- resolved 15 July 2026" for the
+    # Class at this age; see progress_notes.md, "Age filter. Resolved 15 July 2026" for the
     # full reasoning and the plot-level-vs-row-level trade-off this function implements).
     # yldc_min/yldc_max=2/50 is a plausible-range sanity bound for UK General Yield Class
     # (2026-07-30 note: not independently re-derived here, kept as the existing convention --
@@ -36,12 +36,12 @@ def filter_data(df, maturity_age_min=30, reference_year=2023, yldc_min=2, yldc_m
     # Age is now a per-PLOT gate, not a per-row threshold. Both the 4survey
     # and 6survey cohorts give every plot the exact same fixed set of survey
     # years (e.g. 2008/2012/2021/2023), so every plot has one real, measured
-    # row at reference_year -- no need to estimate "age in 2023" by adding
+    # row at reference_year. No need to estimate "age in 2023" by adding
     # (2023 - LiDAR_year) to some other row's Age.
     #
     # We look up each plot's actual Age at its reference_year survey. If that
-    # is < maturity_age_min, the WHOLE plot is dropped -- every survey year,
-    # not just the young one -- because a plot that fails the "will this be a
+    # is < maturity_age_min, the WHOLE plot is dropped. Every survey year,
+    # not just the young one. Because a plot that fails the "will this be a
     # mature stand by 2023" test shouldn't contribute rows at any age. If it
     # passes, every one of its survey years is kept, including early rows
     # where the plot's raw Age is well under maturity_age_min (e.g. Age=8 in
@@ -55,7 +55,7 @@ def filter_data(df, maturity_age_min=30, reference_year=2023, yldc_min=2, yldc_m
     if missing_reference:
         print(
             f"  WARNING: {len(missing_reference):,} plots have no {reference_year} survey row "
-            "and cannot be checked against the maturity filter -- they are dropped."
+            "and cannot be checked against the maturity filter. They are dropped."
         )
 
     mature_plot_ids = set(reference_rows.loc[reference_rows["Age"] >= maturity_age_min, "identification"])
@@ -68,7 +68,7 @@ def filter_data(df, maturity_age_min=30, reference_year=2023, yldc_min=2, yldc_m
     )
 
     # yldc (Yield Class) is a per-stand classification, assigned once, not re-measured each
-    # survey -- empirically confirmed constant within every plot across its survey years in
+    # survey. Empirically confirmed constant within every plot across its survey years in
     # both cohorts (2026-07-30, checked directly, zero exceptions). This filter is written to
     # match, whole-plot like the Age filter just above: if this assumption were ever violated
     # by a future data refresh, a ROW-level filter here could silently strip just the

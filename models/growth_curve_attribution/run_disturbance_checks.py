@@ -1,6 +1,6 @@
 # Run as: python -m models.growth_curve_attribution.run_disturbance_checks
 #
-# Prints the two disturbance checks agreed before touching any external data source -- see
+# Prints the two disturbance checks agreed before touching any external data source. See
 # models/growth_curve_attribution/disturbance_checks.py's own header for what each one tests.
 
 from models.growth_curve_attribution.disturbance_checks import (

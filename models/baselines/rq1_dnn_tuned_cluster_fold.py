@@ -3,15 +3,15 @@
 # batch_size all overridable and recorded in the summary JSON.
 #
 # History: originally written to test the Aug-19 single-split sweep's winning config
-# (learning_rate=0.001, weight_decay=1e-3 -- see
+# (learning_rate=0.001, weight_decay=1e-3. See
 # TEMP_results/TEMP_rq1_dnn_hyperparameter_search_2026-08-19.tex). Result (2026-08-22, proper
-# 5-fold CV, batch_size=256): flat-to-worse (0.6426 vs the trusted 0.6550) -- the Aug-19 win was
+# 5-fold CV, batch_size=256): flat-to-worse (0.6426 vs the trusted 0.6550). The Aug-19 win was
 # a batch_size=512 artefact, not a real improvement at Table 3's actual batch_size=256. See
 # temp_results_pinn/RESULTS_TABLE.md #3 for the full writeup. Defaults below reverted to the
 # project's original values accordingly; use --output-dir-name to point at a fresh directory
 # whenever hyperparameters differ from a previous run.
 #
-# Isolation: writes to a new, separate output directory (outputs/<output-dir-name>/) -- CANNOT
+# Isolation: writes to a new, separate output directory (outputs/<output-dir-name>/). CANNOT
 # collide with or overwrite the existing Table 3 DNN results
 # (outputs/spatial_block_kfold/rq1_dnn_env_terrain_..._seed42/).
 #
@@ -55,10 +55,10 @@ def unscale(scaled_tensor, scaler):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fold-index", type=int, required=True, help="0-4, which spatial_block_kfold fold to hold out as test.")
-    parser.add_argument("--learning-rate", type=float, default=0.0001, help="Project default. The Aug-19 'tuned' value (0.001) was tested 2026-08-22 and found to be flat-to-worse at batch_size=256 -- see temp_results_pinn/RESULTS_TABLE.md #3.")
-    parser.add_argument("--weight-decay", type=float, default=1e-5, help="Project default. The Aug-19 'tuned' value (1e-3) was tested 2026-08-22 and found to be flat-to-worse at batch_size=256 -- see temp_results_pinn/RESULTS_TABLE.md #3.")
+    parser.add_argument("--learning-rate", type=float, default=0.0001, help="Project default. The Aug-19 'tuned' value (0.001) was tested 2026-08-22 and found to be flat-to-worse at batch_size=256. See temp_results_pinn/RESULTS_TABLE.md #3.")
+    parser.add_argument("--weight-decay", type=float, default=1e-5, help="Project default. The Aug-19 'tuned' value (1e-3) was tested 2026-08-22 and found to be flat-to-worse at batch_size=256. See temp_results_pinn/RESULTS_TABLE.md #3.")
     parser.add_argument("--batch-size", type=int, default=256, help="DNN's module default (changed from 512 on 2026-08-22 to match PINN/PINN-k's default for a fair comparison).")
-    parser.add_argument("--output-dir-name", default="CORRECTED_2026-08-22_dnn_tuned_cluster", help="Which subdirectory of outputs/ to write to -- change this whenever batch_size/learning_rate/weight_decay differ from a previous run, so results never collide.")
+    parser.add_argument("--output-dir-name", default="CORRECTED_2026-08-22_dnn_tuned_cluster", help="Which subdirectory of outputs/ to write to. Change this whenever batch_size/learning_rate/weight_decay differ from a previous run, so results never collide.")
     parser.add_argument("--cohort", default="4survey")
     parser.add_argument("--split-type", default="spatial_block_kfold")
     parser.add_argument("--n-folds", type=int, default=5)
@@ -74,7 +74,7 @@ def main():
     fold_dir.mkdir(parents=True, exist_ok=True)
     summary_path = fold_dir / "dnn_tuned_summary.json"
     if summary_path.exists():
-        print(f"{summary_path} already exists -- delete it first to redo this fold. Exiting without retraining.")
+        print(f"{summary_path} already exists. Delete it first to redo this fold. Exiting without retraining.")
         return
 
     device = select_device()
@@ -112,7 +112,7 @@ def main():
     n_other_features = other_train.shape[1]
 
     # weight_decay is a module-level constant inside dnn_env_terrain.py's build_optimizer, not a
-    # fit() kwarg -- same monkeypatch pattern already used and validated by the Aug-19 sweep
+    # fit() kwarg. Same monkeypatch pattern already used and validated by the Aug-19 sweep
     # script (models/baselines/rq1_dnn_hyperparameter_search.py), restored after training.
     original_weight_decay = dnn_module.WEIGHT_DECAY
     dnn_module.WEIGHT_DECAY = args.weight_decay

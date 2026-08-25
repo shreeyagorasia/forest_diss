@@ -2,15 +2,15 @@
 #
 # Same check as rq1_dnn_hyperparameter_search.py, applied to PINN and PINN_k: their training
 # hyperparameters (learning_rate=0.0001, weight_decay=1e-5) are the exact same fixed constants as
-# the DNN's, never swept -- only architecture SIZE was swept for these two models
+# the DNN's, never swept. Only architecture SIZE was swept for these two models
 # (TEMP_rq1_architecture_sweep_results_2026-08-13.tex, a null result). If the DNN's own gap to
 # XGBoost was mostly a training-hyperparameter artefact (confirmed,
 # TEMP_rq1_dnn_hyperparameter_search_2026-08-19.tex: 86% of the gap closed), the same may be true
 # for PINN/PINN_k's own gap to the DNN and to XGBoost.
 #
-# Grid: same as the DNN check -- learning_rate in {0.0001 default, 0.0003, 0.001} x weight_decay
+# Grid: same as the DNN check. Learning_rate in {0.0001 default, 0.0003, 0.001} x weight_decay
 # in {1e-5 default, 1e-4, 1e-3} = 9 configs, single 4survey spatial_block split, physics_weight=
-# trajectory_weight=1.0 (the standard, already-reported main-sweep config -- NOT the w=0
+# trajectory_weight=1.0 (the standard, already-reported main-sweep config. NOT the w=0
 # no-physics-loss ablation, a different, already-answered question). Selected on validation R2
 # only, same convention as every other hyperparameter search this session.
 
@@ -49,7 +49,7 @@ LEARNING_RATES = [0.0001, 0.0003, 0.001]
 WEIGHT_DECAYS = [1e-5, 1e-4, 1e-3]
 
 # Reference points: default-hyperparameter test R2 for each model, single spatial_block split,
-# 4survey (from the existing kfold-pooled numbers' single-split analogues -- recomputed fresh
+# 4survey (from the existing kfold-pooled numbers' single-split analogues. Recomputed fresh
 # below instead of assumed, since no single-split PINN/PINN_k number for THIS exact split existed
 # yet before this check).
 MODELS = {

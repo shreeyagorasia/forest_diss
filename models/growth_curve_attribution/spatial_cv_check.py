@@ -1,14 +1,14 @@
-# Purpose: the fix the bootstrap CI check (bootstrap_ci_check.py) pointed at -- a single
+# Purpose: the fix the bootstrap CI check (bootstrap_ci_check.py) pointed at. A single
 # spatial_block_split only ever evaluates on a small slice of the forest's compartments (39 of
 # 232 for 4survey, 7 of 47 for 6survey), which is WHY the confidence interval on the plot-level
 # attribution R2 was wide enough to include zero. Rotating which compartments are held out across
 # many folds, so every compartment eventually gets evaluated on once, uses the WHOLE population
-# instead of one ~17% slice of it -- a direct, cheap precision fix that doesn't touch the model at
+# instead of one ~17% slice of it. A direct, cheap precision fix that doesn't touch the model at
 # all (matching the LLM Council's advice: the ceiling is a precision/signal problem, not a model-
 # capacity problem, so build a better EVALUATION, not a fancier model).
 #
 # Each fold reuses the exact same fit/predict/buffer logic as the single-split check
-# (scale_comparison_check.py) -- same features, same models, same 60m leakage buffer -- just
+# (scale_comparison_check.py). Same features, same models, same 60m leakage buffer. Just
 # repeated K times with a different held-out slice of compartments each time.
 
 import numpy as np
@@ -29,7 +29,7 @@ from models.growth_curve_attribution.scale_comparison_check import TARGET, build
 from models.xgb_environmental.xgb_environmental import fit_with_columns as xgb_fit
 from models.xgb_environmental.xgb_environmental import predict_with_columns as xgb_predict
 
-# assign_spatial_folds() now lives in models/common/splits.py (2026-08-04) -- lifted from here so
+# assign_spatial_folds() now lives in models/common/splits.py (2026-08-04). Lifted from here so
 # the DNN/PINN k-fold work can share the exact same fold-assignment algorithm instead of a second
 # copy that could drift apart from this one. Imported above, not redefined.
 
@@ -40,11 +40,11 @@ def run_spatial_cv(
     collect_fold_models=False,
 ):
     # Returns one row per (plot, fold-it-was-held-out-in) with both models' out-of-fold
-    # predictions -- every plot appears exactly once, always predicted by a model that never saw
+    # predictions. Every plot appears exactly once, always predicted by a model that never saw
     # its own compartment during training. Pooling these across all K folds afterwards gives an
     # R2 computed over the WHOLE population, not one ~17% slice of it.
     #
-    # collect_fold_models=False by default -- every one of this function's ~10 existing callers
+    # collect_fold_models=False by default. Every one of this function's ~10 existing callers
     # unpacks its return as a fixed 2-tuple, so the default return shape can never change. Set
     # True (e.g. for RQ3's attribution use, where the fitted models' coefficients/SHAP values are
     # the actual point of the run, not just pooled R2) to get a 3rd return value: a list of the
@@ -60,7 +60,7 @@ def run_spatial_cv(
     for held_out_fold in range(k):
         val_fold = (held_out_fold + 1) % k
         # apply_spatial_buffer()'s own default only protects against "train" plots sitting near
-        # "val"/"test" plots (see models/common/geo.py::find_train_plots_near_holdout) -- "test"
+        # "val"/"test" plots (see models/common/geo.py::find_train_plots_near_holdout). "test"
         # is reused here as the held-out label for exactly that reason, not because this is
         # actually a test split in the train/val/test sense elsewhere in this project.
         raw_labels = np.where(
@@ -84,7 +84,7 @@ def run_spatial_cv(
 
         held_out["fold"] = held_out_fold
         held_out["n_train"] = len(train)
-        # x/y added here (2026-08-10) -- already sitting on held_out (came from table, which
+        # x/y added here (2026-08-10). Already sitting on held_out (came from table, which
         # coordinates was built from) so this is a free column addition, not a new join. Every
         # existing caller unpacks a 2-tuple and simply ignores these extra columns; nothing that
         # only ever asked for identification/cpmt/fold/target/predictions breaks.
@@ -93,7 +93,7 @@ def run_spatial_cv(
         )
         if collect_fold_models:
             # held_out_features captured here (identification + the raw feature columns, BEFORE
-            # the elastic_net_predicted/xgboost_predicted columns above) -- SHAP needs the actual
+            # the elastic_net_predicted/xgboost_predicted columns above). SHAP needs the actual
             # feature values a fold's model was scored against, not just its predictions. Cheap:
             # held_out already has every column at this point, this is a column selection, not a
             # new computation or join.
@@ -116,12 +116,12 @@ def compute_r2(actual, predicted):
 
 def summarize_spatial_cv(out_of_fold_predictions, predicted_col, target_col=TARGET):
     # Pooled R2: every plot's out-of-fold prediction, all folds concatenated, ONE R2 computed
-    # over the whole population -- the headline number, since it uses every compartment.
+    # over the whole population. The headline number, since it uses every compartment.
     pooled_r2 = compute_r2(out_of_fold_predictions[target_col].to_numpy(), out_of_fold_predictions[predicted_col].to_numpy())
 
     # Per-fold R2: how much the estimate would have varied if only ONE fold's worth of
     # compartments had been used as the held-out set (i.e. what the old single-split check was
-    # actually doing) -- shown alongside the pooled number so the precision gain is visible
+    # actually doing). Shown alongside the pooled number so the precision gain is visible
     # directly, not just asserted.
     per_fold = out_of_fold_predictions.groupby("fold").apply(
         lambda rows: compute_r2(rows[target_col].to_numpy(), rows[predicted_col].to_numpy()), include_groups=False

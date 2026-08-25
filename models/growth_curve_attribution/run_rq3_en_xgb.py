@@ -1,17 +1,17 @@
 # Run as: python -m models.growth_curve_attribution.run_rq3_en_xgb --cohort 4survey --set-name nested_set2_top10
 #
 # RQ3's Elastic Net + XGBoost driver for the new rank-aggregate environmental-feature methodology
-# -- calls broad_environmental_check.py's run_columns() (the new raw-column-list sibling of
+#. Calls broad_environmental_check.py's run_columns() (the new raw-column-list sibling of
 # run_scope(), see that file) with a Set loaded from documentation/env_feature_sets_manifest.csv,
 # instead of a named SCOPE_GROUPS entry. run_columns() already runs the full 5-fold spatial CV
-# internally and returns pooled results in one call -- unlike DNN/PINN, there's no "one job per
+# internally and returns pooled results in one call. Unlike DNN/PINN, there's no "one job per
 # fold" here, one job per (cohort, set_name) already IS the pooled 5-fold number.
 #
 # UPDATED 2026-08-10 (documentation/methodlogy_env_setpick.md): RQ3's Sets are now VIF-screened
-# too (Set2 with skip-and-backfill, Set3/4/5 with iterative reduction, threshold 5.0) -- this
+# too (Set2 with skip-and-backfill, Set3/4/5 with iterative reduction, threshold 5.0). This
 # reverses the earlier "deliberately NOT VIF-screened" decision recorded in
 # documentation/experiment_log.md's 2026-08-10 entry. That entry's caveat is now STALE, not
-# current guidance -- RQ3's Elastic Net coefficients from `nested_set{2,3,4,5}_..._vif` no longer
+# current guidance. RQ3's Elastic Net coefficients from `nested_set{2,3,4,5}_..._vif` no longer
 # need the "read direction cautiously, not VIF-screened" hedge in the write-up. Reference-level
 # dropping was also added for RQ3's three one-hot categoricals (one level per category dropped
 # before screening) to fix a real `VIF = inf` structural-singularity bug the old, un-VIF'd sets
@@ -33,7 +33,7 @@ MODEL_NAME = "rq3_en_xgb"
 
 def save_fold_attribution(fold_models, output_dir):
     # Both models are cheap enough (seconds to fit) that keeping their attribution numbers around
-    # per fold costs nothing -- this is the "which variable matters" table the RQ3 chapter
+    # per fold costs nothing. This is the "which variable matters" table the RQ3 chapter
     # section actually needs, matching what RQ2b's fit step already saves for Elastic Net
     # (see elastic_net_coefficients.csv there) and what GNNWR gets for free from its own
     # geographically-weighted architecture (per-row local coefficients baked into result_data).
@@ -46,9 +46,9 @@ def save_fold_attribution(fold_models, output_dir):
         en_rows.append(pd.DataFrame({"fold": fold, "feature": coefficients.index, "coefficient": coefficients.values}))
 
         # XGBoost's feature_importances_ (gain-based) is already computed as a byproduct of
-        # fitting -- no extra pass over the data needed, so there's no cost reason to leave it
+        # fitting. No extra pass over the data needed, so there's no cost reason to leave it
         # unsaved. Per-row SHAP values would need the held-out X matrix, which run_spatial_cv()
-        # doesn't return -- left for later if a per-row/local attribution map turns out to be
+        # doesn't return. Left for later if a per-row/local attribution map turns out to be
         # wanted, since that's a bigger change than this cheap fix.
         xgb_model = fold_entry["xgboost_model"]
         importances = pd.Series(xgb_model.feature_importances_, index=xgb_model.feature_names_in_)
@@ -77,7 +77,7 @@ def run_one_set(cohort, set_name, k_folds=5, seed=42):
         output_dir = model_output_dir(run_name, cohort, split_type="spatial_block_kfold")
         output_dir.mkdir(parents=True, exist_ok=True)
         results_df.to_csv(output_dir / "metrics.csv", index=False)
-        # predictions now carries x/y per row too (spatial_cv_check.py, 2026-08-10) -- no extra
+        # predictions now carries x/y per row too (spatial_cv_check.py, 2026-08-10). No extra
         # join needed here for a later map/outlier-zoom plot.
         predictions.to_csv(output_dir / "predictions.csv", index=False)
         with open(output_dir / "fold_counts.json", "w") as f:

@@ -1,9 +1,9 @@
-# One JSON file per run EVENT (not one file per run) -- every run writes a
+# One JSON file per run EVENT (not one file per run). Every run writes a
 # "started" entry the moment it begins, then a "success" or "failed" entry
 # when it finishes, both sharing the same attempt_id so they can be paired
 # up later. If a job is killed from OUTSIDE Python (SLURM OOM-kill, walltime
 # exceeded, node failure), no Python exception ever fires, so the "success"/
-# "failed" entry never gets written -- but the "started" entry survives, and
+# "failed" entry never gets written. But the "started" entry survives, and
 # its absence of a matching completion entry is itself the signal that
 # something died externally. Check the run's SLURM job_id (recorded below)
 # against the matching SLURM stderr file under logs/<job family>/ for what
@@ -11,11 +11,11 @@
 #
 # Deliberately a plain, append-only folder of small files (not a database
 # or one growing log file), so a run that's no longer useful can just be
-# deleted by hand -- the filename itself says whether a run started,
+# deleted by hand. The filename itself says whether a run started,
 # succeeded, failed, or was a quick test, so you don't need to open every
 # file to decide what to keep.
 #
-# This module only writes log entries. It never reads or filters them -- a
+# This module only writes log entries. It never reads or filters them. A
 # separate script can do that later once there's enough history to be worth
 # filtering (see documentation/experiment_log.md).
 
@@ -38,7 +38,7 @@ RUN_LOGS_DIR = PROJECT_ROOT / "outputs" / "run_logs"
 # run_dnn_noenv.py / run_pinn_noenv.py); a quick local sanity check uses
 # something like --max-epochs 5. This threshold sits comfortably between
 # the two, so a run is auto-tagged as a test run purely from how many
-# epochs it was configured for -- no separate --test-run flag to remember
+# epochs it was configured for. No separate --test-run flag to remember
 # to pass. Only meaningful for the two PyTorch models; the four sklearn/
 # scipy baselines have no concept of epochs and are never test runs.
 TEST_RUN_MAX_EPOCHS_THRESHOLD = 50
@@ -72,7 +72,7 @@ def make_attempt_id(model_name, cohort, split_type, run_phase):
 
 def get_slurm_info():
     # None for every field when not running under SLURM (e.g. a local Mac
-    # run) -- these are only set inside an actual SLURM job. job_id is what
+    # run). These are only set inside an actual SLURM job. job_id is what
     # lets a run_logs/*.json entry be matched back to its raw
     # logs/<job family>/<job_name>_<job_id>.out / .err files, which have
     # the full print output this summary doesn't include.
@@ -118,7 +118,7 @@ def get_versions():
 
 def format_error(exception):
     # Kept as a small dict (not just str(exception)) so the log is useful
-    # even without re-running -- the traceback usually shows exactly which
+    # even without re-running. The traceback usually shows exactly which
     # line failed.
     return {
         "type": type(exception).__name__,
@@ -129,7 +129,7 @@ def format_error(exception):
 
 def write_started_marker(model_name, cohort, split_type, run_phase, is_test_run, device, hyperparameters):
     # Call this FIRST, before any real work happens, and hang onto the
-    # attempt_id it returns -- pass that same attempt_id into write_run_log()
+    # attempt_id it returns. Pass that same attempt_id into write_run_log()
     # at the end so the two entries can be paired up.
     attempt_id = make_attempt_id(model_name, cohort, split_type, run_phase)
     _write_log_entry(
@@ -149,7 +149,7 @@ def write_run_log(
     output_dir, runtime_seconds, n_rows_fit=None,
 ):
     # Call this once a run finishes, whether it succeeded or failed.
-    # run_phase is "fit", "evaluate", or "fit_and_evaluate" -- the four
+    # run_phase is "fit", "evaluate", or "fit_and_evaluate". The four
     # sklearn baselines fit and evaluate in two separate script runs
     # (run_baselines.py then evaluate_baselines.py), so those get one log
     # entry per phase; the DNN/PINN scripts do both in one call, so they

@@ -1,13 +1,13 @@
 # Purpose: RQ3 item 1 found that CanopyCover dominates EN/XGBoost attribution on 4survey but is
-# outranked on 6survey (by cpmt_compactness_ratio or windward_topex, SHAP-only comparison -- EN/
+# outranked on 6survey (by cpmt_compactness_ratio or windward_topex, SHAP-only comparison. EN/
 # XGBoost coefficient tables were never computed for 6survey at all, too noisy per that item's own
 # source file). GNNWR was flagged as "not covered by this item at all" even though its own per-plot
-# local coefficients (coef_* columns) already exist in every saved test_predictions.csv -- this
+# local coefficients (coef_* columns) already exist in every saved test_predictions.csv. This
 # script closes that gap: does GNNWR's own CanopyCover coefficient also lose its #1 rank on 6survey?
 #
-# No new fitting -- reads the already-saved test_predictions.csv from every GNNWR fold (Set2/3/4,
+# No new fitting. Reads the already-saved test_predictions.csv from every GNNWR fold (Set2/3/4,
 # both cohorts, seed 42, the same fits already cited elsewhere in RQ3), pools all 5 folds, and
-# ranks each set's coef_* columns by mean absolute value -- the standard way to collapse a
+# ranks each set's coef_* columns by mean absolute value. The standard way to collapse a
 # per-plot local coefficient into a single importance-like number, directly analogous to EN's
 # |coefficient| or XGBoost's mean |SHAP| already used for this same comparison elsewhere in RQ3.
 #

@@ -1,11 +1,11 @@
 # Purpose: is GNNWR's R2 advantage over Elastic Net/XGBoost (found in the full-population 5-fold
 # CV, see documentation/experiment_log.md's 2026-08-06 entry) actually statistically supported, or
-# just two point estimates that happen to differ? Two complementary checks, on purpose -- they
+# just two point estimates that happen to differ? Two complementary checks, on purpose. They
 # have very different statistical power and it is worth seeing both:
 #
 # 1. A PAIRED comparison across the 5 folds themselves (Wilcoxon signed-rank + paired t-test on
 #    the 5 fold-level R2 values). Cheap, and directly answers "does GNNWR win in most folds, not
-#    just on average" -- but n=5 has very little power (Wilcoxon's smallest possible p-value at
+#    just on average". But n=5 has very little power (Wilcoxon's smallest possible p-value at
 #    n=5 is 0.0625, so this test can basically never reach conventional significance even with a
 #    real, large effect). Reported anyway for the fold-by-fold pattern, not for its p-value.
 #
@@ -16,8 +16,8 @@
 #    CIs eyeballed for overlap, which is a weaker, less correct comparison). This has real power
 #    (231 compartments to resample from, not 5 folds), and is the more trustworthy of the two.
 #
-# Both checks reuse already-saved data -- EN/XGBoost via a fresh (but cheap, local) run of
-# run_spatial_cv, GNNWR via the 5 already-saved fold-level test-prediction CSVs -- no cluster
+# Both checks reuse already-saved data. EN/XGBoost via a fresh (but cheap, local) run of
+# run_spatial_cv, GNNWR via the 5 already-saved fold-level test-prediction CSVs. No cluster
 # resubmission needed.
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def compute_r2(actual, predicted):
-    # Same formula as models/common/metrics.py -- kept local so this file has no other
+    # Same formula as models/common/metrics.py. Kept local so this file has no other
     # dependency for the one calculation the bootstrap loop calls thousands of times.
     sum_squared_error = np.sum((actual - predicted) ** 2)
     sum_squared_total = np.sum((actual - actual.mean()) ** 2)
@@ -51,7 +51,7 @@ def compute_r2(actual, predicted):
 
 def load_en_xgb_out_of_fold(cohort: str, scope: str):
     """Fresh, local, cheap rerun of the SAME 5-fold spatial CV EN/XGBoost's headline numbers
-    come from -- returns per-plot out-of-fold predictions (identification, cpmt, fold, target,
+    come from. Returns per-plot out-of-fold predictions (identification, cpmt, fold, target,
     elastic_net_predicted, xgboost_predicted) for every plot, plus the per-fold R2 summary."""
     feature_columns = columns_for_groups(SCOPES[scope])
     plot_table = build_plot_level_table(cohort, apply_disturbance_cleaning=True)
@@ -62,7 +62,7 @@ def load_en_xgb_out_of_fold(cohort: str, scope: str):
 
 
 def load_gnnwr_pooled(cohort: str, scope: str):
-    """Loads and concatenates the 5 already-saved full-population fold CSVs -- every plot
+    """Loads and concatenates the 5 already-saved full-population fold CSVs. Every plot
     appears exactly once, in the fold where it was held out, so this is directly comparable to
     EN/XGBoost's own out-of-fold predictions."""
     paths = sorted(glob.glob(str(GNNWR_OUTPUT_DIR / f"gnnwr_{scope}_{cohort}_reffull_fold*_test_predictions.csv")))
@@ -111,7 +111,7 @@ def paired_fold_test(en_xgb_oof: pd.DataFrame, gnnwr_pooled: pd.DataFrame):
 
 def cluster_bootstrap_paired_difference(combined: pd.DataFrame, col_a: str, col_b: str, n_bootstrap: int = 2000, seed: int = 0):
     """Check 2: bootstrap the R2 DIFFERENCE (col_a's R2 minus col_b's R2), resampling whole
-    compartments with replacement -- same compartment draw used for BOTH models each iteration,
+    compartments with replacement. Same compartment draw used for BOTH models each iteration,
     so this is a genuine paired bootstrap on the difference, not two separate CIs."""
     target_values = combined[TARGET].to_numpy()
     pred_a = combined[col_a].to_numpy()
@@ -158,7 +158,7 @@ def run_check(cohort: str, scope: str, n_bootstrap: int = 2000, seed: int = 0):
 
     print(f"  EN/XGBoost out-of-fold plots: {len(en_xgb_oof):,}  GNNWR pooled plots: {len(gnnwr_pooled):,}")
 
-    print("\n  --- Check 1: paired fold-level test (n=5, low power -- read the fold pattern, not the p-value) ---")
+    print("\n  --- Check 1: paired fold-level test (n=5, low power. Read the fold pattern, not the p-value) ---")
     fold_results = paired_fold_test(en_xgb_oof, gnnwr_pooled)
     for label, result in fold_results.items():
         print(f"  {label}: GNNWR wins {result['n_folds_gnnwr_wins']}/5 folds, mean diff={result['mean_diff']:.4f}, "

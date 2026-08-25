@@ -2,7 +2,7 @@
 #
 # EVALUATES an already-trained dnn_env_terrain checkpoint on the held-out test split. Mirrors
 # evaluate_dnn_noenv.py's structure exactly (cheap, CPU-friendly, the one place the test split
-# is touched) -- see that file's own comments for the full reasoning, not repeated here.
+# is touched). See that file's own comments for the full reasoning, not repeated here.
 
 import argparse
 import json
@@ -47,7 +47,7 @@ def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED, k_f
             architecture = json.load(f)
         n_other_features = architecture["n_other_features"]
         # .get(...): a checkpoint saved before 2026-08-02 has no "hidden_layer_sizes" key at
-        # all -- treated the same as an explicit None (the original 3x128 network).
+        # all. Treated the same as an explicit None (the original 3x128 network).
         hidden_layer_sizes = architecture.get("hidden_layer_sizes")
 
         scaler_age = joblib.load(preprocessing_dir / "scaler_age.joblib")
@@ -57,7 +57,7 @@ def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED, k_f
         with open(preprocessing_dir / "encoded_column_names.json") as f:
             encoded_column_names = json.load(f)
         # Read back the EXACT feature_columns list run_dnn_env_terrain.py saved when this
-        # checkpoint was trained -- not re-derived from --feature-set here, so evaluation always
+        # checkpoint was trained. Not re-derived from --feature-set here, so evaluation always
         # matches training even if ENV_TERRAIN_FEATURE_SETS's definitions change later.
         with open(preprocessing_dir / "terrain_feature_columns.json") as f:
             feature_columns = json.load(f)
@@ -75,7 +75,7 @@ def run_for_cohort(cohort, split_type, run_name=None, split_seed=SPLIT_SEED, k_f
         terrain_test = build_terrain_tensor(test_df, scaler_terrain, feature_columns, device)
         other_test = torch.cat([other_test_noenv, terrain_test], dim=1)
 
-        # Timed for a runtime-comparison chart -- see evaluate_dnn_noenv.py's identical comment.
+        # Timed for a runtime-comparison chart. See evaluate_dnn_noenv.py's identical comment.
         inference_start_time = time.time()
         predicted_height_test_scaled = predict(model, age_test, other_test)
         inference_elapsed_seconds = time.time() - inference_start_time
